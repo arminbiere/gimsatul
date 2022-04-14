@@ -546,16 +546,16 @@ update (struct solver * solver, struct variable * node, double new_score)
 static struct solver *
 new_solver (int size)
 {
-  struct solver * res = callocate (1, sizeof *solver);
-  res->size = size;
-  res->values = callocate (2u * size + 1, 1);
-  res->values += size;
-  res->variables = callocate (size + 1u, sizeof *res->variables);
-  res->trail.begin = res->trail.end = res->trail.propagate =
-    allocate (size * sizeof *res->trail.begin);
+  struct solver * solver = callocate (1, sizeof *solver);
+  solver->size = size;
+  solver->values = callocate (2u * size + 1, 1);
+  solver->values += size;
+  solver->variables = callocate (size + 1u, sizeof *solver->variables);
+  solver->trail.begin = solver->trail.end = solver->trail.propagate =
+    allocate (size * sizeof *solver->trail.begin);
   for (all_variables (v))
     push (solver, v);
-  return res;
+  return solver;
 }
 
 static void
