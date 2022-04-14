@@ -162,7 +162,7 @@ message (const char * fmt, ...)
 static bool witness = true, binary = true;
 
 static void
-parse_command_line_options (int argc, char ** argv)
+parse_options (int argc, char ** argv)
 {
   for (int i = 1; i != argc; i++)
     {
@@ -184,21 +184,6 @@ parse_command_line_options (int argc, char ** argv)
 	{
 	  if (!strcmp (arg, "-"))
 	    {
-	      dimacs.path = "<stdin>";
-	      dimacs.file = stdin;
-	    }
-	  else if (!(dimacs.file = fopen (arg, "r")))
-	    die ("can not open and read from '%s'", arg);
-	  else
-	    {
-	      dimacs.path = arg;
-	      dimacs.close = true;
-	    }
-	}
-      else
-	{
-	  if (!strcmp (arg, "-"))
-	    {
 	      proof.path = "<stdout>";
 	      proof.file = stdout;
 	      binary = false;
@@ -209,6 +194,21 @@ parse_command_line_options (int argc, char ** argv)
 	    {
 	      proof.path = arg;
 	      proof.close = true;
+	    }
+	}
+      else
+	{
+	  if (!strcmp (arg, "-"))
+	    {
+	      dimacs.path = "<stdin>";
+	      dimacs.file = stdin;
+	    }
+	  else if (!(dimacs.file = fopen (arg, "r")))
+	    die ("can not open and read from '%s'", arg);
+	  else
+	    {
+	      dimacs.path = arg;
+	      dimacs.close = true;
 	    }
 	}
     }
@@ -453,7 +453,7 @@ int
 main (int argc, char ** argv)
 {
   start_time = wall_clock_time ();
-  parse_command_line_options (argc, argv);
+  parse_options (argc, argv);
   print_banner ();
   parse_dimacs_file ();
   init_signal_handler ();
