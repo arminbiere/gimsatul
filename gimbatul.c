@@ -11,8 +11,8 @@ static const char * usage =
 "-n    do not print satisfying assignments\n"
 "-a    use ASCII proof format\n"
 "\n"
-"and '<dimacs>' is the path to the input DIMACS file ('<stdin>' if missing)\n"
-"and '<proof>' the path to the output 'DRAT' proof file.\n"
+"and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
+"and '<proof>' the path to the output proof file in 'DRAT' format.\n"
 ;
 
 // *INDENT-ON*
