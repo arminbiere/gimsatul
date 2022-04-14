@@ -150,11 +150,6 @@ struct reason
 
 struct variable;
 
-struct link
-{
-  double score;
-  struct variable * child, * prev, * next;
-};
 
 struct variable
 {
@@ -166,8 +161,9 @@ struct variable
   bool poison;
   bool minimize;
   struct reason reason;
-  struct link link[2];
   struct watches watches[2];
+  struct variable * child, * prev, * next;
+  double score;
 };
 
 struct limits
@@ -197,8 +193,8 @@ struct solver
   int unassigned;
   int level;
   signed char * values;
-  double increment[2];
-  struct variable * root[2];
+  double increment;
+  struct variable * root;
   struct trail trail;
   struct variable * variables;
   struct literals clause;
@@ -430,6 +426,141 @@ reallocate (void * ptr, size_t bytes)
 
 /*------------------------------------------------------------------------*/
 
+static bool
+contains (struct solver * solver, struct variable * node)
+{
+  return solver->root == node || node->prev;
+}
+
+static struct variable *
+merge (struct variable * a, struct variable * b)
+{
+  if (!a)
+    return b;
+  if (!b)
+    return a;
+  assert (a != b);
+  struct variable * parent, *child;
+  if (b->score > a->score)
+    parent = b, child = a;
+  else
+    parent = a, child = b;
+  struct variable * parent_child = parent->child;
+  child->next = parent_child;
+  if (parent_child)
+    parent_child->prev = child;
+  child->prev = parent;
+  parent->child = child;
+  parent->prev = parent->next = 0;
+
+  return parent;
+}
+
+static void
+push (struct solver * solver, struct variable * node)
+{
+  assert (!contains (solver, node));
+  node->child = 0;
+  solver->root = merge (solver->root, node);
+  assert (contains (solver, node));
+}
+
+#if 0
+
+static struct variable *
+collapse (struct variable * node)
+{
+  if (!node)
+    return 0;
+
+  struct variable * next = node, * tail = 0;
+
+  do
+    {
+      struct variable * a = next;
+      assert (a);
+      struct variable * b = a->next;
+      if (b)
+        {
+          next = b->next;
+          struct variable * tmp = merge (a, b);
+          assert (tmp);
+          tmp->prev = tail;
+          tail = tmp;
+        }
+      else
+        {
+          a->prev = tail;
+          tail = a;
+          break;
+        }
+    }
+  while (next);
+
+  struct variable * res = 0;
+  while (tail)
+    {
+      struct variable * prev = tail->prev;
+      res = merge (res, tail);
+      tail = prev;
+    }
+
+  return res;
+}
+
+static void
+dequeue (struct variable * node)
+{
+  assert (node);
+  struct variable * prev = node->prev;
+  struct variable * next = node->next;
+  assert (prev);
+  node->prev = 0;
+  if (prev->child == node)
+    prev->child = next;
+  else
+    prev->next = next;
+  if (next)
+    next->prev = prev;
+}
+
+static void
+pop (struct solver * solver, struct variable * node)
+{
+  struct variable * root = solver->root;
+  struct variable * child = node->child;
+  if (root == node)
+    solver->root = collapse (child);
+  else
+    {
+      dequeue (node);
+      struct variable * collapsed = collapse (child);
+      solver->root = merge (root, collapsed);
+    }
+  assert (!contains (solver, node));
+}
+
+static void
+update (struct solver * solver, struct variable * node, double new_score)
+{
+  double old_score = node->score;
+  assert (old_score <= new_score);
+  if (old_score == new_score)
+    return;
+  node->score = new_score;
+  struct variable * root = solver->root;
+  if (root == node)
+    return;
+  if (!node->prev)
+    return;
+  dequeue (node);
+  solver->root = merge (root, node);
+}
+
+#endif
+
+/*------------------------------------------------------------------------*/
+
 static struct solver *
 new_solver (int size)
 {
@@ -440,6 +571,8 @@ new_solver (int size)
   res->variables = zero_allocate (size + 1u, sizeof *res->variables);
   res->trail.begin = res->trail.end = res->trail.propagate =
     allocate (size * sizeof *res->trail.begin);
+  for (all_variables (v))
+    push (solver, v);
   return res;
 }
 
