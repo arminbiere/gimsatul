@@ -110,7 +110,7 @@ struct literals
 
 struct trail
 {
-  int * begin, * end;
+  int * begin, * end, * propagate;
 };
 
 struct clause
@@ -200,7 +200,6 @@ struct solver
   double increment[2];
   struct variable * root[2];
   struct trail trail;
-  int * propagate;
   struct variable * variables;
   struct literals clause;
   struct literals marked;
@@ -402,8 +401,6 @@ print_banner (void)
 
 /*------------------------------------------------------------------------*/
 
-#if 0
-
 static void *
 allocate (size_t bytes)
 {
@@ -412,8 +409,6 @@ allocate (size_t bytes)
     fatal_error ("out-of-memory allocating %zu bytes", bytes);
   return res;
 }
-
-#endif
 
 static void *
 zero_allocate (size_t num, size_t bytes)
@@ -440,6 +435,11 @@ new_solver (int size)
 {
   struct solver * res = zero_allocate (1, sizeof *solver);
   res->size = size;
+  res->values = zero_allocate (2u * size + 1u, 1);
+  res->values += size;
+  res->variables = zero_allocate (size + 1u, sizeof *res->variables);
+  res->trail.begin = res->trail.end = res->trail.propagate =
+    allocate (size * sizeof *res->trail.begin);
   return res;
 }
 
@@ -453,11 +453,11 @@ delete_solver (struct solver * solver)
   RELEASE (solver->marked);
   RELEASE (solver->trail);
   solver->values -= solver->size;
+  free (solver->values);
   for (all_variables (v))
     for (unsigned i = 0; i != 2; i++)
       RELEASE (v->watches[i]);
   free (solver->variables);
-  free (solver->values);
   free (solver);
 }
 
