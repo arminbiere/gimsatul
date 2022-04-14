@@ -37,6 +37,45 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
+#define SIZE(STACK) ((STACK).end - (STACK).begin)
+
+#define EMPTY(STACK) ((STACK).end == (STACK).begin)
+
+#define FULL(STACK) ((STACK).end - (STACK).allocated)
+
+#define CAPACITY(STACK) ((STACK).allocated - (STACK).begin)
+
+#define RELEASE(STACK) \
+do { \
+  free ((STACK).begin); \
+  memset (&(STACK), 0, sizeof (STACK)); \
+} while (0)
+
+#define ENLARGE(STACK) \
+do { \
+  size_t OLD_SIZE = SIZE (STACK); \
+  size_t OLD_CAPACITY = CAPACITY (STACK); \
+  size_t NEW_CAPACITY = OLD_CAPACITY ? 2*OLD_CAPACITY : 1; \
+  size_t NEW_BYTES = NEW_CAPACITY * sizeof *(STACK).begin; \
+  (STACK).begin = reallocate ((STACK).begin, NEW_BYTES); \
+  (STACK).end = (STACK).begin + OLD_SIZE; \
+  (STACK).allocated = (STACK).begin + NEW_CAPACITY; \
+} while (0)
+
+#define PUSH(STACK,ELEM) \
+do { \
+  if (FULL (STACK)) \
+    ENLARGE (STACK); \
+  *(STACK).end++ = (ELEM); \
+} while (0)
+
+#define ALL(TYPE,ELEM) \
+  TYPE * P_ ## ELEM, * END_ ## ELEM, ELEM; \
+  (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
+  ++P_ ## ELEM
+
+/*------------------------------------------------------------------------*/
+
 struct file
 {
   const char * path;
@@ -44,6 +83,109 @@ struct file
   bool close;
   size_t lines;
 };
+
+struct literals
+{
+  unsigned * begin, * end, * allocated;
+};
+
+struct trail
+{
+  unsigned * begin, * end;
+};
+
+struct clause
+{
+  bool active;
+  bool garbage;
+  bool redundant;
+  bool used;
+  unsigned glue;
+  unsigned size;
+  unsigned literals[];
+};
+
+struct clauses
+{
+  struct clause ** begin, ** end, ** allocated;
+};
+
+struct watch
+{
+  unsigned blocking;
+  struct clause * clause;
+};
+
+struct watches
+{
+  struct watch * begin, * end, * allocated;
+};
+
+union reason
+{
+  unsigned literal;
+  struct clause * reason;
+};
+
+struct variable;
+
+struct link
+{
+  double score;
+  struct variable * child, * prev, * next;
+};
+
+struct variable
+{
+  signed char value;
+  signed char phase;
+  unsigned level;
+  size_t stamp;
+  bool binary;
+  union reason reason;
+  struct link link[2];
+  struct watches watches[2];
+};
+
+struct limits
+{
+  size_t mode;
+  size_t reduce;
+  size_t restart;
+};
+
+struct intervals
+{
+  size_t mode;
+};
+
+struct statistics
+{
+  size_t switches;
+  size_t reductions;
+  size_t restarts;
+};
+
+struct solver
+{
+  bool stable;
+  unsigned size;
+  unsigned unassigned;
+  unsigned level;
+  size_t stamp;
+  double increment[2];
+  struct variable * root[2];
+  struct trail trail;
+  unsigned * propagate;
+  struct variable * variables;
+  struct literals clause;
+  struct clauses clauses;
+  struct limits limits;
+  struct intervals intervals;
+  struct statistics statistics;
+};
+
+/*------------------------------------------------------------------------*/
 
 static struct file dimacs, proof;
 
@@ -225,6 +367,35 @@ print_banner (void)
 {
   message ("Gimbatul SAT Solver");
   message ("Copyright (c) 2022 Armin Biere University of Freiburg");
+}
+
+/*------------------------------------------------------------------------*/
+
+static void *
+allocate (size_t bytes)
+{
+  void * res = malloc (bytes);
+  if (bytes && !res)
+    fatal_error ("out-of-memory allocating %zu bytes", bytes);
+  return res;
+}
+
+static void *
+zero_allocate (size_t num, size_t bytes)
+{
+  void * res = calloc (num, bytes);
+  if (num && bytes && !res)
+    fatal_error ("out-of-memory allocating %zu*%zu bytes", num, bytes);
+  return res;
+}
+
+static void *
+reallocate (void * ptr, size_t bytes)
+{
+  void * res = realloc (ptr, bytes);
+  if (bytes && !res)
+    fatal_error ("out-of-memory reallocating %zu bytes", bytes);
+  return res;
 }
 
 /*------------------------------------------------------------------------*/
