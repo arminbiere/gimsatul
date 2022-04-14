@@ -20,8 +20,11 @@ static const char * usage =
 /*------------------------------------------------------------------------*/
 
 #include <assert.h>
+#include <ctype.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -45,6 +48,9 @@ struct file
 static struct file dimacs, proof;
 
 static double start_time;
+
+static volatile bool caught_signal;
+static volatile bool catching_signals;
 
 /*------------------------------------------------------------------------*/
 
@@ -221,13 +227,72 @@ print_banner (void)
   message ("Copyright (c) 2022 Armin Biere University of Freiburg");
 }
 
+/*------------------------------------------------------------------------*/
+
 static int
 next_char (void)
 {
   int res = getc (dimacs.file);
+  if (res == '\r')
+    {
+      res = getc (dimacs.file);
+      if (res != '\n')
+	return EOF;
+    }
   if (res == '\n')
     dimacs.lines++;
   return res;
+}
+
+static bool
+parse_int (int * res_ptr)
+{
+  int ch = next_char ();
+  int sign = 1;
+  if (ch == '-')
+    {
+      sign = -1;
+      if (!isdigit (ch) || ch == '0')
+	return false;
+    }
+  else if (!isdigit (ch))
+    return false;
+  unsigned tmp = ch - '0';
+  while (isdigit (ch = next_char ()))
+    {
+      if (!tmp && ch == '0')
+	return false;
+      if (UINT_MAX / 10 < tmp)
+	return false;
+      tmp *= 10;
+      unsigned digit = ch - '0';
+      if (UINT_MAX - digit < tmp)
+	return false;
+      tmp += digit;
+    }
+  if (ch == EOF)
+    return false;
+  int res;
+  if (sign > 0)
+    {
+      if (tmp > 0x1fffffffu)
+        return false;
+      res = tmp;
+    }
+  else
+    {
+      assert (sign < 0);
+      if (tmp > 0x20000000u)
+	return false;
+      if (tmp == 0x20000000u)
+	res = INT_MIN;
+      else
+	res = -tmp;
+    }
+  if (ungetc (ch, dimacs.file) == EOF)
+    return false;
+  *res_ptr = res;
+  return true;
 }
 
 static void
@@ -241,18 +306,37 @@ parse_dimacs_file ()
 	  parse_error ("unexpected end-of-file in header comment");
     }
   if (ch != 'p')
-    parser_error ("expected 'c' or 'p'");
-  unsigned variables, clauses;
+    parse_error ("expected 'c' or 'p'");
+  int variables, expected;
   if (next_char () != ' ' ||
       next_char () != 'c' ||
       next_char () != 'n' ||
       next_char () != 'f' ||
       next_char () != ' ' ||
-      !parse_int (&variables, 
+      !parse_int (&variables) ||
+      variables < 0 ||
+      next_char () != ' ' ||
+      !parse_int (&expected) ||
+      expected < 0)
+INVALID_HEADER:
+    parse_error ("invalid 'p cnf ...' header line");
+  while ((ch = next_char ()) != '\n')
+    if (ch != ' ' && ch != '\t')
+      goto INVALID_HEADER;
+  for (;;)
+    {
+      ch = next_char ();
+      if (ch == ' ' || ch == '\t' || ch != '\n')
+	continue;
+    }
+  message ("parsed 'p cnf %d %d' DIMACS file '%s'",
+           variables, expected, dimacs.path);
   assert (dimacs.file);
   if (dimacs.close)
     fclose (dimacs.file);
 }
+
+/*------------------------------------------------------------------------*/
 
 static void
 close_proof (void)
@@ -265,6 +349,70 @@ close_proof (void)
            proof.path, proof.lines);
 }
 
+/*------------------------------------------------------------------------*/
+
+#define SIGNALS \
+SIGNAL(SIGABRT) \
+SIGNAL(SIGBUS) \
+SIGNAL(SIGINT) \
+SIGNAL(SIGSEGV) \
+SIGNAL(SIGTERM)
+
+// *INDENT-OFF*
+
+// Saved previous signal handlers.
+
+#define SIGNAL(SIG) \
+static void (*saved_ ## SIG ## _handler)(int);
+SIGNALS
+#undef SIGNAL
+
+static void
+reset_signal_handler (void)
+{
+  if (!catching_signals)
+    return;
+  catching_signals = false;
+#define SIGNAL(SIG) \
+  signal (SIG, saved_ ## SIG ## _handler);
+  SIGNALS
+#undef SIGNAL
+}
+
+static void
+catch_signal (int sig)
+{
+  if (caught_signal)
+    return;
+  caught_signal = sig;
+  const char *name = "SIGNUNKNOWN";
+#define SIGNAL(SIG) \
+  if (sig == SIG) name = #SIG;
+  SIGNALS
+#undef SIGNAL
+  char buffer[80];
+  sprintf (buffer,
+	   "c\nc caught signal %d (%s)\nc\n", sig, name);
+  ssize_t bytes = strlen (buffer);
+  if (write (1, buffer, bytes) != bytes)
+    exit (0);
+  reset_signal_handler ();
+}
+
+static void
+init_signal_handler (void)
+{
+  assert (!catching_signals);
+#define SIGNAL(SIG) \
+  saved_ ## SIG ##_handler = signal (SIG, catch_signal);
+  SIGNALS
+#undef SIGNAL
+  catching_signals = true;
+}
+
+/*------------------------------------------------------------------------*/
+
+
 static void
 print_statistics (void)
 {
@@ -276,15 +424,19 @@ print_statistics (void)
   message ("%-30s%.2f MB", "maximum-resident-set-size:", m);
 }
 
+/*------------------------------------------------------------------------*/
+
 int
 main (int argc, char ** argv)
 {
   start_time = wall_clock_time ();
   parse_command_line_options (argc, argv);
   print_banner ();
+  init_signal_handler ();
   parse_dimacs_file ();
   int res = 0;
   close_proof ();
+  reset_signal_handler ();
   print_statistics ();
   message ("exit %d", res);
   return res;
