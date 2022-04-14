@@ -161,6 +161,8 @@ struct intervals
 
 struct statistics
 {
+  size_t conflicts;
+  size_t decisions;
   size_t switches;
   size_t reductions;
   size_t restarts;
@@ -193,6 +195,8 @@ static double start_time;
 
 static volatile bool caught_signal;
 static volatile bool catching_signals;
+
+static struct solver * solver;
 
 /*------------------------------------------------------------------------*/
 
@@ -614,6 +618,11 @@ init_signal_handler (void)
 
 /*------------------------------------------------------------------------*/
 
+static double
+average (double a, double b)
+{
+  return b ? a / b : 0;
+}
 
 static void
 print_statistics (void)
@@ -621,9 +630,14 @@ print_statistics (void)
   double p = process_time ();
   double w = wall_clock_time () - start_time;
   double m = maximum_resident_set_size () / (double) (1<<20);
-  message ("%-30s%.2f sec", "process-time:", p);
-  message ("%-30s%.2f sec", "wall-clock-time:", w);
-  message ("%-30s%.2f MB", "maximum-resident-set-size:", m);
+  struct statistics * s = &solver->statistics;
+  message ("%-14s %19zu %12.2f per sec", "conflicts:", s->conflicts,
+           average (s->conflicts, w));
+  message ("%-14s %19zu %12.2f per sec", "decisions:", s->decisions,
+           average (s->decisions, w));
+  message ("%-30s %16.2f sec", "process-time:", p);
+  message ("%-30s %16.2f sec", "wall-clock-time:", w);
+  message ("%-30s %16.2f MB", "maximum-resident-set-size:", m);
 }
 
 /*------------------------------------------------------------------------*/
@@ -635,11 +649,13 @@ main (int argc, char ** argv)
   parse_options (argc, argv);
   print_banner ();
   parse_dimacs_file ();
+  solver = zero_allocate (1, sizeof *solver);
   init_signal_handler ();
   int res = 0;
   close_proof ();
   reset_signal_handler ();
   print_statistics ();
+  free (solver);
   message ("exit %d", res);
   return res;
 }
