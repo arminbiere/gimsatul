@@ -559,6 +559,7 @@ INVALID_HEADER:
   if (ch != '\n')
     goto INVALID_HEADER;
   solver = new_solver (variables);
+  message ("initialized solver of %d variables", variables);
   int lit = 0, parsed = 0;
   for (;;)
     {
