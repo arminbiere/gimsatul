@@ -39,11 +39,11 @@ static const char * usage =
 
 #define SIZE(STACK) ((STACK).end - (STACK).begin)
 
+#define CAPACITY(STACK) ((STACK).allocated - (STACK).begin)
+
 #define EMPTY(STACK) ((STACK).end == (STACK).begin)
 
-#define FULL(STACK) ((STACK).end - (STACK).allocated)
-
-#define CAPACITY(STACK) ((STACK).allocated - (STACK).begin)
+#define FULL(STACK) ((STACK).end == (STACK).allocated)
 
 #define RELEASE(STACK) \
 do { \
@@ -69,10 +69,29 @@ do { \
   *(STACK).end++ = (ELEM); \
 } while (0)
 
-#define ALL(TYPE,ELEM) \
-  TYPE * P_ ## ELEM, * END_ ## ELEM, ELEM; \
+#define CLEAR(STACK) \
+do { \
+  (STACK).end = (STACK).begin; \
+} while (0)
+
+#define TOP(STACK) \
+  (assert (!EMPTY (STACK)), (STACK).end[-1])
+
+#define POP(STACK) \
+  (assert (!EMPTY (STACK)), *--(STACK).end)
+
+#define ALL(TYPE,ELEM,STACK) \
+  TYPE * P_ ## ELEM = (STACK).begin, * END_ ## ELEM = (STACK).end, ELEM; \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
+
+#define all_clauses(CLAUSE) \
+  ALL (reference, CLAUSE, solver->clauses)
+
+#define all_variables(VAR) \
+  struct variable * VAR = solver->variables + 1, \
+                  * END_ ## VAR = VAR + solver->size; \
+  (VAR != END_ ## VAR); ++ VAR
 
 /*------------------------------------------------------------------------*/
 
@@ -86,12 +105,12 @@ struct file
 
 struct literals
 {
-  unsigned * begin, * end, * allocated;
+  int * begin, * end, * allocated;
 };
 
 struct trail
 {
-  unsigned * begin, * end;
+  int * begin, * end;
 };
 
 struct clause
@@ -100,10 +119,12 @@ struct clause
   bool garbage;
   bool redundant;
   bool used;
-  unsigned glue;
-  unsigned size;
-  unsigned literals[];
+  int glue;
+  int size;
+  int literals[];
 };
+
+typedef struct clause * reference;
 
 struct clauses
 {
@@ -112,7 +133,7 @@ struct clauses
 
 struct watch
 {
-  unsigned blocking;
+  int blocking;
   struct clause * clause;
 };
 
@@ -121,10 +142,10 @@ struct watches
   struct watch * begin, * end, * allocated;
 };
 
-union reason
+struct reason
 {
-  unsigned literal;
-  struct clause * reason;
+  int literal;
+  struct clause * clause;
 };
 
 struct variable;
@@ -137,12 +158,14 @@ struct link
 
 struct variable
 {
-  signed char value;
+  int level;
   signed char phase;
-  unsigned level;
-  size_t stamp;
-  bool binary;
-  union reason reason;
+  signed char value;
+  signed char mark;
+  bool seen;
+  bool poison;
+  bool minimize;
+  struct reason reason;
   struct link link[2];
   struct watches watches[2];
 };
@@ -162,7 +185,6 @@ struct intervals
 struct statistics
 {
   size_t conflicts;
-  size_t decisions;
   size_t switches;
   size_t reductions;
   size_t restarts;
@@ -171,16 +193,17 @@ struct statistics
 struct solver
 {
   bool stable;
-  unsigned size;
-  unsigned unassigned;
-  unsigned level;
-  size_t stamp;
+  int size;
+  int unassigned;
+  int level;
+  signed char * values;
   double increment[2];
   struct variable * root[2];
   struct trail trail;
-  unsigned * propagate;
+  int * propagate;
   struct variable * variables;
   struct literals clause;
+  struct literals marked;
   struct clauses clauses;
   struct limits limits;
   struct intervals intervals;
@@ -230,6 +253,8 @@ maximum_resident_set_size (void)
   return ((size_t) u.ru_maxrss) << 10;
 }
 
+#if 0
+
 static size_t
 current_resident_set_size (void)
 {
@@ -243,6 +268,8 @@ current_resident_set_size (void)
   fclose (file);
   return scanned == 2 ? rss * sysconf (_SC_PAGESIZE) : 0;
 }
+
+#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -375,6 +402,8 @@ print_banner (void)
 
 /*------------------------------------------------------------------------*/
 
+#if 0
+
 static void *
 allocate (size_t bytes)
 {
@@ -383,6 +412,8 @@ allocate (size_t bytes)
     fatal_error ("out-of-memory allocating %zu bytes", bytes);
   return res;
 }
+
+#endif
 
 static void *
 zero_allocate (size_t num, size_t bytes)
@@ -400,6 +431,34 @@ reallocate (void * ptr, size_t bytes)
   if (bytes && !res)
     fatal_error ("out-of-memory reallocating %zu bytes", bytes);
   return res;
+}
+
+/*------------------------------------------------------------------------*/
+
+static struct solver *
+new_solver (int size)
+{
+  struct solver * res = zero_allocate (1, sizeof *solver);
+  res->size = size;
+  return res;
+}
+
+static void
+delete_solver (struct solver * solver)
+{
+  for (all_clauses (c))
+    free (c);
+  RELEASE (solver->clauses);
+  RELEASE (solver->clause);
+  RELEASE (solver->marked);
+  RELEASE (solver->trail);
+  solver->values -= solver->size;
+  for (all_variables (v))
+    for (unsigned i = 0; i != 2; i++)
+      RELEASE (v->watches[i]);
+  free (solver->variables);
+  free (solver->values);
+  free (solver);
 }
 
 /*------------------------------------------------------------------------*/
@@ -499,6 +558,7 @@ INVALID_HEADER:
     ch = next_char ();
   if (ch != '\n')
     goto INVALID_HEADER;
+  solver = new_solver (variables);
   int lit = 0, parsed = 0;
   for (;;)
     {
@@ -527,12 +587,19 @@ SKIP_BODY_COMMENT:
 	parse_error ("invalid literal %d", lit);
       if (parsed == expected)
 	parse_error ("too many clauses");
-      if (!lit)
-	parsed++;
+      if (ch != 'c' && ch != ' ' && ch != '\t' && ch != '\n')
+	parse_error ("invalid character after '%d'", lit);
+      if (lit)
+	{
+	  PUSH (solver->clause, lit);
+	}
+      else
+	{
+	  parsed++;
+	  CLEAR (solver->clause);
+	}
       if (ch == 'c')
 	goto SKIP_BODY_COMMENT;
-      if (ch != ' ' && ch != '\t' && ch != '\n')
-	parse_error ("invalid character after '%d'", lit);
     }
   message ("parsed 'p cnf %d %d' DIMACS file '%s'",
            variables, expected, dimacs.path);
@@ -633,8 +700,10 @@ print_statistics (void)
   struct statistics * s = &solver->statistics;
   message ("%-14s %19zu %12.2f per sec", "conflicts:", s->conflicts,
            average (s->conflicts, w));
-  message ("%-14s %19zu %12.2f per sec", "decisions:", s->decisions,
-           average (s->decisions, w));
+  message ("%-14s %19zu %12.2f conflict interval", "reductions:",
+           s->reductions, average (s->reductions, s->conflicts));
+  message ("%-14s %19zu %12.2f conflict interval", "restarts:",
+           s->restarts, average (s->restarts, s->conflicts));
   message ("%-30s %16.2f sec", "process-time:", p);
   message ("%-30s %16.2f sec", "wall-clock-time:", w);
   message ("%-30s %16.2f MB", "maximum-resident-set-size:", m);
@@ -649,13 +718,12 @@ main (int argc, char ** argv)
   parse_options (argc, argv);
   print_banner ();
   parse_dimacs_file ();
-  solver = zero_allocate (1, sizeof *solver);
   init_signal_handler ();
   int res = 0;
   close_proof ();
   reset_signal_handler ();
   print_statistics ();
-  free (solver);
+  delete_solver (solver);
   message ("exit %d", res);
   return res;
 }
