@@ -245,9 +245,9 @@ next_char (void)
 }
 
 static bool
-parse_int (int * res_ptr)
+parse_int (int * res_ptr, int prev, int * next)
 {
-  int ch = next_char ();
+  int ch = prev == EOF ? next_char () : prev;
   int sign = 1;
   if (ch == '-')
     {
@@ -289,8 +289,7 @@ parse_int (int * res_ptr)
       else
 	res = -tmp;
     }
-  if (ungetc (ch, dimacs.file) == EOF)
-    return false;
+  *next = ch;
   *res_ptr = res;
   return true;
 }
@@ -313,21 +312,44 @@ parse_dimacs_file ()
       next_char () != 'n' ||
       next_char () != 'f' ||
       next_char () != ' ' ||
-      !parse_int (&variables) ||
+      !parse_int (&variables, EOF, &ch) ||
       variables < 0 ||
-      next_char () != ' ' ||
-      !parse_int (&expected) ||
+      ch != ' ' ||
+      !parse_int (&expected, EOF, &ch) ||
       expected < 0)
 INVALID_HEADER:
     parse_error ("invalid 'p cnf ...' header line");
-  while ((ch = next_char ()) != '\n')
-    if (ch != ' ' && ch != '\t')
-      goto INVALID_HEADER;
+  while (ch == ' ' || ch == '\t')
+    ch = next_char ();
+  if (ch != '\n')
+    goto INVALID_HEADER;
+  int lit = 0, parsed = 0;
   for (;;)
     {
       ch = next_char ();
+      if (ch == EOF)
+	{
+	  if (lit)
+	    parse_error ("terminating zero missing");
+	  if (parsed != expected)
+	    parse_error ("clause missing");
+	  break;
+	}
       if (ch == ' ' || ch == '\t' || ch != '\n')
 	continue;
+      if (ch == 'c')
+	{
+	  while ((ch = next_char ()) != '\n')
+	    if (ch == EOF)
+	      parse_error ("invalid end-of-file in body comment");
+	  continue;
+	}
+      if (!parse_int (&lit, ch, &ch))
+	parse_error ("failed to parse literal");
+      if (lit == INT_MIN ||abs (lit) > variables)
+	parse_error ("invalid literal %d", lit);
+      if (!lit)
+	parsed++;
     }
   message ("parsed 'p cnf %d %d' DIMACS file '%s'",
            variables, expected, dimacs.path);
@@ -397,6 +419,7 @@ catch_signal (int sig)
   if (write (1, buffer, bytes) != bytes)
     exit (0);
   reset_signal_handler ();
+  raise (sig);
 }
 
 static void
@@ -432,8 +455,8 @@ main (int argc, char ** argv)
   start_time = wall_clock_time ();
   parse_command_line_options (argc, argv);
   print_banner ();
-  init_signal_handler ();
   parse_dimacs_file ();
+  init_signal_handler ();
   int res = 0;
   close_proof ();
   reset_signal_handler ();

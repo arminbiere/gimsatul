@@ -1,5 +1,5 @@
 COMPILE=@COMPILE@
-gimbatul: gimbatul.c
+gimbatul: gimbatul.c makefile
 	$(COMPILE) -o $@ $<
 clean:
 	rm -f gimbatul *~
