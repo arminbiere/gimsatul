@@ -1,0 +1,4 @@
+gimbatul: gimbatul.c
+	$(COMPILE) -o $@ $<
+clean:
+	rm -f gimbatul *~
