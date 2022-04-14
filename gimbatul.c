@@ -252,6 +252,7 @@ parse_int (int * res_ptr, int prev, int * next)
   if (ch == '-')
     {
       sign = -1;
+      ch = next_char ();
       if (!isdigit (ch) || ch == '0')
 	return false;
     }
@@ -335,10 +336,11 @@ INVALID_HEADER:
 	    parse_error ("clause missing");
 	  break;
 	}
-      if (ch == ' ' || ch == '\t' || ch != '\n')
+      if (ch == ' ' || ch == '\t' || ch == '\n')
 	continue;
       if (ch == 'c')
 	{
+SKIP_BODY_COMMENT:
 	  while ((ch = next_char ()) != '\n')
 	    if (ch == EOF)
 	      parse_error ("invalid end-of-file in body comment");
@@ -348,8 +350,14 @@ INVALID_HEADER:
 	parse_error ("failed to parse literal");
       if (lit == INT_MIN ||abs (lit) > variables)
 	parse_error ("invalid literal %d", lit);
+      if (parsed == expected)
+	parse_error ("too many clauses");
       if (!lit)
 	parsed++;
+      if (ch == 'c')
+	goto SKIP_BODY_COMMENT;
+      if (ch != ' ' && ch != '\t' && ch != '\n')
+	parse_error ("invalid character after '%d'", lit);
     }
   message ("parsed 'p cnf %d %d' DIMACS file '%s'",
            variables, expected, dimacs.path);
