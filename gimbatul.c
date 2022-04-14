@@ -44,7 +44,7 @@ struct file
 
 static struct file dimacs, proof;
 
-static double start;
+static double start_time;
 
 /*------------------------------------------------------------------------*/
 
@@ -221,9 +221,34 @@ print_banner (void)
   message ("Copyright (c) 2022 Armin Biere University of Freiburg");
 }
 
+static int
+next_char (void)
+{
+  int res = getc (dimacs.file);
+  if (res == '\n')
+    dimacs.lines++;
+  return res;
+}
+
 static void
 parse_dimacs_file ()
 {
+  int ch;
+  while ((ch = next_char ()) == 'c')
+    {
+      while ((ch = next_char ()) != '\n')
+	if (ch == EOF)
+	  parse_error ("unexpected end-of-file in header comment");
+    }
+  if (ch != 'p')
+    parser_error ("expected 'c' or 'p'");
+  unsigned variables, clauses;
+  if (next_char () != ' ' ||
+      next_char () != 'c' ||
+      next_char () != 'n' ||
+      next_char () != 'f' ||
+      next_char () != ' ' ||
+      !parse_int (&variables, 
   assert (dimacs.file);
   if (dimacs.close)
     fclose (dimacs.file);
@@ -244,7 +269,7 @@ static void
 print_statistics (void)
 {
   double p = process_time ();
-  double w = wall_clock_time () - start;
+  double w = wall_clock_time () - start_time;
   double m = maximum_resident_set_size () / (double) (1<<20);
   message ("%-30s%.2f sec", "process-time:", p);
   message ("%-30s%.2f sec", "wall-clock-time:", w);
@@ -254,7 +279,7 @@ print_statistics (void)
 int
 main (int argc, char ** argv)
 {
-  start = wall_clock_time ();
+  start_time = wall_clock_time ();
   parse_command_line_options (argc, argv);
   print_banner ();
   parse_dimacs_file ();
