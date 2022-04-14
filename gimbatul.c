@@ -3,16 +3,14 @@
 // *INDENT-OFF*
 
 static const char * usage =
-"usage: gimbatul [ <option> ... ] [ <dimacs> [ <proof> ] ]\n"
+"usage: gimbatul [ <option> ... ] [ <dimacs> ]\n"
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
 "-h    print this command line option summary\n"
 "-n    do not print satisfying assignments\n"
-"-a    use ASCII proof format\n"
 "\n"
-"and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
-"and '<proof>' the path to the output proof file in 'DRAT' format.\n"
+"and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing).\n"
 ;
 
 // *INDENT-ON*
@@ -207,7 +205,7 @@ struct solver
 
 /*------------------------------------------------------------------------*/
 
-static struct file dimacs, proof;
+static struct file dimacs;
 
 static double start_time;
 
@@ -346,24 +344,8 @@ parse_options (int argc, char ** argv)
 	binary = false;
       else if (arg[0] == '-' && arg[1])
 	die ("invalid option '%s' (try '-h')", arg);
-      else if (proof.file)
-	die ("too many file arguments");
       else if (dimacs.file)
-	{
-	  if (!strcmp (arg, "-"))
-	    {
-	      proof.path = "<stdout>";
-	      proof.file = stdout;
-	      binary = false;
-	    }
-	  else if (!(proof.file = fopen (arg, "w")))
-	    die ("can not open and write to '%s'", arg);
-	  else
-	    {
-	      proof.path = arg;
-	      proof.close = true;
-	    }
-	}
+	die ("too many arguments");
       else
 	{
 	  if (!strcmp (arg, "-"))
@@ -407,7 +389,7 @@ allocate (size_t bytes)
 }
 
 static void *
-zero_allocate (size_t num, size_t bytes)
+callocate (size_t num, size_t bytes)
 {
   void * res = calloc (num, bytes);
   if (num && bytes && !res)
@@ -564,11 +546,11 @@ update (struct solver * solver, struct variable * node, double new_score)
 static struct solver *
 new_solver (int size)
 {
-  struct solver * res = zero_allocate (1, sizeof *solver);
+  struct solver * res = callocate (1, sizeof *solver);
   res->size = size;
-  res->values = zero_allocate (2u * size + 1u, 1);
+  res->values = callocate (2u * size + 1, 1);
   res->values += size;
-  res->variables = zero_allocate (size + 1u, sizeof *res->variables);
+  res->variables = callocate (size + 1u, sizeof *res->variables);
   res->trail.begin = res->trail.end = res->trail.propagate =
     allocate (size * sizeof *res->trail.begin);
   for (all_variables (v))
@@ -744,19 +726,6 @@ SKIP_BODY_COMMENT:
 
 /*------------------------------------------------------------------------*/
 
-static void
-close_proof (void)
-{
-  if (!proof.file)
-    return;
-  if (proof.close)
-    fclose (proof.file);
-  message ("closing proof file '%s' after writing %zu lines",
-           proof.path, proof.lines);
-}
-
-/*------------------------------------------------------------------------*/
-
 #define SIGNALS \
 SIGNAL(SIGABRT) \
 SIGNAL(SIGBUS) \
@@ -854,7 +823,6 @@ main (int argc, char ** argv)
   parse_dimacs_file ();
   init_signal_handler ();
   int res = 0;
-  close_proof ();
   reset_signal_handler ();
   print_statistics ();
   delete_solver (solver);
