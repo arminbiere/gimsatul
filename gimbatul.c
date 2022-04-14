@@ -205,17 +205,6 @@ struct solver
 
 /*------------------------------------------------------------------------*/
 
-static struct file dimacs;
-
-static double start_time;
-
-static volatile bool caught_signal;
-static volatile bool catching_signals;
-
-static struct solver * solver;
-
-/*------------------------------------------------------------------------*/
-
 static double
 process_time (void)
 {
@@ -294,21 +283,6 @@ fatal_error (const char * fmt, ...)
   abort ();
 }
 
-static void parse_error (const char*, ...)  __attribute__((format (printf, 1, 2)));
-
-static void
-parse_error (const char * fmt, ...)
-{
-  fprintf (stderr, "gimbatul: parse error: at line %zu in '%s': ",
-           dimacs.lines, dimacs.path);
-  va_list ap;
-  va_start (ap, fmt);
-  vfprintf (stderr, fmt, ap);
-  va_end (ap);
-  fputc ('\n', stderr);
-  exit (1);
-}
-
 static void message (const char*, ...)  __attribute__((format (printf, 1, 2)));
 
 static void
@@ -321,53 +295,6 @@ message (const char * fmt, ...)
   va_end (ap);
   fputc ('\n', stdout);
   fflush (stdout);
-}
-
-/*------------------------------------------------------------------------*/
-
-static bool witness = true, binary = true;
-
-static void
-parse_options (int argc, char ** argv)
-{
-  for (int i = 1; i != argc; i++)
-    {
-      const char * arg = argv[i];
-      if (!strcmp (arg, "-h"))
-	{
-	  fputs (usage, stdout);
-	  exit (0);
-	}
-      else if (!strcmp (arg, "-n"))
-	witness = false;
-      else if (!strcmp (arg, "-a"))
-	binary = false;
-      else if (arg[0] == '-' && arg[1])
-	die ("invalid option '%s' (try '-h')", arg);
-      else if (dimacs.file)
-	die ("too many arguments");
-      else
-	{
-	  if (!strcmp (arg, "-"))
-	    {
-	      dimacs.path = "<stdin>";
-	      dimacs.file = stdin;
-	    }
-	  else if (!(dimacs.file = fopen (arg, "r")))
-	    die ("can not open and read from '%s'", arg);
-	  else
-	    {
-	      dimacs.path = arg;
-	      dimacs.close = true;
-	    }
-	}
-    }
-
-  if (!dimacs.file)
-    {
-      dimacs.path = "<stdin>";
-      dimacs.file = stdin;
-    }
 }
 
 static void
@@ -574,6 +501,76 @@ delete_solver (struct solver * solver)
       RELEASE (v->watches[i]);
   free (solver->variables);
   free (solver);
+}
+
+/*------------------------------------------------------------------------*/
+
+static struct file dimacs;
+static double start_time;
+static volatile bool caught_signal;
+static volatile bool catching_signals;
+static struct solver * solver;
+
+/*------------------------------------------------------------------------*/
+
+static void parse_error (const char*, ...)  __attribute__((format (printf, 1, 2)));
+
+static void
+parse_error (const char * fmt, ...)
+{
+  fprintf (stderr, "gimbatul: parse error: at line %zu in '%s': ",
+           dimacs.lines, dimacs.path);
+  va_list ap;
+  va_start (ap, fmt);
+  vfprintf (stderr, fmt, ap);
+  va_end (ap);
+  fputc ('\n', stderr);
+  exit (1);
+}
+
+static bool witness = true, binary = true;
+
+static void
+parse_options (int argc, char ** argv)
+{
+  for (int i = 1; i != argc; i++)
+    {
+      const char * arg = argv[i];
+      if (!strcmp (arg, "-h"))
+	{
+	  fputs (usage, stdout);
+	  exit (0);
+	}
+      else if (!strcmp (arg, "-n"))
+	witness = false;
+      else if (!strcmp (arg, "-a"))
+	binary = false;
+      else if (arg[0] == '-' && arg[1])
+	die ("invalid option '%s' (try '-h')", arg);
+      else if (dimacs.file)
+	die ("too many arguments");
+      else
+	{
+	  if (!strcmp (arg, "-"))
+	    {
+	      dimacs.path = "<stdin>";
+	      dimacs.file = stdin;
+	    }
+	  else if (!(dimacs.file = fopen (arg, "r")))
+	    die ("can not open and read from '%s'", arg);
+	  else
+	    {
+	      dimacs.path = arg;
+	      dimacs.close = true;
+	    }
+	}
+    }
+
+  if (!dimacs.file)
+    {
+      dimacs.path = "<stdin>";
+      dimacs.file = stdin;
+    }
 }
 
 /*------------------------------------------------------------------------*/
