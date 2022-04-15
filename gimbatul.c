@@ -35,13 +35,10 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#define NOT(LIT) ((LIT) ^ 1u)
 #define IDX(LIT) ((LIT) >> 1)
-#define VAR(LIT) (solver->variables + IDX (LIT))
-
-#if 0
 #define LIT(IDX) ((IDX) << 1)
-#endif
+#define NOT(LIT) ((LIT) ^ 1u)
+#define VAR(LIT) (solver->variables + IDX (LIT))
 
 /*------------------------------------------------------------------------*/
 
@@ -116,14 +113,10 @@ do { \
   NODE != END_ ## NODE; \
   ++NODE
 
-#if 0
-
 #define all_indices(IDX) \
   unsigned IDX = 0, END_ ## IDX = solver->size; \
   IDX != END_ ## IDX; \
   ++IDX
-
-#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -683,12 +676,6 @@ solve (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static struct file dimacs;
-static double start_time;
-static volatile bool caught_signal;
-static volatile bool catching_signals;
-static struct solver *solver;
-
-/*------------------------------------------------------------------------*/
 
 static void parse_error (const char *, ...)
   __attribute__((format (printf, 1, 2)));
@@ -819,7 +806,7 @@ parse_int (int *res_ptr, int prev, int *next)
   return true;
 }
 
-static void
+static struct solver *
 parse_dimacs_file ()
 {
   int ch;
@@ -846,7 +833,7 @@ parse_dimacs_file ()
     ch = next_char ();
   if (ch != '\n')
     goto INVALID_HEADER;
-  solver = new_solver (variables);
+  struct solver * solver = new_solver (variables);
   signed char *marked = allocate_and_clear_block (variables);
   message ("initialized solver of %d variables", variables);
   int signed_lit = 0, parsed = 0;
@@ -933,9 +920,61 @@ parse_dimacs_file ()
   assert (dimacs.file);
   if (dimacs.close)
     fclose (dimacs.file);
+  return solver;
 }
 
 /*------------------------------------------------------------------------*/
+
+static char line[80];
+static size_t buffered;
+
+static void
+flush_line (void)
+{
+  fwrite (line, 1, buffered, stdout);
+  fputc ('\n', stdout);
+  buffered = 0;
+}
+
+static void
+print_signed_literal (int lit)
+{
+  char buffer[32];
+  sprintf (buffer, " %d", lit);
+  size_t len = strlen (buffer);
+  if (buffered + len >= sizeof line)
+    flush_line ();
+  if (!buffered)
+    line[buffered++] = 'v';
+  memcpy (line + buffered, buffer, len);
+  buffered += len;
+}
+
+static void
+print_unsigned_literal (signed char * values, unsigned unsigned_lit)
+{
+  assert (unsigned_lit < (unsigned) INT_MAX);
+  int signed_lit = IDX (unsigned_lit) + 1;
+  signed_lit *= values[unsigned_lit];
+  print_signed_literal (signed_lit);
+}
+
+static void
+print_witness (struct solver * solver)
+{
+  signed char * values = solver->values;
+  for (all_indices (idx))
+    print_unsigned_literal (values, LIT (idx));
+  print_signed_literal (0);
+  if (buffered)
+    flush_line ();
+}
+
+/*------------------------------------------------------------------------*/
+
+static volatile bool caught_signal;
+static volatile bool catching_signals;
+static struct solver *solver;
 
 #define SIGNALS \
 SIGNAL(SIGABRT) \
@@ -999,6 +1038,8 @@ init_signal_handler (void)
 
 /*------------------------------------------------------------------------*/
 
+static double start_time;
+
 static double
 average (double a, double b)
 {
@@ -1031,9 +1072,21 @@ main (int argc, char ** argv)
   start_time = wall_clock_time ();
   parse_options (argc, argv);
   print_banner ();
-  parse_dimacs_file ();
+  solver = parse_dimacs_file ();
   init_signal_handler ();
   int res = solve (solver);
+  if (res == 20)
+    {
+      printf ("s UNSATISFIABLE\n");
+      fflush (stdout);
+    }
+  else if (res == 10)
+    {
+      printf ("s SATISFIABLE\n");
+      if (witness)
+	print_witness (solver);
+      fflush (stdout);
+    }
   reset_signal_handler ();
   print_statistics ();
   delete_solver (solver);
