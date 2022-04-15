@@ -105,7 +105,7 @@ do { \
   all_elements_on_stack (reference, CLAUSE, solver->clauses)
 
 #define all_variables(VAR) \
-  struct variable * VAR = solver->variables + 1, \
+  struct variable * VAR = solver->variables, \
                   * END_ ## VAR = VAR + solver->size; \
   (VAR != END_ ## VAR); \
   ++ VAR
