@@ -35,10 +35,15 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
+#define INVALID UINT_MAX
+
 #define IDX(LIT) ((LIT) >> 1)
 #define LIT(IDX) ((IDX) << 1)
 #define NOT(LIT) ((LIT) ^ 1u)
+#define SGN(LIT) ((LIT) & 1)
+
 #define VAR(LIT) (solver->variables + IDX (LIT))
+#define WATCHES(LIT) (&VAR(LIT)->watches[SGN (LIT)])
 
 /*------------------------------------------------------------------------*/
 
@@ -158,20 +163,13 @@ struct clauses
 
 struct watch
 {
-  unsigned int xor;
-  unsigned int searched;
+  unsigned sum;
   struct clause *clause;
 };
 
 struct watches
 {
   struct watch **begin, **end, **allocated;
-};
-
-struct reason
-{
-  unsigned literals[2];
-  struct clause *clause;
 };
 
 struct variable
@@ -182,7 +180,7 @@ struct variable
   bool seen:1;
   bool poison:1;
   bool minimize:1;
-  struct reason reason;
+  struct clause * reason;
   struct watches watches[2];
 };
 
@@ -548,8 +546,9 @@ new_solver (unsigned size)
   solver->values = allocate_and_clear_array (2, size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
-  solver->trail.begin = solver->trail.end = solver->trail.propagate =
-    allocate_array (size, sizeof *solver->trail.begin);
+  struct trail * trail = &solver->trail;
+  trail->begin = allocate_array (size, sizeof *trail->begin);
+  trail->end = trail->propagate = trail->begin;
   struct queue *queue = &solver->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
   for (all_nodes (node))
@@ -575,9 +574,10 @@ release_watches (struct solver *solver)
       for (unsigned i = 0; i != 2; i++)
 	{
 	  struct watches *watches = v->watches + i;
+	  assert (watches == WATCHES (lit));
 	  for (all_watches (w, *watches))
 	    {
-	      unsigned other = w->xor ^ lit;
+	      unsigned other = w->sum ^ lit;
 	      if (other < lit)
 		free (w);
 	    }
@@ -625,23 +625,74 @@ new_clause (struct solver *solver,
 /*------------------------------------------------------------------------*/
 
 static void
+assign (struct solver * solver, unsigned lit, struct clause * reason)
+{
+  const unsigned not_lit = NOT (lit);
+  assert (!solver->values[lit]);
+  assert (!solver->values[not_lit]);
+  assert (solver->unassigned);
+  solver->unassigned--;
+  solver->values[lit] = 1;
+  solver->values[not_lit] = -1;
+  *solver->trail.end++ = lit;
+  struct variable * v = VAR (lit);
+  v->level = solver->level;
+  v->reason = reason;
+}
+
+static void
 assign_unit (struct solver *solver, unsigned unit)
 {
-  const unsigned not_unit = NOT (unit);
-  assert (!solver->values[unit]);
-  assert (!solver->values[not_unit]);
-  assert (solver->unassigned);
-  solver->values[unit] = 1;
-  solver->values[not_unit] = -1;
-  *solver->trail.end++ = unit;
-  VAR (unit)->level = 0;
-  solver->unassigned--;
+  assert (!solver->level);
+  assign (solver, unit, 0);
 }
+
+#if 0
+
+static void
+assign_decision (struct solver * solver, unsigned decision)
+{
+  assert (solver->level);
+  assign (solver, decision, 0);
+}
+
+#endif
 
 static struct clause *
 propagate (struct solver * solver)
 {
-  return 0;
+  assert (!solver->inconsistent);
+  struct trail * trail = &solver->trail;
+  struct clause * conflict = 0;
+  signed char * values = solver->values;
+  while (!conflict && trail->propagate != trail->end)
+    {
+      unsigned lit = *trail->propagate++;
+      unsigned not_lit = NOT (lit);
+      struct watches * watches = WATCHES (not_lit);
+      struct watch ** begin = watches->begin, ** q = begin;
+      struct watch ** end = watches->end, ** p;
+      for (p = begin; !conflict && p != end; p++)
+	{
+	  struct watch * watch = *q++ = *p++;
+	  unsigned other = watch->sum ^ not_lit;
+	  signed char other_value = values[other];
+	  if (other_value > 0)
+	    continue;
+	  unsigned replacement = INVALID;
+	  signed char replacement_value = 0;
+	  struct clause * clause = watch->clause;
+	  unsigned * r = clause->literals;
+	  unsigned * end_literals = r + clause->size;
+	  for (;;)
+	    {
+	    }
+	}
+      while (p != end)
+	*q++ = *p++;
+      watches->end = q;
+    }
+  return conflict;
 }
 
 static bool
