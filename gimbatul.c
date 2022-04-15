@@ -129,20 +129,20 @@ do { \
 
 struct file
 {
-  const char * path;
-  FILE * file;
+  const char *path;
+  FILE *file;
   bool close;
   size_t lines;
 };
 
 struct literals
 {
-  unsigned * begin, * end, * allocated;
+  unsigned *begin, *end, *allocated;
 };
 
 struct trail
 {
-  unsigned * begin, * end, * propagate;
+  unsigned *begin, *end, *propagate;
 };
 
 struct clause
@@ -156,29 +156,29 @@ struct clause
   unsigned literals[];
 };
 
-typedef struct clause * reference;
+typedef struct clause *reference;
 
 struct clauses
 {
-  struct clause ** begin, ** end, ** allocated;
+  struct clause **begin, **end, **allocated;
 };
 
 struct watch
 {
   unsigned int xor;
   unsigned int searched;
-  struct clause * clause;
+  struct clause *clause;
 };
 
 struct watches
 {
-  struct watch ** begin, ** end, ** allocated;
+  struct watch **begin, **end, **allocated;
 };
 
 struct reason
 {
   unsigned literals[2];
-  struct clause * clause;
+  struct clause *clause;
 };
 
 struct variable
@@ -196,14 +196,14 @@ struct variable
 struct node
 {
   double score;
-  struct node * child, * prev, * next;
+  struct node *child, *prev, *next;
 };
 
 struct queue
 {
   double increment;
-  struct node * nodes;
-  struct node * root;
+  struct node *nodes;
+  struct node *root;
 };
 
 struct limits
@@ -234,8 +234,8 @@ struct solver
   unsigned level;
   unsigned unassigned;
   struct clauses clauses;
-  struct variable * variables;
-  signed char * values;
+  struct variable *variables;
+  signed char *values;
   struct queue queue;
   struct literals clause;
   struct literals marked;
@@ -297,10 +297,10 @@ current_resident_set_size (void)
 
 /*------------------------------------------------------------------------*/
 
-static void die (const char*, ...)  __attribute__((format (printf, 1, 2)));
+static void die (const char *, ...) __attribute__((format (printf, 1, 2)));
 
 static void
-die (const char * fmt, ...)
+die (const char *fmt, ...)
 {
   fputs ("gimbatul: error: ", stderr);
   va_list ap;
@@ -311,10 +311,11 @@ die (const char * fmt, ...)
   exit (1);
 }
 
-static void fatal_error (const char*, ...)  __attribute__((format (printf, 1, 2)));
+static void fatal_error (const char *, ...)
+  __attribute__((format (printf, 1, 2)));
 
 static void
-fatal_error (const char * fmt, ...)
+fatal_error (const char *fmt, ...)
 {
   fputs ("gimbatul: fatal error: ", stderr);
   va_list ap;
@@ -325,10 +326,11 @@ fatal_error (const char * fmt, ...)
   abort ();
 }
 
-static void message (const char*, ...)  __attribute__((format (printf, 1, 2)));
+static void message (const char *, ...)
+  __attribute__((format (printf, 1, 2)));
 
 static void
-message (const char * fmt, ...)
+message (const char *fmt, ...)
 {
   fputs ("c ", stdout);
   va_list ap;
@@ -351,7 +353,7 @@ print_banner (void)
 static void *
 allocate_block (size_t bytes)
 {
-  void * res = malloc (bytes);
+  void *res = malloc (bytes);
   if (bytes && !res)
     fatal_error ("out-of-memory allocating %zu bytes", bytes);
   return res;
@@ -360,7 +362,7 @@ allocate_block (size_t bytes)
 static void *
 allocate_and_clear_block (size_t bytes)
 {
-  void * res = calloc (1, bytes);
+  void *res = calloc (1, bytes);
   if (bytes && !res)
     fatal_error ("out-of-memory allocating %zu bytes", bytes);
   return res;
@@ -370,7 +372,7 @@ static void *
 allocate_array (size_t num, size_t bytes)
 {
   size_t actual_bytes = num * bytes;
-  void * res = malloc (actual_bytes);
+  void *res = malloc (actual_bytes);
   if (actual_bytes && !res)
     fatal_error ("out-of-memory allocating %zu*%zu bytes", num, bytes);
   return res;
@@ -379,16 +381,16 @@ allocate_array (size_t num, size_t bytes)
 static void *
 allocate_and_clear_array (size_t num, size_t bytes)
 {
-  void * res = calloc (num, bytes);
+  void *res = calloc (num, bytes);
   if (num && bytes && !res)
     fatal_error ("out-of-memory allocating %zu*%zu bytes", num, bytes);
   return res;
 }
 
 static void *
-reallocate_block (void * ptr, size_t bytes)
+reallocate_block (void *ptr, size_t bytes)
 {
-  void * res = realloc (ptr, bytes);
+  void *res = realloc (ptr, bytes);
   if (bytes && !res)
     fatal_error ("out-of-memory reallocating %zu bytes", bytes);
   return res;
@@ -399,7 +401,7 @@ reallocate_block (void * ptr, size_t bytes)
 #ifndef NDEBUG
 
 static bool
-queue_contains (struct queue * queue, struct node * node)
+queue_contains (struct queue *queue, struct node *node)
 {
   return queue->root == node || node->prev;
 }
@@ -407,19 +409,19 @@ queue_contains (struct queue * queue, struct node * node)
 #endif
 
 static struct node *
-merge_nodes (struct node * a, struct node * b)
+merge_nodes (struct node *a, struct node *b)
 {
   if (!a)
     return b;
   if (!b)
     return a;
   assert (a != b);
-  struct node * parent, *child;
+  struct node *parent, *child;
   if (b->score > a->score)
     parent = b, child = a;
   else
     parent = a, child = b;
-  struct node * parent_child = parent->child;
+  struct node *parent_child = parent->child;
   child->next = parent_child;
   if (parent_child)
     parent_child->prev = child;
@@ -431,7 +433,7 @@ merge_nodes (struct node * a, struct node * b)
 }
 
 static void
-push_queue (struct queue * queue, struct node * node)
+push_queue (struct queue *queue, struct node *node)
 {
   assert (!queue_contains (queue, node));
   node->child = 0;
@@ -442,39 +444,39 @@ push_queue (struct queue * queue, struct node * node)
 #if 0
 
 static struct node *
-collapse_node (struct node * node)
+collapse_node (struct node *node)
 {
   if (!node)
     return 0;
 
-  struct node * next = node, * tail = 0;
+  struct node *next = node, *tail = 0;
 
   do
     {
-      struct node * a = next;
+      struct node *a = next;
       assert (a);
-      struct node * b = a->next;
+      struct node *b = a->next;
       if (b)
-        {
-          next = b->next;
-          struct node * tmp = merge (a, b);
-          assert (tmp);
-          tmp->prev = tail;
-          tail = tmp;
-        }
+	{
+	  next = b->next;
+	  struct node *tmp = merge (a, b);
+	  assert (tmp);
+	  tmp->prev = tail;
+	  tail = tmp;
+	}
       else
-        {
-          a->prev = tail;
-          tail = a;
-          break;
-        }
+	{
+	  a->prev = tail;
+	  tail = a;
+	  break;
+	}
     }
   while (next);
 
-  struct node * res = 0;
+  struct node *res = 0;
   while (tail)
     {
-      struct node * prev = tail->prev;
+      struct node *prev = tail->prev;
       res = merge (res, tail);
       tail = prev;
     }
@@ -483,11 +485,11 @@ collapse_node (struct node * node)
 }
 
 static void
-dequeue_node (struct node * node)
+dequeue_node (struct node *node)
 {
   assert (node);
-  struct node * prev = node->prev;
-  struct node * next = node->next;
+  struct node *prev = node->prev;
+  struct node *next = node->next;
   assert (prev);
   node->prev = 0;
   if (prev->child == node)
@@ -499,30 +501,30 @@ dequeue_node (struct node * node)
 }
 
 static void
-pop_queue (struct queue * queue, struct node * node)
+pop_queue (struct queue *queue, struct node *node)
 {
-  struct node * root = queue->root;
-  struct node * child = node->child;
+  struct node *root = queue->root;
+  struct node *child = node->child;
   if (root == node)
     queue->root = collapse (child);
   else
     {
       dequeue (node);
-      struct node * collapsed = collapse (child);
+      struct node *collapsed = collapse (child);
       queue->root = merge (root, collapsed);
     }
   assert (!contains (queue, node));
 }
 
 static void
-update_queue (struct queue * queue, struct node * node, double new_score)
+update_queue (struct queue *queue, struct node *node, double new_score)
 {
   double old_score = node->score;
   assert (old_score <= new_score);
   if (old_score == new_score)
     return;
   node->score = new_score;
-  struct node * root = queue->root;
+  struct node *root = queue->root;
   if (root == node)
     return;
   if (!node->prev)
@@ -536,7 +538,7 @@ update_queue (struct queue * queue, struct node * node, double new_score)
 #if 0
 
 static void
-push_solver (struct solver * solver, unsigned idx)
+push_solver (struct solver *solver, unsigned idx)
 {
   push_queue (&solver->queue, solver->queue.nodes + idx);
 }
@@ -548,15 +550,15 @@ push_solver (struct solver * solver, unsigned idx)
 static struct solver *
 new_solver (unsigned size)
 {
-  assert (size < (1u<<30));
-  struct solver * solver = allocate_and_clear_block (sizeof *solver);
+  assert (size < (1u << 30));
+  struct solver *solver = allocate_and_clear_block (sizeof *solver);
   solver->size = size;
   solver->values = allocate_and_clear_array (2, size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
   solver->trail.begin = solver->trail.end = solver->trail.propagate =
     allocate_array (size, sizeof *solver->trail.begin);
-  struct queue * queue = &solver->queue;
+  struct queue *queue = &solver->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
   for (all_nodes (node))
     push_queue (queue, node);
@@ -564,7 +566,7 @@ new_solver (unsigned size)
 }
 
 static void
-release_clauses (struct solver * solver)
+release_clauses (struct solver *solver)
 {
   for (all_clauses (c))
     free (c);
@@ -572,14 +574,14 @@ release_clauses (struct solver * solver)
 }
 
 static void
-release_watches (struct solver * solver)
+release_watches (struct solver *solver)
 {
   unsigned lit = 0;
   for (all_variables (v))
     {
       for (unsigned i = 0; i != 2; i++)
 	{
-	  struct watches * watches = v->watches + i;
+	  struct watches *watches = v->watches + i;
 	  for (all_watches (w, *watches))
 	    {
 	      unsigned other = w->xor ^ lit;
@@ -590,11 +592,11 @@ release_watches (struct solver * solver)
 	}
       lit++;
     }
-  assert (lit == 2*solver->size);
+  assert (lit == 2 * solver->size);
 }
 
 static void
-delete_solver (struct solver * solver)
+delete_solver (struct solver *solver)
 {
   RELEASE (solver->clause);
   RELEASE (solver->marked);
@@ -609,7 +611,7 @@ delete_solver (struct solver * solver)
 /*------------------------------------------------------------------------*/
 
 static void
-assign_unit (struct solver * solver, unsigned unit)
+assign_unit (struct solver *solver, unsigned unit)
 {
   const unsigned not_unit = NOT (unit);
   assert (!solver->values[unit]);
@@ -623,12 +625,12 @@ assign_unit (struct solver * solver, unsigned unit)
 /*------------------------------------------------------------------------*/
 
 static struct clause *
-new_clause (struct solver * solver,
-            size_t size, unsigned * literals, bool redundant, unsigned glue)
+new_clause (struct solver *solver,
+	    size_t size, unsigned *literals, bool redundant, unsigned glue)
 {
   assert (size <= solver->size);
   size_t bytes = size * sizeof (unsigned);
-  struct clause * res = allocate_block (sizeof *res + bytes);
+  struct clause *res = allocate_block (sizeof *res + bytes);
   res->active = false;
   res->garbage = false;
   res->redundant = redundant;
@@ -642,7 +644,7 @@ new_clause (struct solver * solver,
 }
 
 static int
-solve (struct solver * solver)
+solve (struct solver *solver)
 {
   if (solver->inconsistent)
     return 20;
@@ -656,17 +658,18 @@ static struct file dimacs;
 static double start_time;
 static volatile bool caught_signal;
 static volatile bool catching_signals;
-static struct solver * solver;
+static struct solver *solver;
 
 /*------------------------------------------------------------------------*/
 
-static void parse_error (const char*, ...)  __attribute__((format (printf, 1, 2)));
+static void parse_error (const char *, ...)
+  __attribute__((format (printf, 1, 2)));
 
 static void
-parse_error (const char * fmt, ...)
+parse_error (const char *fmt, ...)
 {
   fprintf (stderr, "gimbatul: parse error: at line %zu in '%s': ",
-           dimacs.lines, dimacs.path);
+	   dimacs.lines, dimacs.path);
   va_list ap;
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
@@ -678,11 +681,11 @@ parse_error (const char * fmt, ...)
 static bool witness = true, binary = true;
 
 static void
-parse_options (int argc, char ** argv)
+parse_options (int argc, char **argv)
 {
   for (int i = 1; i != argc; i++)
     {
-      const char * arg = argv[i];
+      const char *arg = argv[i];
       if (!strcmp (arg, "-h"))
 	{
 	  fputs (usage, stdout);
@@ -738,7 +741,7 @@ next_char (void)
 }
 
 static bool
-parse_int (int * res_ptr, int prev, int * next)
+parse_int (int *res_ptr, int prev, int *next)
 {
   int ch = prev == EOF ? next_char () : prev;
   int sign = 1;
@@ -770,7 +773,7 @@ parse_int (int * res_ptr, int prev, int * next)
   if (sign > 0)
     {
       if (tmp > 0x1fffffffu)
-        return false;
+	return false;
       res = tmp;
     }
   else
@@ -808,21 +811,19 @@ parse_dimacs_file ()
       next_char () != ' ' ||
       !parse_int (&variables, EOF, &ch) ||
       variables < 0 ||
-      ch != ' ' ||
-      !parse_int (&expected, EOF, &ch) ||
-      expected < 0)
-INVALID_HEADER:
+      ch != ' ' || !parse_int (&expected, EOF, &ch) || expected < 0)
+  INVALID_HEADER:
     parse_error ("invalid 'p cnf ...' header line");
   while (ch == ' ' || ch == '\t')
     ch = next_char ();
   if (ch != '\n')
     goto INVALID_HEADER;
   solver = new_solver (variables);
-  signed char * marked = allocate_and_clear_block (variables);
+  signed char *marked = allocate_and_clear_block (variables);
   message ("initialized solver of %d variables", variables);
   int signed_lit = 0, parsed = 0;
   bool trivial = false;
-  struct literals * clause = &solver->clause;
+  struct literals *clause = &solver->clause;
   for (;;)
     {
       ch = next_char ();
@@ -838,7 +839,7 @@ INVALID_HEADER:
 	continue;
       if (ch == 'c')
 	{
-SKIP_BODY_COMMENT:
+	SKIP_BODY_COMMENT:
 	  while ((ch = next_char ()) != '\n')
 	    if (ch == EOF)
 	      parse_error ("invalid end-of-file in body comment");
@@ -862,7 +863,7 @@ SKIP_BODY_COMMENT:
 	    trivial = true;
 	  else if (!mark)
 	    {
-	      unsigned unsigned_lit = 2*idx + (sign < 0);
+	      unsigned unsigned_lit = 2 * idx + (sign < 0);
 	      PUSH (*clause, unsigned_lit);
 	      marked[idx] = sign;
 	    }
@@ -891,7 +892,7 @@ SKIP_BODY_COMMENT:
 	  else
 	    trivial = false;
 	  for (all_elements_on_stack (unsigned, lit, *clause))
-	    marked[lit] = 0;
+	      marked[lit] = 0;
 	  CLEAR (*clause);
 	}
       if (ch == 'c')
@@ -900,7 +901,7 @@ SKIP_BODY_COMMENT:
   free (marked);
   assert (parsed == expected);
   message ("parsed 'p cnf %d %d' DIMACS file '%s'",
-           variables, parsed, dimacs.path);
+	   variables, parsed, dimacs.path);
   assert (dimacs.file);
   if (dimacs.close)
     fclose (dimacs.file);
