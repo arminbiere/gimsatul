@@ -978,8 +978,8 @@ parse_dimacs_file ()
 	    }
 	  else
 	    trivial = false;
-	  for (all_elements_on_stack (unsigned, lit, *clause))
-	      marked[lit] = 0;
+	  for (all_elements_on_stack (unsigned, unsigned_lit, *clause))
+	      marked[IDX (unsigned_lit)] = 0;
 	  CLEAR (*clause);
 	}
       if (ch == 'c')
