@@ -176,10 +176,7 @@ struct variable
 {
   unsigned level;
   signed char phase;
-  signed char value;
   bool seen:1;
-  bool poison:1;
-  bool minimize:1;
   struct clause * reason;
   struct watches watches[2];
 };
@@ -637,6 +634,7 @@ assign (struct solver * solver, unsigned lit, struct clause * reason)
   solver->values[not_lit] = -1;
   *solver->trail.end++ = lit;
   struct variable * v = VAR (lit);
+  v->phase = SGN (lit) ? -1 : 1;
   v->level = solver->level;
   v->reason = reason;
 }
