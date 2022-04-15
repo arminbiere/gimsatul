@@ -221,7 +221,6 @@ struct statistics
 
 struct solver
 {
-  bool stable;
   bool inconsistent;
   unsigned size;
   unsigned level;
