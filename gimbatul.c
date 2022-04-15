@@ -641,6 +641,15 @@ new_clause (struct solver * solver,
   return res;
 }
 
+static int
+solve (struct solver * solver)
+{
+  if (solver->inconsistent)
+    return 20;
+
+  return 0;
+}
+
 /*------------------------------------------------------------------------*/
 
 static struct file dimacs;
@@ -995,7 +1004,7 @@ main (int argc, char ** argv)
   print_banner ();
   parse_dimacs_file ();
   init_signal_handler ();
-  int res = 0;
+  int res = solve (solver);
   reset_signal_handler ();
   print_statistics ();
   delete_solver (solver);
