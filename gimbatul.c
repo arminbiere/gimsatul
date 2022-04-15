@@ -35,7 +35,13 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#define INVALID UINT_MAX
+#define NOT(LIT) ((LIT) ^ 1u)
+#define IDX(LIT) ((LIT) >> 1)
+#define VAR(LIT) (solver->variables + IDX (LIT))
+
+#if 0
+#define LIT(IDX) ((IDX) << 1)
+#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -110,10 +116,14 @@ do { \
   NODE != END_ ## NODE; \
   ++NODE
 
+#if 0
+
 #define all_indices(IDX) \
   unsigned IDX = 0, END_ ## IDX = solver->size; \
   IDX != END_ ## IDX; \
   ++IDX
+
+#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -219,16 +229,17 @@ struct statistics
 struct solver
 {
   bool stable;
+  bool inconsistent;
   unsigned size;
   unsigned level;
   unsigned unassigned;
+  struct clauses clauses;
+  struct variable * variables;
   signed char * values;
   struct queue queue;
-  struct trail trail;
-  struct variable * variables;
   struct literals clause;
   struct literals marked;
-  struct clauses clauses;
+  struct trail trail;
   struct limits limits;
   struct intervals intervals;
   struct statistics statistics;
@@ -337,8 +348,6 @@ print_banner (void)
 
 /*------------------------------------------------------------------------*/
 
-#if 0
-
 static void *
 allocate_block (size_t bytes)
 {
@@ -347,8 +356,6 @@ allocate_block (size_t bytes)
     fatal_error ("out-of-memory allocating %zu bytes", bytes);
   return res;
 }
-
-#endif
 
 static void *
 allocate_and_clear_block (size_t bytes)
@@ -601,6 +608,41 @@ delete_solver (struct solver * solver)
 
 /*------------------------------------------------------------------------*/
 
+static void
+assign_unit (struct solver * solver, unsigned unit)
+{
+  const unsigned not_unit = NOT (unit);
+  assert (!solver->values[unit]);
+  assert (!solver->values[not_unit]);
+  solver->values[unit] = 1;
+  solver->values[not_unit] = -1;
+  *solver->trail.end++ = unit;
+  VAR (unit)->level = 0;
+}
+
+/*------------------------------------------------------------------------*/
+
+static struct clause *
+new_clause (struct solver * solver,
+            size_t size, unsigned * literals, bool redundant, unsigned glue)
+{
+  assert (size <= solver->size);
+  size_t bytes = size * sizeof (unsigned);
+  struct clause * res = allocate_block (sizeof *res + bytes);
+  res->active = false;
+  res->garbage = false;
+  res->redundant = redundant;
+  res->used = false;
+  res->glue = glue;
+  res->size = size;
+  memcpy (res->literals, literals, bytes);
+  PUSH (solver->clauses, res);
+  // TODO watch
+  return res;
+}
+
+/*------------------------------------------------------------------------*/
+
 static struct file dimacs;
 static double start_time;
 static volatile bool caught_signal;
@@ -771,6 +813,7 @@ INVALID_HEADER:
   message ("initialized solver of %d variables", variables);
   int signed_lit = 0, parsed = 0;
   bool trivial = false;
+  struct literals * clause = &solver->clause;
   for (;;)
     {
       ch = next_char ();
@@ -811,7 +854,7 @@ SKIP_BODY_COMMENT:
 	  else if (!mark)
 	    {
 	      unsigned unsigned_lit = 2*idx + (sign < 0);
-	      PUSH (solver->clause, unsigned_lit);
+	      PUSH (*clause, unsigned_lit);
 	      marked[idx] = sign;
 	    }
 	}
@@ -820,18 +863,35 @@ SKIP_BODY_COMMENT:
 	  parsed++;
 	  if (!trivial)
 	    {
+	      const size_t size = SIZE (*clause);
+	      assert (size <= solver->size);
+	      if (!size)
+		solver->inconsistent = true;
+	      else if (size == 1)
+		{
+		  const unsigned unit = *clause->begin;
+		  const signed char value = solver->values[unit];
+		  if (value < 0)
+		    solver->inconsistent = true;
+		  else if (!value)
+		    assign_unit (solver, unit);
+		}
+	      else
+		new_clause (solver, size, clause->begin, false, 0);
 	    }
-	  for (all_elements_on_stack (unsigned, lit, solver->clause))
+	  else
+	    trivial = false;
+	  for (all_elements_on_stack (unsigned, lit, *clause))
 	    marked[lit] = 0;
-	  CLEAR (solver->clause);
-	  trivial = false;
+	  CLEAR (*clause);
 	}
       if (ch == 'c')
 	goto SKIP_BODY_COMMENT;
     }
   free (marked);
+  assert (parsed == expected);
   message ("parsed 'p cnf %d %d' DIMACS file '%s'",
-           variables, expected, dimacs.path);
+           variables, parsed, dimacs.path);
   assert (dimacs.file);
   if (dimacs.close)
     fclose (dimacs.file);

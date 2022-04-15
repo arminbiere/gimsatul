@@ -1,9 +1,11 @@
 COMPILE=@COMPILE@
 all: gimbatul
-gimbatul: gimbatul.c makefile
-	$(COMPILE) -o $@ $<
-test: all
-	cnf/test.sh
 clean:
 	rm -f gimbatul *~
-.PHONY: al clean test
+indent:
+	indent gimbatul.c
+test: all
+	cnf/test.sh
+gimbatul: gimbatul.c makefile
+	$(COMPILE) -o $@ $<
+.PHONY: all clean indent test
