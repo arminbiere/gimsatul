@@ -680,13 +680,35 @@ propagate (struct solver * solver)
 	  if (other_value > 0)
 	    continue;
 	  unsigned replacement = INVALID;
-	  signed char replacement_value = 0;
+	  signed char replacement_value = -1;
 	  struct clause * clause = watch->clause;
 	  unsigned * r = clause->literals;
 	  unsigned * end_literals = r + clause->size;
-	  for (;;)
+	  while (r != end_literals)
 	    {
+	      replacement = *r;
+	      if (replacement != not_lit && replacement != other)
+		{
+		  replacement_value = values[replacement];
+		  if (replacement_value >= 0)
+		    break;
+		}
+	      r++;
 	    }
+	  if (replacement_value >= 0)
+	    {
+	      watch->sum = other ^ replacement;
+	      struct watches * replacement_watches = WATCHES (replacement);
+	      PUSH (*replacement_watches, watch);
+	      q--;
+	    }
+	  else if (other_value)
+	    {
+	      assert (other_value < 0);
+	      conflict = clause;
+	    }
+	  else
+	    assign (solver, other, clause);
 	}
       while (p != end)
 	*q++ = *p++;
