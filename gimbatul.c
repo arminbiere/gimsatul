@@ -35,6 +35,10 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
+#define INVALID UINT_MAX
+
+/*------------------------------------------------------------------------*/
+
 #define SIZE(STACK) ((STACK).end - (STACK).begin)
 
 #define CAPACITY(STACK) ((STACK).allocated - (STACK).begin)
@@ -55,7 +59,7 @@ do { \
   size_t OLD_CAPACITY = CAPACITY (STACK); \
   size_t NEW_CAPACITY = OLD_CAPACITY ? 2*OLD_CAPACITY : 1; \
   size_t NEW_BYTES = NEW_CAPACITY * sizeof *(STACK).begin; \
-  (STACK).begin = reallocate ((STACK).begin, NEW_BYTES); \
+  (STACK).begin = reallocate_block ((STACK).begin, NEW_BYTES); \
   (STACK).end = (STACK).begin + OLD_SIZE; \
   (STACK).allocated = (STACK).begin + NEW_CAPACITY; \
 } while (0)
@@ -78,7 +82,9 @@ do { \
 #define POP(STACK) \
   (assert (!EMPTY (STACK)), *--(STACK).end)
 
-#define all(TYPE,ELEM,STACK) \
+/*------------------------------------------------------------------------*/
+
+#define all_elements_on_stack(TYPE,ELEM,STACK) \
   TYPE * P_ ## ELEM = (STACK).begin, * END_ ## ELEM = (STACK).end, ELEM; \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
@@ -90,12 +96,24 @@ do { \
   ++P_ ## ELEM
 
 #define all_clauses(CLAUSE) \
-  all (reference, CLAUSE, solver->clauses)
+  all_elements_on_stack (reference, CLAUSE, solver->clauses)
 
 #define all_variables(VAR) \
   struct variable * VAR = solver->variables + 1, \
                   * END_ ## VAR = VAR + solver->size; \
-  (VAR != END_ ## VAR); ++ VAR
+  (VAR != END_ ## VAR); \
+  ++ VAR
+
+#define all_nodes(NODE) \
+  struct node * NODE = solver->queue.nodes, \
+              * END_ ## NODE = (NODE) + solver->size; \
+  NODE != END_ ## NODE; \
+  ++NODE
+
+#define all_indices(IDX) \
+  unsigned IDX = 0, END_ ## IDX = solver->size; \
+  IDX != END_ ## IDX; \
+  ++IDX
 
 /*------------------------------------------------------------------------*/
 
@@ -163,8 +181,19 @@ struct variable
   bool minimize:1;
   struct reason reason;
   struct watches watches[2];
-  struct variable * child, * prev, * next;
+};
+
+struct node
+{
   double score;
+  struct node * child, * prev, * next;
+};
+
+struct queue
+{
+  double increment;
+  struct node * nodes;
+  struct node * root;
 };
 
 struct limits
@@ -194,8 +223,7 @@ struct solver
   unsigned level;
   unsigned unassigned;
   signed char * values;
-  double increment;
-  struct variable * root;
+  struct queue queue;
   struct trail trail;
   struct variable * variables;
   struct literals clause;
@@ -309,8 +337,10 @@ print_banner (void)
 
 /*------------------------------------------------------------------------*/
 
+#if 0
+
 static void *
-allocate (size_t bytes)
+allocate_block (size_t bytes)
 {
   void * res = malloc (bytes);
   if (bytes && !res)
@@ -318,8 +348,29 @@ allocate (size_t bytes)
   return res;
 }
 
+#endif
+
 static void *
-callocate (size_t num, size_t bytes)
+allocate_and_clear_block (size_t bytes)
+{
+  void * res = calloc (1, bytes);
+  if (bytes && !res)
+    fatal_error ("out-of-memory allocating %zu bytes", bytes);
+  return res;
+}
+
+static void *
+allocate_array (size_t num, size_t bytes)
+{
+  size_t actual_bytes = num * bytes;
+  void * res = malloc (actual_bytes);
+  if (actual_bytes && !res)
+    fatal_error ("out-of-memory allocating %zu*%zu bytes", num, bytes);
+  return res;
+}
+
+static void *
+allocate_and_clear_array (size_t num, size_t bytes)
 {
   void * res = calloc (num, bytes);
   if (num && bytes && !res)
@@ -328,7 +379,7 @@ callocate (size_t num, size_t bytes)
 }
 
 static void *
-reallocate (void * ptr, size_t bytes)
+reallocate_block (void * ptr, size_t bytes)
 {
   void * res = realloc (ptr, bytes);
   if (bytes && !res)
@@ -341,27 +392,27 @@ reallocate (void * ptr, size_t bytes)
 #ifndef NDEBUG
 
 static bool
-contains (struct solver * solver, struct variable * node)
+queue_contains (struct queue * queue, struct node * node)
 {
-  return solver->root == node || node->prev;
+  return queue->root == node || node->prev;
 }
 
 #endif
 
-static struct variable *
-merge (struct variable * a, struct variable * b)
+static struct node *
+merge_nodes (struct node * a, struct node * b)
 {
   if (!a)
     return b;
   if (!b)
     return a;
   assert (a != b);
-  struct variable * parent, *child;
+  struct node * parent, *child;
   if (b->score > a->score)
     parent = b, child = a;
   else
     parent = a, child = b;
-  struct variable * parent_child = parent->child;
+  struct node * parent_child = parent->child;
   child->next = parent_child;
   if (parent_child)
     parent_child->prev = child;
@@ -373,33 +424,33 @@ merge (struct variable * a, struct variable * b)
 }
 
 static void
-push (struct solver * solver, struct variable * node)
+push_queue (struct queue * queue, struct node * node)
 {
-  assert (!contains (solver, node));
+  assert (!queue_contains (queue, node));
   node->child = 0;
-  solver->root = merge (solver->root, node);
-  assert (contains (solver, node));
+  queue->root = merge_nodes (queue->root, node);
+  assert (queue_contains (queue, node));
 }
 
 #if 0
 
-static struct variable *
-collapse (struct variable * node)
+static struct node *
+collapse_node (struct node * node)
 {
   if (!node)
     return 0;
 
-  struct variable * next = node, * tail = 0;
+  struct node * next = node, * tail = 0;
 
   do
     {
-      struct variable * a = next;
+      struct node * a = next;
       assert (a);
-      struct variable * b = a->next;
+      struct node * b = a->next;
       if (b)
         {
           next = b->next;
-          struct variable * tmp = merge (a, b);
+          struct node * tmp = merge (a, b);
           assert (tmp);
           tmp->prev = tail;
           tail = tmp;
@@ -413,10 +464,10 @@ collapse (struct variable * node)
     }
   while (next);
 
-  struct variable * res = 0;
+  struct node * res = 0;
   while (tail)
     {
-      struct variable * prev = tail->prev;
+      struct node * prev = tail->prev;
       res = merge (res, tail);
       tail = prev;
     }
@@ -425,11 +476,11 @@ collapse (struct variable * node)
 }
 
 static void
-dequeue (struct variable * node)
+dequeue_node (struct node * node)
 {
   assert (node);
-  struct variable * prev = node->prev;
-  struct variable * next = node->next;
+  struct node * prev = node->prev;
+  struct node * next = node->next;
   assert (prev);
   node->prev = 0;
   if (prev->child == node)
@@ -441,36 +492,46 @@ dequeue (struct variable * node)
 }
 
 static void
-pop (struct solver * solver, struct variable * node)
+pop_queue (struct queue * queue, struct node * node)
 {
-  struct variable * root = solver->root;
-  struct variable * child = node->child;
+  struct node * root = queue->root;
+  struct node * child = node->child;
   if (root == node)
-    solver->root = collapse (child);
+    queue->root = collapse (child);
   else
     {
       dequeue (node);
-      struct variable * collapsed = collapse (child);
-      solver->root = merge (root, collapsed);
+      struct node * collapsed = collapse (child);
+      queue->root = merge (root, collapsed);
     }
-  assert (!contains (solver, node));
+  assert (!contains (queue, node));
 }
 
 static void
-update (struct solver * solver, struct variable * node, double new_score)
+update_queue (struct queue * queue, struct node * node, double new_score)
 {
   double old_score = node->score;
   assert (old_score <= new_score);
   if (old_score == new_score)
     return;
   node->score = new_score;
-  struct variable * root = solver->root;
+  struct node * root = queue->root;
   if (root == node)
     return;
   if (!node->prev)
     return;
   dequeue (node);
-  solver->root = merge (root, node);
+  queue->root = merge (root, node);
+}
+
+#endif
+
+#if 0
+
+static void
+push_solver (struct solver * solver, unsigned idx)
+{
+  push_queue (&solver->queue, solver->queue.nodes + idx);
 }
 
 #endif
@@ -478,51 +539,63 @@ update (struct solver * solver, struct variable * node, double new_score)
 /*------------------------------------------------------------------------*/
 
 static struct solver *
-new_solver (int size)
+new_solver (unsigned size)
 {
-  struct solver * solver = callocate (1, sizeof *solver);
+  assert (size < (1u<<30));
+  struct solver * solver = allocate_and_clear_block (sizeof *solver);
   solver->size = size;
-  solver->values = callocate (2u * size + 1, 1);
-  solver->values += size;
-  solver->variables = callocate (size + 1u, sizeof *solver->variables);
+  solver->values = allocate_and_clear_array (2, size);
+  solver->variables =
+    allocate_and_clear_array (size, sizeof *solver->variables);
   solver->trail.begin = solver->trail.end = solver->trail.propagate =
-    allocate (size * sizeof *solver->trail.begin);
-  for (all_variables (v))
-    push (solver, v);
+    allocate_array (size, sizeof *solver->trail.begin);
+  struct queue * queue = &solver->queue;
+  queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
+  for (all_nodes (node))
+    push_queue (queue, node);
   return solver;
 }
 
 static void
-delete_solver (struct solver * solver)
+release_clauses (struct solver * solver)
 {
   for (all_clauses (c))
     free (c);
   RELEASE (solver->clauses);
-  RELEASE (solver->clause);
-  RELEASE (solver->marked);
-  RELEASE (solver->trail);
-  solver->values -= solver->size;
-  free (solver->values);
-  int idx = 1;
+}
+
+static void
+release_watches (struct solver * solver)
+{
+  unsigned lit = 0;
   for (all_variables (v))
     {
       for (unsigned i = 0; i != 2; i++)
 	{
 	  struct watches * watches = v->watches + i;
-	  int lit = idx;
-	  if (i)
-	    lit *= 1;
 	  for (all_watches (w, *watches))
 	    {
-	      int other = w->xor ^ lit;
-	      if (abs (other) < abs (lit))
+	      unsigned other = w->xor ^ lit;
+	      if (other < lit)
 		free (w);
 	    }
 	  RELEASE (*watches);
 	}
-      idx++;
+      lit++;
     }
+  assert (lit == 2*solver->size);
+}
+
+static void
+delete_solver (struct solver * solver)
+{
+  RELEASE (solver->clause);
+  RELEASE (solver->marked);
+  RELEASE (solver->trail);
+  release_watches (solver);
+  release_clauses (solver);
   free (solver->variables);
+  free (solver->values);
   free (solver);
 }
 
@@ -694,14 +767,16 @@ INVALID_HEADER:
   if (ch != '\n')
     goto INVALID_HEADER;
   solver = new_solver (variables);
+  signed char * marked = allocate_and_clear_block (variables);
   message ("initialized solver of %d variables", variables);
-  int lit = 0, parsed = 0;
+  int signed_lit = 0, parsed = 0;
+  bool trivial = false;
   for (;;)
     {
       ch = next_char ();
       if (ch == EOF)
 	{
-	  if (lit)
+	  if (signed_lit)
 	    parse_error ("terminating zero missing");
 	  if (parsed != expected)
 	    parse_error ("clause missing");
@@ -717,26 +792,44 @@ SKIP_BODY_COMMENT:
 	      parse_error ("invalid end-of-file in body comment");
 	  continue;
 	}
-      if (!parse_int (&lit, ch, &ch))
+      if (!parse_int (&signed_lit, ch, &ch))
 	parse_error ("failed to parse literal");
-      if (lit == INT_MIN ||abs (lit) > variables)
-	parse_error ("invalid literal %d", lit);
+      if (signed_lit == INT_MIN || abs (signed_lit) > variables)
+	parse_error ("invalid literal %d", signed_lit);
       if (parsed == expected)
 	parse_error ("too many clauses");
       if (ch != 'c' && ch != ' ' && ch != '\t' && ch != '\n')
-	parse_error ("invalid character after '%d'", lit);
-      if (lit)
+	parse_error ("invalid character after '%d'", signed_lit);
+      if (signed_lit)
 	{
-	  PUSH (solver->clause, lit);
+	  unsigned idx = abs (signed_lit) - 1;
+	  assert (idx < (unsigned) variables);
+	  signed char sign = (signed_lit < 0) ? -1 : 1;
+	  signed char mark = marked[idx];
+	  if (mark < 0)
+	    trivial = true;
+	  else if (!mark)
+	    {
+	      unsigned unsigned_lit = 2*idx + (sign < 0);
+	      PUSH (solver->clause, unsigned_lit);
+	      marked[idx] = sign;
+	    }
 	}
       else
 	{
 	  parsed++;
+	  if (!trivial)
+	    {
+	    }
+	  for (all_elements_on_stack (unsigned, lit, solver->clause))
+	    marked[lit] = 0;
 	  CLEAR (solver->clause);
+	  trivial = false;
 	}
       if (ch == 'c')
 	goto SKIP_BODY_COMMENT;
     }
+  free (marked);
   message ("parsed 'p cnf %d %d' DIMACS file '%s'",
            variables, expected, dimacs.path);
   assert (dimacs.file);
