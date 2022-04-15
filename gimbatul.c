@@ -109,23 +109,23 @@ struct file
 
 struct literals
 {
-  int * begin, * end, * allocated;
+  unsigned * begin, * end, * allocated;
 };
 
 struct trail
 {
-  int * begin, * end, * propagate;
+  unsigned * begin, * end, * propagate;
 };
 
 struct clause
 {
-  char active;
-  char garbage;
-  char redundant;
-  char used;
-  int glue;
-  int size;
-  int literals[];
+  unsigned char active;
+  unsigned char garbage;
+  unsigned char redundant;
+  unsigned char used;
+  unsigned glue;
+  unsigned size;
+  unsigned literals[];
 };
 
 typedef struct clause * reference;
@@ -137,8 +137,8 @@ struct clauses
 
 struct watch
 {
-  int xor;
-  int searched;
+  unsigned int xor;
+  unsigned int searched;
   struct clause * clause;
 };
 
@@ -149,19 +149,18 @@ struct watches
 
 struct reason
 {
-  int literal;
+  unsigned literals[2];
   struct clause * clause;
 };
 
 struct variable
 {
-  int level;
+  unsigned level;
   signed char phase;
   signed char value;
-  signed char mark;
-  bool seen;
-  bool poison;
-  bool minimize;
+  bool seen:1;
+  bool poison:1;
+  bool minimize:1;
   struct reason reason;
   struct watches watches[2];
   struct variable * child, * prev, * next;
@@ -191,9 +190,9 @@ struct statistics
 struct solver
 {
   bool stable;
-  int size;
-  int unassigned;
-  int level;
+  unsigned size;
+  unsigned level;
+  unsigned unassigned;
   signed char * values;
   double increment;
   struct variable * root;
@@ -838,7 +837,6 @@ print_statistics (void)
 int
 main (int argc, char ** argv)
 {
-  message ("sizeof (clause) = %zu bytes", sizeof (struct clause));
   start_time = wall_clock_time ();
   parse_options (argc, argv);
   print_banner ();
