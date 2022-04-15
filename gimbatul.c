@@ -562,6 +562,7 @@ new_solver (unsigned size)
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
   for (all_nodes (node))
     push_queue (queue, node);
+  solver->unassigned = size;
   return solver;
 }
 
@@ -610,20 +611,6 @@ delete_solver (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
-static void
-assign_unit (struct solver *solver, unsigned unit)
-{
-  const unsigned not_unit = NOT (unit);
-  assert (!solver->values[unit]);
-  assert (!solver->values[not_unit]);
-  solver->values[unit] = 1;
-  solver->values[not_unit] = -1;
-  *solver->trail.end++ = unit;
-  VAR (unit)->level = 0;
-}
-
-/*------------------------------------------------------------------------*/
-
 static struct clause *
 new_clause (struct solver *solver,
 	    size_t size, unsigned *literals, bool redundant, unsigned glue)
@@ -643,13 +630,54 @@ new_clause (struct solver *solver,
   return res;
 }
 
+/*------------------------------------------------------------------------*/
+
+static void
+assign_unit (struct solver *solver, unsigned unit)
+{
+  const unsigned not_unit = NOT (unit);
+  assert (!solver->values[unit]);
+  assert (!solver->values[not_unit]);
+  assert (solver->unassigned);
+  solver->values[unit] = 1;
+  solver->values[not_unit] = -1;
+  *solver->trail.end++ = unit;
+  VAR (unit)->level = 0;
+  solver->unassigned--;
+}
+
+static struct clause *
+propagate (struct solver * solver)
+{
+  return 0;
+}
+
+static bool
+analyze (struct solver * solver, struct clause * conflict)
+{
+  if (!solver->level)
+    return false;
+  return true;
+}
+
 static int
 solve (struct solver *solver)
 {
-  if (solver->inconsistent)
-    return 20;
-
-  return 0;
+  int res = solver->inconsistent ? 20 : 0;
+  while (!res)
+    {
+      struct clause * conflict = propagate (solver);
+      if (conflict)
+	{
+	  if (!analyze (solver, conflict))
+	    res = 20;
+	}
+      else if (!solver->unassigned)
+	res = 10;
+      else
+	break;
+    }
+  return res;
 }
 
 /*------------------------------------------------------------------------*/
