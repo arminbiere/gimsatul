@@ -431,8 +431,6 @@ push_queue (struct queue *queue, struct node *node)
   assert (queue_contains (queue, node));
 }
 
-#if 0
-
 static struct node *
 collapse_node (struct node *node)
 {
@@ -449,7 +447,7 @@ collapse_node (struct node *node)
       if (b)
 	{
 	  next = b->next;
-	  struct node *tmp = merge (a, b);
+	  struct node *tmp = merge_nodes (a, b);
 	  assert (tmp);
 	  tmp->prev = tail;
 	  tail = tmp;
@@ -467,7 +465,7 @@ collapse_node (struct node *node)
   while (tail)
     {
       struct node *prev = tail->prev;
-      res = merge (res, tail);
+      res = merge_nodes (res, tail);
       tail = prev;
     }
 
@@ -496,15 +494,17 @@ pop_queue (struct queue *queue, struct node *node)
   struct node *root = queue->root;
   struct node *child = node->child;
   if (root == node)
-    queue->root = collapse (child);
+    queue->root = collapse_node (child);
   else
     {
-      dequeue (node);
-      struct node *collapsed = collapse (child);
-      queue->root = merge (root, collapsed);
+      dequeue_node (node);
+      struct node *collapsed = collapse_node (child);
+      queue->root = merge_nodes (root, collapsed);
     }
-  assert (!contains (queue, node));
+  assert (!queue_contains (queue, node));
 }
+
+#if 0
 
 static void
 update_queue (struct queue *queue, struct node *node, double new_score)
@@ -647,16 +647,12 @@ assign_unit (struct solver *solver, unsigned unit)
   assign (solver, unit, 0);
 }
 
-#if 0
-
 static void
 assign_decision (struct solver * solver, unsigned decision)
 {
   assert (solver->level);
   assign (solver, decision, 0);
 }
-
-#endif
 
 static struct clause *
 propagate (struct solver * solver)
@@ -714,6 +710,8 @@ propagate (struct solver * solver)
 	*q++ = *p++;
       watches->end = q;
     }
+  if (conflict)
+    solver->statistics.conflicts++;
   return conflict;
 }
 
@@ -723,6 +721,32 @@ analyze (struct solver * solver, struct clause * conflict)
   if (!solver->level)
     return false;
   return true;
+}
+
+static void
+decide (struct solver * solver)
+{
+  assert (!solver->unassigned);
+  struct queue * queue = &solver->queue;
+  signed char * values = solver->values;
+  assert (queue->root);
+  unsigned lit;
+  size_t idx;
+  for (;;)
+    {
+      struct node * root = queue->root;
+      assert (root);
+      idx = root - queue->nodes;
+      lit = LIT (idx);
+      if (!values[lit])
+	break;
+      pop_queue (queue, root);
+    }
+  assert (idx < solver->size);
+  if (solver->variables[idx].phase < 0)
+    lit = NOT (lit);
+  solver->level++;
+  assign_decision (solver, lit);
 }
 
 static int
@@ -740,7 +764,7 @@ solve (struct solver *solver)
       else if (!solver->unassigned)
 	res = 10;
       else
-	break;
+	decide (solver);
     }
   return res;
 }
