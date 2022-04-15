@@ -78,13 +78,19 @@ do { \
 #define POP(STACK) \
   (assert (!EMPTY (STACK)), *--(STACK).end)
 
-#define ALL(TYPE,ELEM,STACK) \
+#define all(TYPE,ELEM,STACK) \
   TYPE * P_ ## ELEM = (STACK).begin, * END_ ## ELEM = (STACK).end, ELEM; \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
+#define all_watches(ELEM,WATCHES) \
+  struct watch ** P_ ## ELEM = (WATCHES).begin, \
+               ** END_ ## ELEM = (WATCHES).end, * ELEM; \
+  (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
+  ++P_ ## ELEM
+
 #define all_clauses(CLAUSE) \
-  ALL (reference, CLAUSE, solver->clauses)
+  all (reference, CLAUSE, solver->clauses)
 
 #define all_variables(VAR) \
   struct variable * VAR = solver->variables + 1, \
@@ -113,10 +119,10 @@ struct trail
 
 struct clause
 {
-  bool active;
-  bool garbage;
-  bool redundant;
-  bool used;
+  char active;
+  char garbage;
+  char redundant;
+  char used;
   int glue;
   int size;
   int literals[];
@@ -131,13 +137,14 @@ struct clauses
 
 struct watch
 {
-  int blocking;
+  int xor;
+  int searched;
   struct clause * clause;
 };
 
 struct watches
 {
-  struct watch * begin, * end, * allocated;
+  struct watch ** begin, ** end, ** allocated;
 };
 
 struct reason
@@ -145,9 +152,6 @@ struct reason
   int literal;
   struct clause * clause;
 };
-
-struct variable;
-
 
 struct variable
 {
@@ -335,11 +339,15 @@ reallocate (void * ptr, size_t bytes)
 
 /*------------------------------------------------------------------------*/
 
+#ifndef NDEBUG
+
 static bool
 contains (struct solver * solver, struct variable * node)
 {
   return solver->root == node || node->prev;
 }
+
+#endif
 
 static struct variable *
 merge (struct variable * a, struct variable * b)
@@ -496,9 +504,25 @@ delete_solver (struct solver * solver)
   RELEASE (solver->trail);
   solver->values -= solver->size;
   free (solver->values);
+  int idx = 1;
   for (all_variables (v))
-    for (unsigned i = 0; i != 2; i++)
-      RELEASE (v->watches[i]);
+    {
+      for (unsigned i = 0; i != 2; i++)
+	{
+	  struct watches * watches = v->watches + i;
+	  int lit = idx;
+	  if (i)
+	    lit *= 1;
+	  for (all_watches (w, *watches))
+	    {
+	      int other = w->xor ^ lit;
+	      if (abs (other) < abs (lit))
+		free (w);
+	    }
+	  RELEASE (*watches);
+	}
+      idx++;
+    }
   free (solver->variables);
   free (solver);
 }
@@ -814,6 +838,7 @@ print_statistics (void)
 int
 main (int argc, char ** argv)
 {
+  message ("sizeof (clause) = %zu bytes", sizeof (struct clause));
   start_time = wall_clock_time ();
   parse_options (argc, argv);
   print_banner ();
