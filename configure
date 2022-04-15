@@ -5,16 +5,17 @@ usage: configure [ <option> ... ]
 
 where '<option>' is one of the following:
 
--c     enable assertion checking
--g     debugging compile (implies '-c' and '-s')
+-c     enable assertion checking even without '-g'
+-g     debugging compile (implies '-c', '-l' and '-s')
 -h     print this command line option summary
--O     force optimization (even with '-g')
--s     add symbol table
+-l     include logging code even without '-g'
+-s     add symbol table even without '-g'
 EOF
 exit 1
 }
 debug=no
 symbols=no
+logging=no
 check=no
 die () {
   echo "configure: error: $*" $* 1>&2
@@ -26,6 +27,7 @@ do
     -c) check=yes;;
     -g) debug=yes;;
     -h) usage; exit 0;;
+    -l) logging=yes;;
     -s) symbols=yes;;
     *)  die "invalid option '$1' (try '-h')";;
   esac
@@ -34,9 +36,11 @@ done
 COMPILE="gcc -Wall"
 [ $debug = yes ] && check=yes
 [ $debug = yes ] && symbols=yes
+[ $debug = yes ] && logging=yes
 [ $debug = no ] && COMPILE="$COMPILE -O3"
 [ $symbols = yes ] && COMPILE="$COMPILE -ggdb3"
 [ $check = no ] && COMPILE="$COMPILE -DNDEBUG"
+[ $logging = yes ] && COMPILE="$COMPILE -DLOGGING"
 echo "$COMPILE"
 rm -f makefile
 sed -e "s#@COMPILE@#$COMPILE#" makefile.in > makefile

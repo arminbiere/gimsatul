@@ -8,6 +8,9 @@ static const char * usage =
 "where '<option>' is one of the following\n"
 "\n"
 "-h    print this command line option summary\n"
+#ifdef LOGGING
+"-l    enable very verbose internal logging\n"
+#endif
 "-n    do not print satisfying assignments\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing).\n"
@@ -123,6 +126,12 @@ do { \
   IDX != END_ ## IDX; \
   ++IDX
 
+#define all_literals_in_clause(LIT,CLAUSE) \
+  unsigned * P_ ## LIT = (CLAUSE)->literals, \
+           * END_ ## LIT = P_ ## LIT + (CLAUSE)->size, LIT;\
+  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
+  ++ P_ ## LIT
+
 /*------------------------------------------------------------------------*/
 
 struct file
@@ -145,6 +154,9 @@ struct trail
 
 struct clause
 {
+#ifdef LOGGING
+  size_t id;
+#endif
   unsigned char active;
   unsigned char garbage;
   unsigned char redundant;
@@ -212,6 +224,9 @@ struct statistics
   size_t switches;
   size_t reductions;
   size_t restarts;
+#ifdef LOGGING
+  size_t clauses;
+#endif
 };
 
 struct solver
@@ -225,13 +240,66 @@ struct solver
   signed char *values;
   struct queue queue;
   struct literals clause;
-  struct literals marked;
+  struct literals analyzed;
   struct trail trail;
   struct limits limits;
   struct intervals intervals;
   struct statistics statistics;
 };
 
+/*------------------------------------------------------------------------*/
+#ifdef LOGGING
+static bool logging;
+static char loglitbuf[4][32];
+static unsigned loglitpos;
+#define loglitsize (sizeof loglitbuf / sizeof *loglitbuf)
+static const char *
+loglit (struct solver * solver, unsigned unsigned_lit)
+{
+  char * res = loglitbuf[loglitpos++];
+  if (loglitpos == loglitsize)
+    loglitpos = 0;
+  int signed_lit = unsigned_lit/2 + 1;
+  if (SGN (unsigned_lit))
+    signed_lit *= -1;
+  sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
+  signed char value = solver->values[unsigned_lit];
+  if (value)
+    sprintf (res + strlen (res),
+             "=%d@%u", (int) value, VAR (unsigned_lit)->level);
+  assert (strlen (res) + 1 < sizeof *loglitbuf);
+  return res;
+}
+#define LOGLIT(...) loglit (solver, __VA_ARGS__)
+#define LOG(...) \
+do { \
+  if (!logging) \
+    break; \
+  fputs ("c ", stdout); \
+  printf (__VA_ARGS__); \
+  fputc ('\n', stdout); \
+  fflush (stdout); \
+} while (0)
+#define LOGCLAUSE(CLAUSE, ...) \
+do { \
+  if (!logging) \
+    break; \
+  fputs ("c ", stdout); \
+  printf (__VA_ARGS__); \
+  if ((CLAUSE)->redundant) \
+    printf (" redundant glue %u", (CLAUSE)->glue); \
+  else \
+    printf (" irredundant"); \
+  printf (" size %u clause[%zu]", (CLAUSE)->size, (CLAUSE)->id); \
+  for (all_literals_in_clause (LIT, (CLAUSE))) \
+    printf (" %s", LOGLIT (LIT)); \
+  fputc ('\n', stdout); \
+  fflush (stdout); \
+} while (0)
+#else
+#define LOG(...) do { } while (0)
+#define LOGCLAUSE(...) do { } while (0)
+#endif
 /*------------------------------------------------------------------------*/
 
 static double
@@ -385,15 +453,11 @@ reallocate_block (void *ptr, size_t bytes)
 
 /*------------------------------------------------------------------------*/
 
-#ifndef NDEBUG
-
 static bool
 queue_contains (struct queue *queue, struct node *node)
 {
   return queue->root == node || node->prev;
 }
-
-#endif
 
 static struct node *
 merge_nodes (struct node *a, struct node *b)
@@ -501,8 +565,6 @@ pop_queue (struct queue *queue, struct node *node)
   assert (!queue_contains (queue, node));
 }
 
-#if 0
-
 static void
 update_queue (struct queue *queue, struct node *node, double new_score)
 {
@@ -516,21 +578,19 @@ update_queue (struct queue *queue, struct node *node, double new_score)
     return;
   if (!node->prev)
     return;
-  dequeue (node);
-  queue->root = merge (root, node);
+  dequeue_node (node);
+  queue->root = merge_nodes (root, node);
 }
-
-#endif
-
-#if 0
 
 static void
-push_solver (struct solver *solver, unsigned idx)
+bump_score (struct solver *solver, unsigned idx)
 {
-  push_queue (&solver->queue, solver->queue.nodes + idx);
+  struct queue * queue = &solver->queue;
+  struct node * node = queue->nodes + idx;
+  double old_score = node->score;
+  double new_score = old_score + queue->increment;
+  update_queue (queue, node, new_score);
 }
-
-#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -548,6 +608,7 @@ new_solver (unsigned size)
   trail->end = trail->propagate = trail->begin;
   struct queue *queue = &solver->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
+  queue->increment = 1;
   for (all_nodes (node))
     push_queue (queue, node);
   solver->unassigned = size;
@@ -589,7 +650,7 @@ static void
 delete_solver (struct solver *solver)
 {
   RELEASE (solver->clause);
-  RELEASE (solver->marked);
+  RELEASE (solver->analyzed);
   RELEASE (solver->trail);
   release_watches (solver);
   release_clauses (solver);
@@ -608,6 +669,9 @@ new_clause (struct solver *solver,
   assert (size <= solver->size);
   size_t bytes = size * sizeof (unsigned);
   struct clause *res = allocate_block (sizeof *res + bytes);
+#ifdef LOGGING
+  res->id = ++solver->statistics.clauses;
+#endif
   res->active = false;
   res->garbage = false;
   res->redundant = redundant;
@@ -617,6 +681,7 @@ new_clause (struct solver *solver,
   memcpy (res->literals, literals, bytes);
   PUSH (solver->clauses, res);
   // TODO watch
+  LOGCLAUSE (res, "new");
   return res;
 }
 
@@ -635,8 +700,18 @@ assign (struct solver * solver, unsigned lit, struct clause * reason)
   *solver->trail.end++ = lit;
   struct variable * v = VAR (lit);
   v->phase = SGN (lit) ? -1 : 1;
-  v->level = solver->level;
-  v->reason = reason;
+  unsigned level = solver->level;
+  v->level = level;
+  v->reason = level ? reason : 0;
+}
+
+static void
+assign_propagate (struct solver * solver,
+                  unsigned lit, struct clause * reason)
+{
+  assert (reason);
+  assign (solver, lit, reason);
+  LOGCLAUSE (reason, "assign %s reason", LOGLIT (lit));
 }
 
 static void
@@ -644,6 +719,7 @@ assign_unit (struct solver *solver, unsigned unit)
 {
   assert (!solver->level);
   assign (solver, unit, 0);
+  LOG ("assign %s unit", LOGLIT (unit));
 }
 
 static void
@@ -651,6 +727,8 @@ assign_decision (struct solver * solver, unsigned decision)
 {
   assert (solver->level);
   assign (solver, decision, 0);
+  LOG ("assign %s decision score %g",
+       LOGLIT (decision), solver->queue.nodes[IDX (decision)].score);
 }
 
 static struct clause *
@@ -663,6 +741,7 @@ propagate (struct solver * solver)
   while (!conflict && trail->propagate != trail->end)
     {
       unsigned lit = *trail->propagate++;
+      LOG ("propagating %s", LOGLIT (lit));
       unsigned not_lit = NOT (lit);
       struct watches * watches = WATCHES (not_lit);
       struct watch ** begin = watches->begin, ** q = begin;
@@ -703,7 +782,7 @@ propagate (struct solver * solver)
 	      conflict = clause;
 	    }
 	  else
-	    assign (solver, other, clause);
+	    assign_propagate (solver, other, clause);
 	}
       while (p != end)
 	*q++ = *p++;
@@ -714,11 +793,90 @@ propagate (struct solver * solver)
   return conflict;
 }
 
+static void
+backtrack (struct solver * solver, unsigned level)
+{
+  assert (solver->level > level);
+  struct trail * trail = &solver->trail;
+  struct variable * variables = solver->variables;
+  signed char * values = solver->values;
+  struct queue * queue = &solver->queue;
+  struct node * nodes = queue->nodes;
+  unsigned * t = trail->end;
+  while (t != trail->begin)
+    {
+      unsigned lit = t[-1], idx = IDX (lit);
+      if (variables[idx].level == level)
+	break;
+      unsigned not_lit = NOT (lit);
+      values[lit] = values[not_lit] = 0;
+      assert (solver->unassigned < solver->size);
+      solver->unassigned++;
+      struct node * node = nodes + idx;
+      if (!queue_contains (queue, node))
+	push_queue (queue, node);
+      t--;
+    }
+  trail->end = trail->propagate = t;
+  solver->level = level;
+}
+
 static bool
-analyze (struct solver * solver, struct clause * conflict)
+analyze (struct solver * solver, struct clause * reason)
 {
   if (!solver->level)
     return false;
+  struct literals * clause = &solver->clause;
+  struct literals * analyzed = &solver->analyzed;
+  assert (EMPTY (*clause));
+  assert (EMPTY (*analyzed));
+  struct variable * variables = solver->variables;
+  struct trail * trail = &solver->trail;
+  unsigned * t = trail->end;
+  PUSH (*clause, INVALID);
+  unsigned uip, jump = 0, level = solver->level;
+  for (;;)
+    {
+      for (all_literals_in_clause (lit, reason))
+	{
+	  unsigned idx = IDX (lit);
+	  struct variable * v = variables + idx;
+	  if (!v->level)
+	    continue;
+	  if (v->seen)
+	    continue;
+	  v->seen = true;
+	  PUSH (*analyzed, idx);
+	  bump_score (solver, idx);
+	  unsigned v_level = v->level;
+	  if (v_level == level)
+	    continue;
+	  PUSH (*clause, lit);
+	  if (v_level > jump)
+	    jump = v_level;
+	}
+      do
+	{
+	  assert (t > solver->trail.begin);
+	  uip = *--t;
+	}
+      while (!VAR (uip)->seen);
+    }
+  backtrack (solver, jump);
+  unsigned not_uip = NOT (uip);
+  clause->begin[0] = not_uip;
+  unsigned size = SIZE (*clause);
+  assert (size);
+  if (size == 1)
+    assign_unit (solver, not_uip);
+  else
+    {
+      assert (jump);
+    }
+  CLEAR (*clause);
+  for (all_elements_on_stack (unsigned, idx, *analyzed))
+    VAR (idx)->seen = false;
+  CLEAR (*analyzed);
   return true;
 }
 
@@ -742,7 +900,8 @@ decide (struct solver * solver)
       pop_queue (queue, root);
     }
   assert (idx < solver->size);
-  if (solver->variables[idx].phase < 0)
+  struct variable * v = solver->variables + idx;
+  if (v->phase < 0)
     lit = NOT (lit);
   solver->level++;
   assign_decision (solver, lit);
@@ -801,6 +960,12 @@ parse_options (int argc, char **argv)
 	  fputs (usage, stdout);
 	  exit (0);
 	}
+      else if (!strcmp (arg, "-l"))
+#ifdef LOGGING
+	logging = true;
+#else
+	die ("invalid option '-l' (compiled without logging support)");
+#endif
       else if (!strcmp (arg, "-n"))
 	witness = false;
       else if (!strcmp (arg, "-a"))
