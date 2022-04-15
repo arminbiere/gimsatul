@@ -596,6 +596,7 @@ delete_solver (struct solver *solver)
   RELEASE (solver->trail);
   release_watches (solver);
   release_clauses (solver);
+  free (solver->queue.nodes);
   free (solver->variables);
   free (solver->values);
   free (solver);
@@ -726,7 +727,7 @@ analyze (struct solver * solver, struct clause * conflict)
 static void
 decide (struct solver * solver)
 {
-  assert (!solver->unassigned);
+  assert (solver->unassigned);
   struct queue * queue = &solver->queue;
   signed char * values = solver->values;
   assert (queue->root);
