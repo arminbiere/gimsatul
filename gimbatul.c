@@ -590,8 +590,8 @@ release_watches (struct solver *solver)
 		free (w);
 	    }
 	  RELEASE (*watches);
+	  lit++;
 	}
-      lit++;
     }
   assert (lit == 2 * solver->size);
 }
