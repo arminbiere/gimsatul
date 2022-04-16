@@ -248,7 +248,9 @@ struct solver
 };
 
 /*------------------------------------------------------------------------*/
+
 #ifdef LOGGING
+
 static bool logging;
 static char loglitbuf[4][32];
 static unsigned loglitpos;
@@ -270,7 +272,9 @@ loglit (struct solver * solver, unsigned unsigned_lit)
   assert (strlen (res) + 1 < sizeof *loglitbuf);
   return res;
 }
+
 #define LOGLIT(...) loglit (solver, __VA_ARGS__)
+
 #define LOG(...) \
 do { \
   if (!logging) \
@@ -280,6 +284,7 @@ do { \
   fputc ('\n', stdout); \
   fflush (stdout); \
 } while (0)
+
 #define LOGCLAUSE(CLAUSE, ...) \
 do { \
   if (!logging) \
@@ -296,10 +301,14 @@ do { \
   fputc ('\n', stdout); \
   fflush (stdout); \
 } while (0)
+
 #else
+
 #define LOG(...) do { } while (0)
 #define LOGCLAUSE(...) do { } while (0)
+
 #endif
+
 /*------------------------------------------------------------------------*/
 
 static double
