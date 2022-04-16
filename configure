@@ -45,3 +45,4 @@ CFLAGS="-Wall"
 echo "configure: $CC $CFLAGS"
 rm -f makefile
 sed -e "s#@CC@#$CC#;s#@CFLAGS@#$CFLAGS#" makefile.in > makefile
+echo "configure: generated 'makefile'"
