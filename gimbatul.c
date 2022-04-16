@@ -1037,6 +1037,10 @@ analyze (struct solver * solver, struct clause * reason)
   PUSH (*clause, INVALID);
   const unsigned level = solver->level;
   unsigned uip, jump = 0, glue = 0, open = 0;
+#if 1
+  for (all_variables (v))
+    assert (!v->seen);
+#endif
   for (;;)
     {
       LOGCLAUSE (reason, "analyzing");
@@ -1097,7 +1101,7 @@ analyze (struct solver * solver, struct clause * reason)
   TRACE_ADDED ();
   CLEAR (*clause);
   for (all_elements_on_stack (unsigned, idx, *analyzed))
-    VAR (idx)->seen = false;
+    variables[idx].seen = false;
   CLEAR (*analyzed);
   for (all_elements_on_stack (unsigned, used_level, *levels))
     used[used_level] = false;
@@ -1194,7 +1198,7 @@ parse_options (int argc, char **argv)
       else if (!strcmp (arg, "-n"))
 	witness = false;
       else if (!strcmp (arg, "-a"))
-	binary_proof_format = true;
+	binary_proof_format = false;
       else if (arg[0] == '-' && arg[1])
 	die ("invalid option '%s' (try '-h')", arg);
       else if (proof.file)
@@ -1621,6 +1625,9 @@ main (int argc, char ** argv)
   parse_options (argc, argv);
   print_banner ();
   check_types ();
+  if (proof.file)
+    message ("writing %s proof trace to '%s'",
+              binary_proof_format ? "binary" : "ASCII", proof.path);
   solver = parse_dimacs_file ();
   init_signal_handler ();
   int res = solve (solver);
