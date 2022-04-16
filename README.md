@@ -8,5 +8,4 @@ For more information on build options try
 
 > `./configure -h`
 
-
 Armin Biere
