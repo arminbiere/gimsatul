@@ -9,6 +9,7 @@ static const char * usage =
 "\n"
 "-a    use ASCII format for proof output\n"
 "-h    print this command line option summary\n"
+"-f    force reading and writing\n"
 #ifdef LOGGING
 "-l    enable very verbose internal logging\n"
 #endif
@@ -724,6 +725,7 @@ delete_solver (struct solver *solver)
 
 static struct file proof;
 static bool binary_proof_format = true;
+static bool force = false;
 
 static void
 write_buffer (struct buffer * buffer, FILE * file)
@@ -760,7 +762,7 @@ binary_proof_line (struct buffer * buffer, size_t size, unsigned * literals)
   for (const unsigned * p = literals; p != end; p++)
     {
       unsigned tmp = *p + 1;
-      while (tmp & 127)
+      while (tmp & ~127u)
 	{
 	  unsigned char ch = (tmp & 0x7f) | 128;
 	  PUSH (*buffer, ch);
@@ -1158,6 +1160,27 @@ solve (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
+static bool
+has_suffix (const char * str, const char * suffix)
+{
+  size_t len = strlen (str);
+  size_t suffix_len = strlen (suffix);
+  if (len < suffix_len)
+    return 0;
+  return !strcmp (str + len - suffix_len, suffix);
+}
+
+static bool
+looks_like_dimacs (const char * path)
+{
+  return has_suffix (path, ".cnf") || has_suffix (path, ".dimacs") ||
+    has_suffix (path, ".cnf.bz2") || has_suffix (path, ".dimacs.bz2") ||
+    has_suffix (path, ".cnf.gz") || has_suffix (path, ".dimacs.gz") ||
+    has_suffix (path, ".cnf.xz") || has_suffix (path, ".dimacs.xz");
+}
+
+/*------------------------------------------------------------------------*/
+
 static struct file dimacs;
 
 static void parse_error (const char *, ...)
@@ -1199,6 +1222,8 @@ parse_options (int argc, char **argv)
 	witness = false;
       else if (!strcmp (arg, "-a"))
 	binary_proof_format = false;
+      else if (!strcmp (arg, "-f"))
+	force = true;
       else if (arg[0] == '-' && arg[1])
 	die ("invalid option '%s' (try '-h')", arg);
       else if (proof.file)
@@ -1211,6 +1236,8 @@ parse_options (int argc, char **argv)
 	      proof.file = stdout;
 	      binary_proof_format = false;
 	    }
+	  else if (!force && looks_like_dimacs (arg))
+	    die ("proof file '%s' looks like a DIMACS file (use '-f')", arg);
 	  else if (!(proof.file = fopen (arg, "w")))
 	    die ("can not open and write to '%s'", arg);
 	  else
