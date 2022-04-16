@@ -143,7 +143,7 @@ struct file
   size_t lines;
 };
 
-struct literals
+struct unsigneds
 {
   unsigned *begin, *end, *allocated;
 };
@@ -233,9 +233,11 @@ struct solver
   struct clauses clauses;
   struct variable *variables;
   signed char *values;
+  bool * used;
+  struct unsigneds levels;
   struct queue queue;
-  struct literals clause;
-  struct literals analyzed;
+  struct unsigneds clause;
+  struct unsigneds analyzed;
   struct trail trail;
   struct limits limits;
   struct statistics statistics;
@@ -637,6 +639,7 @@ new_solver (unsigned size)
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
   solver->size = size;
   solver->values = allocate_and_clear_array (2, size);
+  solver->used = allocate_and_clear_block (size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
   struct trail * trail = &solver->trail;
@@ -668,7 +671,7 @@ release_watches (struct solver *solver)
       for (unsigned i = 0; i != 2; i++)
 	{
 	  struct watches *watches = v->watches + i;
-	  assert (watches == WATCHES (lit));
+	  assert (watches == &WATCHES (lit));
 	  for (all_watches (w, *watches))
 	    {
 	      unsigned other = w->sum ^ lit;
@@ -688,11 +691,13 @@ delete_solver (struct solver *solver)
   RELEASE (solver->clause);
   RELEASE (solver->analyzed);
   RELEASE (solver->trail);
+  RELEASE (solver->levels);
   release_watches (solver);
   release_clauses (solver);
   free (solver->queue.nodes);
   free (solver->variables);
   free (solver->values);
+  free (solver->used);
   free (solver);
 }
 
@@ -747,8 +752,8 @@ assign (struct solver * solver, unsigned lit, struct clause * reason)
 }
 
 static void
-assign_propagate (struct solver * solver,
-                  unsigned lit, struct clause * reason)
+assign_with_reason (struct solver * solver,
+                    unsigned lit, struct clause * reason)
 {
   assert (reason);
   assign (solver, lit, reason);
@@ -786,8 +791,8 @@ propagate (struct solver * solver)
       unsigned not_lit = NOT (lit);
       struct watches * watches = &WATCHES (not_lit);
       struct watch ** begin = watches->begin, ** q = begin;
-      struct watch ** end = watches->end, ** p;
-      for (p = begin; !conflict && p != end; p++)
+      struct watch ** end = watches->end, ** p = begin;
+      while (!conflict && p != end)
 	{
 	  struct watch * watch = *q++ = *p++;
 	  unsigned other = watch->sum ^ not_lit;
@@ -823,14 +828,17 @@ propagate (struct solver * solver)
 	      conflict = clause;
 	    }
 	  else
-	    assign_propagate (solver, other, clause);
+	    assign_with_reason (solver, other, clause);
 	}
       while (p != end)
 	*q++ = *p++;
       watches->end = q;
     }
   if (conflict)
-    solver->statistics.conflicts++;
+    {
+      LOGCLAUSE (conflict, "conflicting");
+      solver->statistics.conflicts++;
+    }
   return conflict;
 }
 
@@ -849,6 +857,7 @@ backtrack (struct solver * solver, unsigned level)
       unsigned lit = t[-1], idx = IDX (lit);
       if (variables[idx].level == level)
 	break;
+      LOG ("unassign %s", LOGLIT (lit));
       unsigned not_lit = NOT (lit);
       values[lit] = values[not_lit] = 0;
       assert (solver->unassigned < solver->size);
@@ -867,17 +876,22 @@ analyze (struct solver * solver, struct clause * reason)
 {
   if (!solver->level)
     return false;
-  struct literals * clause = &solver->clause;
-  struct literals * analyzed = &solver->analyzed;
+  struct unsigneds * clause = &solver->clause;
+  struct unsigneds * analyzed = &solver->analyzed;
+  struct unsigneds * levels = &solver->levels;
   assert (EMPTY (*clause));
   assert (EMPTY (*analyzed));
+  assert (EMPTY (*levels));
   struct variable * variables = solver->variables;
   struct trail * trail = &solver->trail;
+  bool * used = solver->used;
   unsigned * t = trail->end;
   PUSH (*clause, INVALID);
-  unsigned uip, jump = 0, level = solver->level;
+  const unsigned level = solver->level;
+  unsigned uip, jump = 0, glue = 0, open = 0;
   for (;;)
     {
+      LOGCLAUSE (reason, "analyzing");
       for (all_literals_in_clause (lit, reason))
 	{
 	  unsigned idx = IDX (lit);
@@ -891,8 +905,17 @@ analyze (struct solver * solver, struct clause * reason)
 	  bump_score (solver, idx);
 	  unsigned v_level = v->level;
 	  if (v_level == level)
-	    continue;
+	    {
+	      open++;
+	      continue;
+	    }
 	  PUSH (*clause, lit);
+	  if (!used[level])
+	    {
+	      used[level] = true;
+	      PUSH (*levels, level);
+	      glue++;
+	    }
 	  if (v_level > jump)
 	    jump = v_level;
 	}
@@ -902,22 +925,33 @@ analyze (struct solver * solver, struct clause * reason)
 	  uip = *--t;
 	}
       while (!VAR (uip)->seen);
+      if (!--open)
+	break;
+      reason = variables[ IDX (uip) ].reason;
     }
+  LOG ("back jump level %u", jump);
+  LOG ("glucose level (LBD) %u", glue);
+  LOG ("first UIP %s", LOGLIT (uip));
   backtrack (solver, jump);
-  unsigned not_uip = NOT (uip);
-  clause->begin[0] = not_uip;
+  const unsigned not_uip = NOT (uip);
+  unsigned * literals = clause->begin;
+  literals[0] = not_uip;
   unsigned size = SIZE (*clause);
   assert (size);
   if (size == 1)
     assign_unit (solver, not_uip);
   else
     {
-      assert (jump);
+      struct clause * learned = new_clause (solver, size, literals, 1, glue);
+      assign_with_reason (solver, not_uip, learned);
     }
   CLEAR (*clause);
   for (all_elements_on_stack (unsigned, idx, *analyzed))
     VAR (idx)->seen = false;
   CLEAR (*analyzed);
+  for (all_elements_on_stack (unsigned, used_level, *levels))
+    used[used_level] = false;
+  CLEAR (*levels);
   return true;
 }
 
@@ -1174,7 +1208,7 @@ parse_dimacs_file ()
   message ("initialized solver of %d variables", variables);
   int signed_lit = 0, parsed = 0;
   bool trivial = false;
-  struct literals *clause = &solver->clause;
+  struct unsigneds *clause = &solver->clause;
   for (;;)
     {
       ch = next_char ();
