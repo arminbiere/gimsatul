@@ -33,14 +33,15 @@ do
   esac
   shift
 done
-COMPILE="gcc -Wall"
+[ "$CC" = "" ] && CC=gcc
+CFLAGS="-Wall"
 [ $debug = yes ] && check=yes
 [ $debug = yes ] && symbols=yes
 [ $debug = yes ] && logging=yes
-[ $debug = no ] && COMPILE="$COMPILE -O3"
-[ $symbols = yes ] && COMPILE="$COMPILE -ggdb3"
-[ $check = no ] && COMPILE="$COMPILE -DNDEBUG"
-[ $logging = yes ] && COMPILE="$COMPILE -DLOGGING"
-echo "$COMPILE"
+[ $debug = no ] && CFLAGS="$CFLAGS -O3"
+[ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
+[ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
+[ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
+echo "configure: $CC $CFLAGS"
 rm -f makefile
-sed -e "s#@COMPILE@#$COMPILE#" makefile.in > makefile
+sed -e "s#@CC@#$CC#;s#@CFLAGS@#$CFLAGS#" makefile.in > makefile

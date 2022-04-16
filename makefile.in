@@ -1,11 +1,14 @@
-COMPILE=@COMPILE@
+CC=@CC@
+CFLAGS=@CFLAGS@
 all: gimbatul
 clean:
-	rm -f gimbatul *~
+	rm -f makfile config.h gimbatul *~
 indent:
 	indent gimbatul.c
 test: all
 	cnf/test.sh
-gimbatul: gimbatul.c makefile
-	$(COMPILE) -o $@ $<
+gimbatul: gimbatul.c config.h
+	$(CC) $(CFLAGS) -o $@ $<
+config.h: makefile
+	./mkconfig.sh > $@
 .PHONY: all clean indent test

@@ -29,6 +29,7 @@ static const char * usage =
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
@@ -157,10 +158,10 @@ struct clause
 #ifdef LOGGING
   size_t id;
 #endif
-  unsigned char active;
-  unsigned char garbage;
-  unsigned char redundant;
-  unsigned char used;
+  bool active;
+  bool garbage;
+  bool redundant;
+  bool used;
   unsigned glue;
   unsigned size;
   unsigned literals[];
@@ -213,15 +214,9 @@ struct limits
   size_t restart;
 };
 
-struct intervals
-{
-  size_t mode;
-};
-
 struct statistics
 {
   size_t conflicts;
-  size_t switches;
   size_t reductions;
   size_t restarts;
 #ifdef LOGGING
@@ -243,71 +238,8 @@ struct solver
   struct literals analyzed;
   struct trail trail;
   struct limits limits;
-  struct intervals intervals;
   struct statistics statistics;
 };
-
-/*------------------------------------------------------------------------*/
-
-#ifdef LOGGING
-
-static bool logging;
-static char loglitbuf[4][32];
-static unsigned loglitpos;
-#define loglitsize (sizeof loglitbuf / sizeof *loglitbuf)
-static const char *
-loglit (struct solver * solver, unsigned unsigned_lit)
-{
-  char * res = loglitbuf[loglitpos++];
-  if (loglitpos == loglitsize)
-    loglitpos = 0;
-  int signed_lit = unsigned_lit/2 + 1;
-  if (SGN (unsigned_lit))
-    signed_lit *= -1;
-  sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
-  signed char value = solver->values[unsigned_lit];
-  if (value)
-    sprintf (res + strlen (res),
-             "=%d@%u", (int) value, VAR (unsigned_lit)->level);
-  assert (strlen (res) + 1 < sizeof *loglitbuf);
-  return res;
-}
-
-#define LOGLIT(...) loglit (solver, __VA_ARGS__)
-
-#define LOG(...) \
-do { \
-  if (!logging) \
-    break; \
-  fputs ("c ", stdout); \
-  printf (__VA_ARGS__); \
-  fputc ('\n', stdout); \
-  fflush (stdout); \
-} while (0)
-
-#define LOGCLAUSE(CLAUSE, ...) \
-do { \
-  if (!logging) \
-    break; \
-  fputs ("c ", stdout); \
-  printf (__VA_ARGS__); \
-  if ((CLAUSE)->redundant) \
-    printf (" redundant glue %u", (CLAUSE)->glue); \
-  else \
-    printf (" irredundant"); \
-  printf (" size %u clause[%zu]", (CLAUSE)->size, (CLAUSE)->id); \
-  for (all_literals_in_clause (LIT, (CLAUSE))) \
-    printf (" %s", LOGLIT (LIT)); \
-  fputc ('\n', stdout); \
-  fflush (stdout); \
-} while (0)
-
-#else
-
-#define LOG(...) do { } while (0)
-#define LOGCLAUSE(...) do { } while (0)
-
-#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -361,17 +293,46 @@ current_resident_set_size (void)
 
 /*------------------------------------------------------------------------*/
 
+static pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void
+lock_message_mutex (void)
+{
+  if (pthread_mutex_lock (&message_mutex))
+    {
+      fprintf (stderr,
+               "gimbatul: locking error: failed to lock message mutex\n");
+      fflush (stderr);
+      abort ();
+    }
+}
+
+static void
+unlock_message_mutex (void)
+{
+  if (pthread_mutex_unlock (&message_mutex))
+    {
+      fprintf (stderr,
+               "gimbatul: locking error: failed to unlock message mutex\n");
+      fflush (stderr);
+      abort ();
+    }
+}
+
 static void die (const char *, ...) __attribute__((format (printf, 1, 2)));
 
 static void
 die (const char *fmt, ...)
 {
+  lock_message_mutex ();
   fputs ("gimbatul: error: ", stderr);
   va_list ap;
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
   va_end (ap);
   fputc ('\n', stderr);
+  fflush (stderr);
+  unlock_message_mutex ();
   exit (1);
 }
 
@@ -381,12 +342,15 @@ static void fatal_error (const char *, ...)
 static void
 fatal_error (const char *fmt, ...)
 {
+  lock_message_mutex ();
   fputs ("gimbatul: fatal error: ", stderr);
   va_list ap;
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
   va_end (ap);
   fputc ('\n', stderr);
+  fflush (stderr);
+  unlock_message_mutex ();
   abort ();
 }
 
@@ -396,6 +360,7 @@ static void message (const char *, ...)
 static void
 message (const char *fmt, ...)
 {
+  lock_message_mutex ();
   fputs ("c ", stdout);
   va_list ap;
   va_start (ap, fmt);
@@ -403,14 +368,76 @@ message (const char *fmt, ...)
   va_end (ap);
   fputc ('\n', stdout);
   fflush (stdout);
+  unlock_message_mutex ();
 }
 
-static void
-print_banner (void)
+/*------------------------------------------------------------------------*/
+
+#ifdef LOGGING
+
+static bool logging;
+static char loglitbuf[4][32];
+static unsigned loglitpos;
+
+#define loglitsize (sizeof loglitbuf / sizeof *loglitbuf)
+
+static const char *
+loglit (struct solver * solver, unsigned unsigned_lit)
 {
-  message ("Gimbatul SAT Solver");
-  message ("Copyright (c) 2022 Armin Biere University of Freiburg");
+  char * res = loglitbuf[loglitpos++];
+  if (loglitpos == loglitsize)
+    loglitpos = 0;
+  int signed_lit = unsigned_lit/2 + 1;
+  if (SGN (unsigned_lit))
+    signed_lit *= -1;
+  sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
+  signed char value = solver->values[unsigned_lit];
+  if (value)
+    sprintf (res + strlen (res),
+             "=%d@%u", (int) value, VAR (unsigned_lit)->level);
+  assert (strlen (res) + 1 < sizeof *loglitbuf);
+  return res;
 }
+
+#define LOGLIT(...) loglit (solver, __VA_ARGS__)
+
+#define LOG(...) \
+do { \
+  if (!logging) \
+    break; \
+  lock_message_mutex (); \
+  fputs ("c ", stdout); \
+  printf (__VA_ARGS__); \
+  fputc ('\n', stdout); \
+  fflush (stdout); \
+  unlock_message_mutex (); \
+} while (0)
+
+#define LOGCLAUSE(CLAUSE, ...) \
+do { \
+  if (!logging) \
+    break; \
+  lock_message_mutex (); \
+  fputs ("c ", stdout); \
+  printf (__VA_ARGS__); \
+  if ((CLAUSE)->redundant) \
+    printf (" redundant glue %u", (CLAUSE)->glue); \
+  else \
+    printf (" irredundant"); \
+  printf (" size %u clause[%zu]", (CLAUSE)->size, (CLAUSE)->id); \
+  for (all_literals_in_clause (LIT, (CLAUSE))) \
+    printf (" %s", LOGLIT (LIT)); \
+  fputc ('\n', stdout); \
+  fflush (stdout); \
+  unlock_message_mutex (); \
+} while (0)
+
+#else
+
+#define LOG(...) do { } while (0)
+#define LOGCLAUSE(...) do { } while (0)
+
+#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -1007,6 +1034,41 @@ parse_options (int argc, char **argv)
     }
 }
 
+#include "config.h"
+
+static void
+print_banner (void)
+{
+  lock_message_mutex ();
+  printf ("c Gimbatul SAT Solver\n");
+  printf ("c Copyright (c) 2022 Armin Biere University of Freiburg\n");
+  printf ("c Version %s%s\n", VERSION, GITID ? " " GITID : "");
+  printf ("c %s\n", COMPILER);
+  printf ("c %s\n", BUILD);
+  unlock_message_mutex ();
+}
+
+#define CHECK_SIZE_OF_TYPE(TYPE,EXPECTED) \
+do { \
+  size_t ACTUAL = sizeof (TYPE); \
+  if (ACTUAL == (EXPECTED)) \
+    break; \
+  fatal_error ("'sizeof (%s)' is %zu bytes in size but expected %zu", \
+               # TYPE, (size_t) ACTUAL, (size_t) (EXPECTED)); \
+} while (0)
+
+static void
+check_types (void)
+{
+  CHECK_SIZE_OF_TYPE (bool, 1);
+  CHECK_SIZE_OF_TYPE (int, 4);
+  CHECK_SIZE_OF_TYPE (unsigned, 4);
+  if (sizeof (void *) != sizeof (size_t))
+    fatal_error ("'sizeof (void*) = %zu' "
+                 "different from 'sizeof (size_t) = %zu'",
+		 sizeof (void*), sizeof (size_t));
+}
+
 /*------------------------------------------------------------------------*/
 
 static int
@@ -1322,15 +1384,18 @@ print_statistics (void)
   double w = wall_clock_time () - start_time;
   double m = maximum_resident_set_size () / (double) (1<<20);
   struct statistics * s = &solver->statistics;
-  message ("%-14s %19zu %12.2f per sec", "conflicts:", s->conflicts,
+  lock_message_mutex ();
+  printf ("c %-14s %19zu %12.2f per sec\n", "conflicts:", s->conflicts,
            average (s->conflicts, w));
-  message ("%-14s %19zu %12.2f conflict interval", "reductions:",
+  printf ("c %-14s %19zu %12.2f conflict interval\n", "reductions:",
            s->reductions, average (s->reductions, s->conflicts));
-  message ("%-14s %19zu %12.2f conflict interval", "restarts:",
+  printf ("c %-14s %19zu %12.2f conflict interval\n", "restarts:",
            s->restarts, average (s->restarts, s->conflicts));
-  message ("%-30s %16.2f sec", "process-time:", p);
-  message ("%-30s %16.2f sec", "wall-clock-time:", w);
-  message ("%-30s %16.2f MB", "maximum-resident-set-size:", m);
+  printf ("c %-30s %16.2f sec\n", "process-time:", p);
+  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", w);
+  printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", m);
+  fflush (stdout);
+  unlock_message_mutex ();
 }
 
 /*------------------------------------------------------------------------*/
@@ -1341,6 +1406,7 @@ main (int argc, char ** argv)
   start_time = wall_clock_time ();
   parse_options (argc, argv);
   print_banner ();
+  check_types ();
   solver = parse_dimacs_file ();
   init_signal_handler ();
   int res = solve (solver);
