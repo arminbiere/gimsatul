@@ -3,17 +3,19 @@
 // *INDENT-OFF*
 
 static const char * usage =
-"usage: gimbatul [ <option> ... ] [ <dimacs> ]\n"
+"usage: gimbatul [ <option> ... ] [ <dimacs> [ <proof> ] ]\n"
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
+"-a    use ASCII format for proof output\n"
 "-h    print this command line option summary\n"
 #ifdef LOGGING
 "-l    enable very verbose internal logging\n"
 #endif
 "-n    do not print satisfying assignments\n"
 "\n"
-"and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing).\n"
+"and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
+"and '<proof>' the proof output file in 'DRAT' format\n"
 ;
 
 // *INDENT-ON*
@@ -148,6 +150,11 @@ struct unsigneds
   unsigned *begin, *end, *allocated;
 };
 
+struct buffer
+{
+  unsigned char * begin, * end, * allocated;
+};
+
 struct trail
 {
   unsigned *begin, *end, *propagate;
@@ -239,6 +246,7 @@ struct solver
   struct queue queue;
   struct unsigneds clause;
   struct unsigneds analyzed;
+  struct buffer buffer;
   struct trail trail;
   struct limits limits;
   struct statistics statistics;
@@ -293,6 +301,17 @@ current_resident_set_size (void)
 }
 
 #endif
+
+/*------------------------------------------------------------------------*/
+
+static int
+export_literal (unsigned unsigned_lit)
+{
+  int signed_lit = unsigned_lit/2 + 1;
+  if (SGN (unsigned_lit))
+    signed_lit *= -1;
+  return signed_lit;
+}
 
 /*------------------------------------------------------------------------*/
 
@@ -390,9 +409,7 @@ loglit (struct solver * solver, unsigned unsigned_lit)
   char * res = loglitbuf[loglitpos++];
   if (loglitpos == loglitsize)
     loglitpos = 0;
-  int signed_lit = unsigned_lit/2 + 1;
-  if (SGN (unsigned_lit))
-    signed_lit *= -1;
+  int signed_lit = export_literal (unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
   signed char value = solver->values[unsigned_lit];
   if (value)
@@ -693,6 +710,7 @@ delete_solver (struct solver *solver)
   RELEASE (solver->analyzed);
   RELEASE (solver->trail);
   RELEASE (solver->levels);
+  RELEASE (solver->buffer);
   release_watches (solver);
   release_clauses (solver);
   free (solver->queue.nodes);
@@ -700,6 +718,128 @@ delete_solver (struct solver *solver)
   free (solver->values);
   free (solver->used);
   free (solver);
+}
+
+/*------------------------------------------------------------------------*/
+
+static struct file proof;
+static bool binary_proof_format = true;
+
+static void
+write_buffer (struct buffer * buffer, FILE * file)
+{
+  assert (file);
+  size_t size = SIZE (*buffer);
+  fwrite (buffer->begin, size, 1, file);
+  CLEAR (*buffer);
+}
+
+static void
+trace_empty (struct solver * solver)
+{
+  assert (proof.file);
+  struct buffer * buffer = &solver->buffer;
+  assert (EMPTY (*buffer));
+  if (binary_proof_format)
+    {
+      PUSH (*buffer, 'a');
+      PUSH (*buffer, 0);
+    }
+  else
+    {
+      PUSH (*buffer, '0');
+      PUSH (*buffer, '\n');
+    }
+  write_buffer (buffer, proof.file);
+}
+
+static void
+binary_proof_line (struct buffer * buffer, size_t size, unsigned * literals)
+{
+  const unsigned * end = literals + size;
+  for (const unsigned * p = literals; p != end; p++)
+    {
+      unsigned tmp = *p + 1;
+      while (tmp & 127)
+	{
+	  unsigned char ch = (tmp & 0x7f) | 128;
+	  PUSH (*buffer, ch);
+	  tmp >>= 7;
+	}
+      PUSH (*buffer, (unsigned char) tmp);
+    }
+  PUSH (*buffer, 0);
+}
+
+static void
+ascii_proof_line (struct buffer * buffer, size_t size, unsigned * literals)
+{
+  const unsigned * end = literals + size;
+  char tmp[32];
+  for (const unsigned * p = literals; p != end; p++)
+    {
+      sprintf (tmp, "%d", export_literal (*p));
+      for (char * q = tmp, ch; (ch = *q); q++)
+	PUSH (*buffer, ch);
+      PUSH (*buffer, ' ');
+    }
+  PUSH (*buffer, '0');
+  PUSH (*buffer, '\n');
+}
+
+static inline void
+trace_added (struct solver * solver)
+{
+  assert (proof.file);
+  struct buffer * buffer = &solver->buffer;
+  assert (EMPTY (*buffer));
+  struct unsigneds * clause = &solver->clause;
+  if (binary_proof_format)
+    {
+      PUSH (*buffer, 'a');
+      binary_proof_line (buffer, SIZE (*clause), clause->begin);
+    }
+  else
+    ascii_proof_line (buffer, SIZE (*clause), clause->begin);
+  write_buffer (buffer, proof.file);
+}
+
+#if 0
+
+static inline void
+trace_deleted (struct solver * solver, struct clause * clause)
+{
+  assert (proof.file);
+  struct buffer * buffer = &solver->buffer;
+  assert (EMPTY (*buffer));
+  PUSH (*buffer, 'd');
+  if (binary_proof_format)
+    binary_proof_line (buffer, clause->size, clause->literals);
+  else
+    ascii_proof_line (buffer, clause->size, clause->literals);
+  write_buffer (buffer, proof.file);
+}
+
+#endif
+
+#define TRACE_EMPTY() \
+do { if (proof.file) trace_empty (solver); } while (0)
+
+#define TRACE_ADDED() \
+do { if (proof.file) trace_added (solver); } while (0)
+
+#define TRACE_DELETED(CLAUSE) \
+do { if (proof.file) trace_deleted (solver, (CLAUSE)); } while (0)
+
+static void
+close_proof (void)
+{
+  if (!proof.file)
+    return;
+  if (proof.close)
+    fclose (proof.file);
+  message ("closed '%s' after writing %zu proof lines",
+           proof.path, proof.lines);
 }
 
 /*------------------------------------------------------------------------*/
@@ -876,8 +1016,14 @@ backtrack (struct solver * solver, unsigned level)
 static bool
 analyze (struct solver * solver, struct clause * reason)
 {
+  assert (!solver->inconsistent);
   if (!solver->level)
-    return false;
+    {
+      LOG ("conflict on root-level produces empty clause");
+      solver->inconsistent = true;
+      TRACE_EMPTY ();
+      return false;
+    }
   struct unsigneds * clause = &solver->clause;
   struct unsigneds * analyzed = &solver->analyzed;
   struct unsigneds * levels = &solver->levels;
@@ -948,6 +1094,7 @@ analyze (struct solver * solver, struct clause * reason)
       struct clause * learned = new_clause (solver, size, literals, 1, glue);
       assign_with_reason (solver, not_uip, learned);
     }
+  TRACE_ADDED ();
   CLEAR (*clause);
   for (all_elements_on_stack (unsigned, idx, *analyzed))
     VAR (idx)->seen = false;
@@ -1025,7 +1172,7 @@ parse_error (const char *fmt, ...)
   exit (1);
 }
 
-static bool witness = true, binary = true;
+static bool witness = true;
 
 static void
 parse_options (int argc, char **argv)
@@ -1047,11 +1194,27 @@ parse_options (int argc, char **argv)
       else if (!strcmp (arg, "-n"))
 	witness = false;
       else if (!strcmp (arg, "-a"))
-	binary = false;
+	binary_proof_format = true;
       else if (arg[0] == '-' && arg[1])
 	die ("invalid option '%s' (try '-h')", arg);
-      else if (dimacs.file)
+      else if (proof.file)
 	die ("too many arguments");
+      else if (dimacs.file)
+	{
+	  if (!strcmp (arg, "-"))
+	    {
+	      proof.path = "<stdout>";
+	      proof.file = stdout;
+	      binary_proof_format = false;
+	    }
+	  else if (!(proof.file = fopen (arg, "w")))
+	    die ("can not open and write to '%s'", arg);
+	  else
+	    {
+	      proof.path = arg;
+	      proof.close = true;
+	    }
+	}
       else
 	{
 	  if (!strcmp (arg, "-"))
@@ -1259,18 +1422,25 @@ parse_dimacs_file ()
       else
 	{
 	  parsed++;
-	  if (!trivial)
+	  if (!solver->inconsistent && !trivial)
 	    {
 	      const size_t size = SIZE (*clause);
 	      assert (size <= solver->size);
 	      if (!size)
-		solver->inconsistent = true;
+		{
+		  LOG ("found empty original clause");
+		  solver->inconsistent = true;
+		}
 	      else if (size == 1)
 		{
 		  const unsigned unit = *clause->begin;
 		  const signed char value = solver->values[unit];
 		  if (value < 0)
-		    solver->inconsistent = true;
+		    {
+		      LOG ("found inconsistent units");
+		      solver->inconsistent = true;
+		      TRACE_EMPTY ();
+		    }
 		  else if (!value)
 		    assign_unit (solver, unit);
 		}
@@ -1467,6 +1637,7 @@ main (int argc, char ** argv)
       fflush (stdout);
     }
   reset_signal_handler ();
+  close_proof ();
   print_statistics ();
   delete_solver (solver);
   message ("exit %d", res);
