@@ -217,6 +217,7 @@ struct limits
 struct statistics
 {
   size_t conflicts;
+  size_t propagations;
   size_t reductions;
   size_t restarts;
 #ifdef LOGGING
@@ -403,25 +404,27 @@ loglit (struct solver * solver, unsigned unsigned_lit)
 
 #define LOGLIT(...) loglit (solver, __VA_ARGS__)
 
-#define LOG(...) \
-do { \
+#define LOGPREFIX(...) \
   if (!logging) \
     break; \
   lock_message_mutex (); \
-  fputs ("c ", stdout); \
-  printf (__VA_ARGS__); \
+  printf ("c LOG %u ", solver->level); \
+  printf (__VA_ARGS__)
+
+#define LOGSUFFIX(...) \
   fputc ('\n', stdout); \
   fflush (stdout); \
-  unlock_message_mutex (); \
+  unlock_message_mutex ()
+
+#define LOG(...) \
+do { \
+  LOGPREFIX (__VA_ARGS__); \
+  LOGSUFFIX (); \
 } while (0)
 
 #define LOGCLAUSE(CLAUSE, ...) \
 do { \
-  if (!logging) \
-    break; \
-  lock_message_mutex (); \
-  fputs ("c ", stdout); \
-  printf (__VA_ARGS__); \
+  LOGPREFIX (__VA_ARGS__); \
   if ((CLAUSE)->redundant) \
     printf (" redundant glue %u", (CLAUSE)->glue); \
   else \
@@ -429,9 +432,7 @@ do { \
   printf (" size %u clause[%zu]", (CLAUSE)->size, (CLAUSE)->id); \
   for (all_literals_in_clause (LIT, (CLAUSE))) \
     printf (" %s", LOGLIT (LIT)); \
-  fputc ('\n', stdout); \
-  fflush (stdout); \
-  unlock_message_mutex (); \
+  LOGSUFFIX (); \
 } while (0)
 
 #else
@@ -757,7 +758,7 @@ assign_with_reason (struct solver * solver,
 {
   assert (reason);
   assign (solver, lit, reason);
-  LOGCLAUSE (reason, "assign %s reason", LOGLIT (lit));
+  LOGCLAUSE (reason, "assign %s with reason", LOGLIT (lit));
 }
 
 static void
@@ -788,6 +789,7 @@ propagate (struct solver * solver)
     {
       unsigned lit = *trail->propagate++;
       LOG ("propagating %s", LOGLIT (lit));
+      solver->statistics.propagations++;
       unsigned not_lit = NOT (lit);
       struct watches * watches = &WATCHES (not_lit);
       struct watch ** begin = watches->begin, ** q = begin;
@@ -896,28 +898,28 @@ analyze (struct solver * solver, struct clause * reason)
 	{
 	  unsigned idx = IDX (lit);
 	  struct variable * v = variables + idx;
-	  if (!v->level)
+	  unsigned lit_level = v->level;
+	  if (!lit_level)
 	    continue;
 	  if (v->seen)
 	    continue;
 	  v->seen = true;
 	  PUSH (*analyzed, idx);
 	  bump_score (solver, idx);
-	  unsigned v_level = v->level;
-	  if (v_level == level)
+	  if (lit_level == level)
 	    {
 	      open++;
 	      continue;
 	    }
 	  PUSH (*clause, lit);
-	  if (!used[level])
+	  if (!used[lit_level])
 	    {
-	      used[level] = true;
-	      PUSH (*levels, level);
 	      glue++;
+	      used[lit_level] = true;
+	      PUSH (*levels, level);
+	      if (lit_level > jump)
+		jump = lit_level;
 	    }
-	  if (v_level > jump)
-	    jump = v_level;
 	}
       do
 	{
@@ -928,6 +930,7 @@ analyze (struct solver * solver, struct clause * reason)
       if (!--open)
 	break;
       reason = variables[ IDX (uip) ].reason;
+      assert (reason);
     }
   LOG ("back jump level %u", jump);
   LOG ("glucose level (LBD) %u", glue);
@@ -1426,6 +1429,8 @@ print_statistics (void)
   lock_message_mutex ();
   printf ("c %-14s %19zu %12.2f per sec\n", "conflicts:", s->conflicts,
            average (s->conflicts, w));
+  printf ("c %-14s %19zu %12.2f per sec\n", "propagations:", s->propagations,
+           average (s->propagations, w));
   printf ("c %-14s %19zu %12.2f conflict interval\n", "reductions:",
            s->reductions, average (s->reductions, s->conflicts));
   printf ("c %-14s %19zu %12.2f conflict interval\n", "restarts:",
