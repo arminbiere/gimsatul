@@ -47,7 +47,7 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
-#define WATCHES(LIT) (&VAR(LIT)->watches[SGN (LIT)])
+#define WATCHES(LIT) (VAR(LIT)->watches[SGN (LIT)])
 
 /*------------------------------------------------------------------------*/
 
@@ -702,23 +702,28 @@ static struct clause *
 new_clause (struct solver *solver,
 	    size_t size, unsigned *literals, bool redundant, unsigned glue)
 {
+  assert (2 <= size);
   assert (size <= solver->size);
   size_t bytes = size * sizeof (unsigned);
-  struct clause *res = allocate_block (sizeof *res + bytes);
+  struct clause *clause = allocate_block (sizeof *clause + bytes);
 #ifdef LOGGING
-  res->id = ++solver->statistics.clauses;
+  clause->id = ++solver->statistics.clauses;
 #endif
-  res->active = false;
-  res->garbage = false;
-  res->redundant = redundant;
-  res->used = false;
-  res->glue = glue;
-  res->size = size;
-  memcpy (res->literals, literals, bytes);
-  PUSH (solver->clauses, res);
-  // TODO watch
-  LOGCLAUSE (res, "new");
-  return res;
+  clause->active = false;
+  clause->garbage = false;
+  clause->redundant = redundant;
+  clause->used = false;
+  clause->glue = glue;
+  clause->size = size;
+  memcpy (clause->literals, literals, bytes);
+  PUSH (solver->clauses, clause);
+  LOGCLAUSE (clause, "new");
+  struct watch * watch = allocate_block (sizeof *watch);
+  watch->clause = clause;
+  watch->sum = literals[0] ^ literals[1];
+  PUSH (WATCHES (literals[0]), watch);
+  PUSH (WATCHES (literals[1]), watch);
+  return clause;
 }
 
 /*------------------------------------------------------------------------*/
@@ -779,7 +784,7 @@ propagate (struct solver * solver)
       unsigned lit = *trail->propagate++;
       LOG ("propagating %s", LOGLIT (lit));
       unsigned not_lit = NOT (lit);
-      struct watches * watches = WATCHES (not_lit);
+      struct watches * watches = &WATCHES (not_lit);
       struct watch ** begin = watches->begin, ** q = begin;
       struct watch ** end = watches->end, ** p;
       for (p = begin; !conflict && p != end; p++)
@@ -808,7 +813,7 @@ propagate (struct solver * solver)
 	  if (replacement_value >= 0)
 	    {
 	      watch->sum = other ^ replacement;
-	      struct watches * replacement_watches = WATCHES (replacement);
+	      struct watches * replacement_watches = &WATCHES (replacement);
 	      PUSH (*replacement_watches, watch);
 	      q--;
 	    }
