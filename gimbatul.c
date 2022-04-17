@@ -655,14 +655,47 @@ update_queue (struct queue *queue, struct node *node, double new_score)
   queue->root = merge_nodes (root, node);
 }
 
+#define MAX_SCORE 1e150
+
 static void
-bump_score (struct solver *solver, unsigned idx)
+rescale_variable_scores (struct solver * solver)
+{
+  struct queue * queue = &solver->queue;
+  double max_score = queue->increment;
+  struct node * nodes = queue->nodes;
+  struct node * end = nodes + solver->size;
+  for (struct node * node = nodes; node != end; node++)
+    if (node->score > max_score)
+      max_score = node->score;
+  LOG ("rescaling by maximum score of %g", max_score);
+  assert (max_score > 0);
+  for (struct node * node = nodes; node != end; node++)
+    node->score /= max_score;
+  queue->increment /= max_score;
+}
+
+static void
+bump_variable_score (struct solver *solver, unsigned idx)
 {
   struct queue * queue = &solver->queue;
   struct node * node = queue->nodes + idx;
   double old_score = node->score;
   double new_score = old_score + queue->increment;
   update_queue (queue, node, new_score);
+  if (new_score > MAX_SCORE)
+    rescale_variable_scores (solver);
+}
+
+static void
+bump_score_increment (struct solver * solver)
+{
+  struct queue * queue = &solver->queue;
+  double old_increment = queue->increment;
+  double new_increment = old_increment * 1.05;
+  LOG ("new increment %g", new_increment);
+  queue->increment = new_increment;
+  if (queue->increment > MAX_SCORE)
+    rescale_variable_scores (solver);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1049,7 +1082,7 @@ analyze (struct solver * solver, struct clause * reason)
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
   bool * used = solver->used;
-#if 1
+#if 0
   for (all_variables (v))
     assert (!v->seen);
   for (unsigned i = 0; i != solver->size; i++)
@@ -1075,7 +1108,7 @@ analyze (struct solver * solver, struct clause * reason)
 	    continue;
 	  v->seen = true;
 	  PUSH (*analyzed, idx);
-	  bump_score (solver, idx);
+	  bump_variable_score (solver, idx);
 	  if (lit_level == level)
 	    {
 	      open++;
@@ -1105,6 +1138,7 @@ analyze (struct solver * solver, struct clause * reason)
   LOG ("back jump level %u", jump);
   LOG ("glucose level (LBD) %u", glue);
   LOG ("first UIP %s", LOGLIT (uip));
+  bump_score_increment (solver);
   backtrack (solver, jump);
   const unsigned not_uip = NOT (uip);
   unsigned * literals = clause->begin;
@@ -1164,6 +1198,11 @@ decide (struct solver * solver)
     lit = NOT (lit);
   solver->level++;
   assign_decision (solver, lit);
+}
+
+static void
+set_limits (struct solver * solver)
+{
 }
 
 static int
@@ -1723,14 +1762,15 @@ int
 main (int argc, char ** argv)
 {
   start_time = wall_clock_time ();
+  check_types ();
   parse_options (argc, argv);
   print_banner ();
-  check_types ();
   if (proof.file)
     message ("writing %s proof trace to '%s'",
               binary_proof_format ? "binary" : "ASCII", proof.path);
   solver = parse_dimacs_file ();
   init_signal_handler ();
+  set_limits (solver);
   int res = solve (solver);
   reset_signal_handler ();
   close_proof ();
