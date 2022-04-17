@@ -394,6 +394,22 @@ message (const char *fmt, ...)
   unlock_message_mutex ();
 }
 
+#define COVER(COND) \
+( \
+  (COND) \
+  ? \
+  \
+    ( \
+      fflush (stdout), \
+      fprintf (stderr, "%s:%ld: %s: Coverage goal `%s' reached.\n", \
+	__FILE__, (long) __LINE__, __func__, #COND), \
+      abort (), \
+      (void) 0 \
+    ) \
+  : \
+    (void) 0 \
+)
+
 /*------------------------------------------------------------------------*/
 
 #ifdef LOGGING
@@ -1032,9 +1048,15 @@ analyze (struct solver * solver, struct clause * reason)
   assert (EMPTY (*clause));
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
+  bool * used = solver->used;
+#if 1
+  for (all_variables (v))
+    assert (!v->seen);
+  for (unsigned i = 0; i != solver->size; i++)
+    assert (!used[i]);
+#endif
   struct variable * variables = solver->variables;
   struct trail * trail = &solver->trail;
-  bool * used = solver->used;
   unsigned * t = trail->end;
   PUSH (*clause, INVALID);
   const unsigned level = solver->level;
@@ -1064,7 +1086,7 @@ analyze (struct solver * solver, struct clause * reason)
 	    {
 	      glue++;
 	      used[lit_level] = true;
-	      PUSH (*levels, level);
+	      PUSH (*levels, lit_level);
 	      if (lit_level > jump)
 		jump = lit_level;
 	    }
@@ -1093,6 +1115,16 @@ analyze (struct solver * solver, struct clause * reason)
     assign_unit (solver, not_uip);
   else
     {
+      unsigned other = literals[1];
+      if (VAR (other)->level != jump)
+	{
+	  unsigned * p = literals + 2, replacement;
+	  while (assert (p != clause->end),
+	         VAR (replacement = *p)->level != jump)
+	    p++;
+	  literals[1] = replacement;
+	  *p = other;
+	}
       struct clause * learned = new_clause (solver, size, literals, 1, glue);
       assign_with_reason (solver, not_uip, learned);
     }

@@ -65,7 +65,7 @@ run 10 prime1369
 run 10 prime1681
 run 10 prime1849
 run 10 prime2209
-run 10 prime65537
+run 20 prime65537
 
 run 10 sqrt2809
 run 10 sqrt3481
