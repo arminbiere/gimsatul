@@ -14,6 +14,7 @@ static const char * usage =
 "-l          enable very verbose internal logging\n"
 #endif
 "-n          do not print satisfying assignments\n"
+"-v          increase verbosity\n"
 "--version   print version\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
@@ -28,6 +29,7 @@ static const char * usage =
 #include <ctype.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <math.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -44,6 +46,11 @@ static const char * usage =
 /*------------------------------------------------------------------------*/
 
 #define INVALID UINT_MAX
+#define MAX_SCORE 1e150
+#define REDUCE_INTERVAL 1e3
+#define RESTART_INTERVAL 1024
+
+/*------------------------------------------------------------------------*/
 
 #define IDX(LIT) ((LIT) >> 1)
 #define LIT(IDX) ((IDX) << 1)
@@ -218,7 +225,6 @@ struct queue
 
 struct limits
 {
-  size_t mode;
   size_t reduce;
   size_t restart;
 };
@@ -394,6 +400,14 @@ message (const char *fmt, ...)
   fflush (stdout);
   unlock_message_mutex ();
 }
+
+static int verbosity;
+
+#define verbose(...) \
+do { \
+  if (verbosity) \
+    message (__VA_ARGS__); \
+} while (0)
 
 #define COVER(COND) \
 ( \
@@ -655,8 +669,6 @@ update_queue (struct queue *queue, struct node *node, double new_score)
   dequeue_node (node);
   queue->root = merge_nodes (root, node);
 }
-
-#define MAX_SCORE 1e150
 
 static void
 rescale_variable_scores (struct solver * solver)
@@ -1204,6 +1216,35 @@ decide (struct solver * solver)
 static void
 set_limits (struct solver * solver)
 {
+  struct limits * limits = &solver->limits;
+  limits->reduce = REDUCE_INTERVAL;
+  limits->restart = RESTART_INTERVAL;
+  verbose ("reduce interval of %zu conflict", limits->reduce);
+  verbose ("restart interval of %zu conflict", limits->restart);
+}
+
+static void
+restart (struct solver * solver)
+{
+  struct statistics * statistics = &solver->statistics;
+  statistics->restarts++;
+  verbose ("restart %zu at %zu conflicts",
+           statistics->restarts, statistics->conflicts);
+  struct limits * limits = &solver->limits;
+  limits->restart = statistics->conflicts + RESTART_INTERVAL * log10 (statistics->restarts + 9);
+  verbose ("next restart limit at %zu conflict", limits->restart);
+}
+
+static void
+reduce (struct solver * solver)
+{
+  struct statistics * statistics = &solver->statistics;
+  statistics->reductions++;
+  verbose ("reduction %zu at %zu conflicts",
+           statistics->reductions, statistics->conflicts);
+  struct limits * limits = &solver->limits;
+  limits->reduce = statistics->conflicts + REDUCE_INTERVAL * log2 (statistics->reductions + 9);
+  verbose ("next reduce limit at %zu conflict", limits->reduce);
 }
 
 static int
@@ -1220,6 +1261,10 @@ solve (struct solver *solver)
 	}
       else if (!solver->unassigned)
 	res = 10;
+      else if (solver->limits.reduce < solver->statistics.conflicts)
+	reduce (solver);
+      else if (solver->limits.restart < solver->statistics.conflicts)
+	restart (solver);
       else
 	decide (solver);
     }
@@ -1300,6 +1345,8 @@ parse_options (int argc, char **argv)
 #endif
       else if (!strcmp (arg, "-n"))
 	witness = false;
+      else if (!strcmp (arg, "-v"))
+	verbosity++;
       else if (!strcmp (arg, "--version"))
 	{
 	  printf ("%s\n", VERSION);
