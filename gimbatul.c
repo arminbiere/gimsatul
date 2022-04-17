@@ -1268,6 +1268,16 @@ parse_error (const char *fmt, ...)
 
 static bool witness = true;
 
+static FILE *
+open_and_read_from_pipe (const char * path, const char * fmt)
+{
+  char * cmd = allocate_block (strlen (path) + strlen (fmt));
+  sprintf (cmd, fmt, path);
+  FILE * file = popen (cmd, "r");
+  free (cmd);
+  return file;
+}
+
 static void
 parse_options (int argc, char **argv)
 {
@@ -1320,13 +1330,29 @@ parse_options (int argc, char **argv)
 	      dimacs.path = "<stdin>";
 	      dimacs.file = stdin;
 	    }
-	  else if (!(dimacs.file = fopen (arg, "r")))
-	    die ("can not open and read from '%s'", arg);
+	  else if (has_suffix (arg, ".bz2"))
+	    {
+	      dimacs.file = open_and_read_from_pipe (arg, "bzip2 -c -d %s");
+	      dimacs.close = 2;
+	    }
+	  else if (has_suffix (arg, ".gz"))
+	    {
+	      dimacs.file = open_and_read_from_pipe (arg, "gzip -c -d %s");
+	      dimacs.close = 2;
+	    }
+	  else if (has_suffix (arg, ".xz"))
+	    {
+	      dimacs.file = open_and_read_from_pipe (arg, "xz -c -d %s");
+	      dimacs.close = 2;
+	    }
 	  else
 	    {
-	      dimacs.path = arg;
-	      dimacs.close = true;
+	      dimacs.file = fopen (arg, "r");
+	      dimacs.close = 1;
 	    }
+	  if (!dimacs.file)
+	    die ("can not open and read from '%s'", arg);
+	  dimacs.path = arg;
 	}
     }
 
@@ -1662,6 +1688,8 @@ reset_signal_handler (void)
 #undef SIGNAL
 }
 
+  static void print_statistics (void);
+
 static void
 catch_signal (int sig)
 {
@@ -1680,6 +1708,7 @@ catch_signal (int sig)
   if (write (1, buffer, bytes) != bytes)
     exit (0);
   reset_signal_handler ();
+  print_statistics ();
   raise (sig);
 }
 
