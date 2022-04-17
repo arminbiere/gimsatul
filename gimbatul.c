@@ -1279,6 +1279,8 @@ open_and_read_from_pipe (const char * path, const char * fmt)
   return file;
 }
 
+#include "config.h"
+
 static void
 parse_options (int argc, char **argv)
 {
@@ -1368,8 +1370,6 @@ parse_options (int argc, char **argv)
       dimacs.file = stdin;
     }
 }
-
-#include "config.h"
 
 static void
 print_banner (void)
