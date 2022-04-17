@@ -1401,6 +1401,10 @@ parse_int (int *res_ptr, int prev, int *next)
   return true;
 }
 
+#ifndef NDEBUG
+static struct unsigneds original;
+#endif
+
 static struct solver *
 parse_dimacs_file ()
 {
@@ -1469,6 +1473,10 @@ parse_dimacs_file ()
 	  assert (idx < (unsigned) variables);
 	  signed char sign = (signed_lit < 0) ? -1 : 1;
 	  signed char mark = marked[idx];
+	  unsigned unsigned_lit = 2 * idx + (sign < 0);
+#ifndef NDEBUG
+	  PUSH (original, unsigned_lit);
+#endif
 	  if (mark == -sign)
 	    {
 	      LOG ("skipping trivial clause");
@@ -1476,7 +1484,6 @@ parse_dimacs_file ()
 	    }
 	  else if (!mark)
 	    {
-	      unsigned unsigned_lit = 2 * idx + (sign < 0);
 	      PUSH (*clause, unsigned_lit);
 	      marked[idx] = sign;
 	    }
@@ -1485,6 +1492,9 @@ parse_dimacs_file ()
 	}
       else
 	{
+#ifndef NDEBUG
+	  PUSH (original, INVALID);
+#endif
 	  parsed++;
 	  if (!solver->inconsistent && !trivial)
 	    {
@@ -1529,6 +1539,8 @@ parse_dimacs_file ()
     fclose (dimacs.file);
   return solver;
 }
+
+/*------------------------------------------------------------------------*/
 
 /*------------------------------------------------------------------------*/
 
@@ -1645,6 +1657,35 @@ init_signal_handler (void)
 
 /*------------------------------------------------------------------------*/
 
+#ifndef NDEBUG
+
+static void
+check_witness (void) {
+  signed char * values = solver->values;
+  size_t clauses = 0;
+  for (unsigned * c = original.begin, * p; c != original.end; c = p + 1)
+    {
+      bool satisfied = false;
+      for (p = c; assert (p != original.end), *p != INVALID; p++)
+	if (values[*p] > 0)
+	  satisfied = true;
+      clauses++;
+      if (satisfied)
+	continue;
+      lock_message_mutex ();
+      fprintf (stderr, "gimbatul: error: unsatisfied clause[%zu]", clauses);
+      for (unsigned * q = c; q != p; q++)
+	fprintf (stderr, " %d", export_literal (*q));
+      fputs (" 0\n", stderr);
+      unlock_message_mutex ();
+      abort ();
+    }
+}
+
+#endif
+
+/*------------------------------------------------------------------------*/
+
 static double start_time;
 
 static double
@@ -1691,6 +1732,8 @@ main (int argc, char ** argv)
   solver = parse_dimacs_file ();
   init_signal_handler ();
   int res = solve (solver);
+  reset_signal_handler ();
+  close_proof ();
   if (res == 20)
     {
       printf ("s UNSATISFIABLE\n");
@@ -1698,15 +1741,19 @@ main (int argc, char ** argv)
     }
   else if (res == 10)
     {
+#ifndef NDEBUG
+      check_witness ();
+#endif
       printf ("s SATISFIABLE\n");
       if (witness)
 	print_witness (solver);
       fflush (stdout);
     }
-  reset_signal_handler ();
-  close_proof ();
   print_statistics ();
   delete_solver (solver);
+#ifndef NDEBUG
+  RELEASE (original);
+#endif
   message ("exit %d", res);
   return res;
 }
