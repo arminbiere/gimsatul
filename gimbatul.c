@@ -7,13 +7,14 @@ static const char * usage =
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
-"-a    use ASCII format for proof output\n"
-"-h    print this command line option summary\n"
-"-f    force reading and writing\n"
+"-a          use ASCII format for proof output\n"
+"-h          print this command line option summary\n"
+"-f          force reading and writing\n"
 #ifdef LOGGING
-"-l    enable very verbose internal logging\n"
+"-l          enable very verbose internal logging\n"
 #endif
-"-n    do not print satisfying assignments\n"
+"-n          do not print satisfying assignments\n"
+"--version   print version\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof output file in 'DRAT' format\n"
@@ -1297,6 +1298,11 @@ parse_options (int argc, char **argv)
 #endif
       else if (!strcmp (arg, "-n"))
 	witness = false;
+      else if (!strcmp (arg, "--version"))
+	{
+	  printf ("%s\n", VERSION);
+	  exit (0);
+	}
       else if (!strcmp (arg, "-a"))
 	binary_proof_format = false;
       else if (!strcmp (arg, "-f"))
