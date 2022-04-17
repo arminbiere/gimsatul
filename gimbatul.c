@@ -1437,14 +1437,19 @@ parse_dimacs_file ()
 	  assert (idx < (unsigned) variables);
 	  signed char sign = (signed_lit < 0) ? -1 : 1;
 	  signed char mark = marked[idx];
-	  if (mark < 0)
-	    trivial = true;
+	  if (mark == -sign)
+	    {
+	      LOG ("skipping trivial clause");
+	      trivial = true;
+	    }
 	  else if (!mark)
 	    {
 	      unsigned unsigned_lit = 2 * idx + (sign < 0);
 	      PUSH (*clause, unsigned_lit);
 	      marked[idx] = sign;
 	    }
+	  else
+	    assert (mark == sign);
 	}
       else
 	{
