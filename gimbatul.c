@@ -761,7 +761,7 @@ binary_proof_line (struct buffer * buffer, size_t size, unsigned * literals)
   const unsigned * end = literals + size;
   for (const unsigned * p = literals; p != end; p++)
     {
-      unsigned tmp = *p + 1;
+      unsigned tmp = *p + 2;
       while (tmp & ~127u)
 	{
 	  unsigned char ch = (tmp & 0x7f) | 128;
@@ -1039,10 +1039,6 @@ analyze (struct solver * solver, struct clause * reason)
   PUSH (*clause, INVALID);
   const unsigned level = solver->level;
   unsigned uip, jump = 0, glue = 0, open = 0;
-#if 1
-  for (all_variables (v))
-    assert (!v->seen);
-#endif
   for (;;)
     {
       LOGCLAUSE (reason, "analyzing");
