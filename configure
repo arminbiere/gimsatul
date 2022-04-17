@@ -6,6 +6,7 @@ usage: configure [ <option> ... ]
 where '<option>' is one of the following:
 
 -c     enable assertion checking even without '-g'
+-f‥.   passed to compiler (for instance '-fsanitize=address,undefined')
 -g     debugging compile (implies '-c', '-l' and '-s')
 -h     print this command line option summary
 -l     include logging code even without '-g'
@@ -17,6 +18,7 @@ debug=no
 symbols=no
 logging=no
 check=no
+options=""
 die () {
   echo "configure: error: $*" $* 1>&2
   exit 1
@@ -25,6 +27,7 @@ while [ $# -gt 0 ]
 do
   case "$1" in
     -c) check=yes;;
+    -f*) options="$options $1";;
     -g) debug=yes;;
     -h) usage; exit 0;;
     -l) logging=yes;;
@@ -34,7 +37,7 @@ do
   shift
 done
 [ "$CC" = "" ] && CC=gcc
-CFLAGS="-Wall"
+CFLAGS="-Wall$options"
 [ $debug = yes ] && check=yes
 [ $debug = yes ] && symbols=yes
 [ $debug = yes ] && logging=yes
