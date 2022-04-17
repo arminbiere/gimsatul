@@ -142,7 +142,7 @@ struct file
 {
   const char *path;
   FILE *file;
-  bool close;
+  int close;
   size_t lines;
 };
 
@@ -1574,12 +1574,12 @@ parse_dimacs_file ()
   message ("parsed 'p cnf %d %d' DIMACS file '%s'",
 	   variables, parsed, dimacs.path);
   assert (dimacs.file);
-  if (dimacs.close)
+  if (dimacs.close == 1)
     fclose (dimacs.file);
+  if (dimacs.close == 2)
+    pclose (dimacs.file);
   return solver;
 }
-
-/*------------------------------------------------------------------------*/
 
 /*------------------------------------------------------------------------*/
 
