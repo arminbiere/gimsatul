@@ -48,11 +48,16 @@ static const char * usage =
 #define INVALID UINT_MAX
 #define MAX_SCORE 1e150
 #define REDUCE_INTERVAL 1e3
-#define RESTART_INTERVAL 1024
+#define FOCUSED_RESTART_INTERVAL 10
+#define STABLE_RESTART_INTERVAL 1000
 #define TIER1_GLUE_LIMIT 2
 #define TIER2_GLUE_LIMIT 6
 #define REDUCE_FRACTION 0.75
 #define MAX_VERBOSITY 2
+#define SLOW_ALPHA 1e-5
+#define FAST_ALPHA 3e-2
+#define RESTART_MARGIN 1.1
+#define MODE_INTERVAL 3e3
 
 /*------------------------------------------------------------------------*/
 
@@ -244,8 +249,24 @@ struct queue
 struct limits
 {
   size_t fixed;
+  size_t mode;
   size_t reduce;
   size_t restart;
+};
+
+struct intervals
+{
+  size_t mode;
+};
+
+struct averages
+{
+  struct
+  {
+    double fast;
+    double slow;
+  } glue;
+  double level;
 };
 
 struct statistics
@@ -254,6 +275,8 @@ struct statistics
   size_t propagations;
   size_t reductions;
   size_t restarts;
+  size_t switched;
+  size_t ticks;
 
   size_t added;
   size_t irredundant;
@@ -265,6 +288,7 @@ struct statistics
 struct solver
 {
   bool inconsistent;
+  bool stable;
   unsigned size;
   unsigned level;
   unsigned unassigned;
@@ -279,6 +303,8 @@ struct solver
   struct buffer buffer;
   struct trail trail;
   struct limits limits;
+  struct intervals intervals;
+  struct averages averages;
   struct statistics statistics;
 };
 
@@ -1076,6 +1102,7 @@ propagate (struct solver *solver)
   struct trail *trail = &solver->trail;
   struct clause *conflict = 0;
   signed char *values = solver->values;
+  size_t ticks = 0;
   while (!conflict && trail->propagate != trail->end)
     {
       unsigned lit = *trail->propagate++;
@@ -1085,11 +1112,13 @@ propagate (struct solver *solver)
       struct watches *watches = &WATCHES (not_lit);
       struct watch **begin = watches->begin, **q = begin;
       struct watch **end = watches->end, **p = begin;
+      ticks++;
       while (!conflict && p != end)
 	{
 	  struct watch *watch = *q++ = *p++;
 	  unsigned other = watch->sum ^ not_lit;
 	  signed char other_value = values[other];
+	  ticks++;
 	  if (other_value > 0)
 	    continue;
 	  unsigned replacement = INVALID;
@@ -1097,6 +1126,7 @@ propagate (struct solver *solver)
 	  struct clause *clause = watch->clause;
 	  unsigned *r = clause->literals;
 	  unsigned *end_literals = r + clause->size;
+	  ticks++;
 	  while (r != end_literals)
 	    {
 	      replacement = *r;
@@ -1113,6 +1143,7 @@ propagate (struct solver *solver)
 	      watch->sum = other ^ replacement;
 	      struct watches *replacement_watches = &WATCHES (replacement);
 	      PUSH (*replacement_watches, watch);
+	      ticks++;
 	      q--;
 	    }
 	  else if (other_value)
@@ -1121,12 +1152,16 @@ propagate (struct solver *solver)
 	      conflict = clause;
 	    }
 	  else
-	    assign_with_reason (solver, other, clause);
+	    {
+	      assign_with_reason (solver, other, clause);
+	      ticks++;
+	    }
 	}
       while (p != end)
 	*q++ = *p++;
       watches->end = q;
     }
+  solver->statistics.ticks += ticks;
   if (conflict)
     {
       LOGCLAUSE (conflict, "conflicting");
@@ -1250,7 +1285,12 @@ analyze (struct solver *solver, struct clause *reason)
       assert (reason);
     }
   LOG ("back jump level %u", jump);
+  solver->averages.level += SLOW_ALPHA * (jump - solver->averages.level);
   LOG ("glucose level (LBD) %u", glue);
+  solver->averages.glue.slow +=
+    SLOW_ALPHA * (glue - solver->averages.glue.slow);
+  solver->averages.glue.fast +=
+    FAST_ALPHA * (glue - solver->averages.glue.fast);
   LOG ("first UIP %s", LOGLIT (uip));
   bump_score_increment (solver);
   backtrack (solver, jump);
@@ -1323,16 +1363,17 @@ static void
 report (struct solver * solver, char type)
 {
   struct statistics * s = &solver->statistics;
+  struct averages * a = &solver->averages;
   lock_message_mutex ();
   if (!(reported++ % 20))
     printf ("c\n"
-	    "c      seconds     MB reductions restarts conflicts redundant irredundant variables\n"
+	    "c      seconds     MB   level reductions restarts conflicts redundant  glue irredundant variables\n"
 	    "c\n");
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1<<20);
-  printf ("c %c %10.2f %6.0f %6zu %8zu %12zu %9zu %9zu %9zu %3.0f%%\n",
-    type, t, m, s->reductions, s->restarts,
-    s->conflicts, s->redundant, s->irredundant,
+  printf ("c %c %10.2f %7.1f %6.0f %6zu %8zu %12zu %9zu %6.1f %9zu %9zu %3.0f%%\n",
+    type, t, m, a->level, s->reductions, s->restarts,
+    s->conflicts, s->redundant, a->glue.slow, s->irredundant,
     s->variables, percent (s->variables, solver->size));
   fflush (stdout);
   unlock_message_mutex ();
@@ -1343,11 +1384,30 @@ report (struct solver * solver, char type)
 static void
 set_limits (struct solver *solver)
 {
+  if (solver->inconsistent)
+    return;
+  assert (!solver->stable);
+  assert (!solver->statistics.conflicts);
   struct limits *limits = &solver->limits;
   limits->reduce = REDUCE_INTERVAL;
-  limits->restart = RESTART_INTERVAL;
+  limits->restart = FOCUSED_RESTART_INTERVAL;
+  limits->mode = MODE_INTERVAL;
   verbose ("reduce interval of %zu conflict", limits->reduce);
   verbose ("restart interval of %zu conflict", limits->restart);
+  verbose ("initial mode switching interval of %zu conflicts", limits->mode);
+}
+
+static bool
+restarting (struct solver * solver)
+{
+  if (!solver->level)
+    return false;
+  struct averages * a = &solver->averages;
+  struct statistics * s = &solver->statistics;
+  struct limits * l = &solver->limits;
+  if (a->glue.fast <= RESTART_MARGIN * a->glue.slow)
+    return false;
+  return l->restart < s->conflicts;
 }
 
 static void
@@ -1357,9 +1417,13 @@ restart (struct solver *solver)
   statistics->restarts++;
   verbose ("restart %zu at %zu conflicts",
 	   statistics->restarts, statistics->conflicts);
+  backtrack (solver, 0);
   struct limits *limits = &solver->limits;
   limits->restart = statistics->conflicts;
-  limits->restart += RESTART_INTERVAL * log10 (statistics->restarts + 9);
+  if (solver->stable)
+    limits->restart += STABLE_RESTART_INTERVAL;
+  else
+    limits->restart += FOCUSED_RESTART_INTERVAL;
   verbose ("next restart limit at %zu conflicts", limits->restart);
   if (verbosity)
     report (solver, 'r');
@@ -1546,6 +1610,12 @@ flush_garbage_clauses (struct solver *solver)
   verbose ("flushed %zu garbage clauses", flushed);
 }
 
+static bool
+reducing (struct solver * solver)
+{
+  return solver->limits.reduce < solver->statistics.conflicts;
+}
+
 static void
 reduce (struct solver *solver)
 {
@@ -1572,9 +1642,61 @@ reduce (struct solver *solver)
   report (solver, '-');
 }
 
+static void
+switch_to_focused_mode (struct solver * solver)
+{
+  assert (solver->stable);
+  solver->stable = false;
+  report (solver, ']');
+  report (solver, '{');
+}
+
+static void
+switch_to_stable_mode (struct solver * solver)
+{
+  assert (!solver->stable);
+  solver->stable = true;
+  report (solver, '}');
+  report (solver, '[');
+}
+
+static bool
+switching_mode (struct solver * solver)
+{
+  struct statistics * s = &solver->statistics;
+  struct limits * l = &solver->limits;
+  if (s->switched)
+    return s->ticks > l->mode;
+  else
+    return s->conflicts > l->mode;
+}
+
+static size_t
+square (size_t n)
+{
+  assert (n);
+  return n * n;
+}
+
+static void
+switch_mode (struct solver * solver)
+{
+  struct statistics * s = &solver->statistics;
+  struct intervals * i = &solver->intervals;
+  struct limits * l = &solver->limits;
+  if (!s->switched++)
+    i->mode = s->ticks;
+  if (solver->stable)
+    switch_to_focused_mode (solver);
+  else
+    switch_to_stable_mode (solver);
+  l->mode = s->ticks + square (s->switched/2 + 1) * i->mode;
+}
+
 static int
 solve (struct solver *solver)
 {
+  report (solver, '{');
   int res = solver->inconsistent ? 20 : 0;
   while (!res)
     {
@@ -1586,13 +1708,17 @@ solve (struct solver *solver)
 	}
       else if (!solver->unassigned)
 	res = 10;
-      else if (solver->limits.reduce < solver->statistics.conflicts)
+      else if (reducing (solver))
 	reduce (solver);
-      else if (solver->limits.restart < solver->statistics.conflicts)
+      else if (restarting (solver))
 	restart (solver);
+      else if (switching_mode (solver))
+	switch_mode (solver);
       else
 	decide (solver);
     }
+  report (solver, solver->stable ? ']' : '}');
+  report (solver, res == 10 ? '1' : res == 20 ? '0' : '?');
   return res;
 }
 
@@ -2151,9 +2277,11 @@ print_statistics (void)
   printf ("c %-14s %19zu %12.2f per sec\n", "propagations:", s->propagations,
            average (s->propagations, w));
   printf ("c %-14s %19zu %12.2f conflict interval\n", "reductions:",
-           s->reductions, average (s->reductions, s->conflicts));
+           s->reductions, average (s->conflicts, s->reductions));
   printf ("c %-14s %19zu %12.2f conflict interval\n", "restarts:",
-           s->restarts, average (s->restarts, s->conflicts));
+           s->restarts, average (s->conflicts, s->restarts));
+  printf ("c %-14s %19zu %12.2f conflict interval\n", "switched:",
+           s->switched, average (s->conflicts, s->switched));
   printf ("c %-30s %16.2f sec\n", "process-time:", p);
   printf ("c %-30s %16.2f sec\n", "wall-clock-time:", w);
   printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", m);
