@@ -1135,8 +1135,11 @@ propagate (struct solver *solver)
 	    }
 	  unsigned replacement = INVALID;
 	  signed char replacement_value = -1;
-	  unsigned *r = clause->literals;
-	  unsigned *end_literals = r + clause->size;
+	  unsigned * literals = clause->literals;
+	  assert (watch->middle <= clause->size);
+	  unsigned *middle_literals = literals + watch->middle;
+	  unsigned *end_literals = literals + clause->size;
+	  unsigned * r = middle_literals;
 	  ticks++;
 	  while (r != end_literals)
 	    {
@@ -1149,6 +1152,22 @@ propagate (struct solver *solver)
 		}
 	      r++;
 	    }
+	  if (replacement_value < 0)
+	    {
+	      r = literals;
+	      while (r != middle_literals)
+		{
+		  replacement = *r;
+		  if (replacement != not_lit && replacement != other)
+		    {
+		      replacement_value = values[replacement];
+		      if (replacement_value >= 0)
+			break;
+		    }
+		  r++;
+		}
+	    }
+	  watch->middle = r - literals;
 	  if (replacement_value >= 0)
 	    {
 	      watch->sum = other ^ replacement;
