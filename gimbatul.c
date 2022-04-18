@@ -986,7 +986,7 @@ new_clause (struct solver *solver,
   clause->glue = glue;
   if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
     clause->used = 2;
-  else if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
+  else if (redundant && glue >= TIER2_GLUE_LIMIT)
     clause->used = 1;
   else
     clause->used = 0;
