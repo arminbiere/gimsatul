@@ -250,6 +250,7 @@ struct queue
   double increment;
   struct node *nodes;
   struct node *root;
+  double * scores;
 };
 
 struct limits
@@ -785,6 +786,24 @@ bump_score_increment (struct solver *solver)
     rescale_variable_scores (solver);
 }
 
+static void
+swap_scores (struct solver * solver)
+{
+  struct queue *queue = &solver->queue;
+  double * s = queue->scores;
+  for (all_nodes (node))
+    {
+      double tmp = node->score;
+      node->score = *s;
+      node->child = node->prev = node->next = 0;
+      *s++ = tmp;
+    }
+  assert (s == queue->scores + solver->size);
+  queue->root = 0;
+  for (all_nodes (node))
+    push_queue (queue, node);
+}
+
 /*------------------------------------------------------------------------*/
 
 static struct solver *
@@ -802,6 +821,7 @@ new_solver (unsigned size)
   trail->end = trail->propagate = trail->begin;
   struct queue *queue = &solver->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
+  queue->scores = allocate_and_clear_array (size, sizeof *queue->scores);
   queue->increment = 1;
   for (all_nodes (node))
     push_queue (queue, node);
@@ -852,6 +872,7 @@ delete_solver (struct solver *solver)
   release_watches (solver);
   release_clauses (solver);
   free (solver->queue.nodes);
+  free (solver->queue.scores);
   free (solver->variables);
   free (solver->values);
   free (solver->used);
@@ -1749,7 +1770,9 @@ switch_mode (struct solver *solver)
     switch_to_focused_mode (solver);
   else
     switch_to_stable_mode (solver);
+  swap_scores (solver);
   l->mode = s->ticks + square (s->switched / 2 + 1) * i->mode;
+  verbose ("next mode switching limit at %zu ticks", l->mode);
 }
 
 static void
