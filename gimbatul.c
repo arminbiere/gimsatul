@@ -235,8 +235,13 @@ struct statistics
   size_t propagations;
   size_t reductions;
   size_t restarts;
+
+  size_t irredundant;
+  size_t redundant;
+  size_t variables;
+
 #ifdef LOGGING
-  size_t clauses;
+  size_t added;
 #endif
 };
 
@@ -263,6 +268,20 @@ struct solver
 /*------------------------------------------------------------------------*/
 
 static double
+average (double a, double b)
+{
+  return b ? a / b : 0;
+}
+
+static double
+percent (double a, double b)
+{
+  return average (100 * a, b);
+}
+
+/*------------------------------------------------------------------------*/
+
+static double
 process_time (void)
 {
   struct rusage u;
@@ -275,12 +294,20 @@ process_time (void)
 }
 
 static double
-wall_clock_time (void)
+current_clock_time (void)
 {
   struct timeval tv;
   if (gettimeofday (&tv, 0))
     return 0;
   return 1e-6 * tv.tv_usec + tv.tv_sec;
+}
+
+static double start_time;
+
+static double
+wall_clock_time (void)
+{
+  return current_clock_time () - start_time;
 }
 
 static size_t
@@ -291,8 +318,6 @@ maximum_resident_set_size (void)
     return 0;
   return ((size_t) u.ru_maxrss) << 10;
 }
-
-#if 0
 
 static size_t
 current_resident_set_size (void)
@@ -307,8 +332,6 @@ current_resident_set_size (void)
   fclose (file);
   return scanned == 2 ? rss * sysconf (_SC_PAGESIZE) : 0;
 }
-
-#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -405,7 +428,7 @@ static int verbosity;
 
 #define verbose(...) \
 do { \
-  if (verbosity) \
+  if (verbosity > 1) \
     message (__VA_ARGS__); \
 } while (0)
 
@@ -732,6 +755,7 @@ new_solver (unsigned size)
   for (all_nodes (node))
     push_queue (queue, node);
   solver->unassigned = size;
+  solver->statistics.variables = size;
   return solver;
 }
 
@@ -917,8 +941,12 @@ new_clause (struct solver *solver,
   size_t bytes = size * sizeof (unsigned);
   struct clause *clause = allocate_block (sizeof *clause + bytes);
 #ifdef LOGGING
-  clause->id = ++solver->statistics.clauses;
+  clause->id = ++solver->statistics.added;
 #endif
+  if (clause->redundant)
+    solver->statistics.redundant++;
+  else
+    solver->statistics.irredundant++;
   clause->active = false;
   clause->garbage = false;
   clause->redundant = redundant;
@@ -953,7 +981,14 @@ assign (struct solver * solver, unsigned lit, struct clause * reason)
   v->phase = SGN (lit) ? -1 : 1;
   unsigned level = solver->level;
   v->level = level;
-  v->reason = level ? reason : 0;
+  if (level)
+    v->reason = reason;
+  else
+    {
+      v->reason = 0;
+      assert (solver->statistics.variables);
+      solver->statistics.variables--;
+    }
 }
 
 static void
@@ -1213,6 +1248,31 @@ decide (struct solver * solver)
   assign_decision (solver, lit);
 }
 
+static size_t reported;
+
+// *INDENT-OFF*
+
+static void
+report (struct solver * solver, char type)
+{
+  struct statistics * s = &solver->statistics;
+  lock_message_mutex ();
+  if (!(reported++ % 20))
+    printf ("c\n"
+	    "c      seconds     MB reductions restarts conflicts redundant irredundant variables\n"
+	    "c\n");
+  double t = wall_clock_time ();
+  double m = current_resident_set_size () / (double) (1<<20);
+  printf ("c %c %10.2f %6.0f %6zu %8zu %12zu %9zu %9zu %9zu %3.0f%%\n",
+    type, t, m, s->reductions, s->restarts,
+    s->conflicts, s->redundant, s->irredundant,
+    s->variables, percent (s->variables, solver->size));
+  fflush (stdout);
+  unlock_message_mutex ();
+}
+
+// *INDENT-ON*
+
 static void
 set_limits (struct solver * solver)
 {
@@ -1233,6 +1293,8 @@ restart (struct solver * solver)
   struct limits * limits = &solver->limits;
   limits->restart = statistics->conflicts + RESTART_INTERVAL * log10 (statistics->restarts + 9);
   verbose ("next restart limit at %zu conflict", limits->restart);
+  if (verbosity)
+    report (solver, 'r');
 }
 
 static void
@@ -1245,6 +1307,7 @@ reduce (struct solver * solver)
   struct limits * limits = &solver->limits;
   limits->reduce = statistics->conflicts + REDUCE_INTERVAL * log2 (statistics->reductions + 9);
   verbose ("next reduce limit at %zu conflict", limits->reduce);
+  report (solver, '-');
 }
 
 static int
@@ -1741,7 +1804,7 @@ reset_signal_handler (void)
 #undef SIGNAL
 }
 
-  static void print_statistics (void);
+static void print_statistics (void);
 
 static void
 catch_signal (int sig)
@@ -1807,19 +1870,11 @@ check_witness (void) {
 
 /*------------------------------------------------------------------------*/
 
-static double start_time;
-
-static double
-average (double a, double b)
-{
-  return b ? a / b : 0;
-}
-
 static void
 print_statistics (void)
 {
   double p = process_time ();
-  double w = wall_clock_time () - start_time;
+  double w = wall_clock_time ();
   double m = maximum_resident_set_size () / (double) (1<<20);
   struct statistics * s = &solver->statistics;
   lock_message_mutex ();
@@ -1843,7 +1898,7 @@ print_statistics (void)
 int
 main (int argc, char ** argv)
 {
-  start_time = wall_clock_time ();
+  start_time = current_clock_time ();
   check_types ();
   parse_options (argc, argv);
   print_banner ();
