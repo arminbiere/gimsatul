@@ -48,11 +48,7 @@ static const char * usage =
 #define INVALID UINT_MAX
 #define MAX_SCORE 1e150
 #define REDUCE_INTERVAL 1e3
-#if 0
 #define RESTART_INTERVAL 1024
-#else
-#define RESTART_INTERVAL INT_MAX
-#endif
 #define TIER1_GLUE_LIMIT 2
 #define TIER2_GLUE_LIMIT 6
 #define REDUCE_FRACTION 0.75
@@ -247,6 +243,7 @@ struct queue
 
 struct limits
 {
+  size_t fixed;
   size_t reduce;
   size_t restart;
 };
@@ -262,6 +259,7 @@ struct statistics
   size_t irredundant;
   size_t redundant;
   size_t variables;
+  size_t fixed;
 };
 
 struct solver
@@ -1041,6 +1039,7 @@ assign (struct solver *solver, unsigned lit, struct clause *reason)
       v->reason = 0;
       assert (solver->statistics.variables);
       solver->statistics.variables--;
+      solver->statistics.fixed++;
     }
 }
 
@@ -1359,9 +1358,8 @@ restart (struct solver *solver)
   verbose ("restart %zu at %zu conflicts",
 	   statistics->restarts, statistics->conflicts);
   struct limits *limits = &solver->limits;
-  limits->restart =
-    statistics->conflicts + RESTART_INTERVAL * log10 (statistics->restarts +
-						      9);
+  limits->restart = statistics->conflicts;
+  limits->restart += RESTART_INTERVAL * log10 (statistics->restarts + 9);
   verbose ("next restart limit at %zu conflicts", limits->restart);
   if (verbosity)
     report (solver, 'r');
@@ -1396,11 +1394,43 @@ unmark_reasons (struct solver *solver)
 }
 
 static void
+mark_satisfied_clauses_as_garbage (struct solver * solver)
+{
+  size_t marked = 0;
+  signed char * values = solver->values;
+  for (all_clauses (clause))
+    {
+      if (clause->garbage)
+	continue;
+      bool satisfied = false;
+      for (all_literals_in_clause (lit, clause))
+	{
+	  if (values[lit] <= 0)
+	    continue;
+	  if (VAR (lit)->level)
+	    continue;
+	  satisfied = true;
+	  break;
+	}
+      if (!satisfied)
+	continue;
+      LOGCLAUSE (clause, "marking satisfied garbage");
+      clause->garbage = true;
+      marked++;
+    }
+  solver->limits.fixed = solver->statistics.fixed;
+  verbose ("marked %zu satisfied clauses as garbage %.0f%%",
+	   marked, percent (marked, SIZE (solver->clauses)));
+}
+
+static void
 gather_reduce_candidates (struct solver *solver, struct clauses *candidates)
 {
   for (all_clauses (clause))
     {
       if (clause->garbage)
+	continue;
+      if (clause->reason)
 	continue;
       if (!clause->redundant)
 	continue;
@@ -1411,8 +1441,6 @@ gather_reduce_candidates (struct solver *solver, struct clauses *candidates)
 	  clause->used--;
 	  continue;
 	}
-      if (clause->reason)
-	continue;
       PUSH (*candidates, clause);
     }
   verbose ("gathered %zu reduce candidates clauses %.0f%%",
@@ -1482,6 +1510,8 @@ flush_garbage_watches (struct solver *solver)
 	  struct clause *clause = watch->clause;
 	  if (!clause->garbage)
 	    continue;
+	  if (clause->reason)
+	    continue;
 	  unsigned other = watch->sum ^ lit;
 	  flushed++;
 	  q--;
@@ -1506,6 +1536,8 @@ flush_garbage_clauses (struct solver *solver)
       struct clause *clause = *q++ = *p;
       if (!clause->garbage)
 	continue;
+      if (clause->reason)
+	continue;
       delete_clause (solver, clause);
       flushed++;
       q--;
@@ -1518,12 +1550,15 @@ static void
 reduce (struct solver *solver)
 {
   struct statistics *statistics = &solver->statistics;
+  struct limits *limits = &solver->limits;
   statistics->reductions++;
   verbose ("reduction %zu at %zu conflicts",
 	   statistics->reductions, statistics->conflicts);
   mark_reasons (solver);
   struct clauses candidates;
   INIT (candidates);
+  if (limits->fixed < statistics->fixed)
+    mark_satisfied_clauses_as_garbage (solver);
   gather_reduce_candidates (solver, &candidates);
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (solver, &candidates);
@@ -1531,10 +1566,8 @@ reduce (struct solver *solver)
   flush_garbage_watches (solver);
   flush_garbage_clauses (solver);
   unmark_reasons (solver);
-  struct limits *limits = &solver->limits;
-  limits->reduce =
-    statistics->conflicts + REDUCE_INTERVAL * log2 (statistics->reductions +
-						    9);
+  limits->reduce = statistics->conflicts;
+  limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
   verbose ("next reduce limit at %zu conflicts", limits->reduce);
   report (solver, '-');
 }
