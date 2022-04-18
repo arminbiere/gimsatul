@@ -2286,6 +2286,8 @@ print_statistics (void)
   lock_message_mutex ();
   printf ("c %-14s %19zu %12.2f per sec\n", "conflicts:", s->conflicts,
            average (s->conflicts, w));
+  printf ("c %-14s %19zu %12.2f %% variables\n", "fixed:", s->fixed,
+           percent (s->fixed, solver->size));
   printf ("c %-14s %19zu %12.2f per sec\n", "propagations:", s->propagations,
            average (s->propagations, w));
   printf ("c %-14s %19zu %12.2f conflict interval\n", "reductions:",
