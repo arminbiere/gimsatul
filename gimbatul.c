@@ -216,6 +216,7 @@ struct clauses
 struct watch
 {
   unsigned sum;
+  unsigned middle;
   struct clause *clause;
 };
 
@@ -976,12 +977,14 @@ close_proof (void)
 /*------------------------------------------------------------------------*/
 
 static void
-watch_clause (struct solver *solver, struct clause *clause)
+new_watch (struct solver *solver, struct clause *clause)
 {
+  assert (clause->size >= 2);
   unsigned *literals = clause->literals;
   struct watch *watch = allocate_block (sizeof *watch);
-  watch->clause = clause;
   watch->sum = literals[0] ^ literals[1];
+  watch->middle = clause->size == 2 ? INVALID : 2;
+  watch->clause = clause;
   PUSH (WATCHES (literals[0]), watch);
   PUSH (WATCHES (literals[1]), watch);
 }
@@ -1020,7 +1023,7 @@ new_clause (struct solver *solver,
   memcpy (clause->literals, literals, bytes);
   PUSH (solver->clauses, clause);
   LOGCLAUSE (clause, "new");
-  watch_clause (solver, clause);
+  new_watch (solver, clause);
   return clause;
 }
 
@@ -1121,9 +1124,16 @@ propagate (struct solver *solver)
 	  ticks++;
 	  if (other_value > 0)
 	    continue;
+	  struct clause *clause = watch->clause;
+	  if (watch->middle == INVALID)
+	    {
+	      if (other_value)
+		goto CONFLICT;
+	      else
+		goto ASSIGN;
+	    }
 	  unsigned replacement = INVALID;
 	  signed char replacement_value = -1;
-	  struct clause *clause = watch->clause;
 	  unsigned *r = clause->literals;
 	  unsigned *end_literals = r + clause->size;
 	  ticks++;
@@ -1148,11 +1158,13 @@ propagate (struct solver *solver)
 	    }
 	  else if (other_value)
 	    {
+CONFLICT:
 	      assert (other_value < 0);
 	      conflict = clause;
 	    }
 	  else
 	    {
+ASSIGN:
 	      assign_with_reason (solver, other, clause);
 	      ticks++;
 	    }
