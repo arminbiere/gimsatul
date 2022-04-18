@@ -48,10 +48,12 @@ static const char * usage =
 #define INVALID UINT_MAX
 #define MAX_SCORE 1e150
 #define REDUCE_INTERVAL 1e3
+#define REDUCE_INTERVAL 1
 #define RESTART_INTERVAL 1024
 #define TIER1_GLUE_LIMIT 2
 #define TIER2_GLUE_LIMIT 6
 #define REDUCE_FRACTION 0.75
+#define MAX_VERBOSITY 2
 
 /*------------------------------------------------------------------------*/
 
@@ -1335,7 +1337,7 @@ restart (struct solver * solver)
            statistics->restarts, statistics->conflicts);
   struct limits * limits = &solver->limits;
   limits->restart = statistics->conflicts + RESTART_INTERVAL * log10 (statistics->restarts + 9);
-  verbose ("next restart limit at %zu conflict", limits->restart);
+  verbose ("next restart limit at %zu conflicts", limits->restart);
   if (verbosity)
     report (solver, 'r');
 }
@@ -1384,6 +1386,8 @@ gather_reduce_candidates (struct solver * solver, struct clauses * candidates)
 	  clause->used--;
 	  continue;
 	}
+      if (clause->reason)
+	continue;
       PUSH (*candidates, clause);
     }
   verbose ("gathered %zu reduce candidates clauses %.0f%%",
@@ -1445,7 +1449,7 @@ flush_garbage_watches (struct solver * solver)
     {
       struct watches * watches = &WATCHES (lit);
       struct watch ** begin = watches->begin, ** q = begin;
-      struct watch ** end = watches->begin;
+      struct watch ** end = watches->end;
       for (struct watch ** p = begin; p != end; p++)
 	{
 	  struct watch * watch = *q++ = *p;
@@ -1453,11 +1457,11 @@ flush_garbage_watches (struct solver * solver)
 	  if (!clause->garbage)
 	    continue;
 	  unsigned other = watch->sum ^ lit;
+	  flushed++;
+	  q--;
 	  if (other > lit)
 	    continue;
 	  delete_watch (solver, watch);
-	  flushed++;
-	  q--;
 	}
       watches->end = q;
     }
@@ -1503,7 +1507,7 @@ reduce (struct solver * solver)
   unmark_reasons (solver);
   struct limits * limits = &solver->limits;
   limits->reduce = statistics->conflicts + REDUCE_INTERVAL * log2 (statistics->reductions + 9);
-  verbose ("next reduce limit at %zu conflict", limits->reduce);
+  verbose ("next reduce limit at %zu conflicts", limits->reduce);
   report (solver, '-');
 }
 
@@ -1599,14 +1603,20 @@ parse_options (int argc, char **argv)
 	}
       else if (!strcmp (arg, "-l"))
 #ifdef LOGGING
-	logging = true;
+	{
+	  logging = true;
+	  verbosity = MAX_VERBOSITY;
+	}
 #else
 	die ("invalid option '-l' (compiled without logging support)");
 #endif
       else if (!strcmp (arg, "-n"))
 	witness = false;
       else if (!strcmp (arg, "-v"))
-	verbosity++;
+	{
+	  if (verbosity < MAX_VERBOSITY)
+	    verbosity++;
+	}
       else if (!strcmp (arg, "--version"))
 	{
 	  printf ("%s\n", VERSION);
