@@ -1460,7 +1460,7 @@ restart (struct solver *solver)
   else
     limits->restart += FOCUSED_RESTART_INTERVAL;
   verbose ("next restart limit at %zu conflicts", limits->restart);
-  if (verbosity)
+  if (verbosity > 0)
     report (solver, 'r');
 }
 
