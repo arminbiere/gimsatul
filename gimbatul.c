@@ -247,7 +247,7 @@ struct reluctant
 
 struct queue
 {
-  double increment;
+  double increment[2];
   struct node *nodes;
   struct node *root;
   double * scores;
@@ -749,7 +749,8 @@ static void
 rescale_variable_scores (struct solver *solver)
 {
   struct queue *queue = &solver->queue;
-  double max_score = queue->increment;
+  unsigned stable = solver->stable;
+  double max_score = queue->increment[stable];
   struct node *nodes = queue->nodes;
   struct node *end = nodes + solver->size;
   for (struct node * node = nodes; node != end; node++)
@@ -759,7 +760,7 @@ rescale_variable_scores (struct solver *solver)
   assert (max_score > 0);
   for (struct node * node = nodes; node != end; node++)
     node->score /= max_score;
-  queue->increment /= max_score;
+  queue->increment[stable] /= max_score;
 }
 
 static void
@@ -768,7 +769,7 @@ bump_variable_score (struct solver *solver, unsigned idx)
   struct queue *queue = &solver->queue;
   struct node *node = queue->nodes + idx;
   double old_score = node->score;
-  double new_score = old_score + queue->increment;
+  double new_score = old_score + queue->increment[solver->stable];
   update_queue (queue, node, new_score);
   if (new_score > MAX_SCORE)
     rescale_variable_scores (solver);
@@ -778,11 +779,12 @@ static void
 bump_score_increment (struct solver *solver)
 {
   struct queue *queue = &solver->queue;
-  double old_increment = queue->increment;
+  unsigned stable = solver->stable;
+  double old_increment = queue->increment[stable];
   double new_increment = old_increment * 1.05;
   LOG ("new increment %g", new_increment);
-  queue->increment = new_increment;
-  if (queue->increment > MAX_SCORE)
+  queue->increment[stable] = new_increment;
+  if (queue->increment[stable] > MAX_SCORE)
     rescale_variable_scores (solver);
 }
 
@@ -802,6 +804,9 @@ swap_scores (struct solver * solver)
   queue->root = 0;
   for (all_nodes (node))
     push_queue (queue, node);
+  double tmp = queue->increment[0];
+  queue->increment[0] = queue->increment[1];
+  queue->increment[1] = tmp;
 }
 
 /*------------------------------------------------------------------------*/
@@ -822,7 +827,7 @@ new_solver (unsigned size)
   struct queue *queue = &solver->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
   queue->scores = allocate_and_clear_array (size, sizeof *queue->scores);
-  queue->increment = 1;
+  queue->increment[0] = queue->increment[1] = 1;
   for (all_nodes (node))
     push_queue (queue, node);
   solver->unassigned = size;
