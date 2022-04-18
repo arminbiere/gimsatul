@@ -49,7 +49,7 @@ static const char * usage =
 #define MAX_SCORE 1e150
 #define REDUCE_INTERVAL 1e3
 #define FOCUSED_RESTART_INTERVAL 10
-#define STABLE_RESTART_INTERVAL 1000
+#define STABLE_RESTART_INTERVAL 500
 #define TIER1_GLUE_LIMIT 2
 #define TIER2_GLUE_LIMIT 6
 #define REDUCE_FRACTION 0.75
@@ -240,6 +240,11 @@ struct node
   struct node *child, *prev, *next;
 };
 
+struct reluctant
+{
+  size_t u, v;
+};
+
 struct queue
 {
   double increment;
@@ -306,7 +311,8 @@ struct solver
   struct trail trail;
   struct limits limits;
   struct intervals intervals;
-  struct averages averages;
+  struct averages averages[2];
+  struct reluctant reluctant;
   struct statistics statistics;
 };
 
@@ -1317,12 +1323,11 @@ analyze (struct solver *solver, struct clause *reason)
       assert (reason);
     }
   LOG ("back jump level %u", jump);
-  solver->averages.level += SLOW_ALPHA * (jump - solver->averages.level);
+  struct averages * averages = solver->averages + solver->stable;
+  averages->level += SLOW_ALPHA * (jump - averages->level);
   LOG ("glucose level (LBD) %u", glue);
-  solver->averages.glue.slow +=
-    SLOW_ALPHA * (glue - solver->averages.glue.slow);
-  solver->averages.glue.fast +=
-    FAST_ALPHA * (glue - solver->averages.glue.fast);
+  averages->glue.slow += SLOW_ALPHA * (glue - averages->glue.slow);
+  averages->glue.fast += FAST_ALPHA * (glue - averages->glue.fast);
   LOG ("first UIP %s", LOGLIT (uip));
   bump_score_increment (solver);
   backtrack (solver, jump);
@@ -1398,7 +1403,7 @@ static void
 report (struct solver * solver, char type)
 {
   struct statistics * s = &solver->statistics;
-  struct averages * a = &solver->averages;
+  struct averages * a = solver->averages + solver->stable;
   lock_message_mutex ();
   if (!(reported++ % 20))
     printf ("c\n"
@@ -1437,11 +1442,14 @@ restarting (struct solver * solver)
 {
   if (!solver->level)
     return false;
-  struct averages * a = &solver->averages;
   struct statistics * s = &solver->statistics;
   struct limits * l = &solver->limits;
-  if (a->glue.fast <= RESTART_MARGIN * a->glue.slow)
-    return false;
+  if (!solver->stable)
+    {
+      struct averages * a = solver->averages;
+      if (a->glue.fast <= RESTART_MARGIN * a->glue.slow)
+	return false;
+    }
   return l->restart < s->conflicts;
 }
 
@@ -1456,7 +1464,16 @@ restart (struct solver *solver)
   struct limits *limits = &solver->limits;
   limits->restart = statistics->conflicts;
   if (solver->stable)
-    limits->restart += STABLE_RESTART_INTERVAL;
+    {
+      struct reluctant * reluctant = &solver->reluctant;
+      size_t u = reluctant->u, v = reluctant->v;
+      if ((u & -u) == v)
+	u++, v = 1;
+      else
+	v *= 2;
+      limits->restart += STABLE_RESTART_INTERVAL * v;
+      reluctant->u = u, reluctant->v = v;
+    }
   else
     limits->restart += FOCUSED_RESTART_INTERVAL;
   verbose ("next restart limit at %zu conflicts", limits->restart);
@@ -1684,6 +1701,9 @@ switch_to_focused_mode (struct solver * solver)
   solver->stable = false;
   report (solver, ']');
   report (solver, '{');
+  struct statistics *statistics = &solver->statistics;
+  struct limits *limits = &solver->limits;
+  limits->restart = statistics->conflicts + FOCUSED_RESTART_INTERVAL;
 }
 
 static void
@@ -1693,6 +1713,10 @@ switch_to_stable_mode (struct solver * solver)
   solver->stable = true;
   report (solver, '}');
   report (solver, '[');
+  struct statistics *statistics = &solver->statistics;
+  struct limits *limits = &solver->limits;
+  limits->restart = statistics->conflicts + STABLE_RESTART_INTERVAL;
+  solver->reluctant.u = solver->reluctant.v = 1;
 }
 
 static bool
