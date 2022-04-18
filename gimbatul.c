@@ -152,6 +152,11 @@ do { \
   IDX != END_ ## IDX; \
   ++IDX
 
+#define all_literals(LIT) \
+  unsigned LIT = 0, END_ ## LIT = 2*solver->size; \
+  LIT != END_ ## LIT; \
+  ++LIT
+
 #define all_literals_in_clause(LIT,CLAUSE) \
   unsigned * P_ ## LIT = (CLAUSE)->literals, \
            * END_ ## LIT = P_ ## LIT + (CLAUSE)->size, LIT;\
@@ -941,6 +946,24 @@ close_proof (void)
 
 /*------------------------------------------------------------------------*/
 
+static void
+watch_clause (struct solver * solver, struct clause * clause)
+{
+  unsigned * literals = clause->literals;
+  struct watch * watch = allocate_block (sizeof *watch);
+  watch->clause = clause;
+  watch->sum = literals[0] ^ literals[1];
+  PUSH (WATCHES (literals[0]), watch);
+  PUSH (WATCHES (literals[1]), watch);
+}
+
+static void
+delete_watch (struct solver * solver, struct watch * watch)
+{
+  (void) solver;
+  free (watch);
+}
+
 static struct clause *
 new_clause (struct solver *solver,
 	    size_t size, unsigned *literals, bool redundant, unsigned glue)
@@ -963,12 +986,25 @@ new_clause (struct solver *solver,
   memcpy (clause->literals, literals, bytes);
   PUSH (solver->clauses, clause);
   LOGCLAUSE (clause, "new");
-  struct watch * watch = allocate_block (sizeof *watch);
-  watch->clause = clause;
-  watch->sum = literals[0] ^ literals[1];
-  PUSH (WATCHES (literals[0]), watch);
-  PUSH (WATCHES (literals[1]), watch);
+  watch_clause (solver, clause);
   return clause;
+}
+
+static void
+delete_clause (struct solver * solver, struct clause * clause)
+{
+  LOGCLAUSE (clause, "delete");
+  if (clause->redundant)
+    {
+      assert (solver->statistics.redundant > 0);
+      solver->statistics.redundant--;
+    }
+  else
+    {
+      assert (solver->statistics.irredundant > 0);
+      solver->statistics.irredundant--;
+    }
+  free (clause);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1402,6 +1438,53 @@ mark_reduce_candidates_as_garbage (struct solver * solver, struct clauses * cand
 }
 
 static void
+flush_garbage_watches (struct solver * solver)
+{
+  size_t flushed = 0;
+  for (all_literals (lit))
+    {
+      struct watches * watches = &WATCHES (lit);
+      struct watch ** begin = watches->begin, ** q = begin;
+      struct watch ** end = watches->begin;
+      for (struct watch ** p = begin; p != end; p++)
+	{
+	  struct watch * watch = *q++ = *p;
+	  struct clause * clause = watch->clause;
+	  if (!clause->garbage)
+	    continue;
+	  unsigned other = watch->sum ^ lit;
+	  if (other > lit)
+	    continue;
+	  delete_watch (solver, watch);
+	  flushed++;
+	  q--;
+	}
+      watches->end = q;
+    }
+  verbose ("flushed %zu garbage watches", flushed);
+}
+
+static void
+flush_garbage_clauses (struct solver * solver)
+{
+  struct clauses * clauses = &solver->clauses;
+  struct clause ** begin = clauses->begin, ** q = begin;
+  struct clause ** end = clauses->end;
+  size_t flushed = 0;
+  for (struct clause ** p = begin; p != end; p++)
+    {
+      struct clause * clause = *q++ = *p;
+      if (!clause->garbage)
+	continue;
+      delete_clause (solver, clause);
+      flushed++;
+      q--;
+    }
+  clauses->end = q;
+  verbose ("flushed %zu garbage clauses", flushed);
+}
+
+static void
 reduce (struct solver * solver)
 {
   struct statistics * statistics = &solver->statistics;
@@ -1415,6 +1498,8 @@ reduce (struct solver * solver)
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (solver, &candidates);
   RELEASE (candidates);
+  flush_garbage_watches (solver);
+  flush_garbage_clauses (solver);
   unmark_reasons (solver);
   struct limits * limits = &solver->limits;
   limits->reduce = statistics->conflicts + REDUCE_INTERVAL * log2 (statistics->reductions + 9);
