@@ -289,6 +289,7 @@ struct statistics
 struct solver
 {
   bool inconsistent;
+  bool iterating;
   bool stable;
   unsigned size;
   unsigned level;
@@ -1312,7 +1313,10 @@ analyze (struct solver *solver, struct clause *reason)
   unsigned size = SIZE (*clause);
   assert (size);
   if (size == 1)
-    assign_unit (solver, not_uip);
+    {
+      assign_unit (solver, not_uip);
+      solver->iterating = true;
+    }
   else
     {
       unsigned other = literals[1];
@@ -1705,6 +1709,13 @@ switch_mode (struct solver * solver)
   l->mode = s->ticks + square (s->switched/2 + 1) * i->mode;
 }
 
+static void
+iterate (struct solver * solver)
+{
+  solver->iterating = false;
+  report (solver, 'i');
+}
+
 static int
 solve (struct solver *solver)
 {
@@ -1720,6 +1731,8 @@ solve (struct solver *solver)
 	}
       else if (!solver->unassigned)
 	res = 10;
+      else if (solver->iterating)
+	iterate (solver);
       else if (reducing (solver))
 	reduce (solver);
       else if (restarting (solver))
