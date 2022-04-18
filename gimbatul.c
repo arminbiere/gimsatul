@@ -1141,11 +1141,11 @@ propagate (struct solver *solver)
 	    }
 	  unsigned replacement = INVALID;
 	  signed char replacement_value = -1;
-	  unsigned * literals = clause->literals;
+	  unsigned *literals = clause->literals;
 	  assert (watch->middle <= clause->size);
 	  unsigned *middle_literals = literals + watch->middle;
 	  unsigned *end_literals = literals + clause->size;
-	  unsigned * r = middle_literals;
+	  unsigned *r = middle_literals;
 	  ticks++;
 	  while (r != end_literals)
 	    {
@@ -1184,13 +1184,13 @@ propagate (struct solver *solver)
 	    }
 	  else if (other_value)
 	    {
-CONFLICT:
+	    CONFLICT:
 	      assert (other_value < 0);
 	      conflict = clause;
 	    }
 	  else
 	    {
-ASSIGN:
+	    ASSIGN:
 	      assign_with_reason (solver, other, clause);
 	      ticks++;
 	    }
@@ -1238,7 +1238,7 @@ backtrack (struct solver *solver, unsigned level)
 }
 
 static void
-bump_reason (struct clause * clause)
+bump_reason (struct clause *clause)
 {
   if (!clause->redundant)
     return;
@@ -1323,7 +1323,7 @@ analyze (struct solver *solver, struct clause *reason)
       assert (reason);
     }
   LOG ("back jump level %u", jump);
-  struct averages * averages = solver->averages + solver->stable;
+  struct averages *averages = solver->averages + solver->stable;
   averages->level += SLOW_ALPHA * (jump - averages->level);
   LOG ("glucose level (LBD) %u", glue);
   averages->glue.slow += SLOW_ALPHA * (glue - averages->glue.slow);
@@ -1438,15 +1438,15 @@ set_limits (struct solver *solver)
 }
 
 static bool
-restarting (struct solver * solver)
+restarting (struct solver *solver)
 {
   if (!solver->level)
     return false;
-  struct statistics * s = &solver->statistics;
-  struct limits * l = &solver->limits;
+  struct statistics *s = &solver->statistics;
+  struct limits *l = &solver->limits;
   if (!solver->stable)
     {
-      struct averages * a = solver->averages;
+      struct averages *a = solver->averages;
       if (a->glue.fast <= RESTART_MARGIN * a->glue.slow)
 	return false;
     }
@@ -1465,7 +1465,7 @@ restart (struct solver *solver)
   limits->restart = statistics->conflicts;
   if (solver->stable)
     {
-      struct reluctant * reluctant = &solver->reluctant;
+      struct reluctant *reluctant = &solver->reluctant;
       size_t u = reluctant->u, v = reluctant->v;
       if ((u & -u) == v)
 	u++, v = 1;
@@ -1510,10 +1510,10 @@ unmark_reasons (struct solver *solver)
 }
 
 static void
-mark_satisfied_clauses_as_garbage (struct solver * solver)
+mark_satisfied_clauses_as_garbage (struct solver *solver)
 {
   size_t marked = 0;
-  signed char * values = solver->values;
+  signed char *values = solver->values;
   for (all_clauses (clause))
     {
       if (clause->garbage)
@@ -1663,7 +1663,7 @@ flush_garbage_clauses (struct solver *solver)
 }
 
 static bool
-reducing (struct solver * solver)
+reducing (struct solver *solver)
 {
   return solver->limits.reduce < solver->statistics.conflicts;
 }
@@ -1695,7 +1695,7 @@ reduce (struct solver *solver)
 }
 
 static void
-switch_to_focused_mode (struct solver * solver)
+switch_to_focused_mode (struct solver *solver)
 {
   assert (solver->stable);
   solver->stable = false;
@@ -1707,7 +1707,7 @@ switch_to_focused_mode (struct solver * solver)
 }
 
 static void
-switch_to_stable_mode (struct solver * solver)
+switch_to_stable_mode (struct solver *solver)
 {
   assert (!solver->stable);
   solver->stable = true;
@@ -1720,10 +1720,10 @@ switch_to_stable_mode (struct solver * solver)
 }
 
 static bool
-switching_mode (struct solver * solver)
+switching_mode (struct solver *solver)
 {
-  struct statistics * s = &solver->statistics;
-  struct limits * l = &solver->limits;
+  struct statistics *s = &solver->statistics;
+  struct limits *l = &solver->limits;
   if (s->switched)
     return s->ticks > l->mode;
   else
@@ -1738,22 +1738,22 @@ square (size_t n)
 }
 
 static void
-switch_mode (struct solver * solver)
+switch_mode (struct solver *solver)
 {
-  struct statistics * s = &solver->statistics;
-  struct intervals * i = &solver->intervals;
-  struct limits * l = &solver->limits;
+  struct statistics *s = &solver->statistics;
+  struct intervals *i = &solver->intervals;
+  struct limits *l = &solver->limits;
   if (!s->switched++)
     i->mode = s->ticks;
   if (solver->stable)
     switch_to_focused_mode (solver);
   else
     switch_to_stable_mode (solver);
-  l->mode = s->ticks + square (s->switched/2 + 1) * i->mode;
+  l->mode = s->ticks + square (s->switched / 2 + 1) * i->mode;
 }
 
 static void
-iterate (struct solver * solver)
+iterate (struct solver *solver)
 {
   solver->iterating = false;
   report (solver, 'i');
