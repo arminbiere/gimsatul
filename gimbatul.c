@@ -985,8 +985,13 @@ new_clause (struct solver *solver,
   clause->garbage = false;
   clause->reason = false;
   clause->redundant = redundant;
-  clause->used = false;
   clause->glue = glue;
+  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
+    clause->used = 2;
+  else if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
+    clause->used = 1;
+  else
+    clause->used = 0;
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
   PUSH (solver->clauses, clause);
@@ -1160,6 +1165,19 @@ backtrack (struct solver *solver, unsigned level)
   solver->level = level;
 }
 
+static void
+bump_reason (struct clause * clause)
+{
+  if (!clause->redundant)
+    return;
+  if (clause->glue <= TIER1_GLUE_LIMIT)
+    return;
+  if (clause->glue <= TIER2_GLUE_LIMIT)
+    clause->used = 2;
+  else
+    clause->used = 1;
+}
+
 static bool
 analyze (struct solver *solver, struct clause *reason)
 {
@@ -1193,6 +1211,7 @@ analyze (struct solver *solver, struct clause *reason)
   for (;;)
     {
       LOGCLAUSE (reason, "analyzing");
+      bump_reason (reason);
       for (all_literals_in_clause (lit, reason))
 	{
 	  unsigned idx = IDX (lit);
