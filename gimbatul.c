@@ -48,8 +48,10 @@ static const char * usage =
 #define INVALID UINT_MAX
 #define MAX_SCORE 1e150
 #define REDUCE_INTERVAL 1e3
-#define FOCUSED_RESTART_INTERVAL 10
+#define FOCUSED_RESTART_INTERVAL 50
 #define STABLE_RESTART_INTERVAL 500
+#define STABLE_DECAY 0.95
+#define FOCUSED_DECAY 0.75
 #define TIER1_GLUE_LIMIT 2
 #define TIER2_GLUE_LIMIT 6
 #define REDUCE_FRACTION 0.75
@@ -781,7 +783,8 @@ bump_score_increment (struct solver *solver)
   struct queue *queue = &solver->queue;
   unsigned stable = solver->stable;
   double old_increment = queue->increment[stable];
-  double new_increment = old_increment * 1.05;
+  double factor = stable ? 1.0/STABLE_DECAY : 1.0/FOCUSED_DECAY;
+  double new_increment = old_increment * factor;
   LOG ("new increment %g", new_increment);
   queue->increment[stable] = new_increment;
   if (queue->increment[stable] > MAX_SCORE)
