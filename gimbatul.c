@@ -49,6 +49,9 @@ static const char * usage =
 #define MAX_SCORE 1e150
 #define REDUCE_INTERVAL 1e3
 #define RESTART_INTERVAL 1024
+#define TIER1_GLUE_LIMIT 2
+#define TIER2_GLUE_LIMIT 6
+#define REDUCE_FRACTION 0.75
 
 /*------------------------------------------------------------------------*/
 
@@ -70,10 +73,15 @@ static const char * usage =
 
 #define FULL(STACK) ((STACK).end == (STACK).allocated)
 
+#define INIT(STACK) \
+do { \
+  (STACK).begin = (STACK).end = (STACK).allocated = 0; \
+} while (0)
+
 #define RELEASE(STACK) \
 do { \
   free ((STACK).begin); \
-  memset (&(STACK), 0, sizeof (STACK)); \
+  INIT (STACK); \
 } while (0)
 
 #define ENLARGE(STACK) \
@@ -127,6 +135,12 @@ do { \
   (VAR != END_ ## VAR); \
   ++ VAR
 
+#define all_literals_on_trail(LIT) \
+  unsigned * P_ ## LIT = solver->trail.begin, \
+           * END_ ## LIT = solver->trail.end, LIT; \
+  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
+  ++ P_ ## LIT
+
 #define all_nodes(NODE) \
   struct node * NODE = solver->queue.nodes, \
               * END_ ## NODE = (NODE) + solver->size; \
@@ -171,13 +185,11 @@ struct trail
 
 struct clause
 {
-#ifdef LOGGING
   size_t id;
-#endif
-  bool active;
   bool garbage;
+  bool reason;
   bool redundant;
-  bool used;
+  unsigned char used;
   unsigned glue;
   unsigned size;
   unsigned literals[];
@@ -236,13 +248,10 @@ struct statistics
   size_t reductions;
   size_t restarts;
 
+  size_t added;
   size_t irredundant;
   size_t redundant;
   size_t variables;
-
-#ifdef LOGGING
-  size_t added;
-#endif
 };
 
 struct solver
@@ -795,7 +804,7 @@ delete_solver (struct solver *solver)
 {
   RELEASE (solver->clause);
   RELEASE (solver->analyzed);
-  RELEASE (solver->trail);
+  free (solver->trail.begin);
   RELEASE (solver->levels);
   RELEASE (solver->buffer);
   release_watches (solver);
@@ -940,15 +949,13 @@ new_clause (struct solver *solver,
   assert (size <= solver->size);
   size_t bytes = size * sizeof (unsigned);
   struct clause *clause = allocate_block (sizeof *clause + bytes);
-#ifdef LOGGING
   clause->id = ++solver->statistics.added;
-#endif
-  if (clause->redundant)
+  if (redundant)
     solver->statistics.redundant++;
   else
     solver->statistics.irredundant++;
-  clause->active = false;
   clause->garbage = false;
+  clause->reason = false;
   clause->redundant = redundant;
   clause->used = false;
   clause->glue = glue;
@@ -1207,7 +1214,7 @@ analyze (struct solver * solver, struct clause * reason)
 	  literals[1] = replacement;
 	  *p = other;
 	}
-      struct clause * learned = new_clause (solver, size, literals, 1, glue);
+      struct clause * learned = new_clause (solver, size, literals, true, glue);
       assign_with_reason (solver, not_uip, learned);
     }
   TRACE_ADDED ();
@@ -1298,12 +1305,117 @@ restart (struct solver * solver)
 }
 
 static void
+mark_reasons (struct solver * solver)
+{
+  for (all_literals_on_trail (lit))
+    {
+      struct clause * clause = VAR (lit)->reason;
+      if (clause)
+	{
+	  assert (!clause->reason);
+	  clause->reason = true;
+	}
+    }
+}
+
+static void
+unmark_reasons (struct solver * solver)
+{
+  for (all_literals_on_trail (lit))
+    {
+      struct clause * clause = VAR (lit)->reason;
+      if (clause)
+	{
+	  assert (clause->reason);
+	  clause->reason = false;
+	}
+    }
+}
+
+static void
+gather_reduce_candidates (struct solver * solver, struct clauses * candidates)
+{
+  for (all_clauses (clause))
+    {
+      if (clause->garbage)
+	continue;
+      if (!clause->redundant)
+	continue;
+      if (clause->glue <= TIER1_GLUE_LIMIT)
+	continue;
+      if (clause->used)
+	{
+	  clause->used--;
+	  continue;
+	}
+      PUSH (*candidates, clause);
+    }
+  verbose ("gathered %zu reduce candidates clauses %.0f%%",
+           SIZE (*candidates),
+	   percent (SIZE (*candidates), solver->statistics.redundant));
+}
+
+static int
+cmp_reduce_candidates (const void * p, const void * q)
+{
+  struct clause * c = *(struct clause **) p;
+  struct clause * d = *(struct clause **) q;
+  if (c->glue > d->glue)
+    return -1;
+  if (c->glue < d->glue)
+    return 1;
+  if (c->size > d->size)
+    return -1;
+  if (c->size < d->size)
+    return 1;
+  if (c->id < d->id)
+    return -1;
+  if (c->id > d->id)
+    return 1;
+  assert (c == d);
+  return 0;
+}
+
+static void
+sort_reduce_candidates (struct clauses * candidates)
+{
+  struct clause ** begin = candidates->begin;
+  size_t size = SIZE (*candidates);
+  qsort (begin, size, sizeof *begin, cmp_reduce_candidates);
+}
+
+static void
+mark_reduce_candidates_as_garbage (struct solver * solver, struct clauses * candidates)
+{
+  size_t size = SIZE (*candidates);
+  size_t target = REDUCE_FRACTION * size;
+  size_t reduced = 0;
+  for (all_elements_on_stack (reference, clause, *candidates))
+    {
+      LOGCLAUSE (clause, "marking garbage");
+      assert (!clause->garbage);
+      clause->garbage = true;
+      if (++reduced == target)
+	break;
+    }
+  verbose ("reduced %zu clauses %.0f%%", reduced, percent (reduced, size));
+}
+
+static void
 reduce (struct solver * solver)
 {
   struct statistics * statistics = &solver->statistics;
   statistics->reductions++;
   verbose ("reduction %zu at %zu conflicts",
            statistics->reductions, statistics->conflicts);
+  mark_reasons (solver);
+  struct clauses candidates;
+  INIT (candidates);
+  gather_reduce_candidates (solver, &candidates);
+  sort_reduce_candidates (&candidates);
+  mark_reduce_candidates_as_garbage (solver, &candidates);
+  RELEASE (candidates);
+  unmark_reasons (solver);
   struct limits * limits = &solver->limits;
   limits->reduce = statistics->conflicts + REDUCE_INTERVAL * log2 (statistics->reductions + 9);
   verbose ("next reduce limit at %zu conflict", limits->reduce);
