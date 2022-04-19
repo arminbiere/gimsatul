@@ -134,9 +134,6 @@ do { \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
-#define all_clauses(CLAUSE) \
-  all_elements_on_stack (reference, CLAUSE, solver->clauses)
-
 #define all_variables(VAR) \
   struct variable * VAR = solver->variables, \
                   * END_ ## VAR = VAR + solver->size; \
@@ -199,9 +196,6 @@ struct trail
 struct clause
 {
   size_t id;
-  unsigned char used;
-  bool garbage;
-  bool reason;
   bool redundant;
   unsigned shared;
   unsigned glue;
@@ -209,21 +203,16 @@ struct clause
   unsigned literals[];
 };
 
-typedef struct clause *reference;
-
-struct clauses
-{
-  struct clause **begin, **end, **allocated;
-};
-
 struct watch
 {
-  unsigned sum;
-  unsigned middle;
   bool binary;
   bool garbage;
   bool reason;
   bool redundant;
+  unsigned glue;
+  unsigned middle;
+  unsigned sum;
+  unsigned used;
   struct clause *clause;
 };
 
@@ -237,7 +226,7 @@ struct variable
   unsigned level;
   signed char phase;
   bool seen:1;
-  struct clause *reason;
+  struct watch *reason;
   struct watches watches[2];
 };
 
@@ -324,7 +313,7 @@ struct solver
   unsigned size;
   unsigned level;
   unsigned unassigned;
-  struct clauses clauses;
+  struct watches watches;
   struct variable *variables;
   signed char *values;
   bool *used;
@@ -905,14 +894,6 @@ new_solver (unsigned size)
 }
 
 static void
-release_clauses (struct solver *solver)
-{
-  for (all_clauses (c))
-    free (c);
-  RELEASE (solver->clauses);
-}
-
-static void
 release_watches (struct solver *solver)
 {
   unsigned lit = 0;
@@ -922,17 +903,14 @@ release_watches (struct solver *solver)
 	{
 	  struct watches *watches = v->watches + i;
 	  assert (watches == &WATCHES (lit));
-	  for (all_watches (w, *watches))
-	    {
-	      unsigned other = w->sum ^ lit;
-	      if (other < lit)
-		free (w);
-	    }
 	  RELEASE (*watches);
 	  lit++;
 	}
     }
   assert (lit == 2 * solver->size);
+  for (all_watches (w, solver->watches))
+    free (w);
+  RELEASE (solver->watches);
 }
 
 static void
@@ -944,7 +922,6 @@ delete_solver (struct solver *solver)
   RELEASE (solver->levels);
   RELEASE (solver->buffer);
   release_watches (solver);
-  release_clauses (solver);
   free (solver->queue.nodes);
   free (solver->queue.scores);
   free (solver->variables);
@@ -1079,8 +1056,9 @@ close_proof (void)
 
 /*------------------------------------------------------------------------*/
 
-static void
-new_watch (struct solver *solver, struct clause *clause)
+static struct watch *
+new_watch (struct solver *solver, struct clause *clause,
+           bool redundant, unsigned glue)
 {
   assert (clause->size >= 2);
   unsigned *literals = clause->literals;
@@ -1088,9 +1066,20 @@ new_watch (struct solver *solver, struct clause *clause)
   watch->sum = literals[0] ^ literals[1];
   watch->middle = 2;
   watch->binary = (clause->size == 2);
+  watch->garbage = false;
+  watch->reason = false;
+  watch->glue = glue;
+  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
+    watch->used = 2;
+  else if (redundant && glue >= TIER2_GLUE_LIMIT)
+    watch->used = 1;
+  else
+    watch->used = 0;
   watch->clause = clause;
   PUSH (WATCHES (literals[0]), watch);
   PUSH (WATCHES (literals[1]), watch);
+  PUSH (solver->watches, watch);
+  return watch;
 }
 
 static void
@@ -1100,7 +1089,7 @@ delete_watch (struct solver *solver, struct watch *watch)
   free (watch);
 }
 
-static struct clause *
+static struct watch *
 new_clause (struct solver *solver,
 	    size_t size, unsigned *literals, bool redundant, unsigned glue)
 {
@@ -1113,23 +1102,14 @@ new_clause (struct solver *solver,
     solver->statistics.redundant++;
   else
     solver->statistics.irredundant++;
-  clause->garbage = false;
-  clause->reason = false;
   clause->redundant = redundant;
   clause->glue = glue;
-  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
-    clause->used = 2;
-  else if (redundant && glue >= TIER2_GLUE_LIMIT)
-    clause->used = 1;
-  else
-    clause->used = 0;
-  clause->shared = 0;
+
+  clause->shared = 1;
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
-  PUSH (solver->clauses, clause);
   LOGCLAUSE (clause, "new");
-  new_watch (solver, clause);
-  return clause;
+  return new_watch (solver, clause, redundant, glue);
 }
 
 static void
@@ -1153,7 +1133,7 @@ delete_clause (struct solver *solver, struct clause *clause)
 /*------------------------------------------------------------------------*/
 
 static void
-assign (struct solver *solver, unsigned lit, struct clause *reason)
+assign (struct solver *solver, unsigned lit, struct watch *reason)
 {
   const unsigned not_lit = NOT (lit);
   assert (!solver->values[lit]);
@@ -1180,11 +1160,11 @@ assign (struct solver *solver, unsigned lit, struct clause *reason)
 
 static void
 assign_with_reason (struct solver *solver,
-		    unsigned lit, struct clause *reason)
+		    unsigned lit, struct watch *reason)
 {
   assert (reason);
   assign (solver, lit, reason);
-  LOGCLAUSE (reason, "assign %s with reason", LOGLIT (lit));
+  LOGCLAUSE (reason->clause, "assign %s with reason", LOGLIT (lit));
 }
 
 static void
@@ -1204,12 +1184,12 @@ assign_decision (struct solver *solver, unsigned decision)
        LOGLIT (decision), solver->queue.nodes[IDX (decision)].score);
 }
 
-static struct clause *
+static struct watch *
 propagate (struct solver *solver)
 {
   assert (!solver->inconsistent);
   struct trail *trail = &solver->trail;
-  struct clause *conflict = 0;
+  struct watch *conflict = 0;
   signed char *values = solver->values;
   size_t ticks = 0;
   while (!conflict && trail->propagate != trail->end)
@@ -1285,12 +1265,12 @@ propagate (struct solver *solver)
 	    {
 	    CONFLICT:
 	      assert (other_value < 0);
-	      conflict = clause;
+	      conflict = watch;
 	    }
 	  else
 	    {
 	    ASSIGN:
-	      assign_with_reason (solver, other, clause);
+	      assign_with_reason (solver, other, watch);
 	      ticks++;
 	    }
 	}
@@ -1301,7 +1281,7 @@ propagate (struct solver *solver)
   solver->statistics.ticks += ticks;
   if (conflict)
     {
-      LOGCLAUSE (conflict, "conflicting");
+      LOGCLAUSE (conflict->clause, "conflicting");
       solver->statistics.conflicts++;
     }
   return conflict;
@@ -1337,20 +1317,20 @@ backtrack (struct solver *solver, unsigned level)
 }
 
 static void
-bump_reason (struct clause *clause)
+bump_reason (struct watch *watch)
 {
-  if (!clause->redundant)
+  if (!watch->redundant)
     return;
-  if (clause->glue <= TIER1_GLUE_LIMIT)
+  if (watch->clause->glue <= TIER1_GLUE_LIMIT)
     return;
-  if (clause->glue <= TIER2_GLUE_LIMIT)
-    clause->used = 2;
+  if (watch->clause->glue <= TIER2_GLUE_LIMIT)
+    watch->used = 2;
   else
-    clause->used = 1;
+    watch->used = 1;
 }
 
 static bool
-analyze (struct solver *solver, struct clause *reason)
+analyze (struct solver *solver, struct watch *reason)
 {
   assert (!solver->inconsistent);
   if (!solver->level)
@@ -1381,9 +1361,9 @@ analyze (struct solver *solver, struct clause *reason)
   unsigned uip, jump = 0, glue = 0, open = 0;
   for (;;)
     {
-      LOGCLAUSE (reason, "analyzing");
+      LOGCLAUSE (reason->clause, "analyzing");
       bump_reason (reason);
-      for (all_literals_in_clause (lit, reason))
+      for (all_literals_in_clause (lit, reason->clause))
 	{
 	  unsigned idx = IDX (lit);
 	  struct variable *v = variables + idx;
@@ -1452,7 +1432,7 @@ analyze (struct solver *solver, struct clause *reason)
 	  literals[1] = replacement;
 	  *p = other;
 	}
-      struct clause *learned =
+      struct watch *learned =
 	new_clause (solver, size, literals, true, glue);
       assign_with_reason (solver, not_uip, learned);
     }
@@ -1585,11 +1565,11 @@ mark_reasons (struct solver *solver)
 {
   for (all_literals_on_trail (lit))
     {
-      struct clause *clause = VAR (lit)->reason;
-      if (clause)
+      struct watch *watch = VAR (lit)->reason;
+      if (watch)
 	{
-	  assert (!clause->reason);
-	  clause->reason = true;
+	  assert (!watch->reason);
+	  watch->reason = true;
 	}
     }
 }
@@ -1599,11 +1579,11 @@ unmark_reasons (struct solver *solver)
 {
   for (all_literals_on_trail (lit))
     {
-      struct clause *clause = VAR (lit)->reason;
-      if (clause)
+      struct watch *watch = VAR (lit)->reason;
+      if (watch)
 	{
-	  assert (clause->reason);
-	  clause->reason = false;
+	  assert (watch->reason);
+	  watch->reason = false;
 	}
     }
 }
@@ -1613,11 +1593,12 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
 {
   size_t marked = 0;
   signed char *values = solver->values;
-  for (all_clauses (clause))
+  for (all_watches (watch, solver->watches))
     {
-      if (clause->garbage)
+      if (watch->garbage)
 	continue;
       bool satisfied = false;
+      struct clause * clause = watch->clause;
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (values[lit] <= 0)
@@ -1630,33 +1611,33 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
       if (!satisfied)
 	continue;
       LOGCLAUSE (clause, "marking satisfied garbage");
-      clause->garbage = true;
+      watch->garbage = true;
       marked++;
     }
   solver->limits.fixed = solver->statistics.fixed;
   verbose ("marked %zu satisfied clauses as garbage %.0f%%",
-	   marked, percent (marked, SIZE (solver->clauses)));
+	   marked, percent (marked, SIZE (solver->watches)));
 }
 
 static void
-gather_reduce_candidates (struct solver *solver, struct clauses *candidates)
+gather_reduce_candidates (struct solver *solver, struct watches *candidates)
 {
-  for (all_clauses (clause))
+  for (all_watches (watch, solver->watches))
     {
-      if (clause->garbage)
+      if (watch->garbage)
 	continue;
-      if (clause->reason)
+      if (watch->reason)
 	continue;
-      if (!clause->redundant)
+      if (!watch->redundant)
 	continue;
-      if (clause->glue <= TIER1_GLUE_LIMIT)
+      if (watch->glue <= TIER1_GLUE_LIMIT)
 	continue;
-      if (clause->used)
+      if (watch->used)
 	{
-	  clause->used--;
+	  watch->used--;
 	  continue;
 	}
-      PUSH (*candidates, clause);
+      PUSH (*candidates, watch);
     }
   verbose ("gathered %zu reduce candidates clauses %.0f%%",
 	   SIZE (*candidates),
@@ -1666,12 +1647,14 @@ gather_reduce_candidates (struct solver *solver, struct clauses *candidates)
 static int
 cmp_reduce_candidates (const void *p, const void *q)
 {
-  struct clause *c = *(struct clause **) p;
-  struct clause *d = *(struct clause **) q;
-  if (c->glue > d->glue)
+  struct watch *u = *(struct watch **) p;
+  struct watch *v = *(struct watch **) q;
+  if (u->glue > v->glue)
     return -1;
-  if (c->glue < d->glue)
+  if (u->glue < v->glue)
     return 1;
+  struct clause * c = u->clause;
+  struct clause * d = v->clause;
   if (c->size > d->size)
     return -1;
   if (c->size < d->size)
@@ -1685,25 +1668,25 @@ cmp_reduce_candidates (const void *p, const void *q)
 }
 
 static void
-sort_reduce_candidates (struct clauses *candidates)
+sort_reduce_candidates (struct watches *candidates)
 {
-  struct clause **begin = candidates->begin;
+  struct watch ** begin = candidates->begin;
   size_t size = SIZE (*candidates);
   qsort (begin, size, sizeof *begin, cmp_reduce_candidates);
 }
 
 static void
 mark_reduce_candidates_as_garbage (struct solver *solver,
-				   struct clauses *candidates)
+				   struct watches *candidates)
 {
   size_t size = SIZE (*candidates);
   size_t target = REDUCE_FRACTION * size;
   size_t reduced = 0;
-  for (all_elements_on_stack (reference, clause, *candidates))
+  for (all_watches (watch, *candidates))
     {
-      LOGCLAUSE (clause, "marking garbage");
-      assert (!clause->garbage);
-      clause->garbage = true;
+      LOGCLAUSE (watch->clause, "marking garbage");
+      assert (!watch->garbage);
+      watch->garbage = true;
       if (++reduced == target)
 	break;
     }
@@ -1711,7 +1694,7 @@ mark_reduce_candidates_as_garbage (struct solver *solver,
 }
 
 static void
-flush_garbage_watches (struct solver *solver)
+flush_garbage_watches_from_watch_lists (struct solver *solver)
 {
   size_t flushed = 0;
   for (all_literals (lit))
@@ -1722,43 +1705,47 @@ flush_garbage_watches (struct solver *solver)
       for (struct watch ** p = begin; p != end; p++)
 	{
 	  struct watch *watch = *q++ = *p;
-	  struct clause *clause = watch->clause;
-	  if (!clause->garbage)
+	  if (!watch->garbage)
 	    continue;
-	  if (clause->reason)
+	  if (watch->reason)
 	    continue;
-	  unsigned other = watch->sum ^ lit;
 	  flushed++;
 	  q--;
-	  if (other > lit)
-	    continue;
-	  delete_watch (solver, watch);
 	}
       watches->end = q;
     }
-  verbose ("flushed %zu garbage watches", flushed);
+  verbose ("flushed %zu garbage watches from watch lists", flushed);
 }
 
 static void
-flush_garbage_clauses (struct solver *solver)
+flush_garbage_watches_and_delete_unshared_clauses (struct solver *solver)
 {
-  struct clauses *clauses = &solver->clauses;
-  struct clause **begin = clauses->begin, **q = begin;
-  struct clause **end = clauses->end;
-  size_t flushed = 0;
-  for (struct clause ** p = begin; p != end; p++)
+  struct watches *watches = &solver->watches;
+  struct watch **begin = watches->begin, **q = begin;
+  struct watch **end = watches->end;
+  size_t flushed = 0, deleted = 0;
+  for (struct watch ** p = begin; p != end; p++)
     {
-      struct clause *clause = *q++ = *p;
-      if (!clause->garbage)
+      struct watch *watch = *q++ = *p;
+      if (!watch->garbage)
 	continue;
-      if (clause->reason)
+      if (watch->reason)
 	continue;
-      delete_clause (solver, clause);
       flushed++;
       q--;
+
+      struct clause * clause = watch->clause;
+      delete_watch (solver, watch);
+
+      if (--clause->shared)
+	continue;
+
+      delete_clause (solver, clause);
+      deleted++;
     }
-  clauses->end = q;
-  verbose ("flushed %zu garbage clauses", flushed);
+  watches->end = q;
+  verbose ("flushed %zu garbage watched and deleted %zu clauses %.0f%%",
+           flushed, deleted, percent (deleted, flushed));
 }
 
 static bool
@@ -1776,7 +1763,7 @@ reduce (struct solver *solver)
   verbose ("reduction %zu at %zu conflicts",
 	   statistics->reductions, statistics->conflicts);
   mark_reasons (solver);
-  struct clauses candidates;
+  struct watches candidates;
   INIT (candidates);
   if (limits->fixed < statistics->fixed)
     mark_satisfied_clauses_as_garbage (solver);
@@ -1784,8 +1771,8 @@ reduce (struct solver *solver)
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (solver, &candidates);
   RELEASE (candidates);
-  flush_garbage_watches (solver);
-  flush_garbage_clauses (solver);
+  flush_garbage_watches_from_watch_lists (solver);
+  flush_garbage_watches_and_delete_unshared_clauses (solver);
   unmark_reasons (solver);
   limits->reduce = statistics->conflicts;
   limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
@@ -1902,7 +1889,7 @@ solve (struct solver *solver)
   int res = solver->inconsistent ? 20 : 0;
   while (!res)
     {
-      struct clause *conflict = propagate (solver);
+      struct watch *conflict = propagate (solver);
       if (conflict)
 	{
 	  if (!analyze (solver, conflict))
