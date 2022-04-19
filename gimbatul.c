@@ -1497,11 +1497,11 @@ report (struct solver * solver, char type)
   lock_message_mutex ();
   if (!(reported++ % 20))
     printf ("c\n"
-	    "c      seconds     MB   level reductions restarts conflicts redundant  glue irredundant variables\n"
+	    "c     seconds     MB  level reductions restarts conflicts redundant glue irredundant variables\n"
 	    "c\n");
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1<<20);
-  printf ("c %c %10.2f %7.1f %6.0f %6zu %8zu %12zu %9zu %6.1f %9zu %9zu %3.0f%%\n",
+  printf ("c %c %9.2f %6.0f %6.0f %6zu %8zu %11zu %9zu %6.1f %9zu %9zu %3.0f%%\n",
     type, t, m, a->level, s->reductions, s->restarts,
     s->conflicts, s->redundant, a->glue.slow, s->irredundant,
     s->variables, percent (s->variables, solver->size));
@@ -2488,12 +2488,16 @@ flush_profiles (struct solver * solver)
   for (all_profiles (profile))
     if (profile->start >= 0)
       flush_profile (time, profile);
+
+  flush_profile (time, &solver->profiles.total);
 }
 
 static int
 cmp_profiles (struct profile * a, struct profile * b)
 {
   if (!a)
+    return -1;
+  if (!b)
     return -1;
   if (a->time < b->time)
     return -1;
@@ -2514,7 +2518,7 @@ print_profiles (struct solver * solver)
     {
       struct profile * next = 0;
       for (all_profiles (tmp))
-	if (cmp_profiles (prev, tmp) < 0)
+	if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
 	  next = tmp;
       if (!next)
 	break;
