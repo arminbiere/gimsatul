@@ -203,6 +203,7 @@ struct clause
   bool reason;
   bool redundant;
   unsigned char used;
+  unsigned shared;
   unsigned glue;
   unsigned size;
   unsigned literals[];
@@ -1117,6 +1118,7 @@ new_clause (struct solver *solver,
     clause->used = 1;
   else
     clause->used = 0;
+  clause->shared = 0;
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
   PUSH (solver->clauses, clause);
