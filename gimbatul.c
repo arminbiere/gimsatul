@@ -195,8 +195,8 @@ struct trail
 
 struct clause
 {
-  size_t id;
-  bool redundant;
+  size_t id:63;
+  bool redundant:1;
   unsigned shared;
   unsigned glue;
   unsigned size;
@@ -205,14 +205,14 @@ struct clause
 
 struct watch
 {
-  bool binary;
-  bool garbage;
-  bool reason;
-  bool redundant;
+  bool binary:1;
+  bool garbage:1;
+  bool reason:1;
+  bool redundant:1;
+  unsigned used:2;
   unsigned glue;
   unsigned middle;
   unsigned sum;
-  unsigned used;
   struct clause *clause;
 };
 
