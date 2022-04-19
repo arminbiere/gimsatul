@@ -2692,13 +2692,13 @@ print_statistics (struct solver * solver)
   struct statistics * s = &solver->statistics;
   printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", s->conflicts,
            average (s->conflicts, w));
+  printf ("c %-19s %13zu %13.2f %% variables\n", "fixed-variables:", s->fixed,
+           percent (s->fixed, solver->size));
   printf ("c %-19s %13zu %13.2f per learned clause\n", "learned-literals:",
            s->learned.literals,
 	   average (s->learned.literals, s->learned.clauses));
   printf ("c %-19s %13zu %13.2f %% per deduced literals\n", "minimized-literals:",
           s->minimized, percent (s->minimized, s->deduced));
-  printf ("c %-19s %13zu %13.2f %% variables\n", "fixed:", s->fixed,
-           percent (s->fixed, solver->size));
   printf ("c %-19s %13zu %13.2f per seccond\n", "propagations:", s->propagations,
            average (s->propagations, w));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "reductions:",
