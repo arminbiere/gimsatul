@@ -73,9 +73,9 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#define SIZE(STACK) ((STACK).end - (STACK).begin)
+#define SIZE(STACK) ((size_t)((STACK).end - (STACK).begin))
 
-#define CAPACITY(STACK) ((STACK).allocated - (STACK).begin)
+#define CAPACITY(STACK) ((size_t)((STACK).allocated - (STACK).begin))
 
 #define EMPTY(STACK) ((STACK).end == (STACK).begin)
 
@@ -560,6 +560,15 @@ do { \
   LOGSUFFIX (); \
 } while (0)
 
+#define LOGTMP(...) \
+do { \
+  LOGPREFIX (__VA_ARGS__); \
+  printf (" size %zu temporary clause", SIZE (solver->clause)); \
+  for (all_elements_on_stack (unsigned, LIT, solver->clause)) \
+    printf (" %s", LOGLIT (LIT)); \
+  LOGSUFFIX (); \
+} while (0)
+
 #define LOGCLAUSE(CLAUSE, ...) \
 do { \
   LOGPREFIX (__VA_ARGS__); \
@@ -567,7 +576,7 @@ do { \
     printf (" redundant glue %u", (CLAUSE)->glue); \
   else \
     printf (" irredundant"); \
-  printf (" size %u clause[%zu]", (CLAUSE)->size, (CLAUSE)->id); \
+  printf (" size %u clause[%zu]", (CLAUSE)->size, (size_t) (CLAUSE)->id); \
   for (all_literals_in_clause (LIT, (CLAUSE))) \
     printf (" %s", LOGLIT (LIT)); \
   LOGSUFFIX (); \
@@ -576,6 +585,7 @@ do { \
 #else
 
 #define LOG(...) do { } while (0)
+#define LOGTMP(...) do { } while (0)
 #define LOGCLAUSE(...) do { } while (0)
 
 #endif
@@ -909,7 +919,12 @@ release_watches (struct solver *solver)
     }
   assert (lit == 2 * solver->size);
   for (all_watches (w, solver->watches))
-    free (w);
+    {
+      struct clause * clause = w->clause;
+      if (!--clause->shared)
+        free (clause);
+      free (w);
+    }
   RELEASE (solver->watches);
 }
 
@@ -1359,8 +1374,8 @@ analyze (struct solver *solver, struct watch *reason)
       bump_reason (reason);
       if (reason->binary && uip != INVALID)
 	{
-	  assert (VAR (uip).seen);
-	  assert (VAR (uip).level == level);
+	  assert (VAR (uip)->seen);
+	  assert (VAR (uip)->level == level);
 	  unsigned other = reason->sum ^ uip;
 	  unsigned idx = IDX (other);
 	  struct variable *v = variables + idx;
@@ -1419,7 +1434,7 @@ analyze (struct solver *solver, struct watch *reason)
   LOG ("glucose level (LBD) %u", glue);
   averages->glue.slow += SLOW_ALPHA * (glue - averages->glue.slow);
   averages->glue.fast += FAST_ALPHA * (glue - averages->glue.fast);
-  LOG ("first UIP %s", LOGLIT (uip));
+  LOGTMP ("first UIP %s", LOGLIT (uip));
   bump_score_increment (solver);
   backtrack (solver, jump);
   const unsigned not_uip = NOT (uip);
