@@ -1347,47 +1347,59 @@ analyze (struct solver *solver, struct watch *reason)
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
   bool *used = solver->used;
-#if 0
-  for (all_variables (v))
-    assert (!v->seen);
-  for (unsigned i = 0; i != solver->size; i++)
-    assert (!used[i]);
-#endif
   struct variable *variables = solver->variables;
   struct trail *trail = &solver->trail;
   unsigned *t = trail->end;
   PUSH (*clause, INVALID);
   const unsigned level = solver->level;
-  unsigned uip, jump = 0, glue = 0, open = 0;
+  unsigned uip = INVALID, jump = 0, glue = 0, open = 0;
   for (;;)
     {
       LOGCLAUSE (reason->clause, "analyzing");
       bump_reason (reason);
-      for (all_literals_in_clause (lit, reason->clause))
+      if (reason->binary && uip != INVALID)
 	{
-	  unsigned idx = IDX (lit);
+	  assert (VAR (uip).seen);
+	  assert (VAR (uip).level == level);
+	  unsigned other = reason->sum ^ uip;
+	  unsigned idx = IDX (other);
 	  struct variable *v = variables + idx;
-	  unsigned lit_level = v->level;
-	  if (!lit_level)
-	    continue;
-	  if (v->seen)
-	    continue;
-	  v->seen = true;
-	  PUSH (*analyzed, idx);
-	  bump_variable_score (solver, idx);
-	  if (lit_level == level)
+	  assert (v->level == level);
+	  if (!v->seen)
 	    {
+	      v->seen = true;
+	      PUSH (*analyzed, idx);
 	      open++;
-	      continue;
 	    }
-	  PUSH (*clause, lit);
-	  if (!used[lit_level])
+	}
+      else
+	{
+	  for (all_literals_in_clause (lit, reason->clause))
 	    {
-	      glue++;
-	      used[lit_level] = true;
-	      PUSH (*levels, lit_level);
-	      if (lit_level > jump)
-		jump = lit_level;
+	      unsigned idx = IDX (lit);
+	      struct variable *v = variables + idx;
+	      unsigned lit_level = v->level;
+	      if (!lit_level)
+		continue;
+	      if (v->seen)
+		continue;
+	      v->seen = true;
+	      PUSH (*analyzed, idx);
+	      bump_variable_score (solver, idx);
+	      if (lit_level == level)
+		{
+		  open++;
+		  continue;
+		}
+	      PUSH (*clause, lit);
+	      if (!used[lit_level])
+		{
+		  glue++;
+		  used[lit_level] = true;
+		  PUSH (*levels, lit_level);
+		  if (lit_level > jump)
+		    jump = lit_level;
+		}
 	    }
 	}
       do
