@@ -2075,6 +2075,7 @@ print_banner (void)
   lock_message_mutex ();
   printf ("c Gimbatul SAT Solver\n");
   printf ("c Copyright (c) 2022 Armin Biere University of Freiburg\n");
+  fputs ("c\n", stdout);
   printf ("c Version %s%s\n", VERSION, GITID ? " " GITID : "");
   printf ("c %s\n", COMPILER);
   printf ("c %s\n", BUILD);
