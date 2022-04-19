@@ -1418,8 +1418,8 @@ minimize_clause (struct solver * solver)
   clause->end = q;
   size_t learned = size - minimized;
   assert (SIZE (*clause) == learned);
-  solver->statistics.learned.literals += learned;
   solver->statistics.learned.clauses++;
+  solver->statistics.learned.literals += learned;
   solver->statistics.minimized += minimized;
   solver->statistics.deduced += size;
   LOG ("minimized %zu literals out of %zu", minimized, size);
@@ -1519,13 +1519,13 @@ analyze (struct solver *solver, struct watch *reason)
   LOG ("glucose level (LBD) %u", glue);
   averages->glue.slow += SLOW_ALPHA * (glue - averages->glue.slow);
   averages->glue.fast += FAST_ALPHA * (glue - averages->glue.fast);
+  unsigned *literals = clause->begin;
+  const unsigned not_uip = NOT (uip);
+  literals[0] = not_uip;
   LOGTMP ("first UIP %s", LOGLIT (uip));
   minimize_clause (solver);
   bump_score_increment (solver);
   backtrack (solver, jump);
-  const unsigned not_uip = NOT (uip);
-  unsigned *literals = clause->begin;
-  literals[0] = not_uip;
   unsigned size = SIZE (*clause);
   assert (size);
   if (size == 1)
