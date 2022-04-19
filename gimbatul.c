@@ -47,6 +47,7 @@ static const char * usage =
 
 #define INVALID UINT_MAX
 #define MAX_SCORE 1e150
+#define MINIMIZE_DEPTH 1000
 #define REDUCE_INTERVAL 1e3
 #define FOCUSED_RESTART_INTERVAL 50
 #define STABLE_RESTART_INTERVAL 500
@@ -226,6 +227,8 @@ struct variable
   unsigned level;
   signed char phase;
   bool seen:1;
+  bool poison:1;
+  bool minimize:1;
   struct watch *reason;
   struct watches watches[2];
 };
@@ -299,10 +302,17 @@ struct statistics
   size_t ticks;
 
   size_t added;
+  size_t deduced;
+  size_t fixed;
   size_t irredundant;
+  size_t minimized;
   size_t redundant;
   size_t variables;
-  size_t fixed;
+
+  struct {
+    size_t clauses;
+    size_t literals;
+  } learned;
 };
 
 struct solver
@@ -1345,9 +1355,84 @@ bump_reason (struct watch *watch)
 }
 
 static bool
+minimize_literal (struct solver * solver, unsigned lit, unsigned depth)
+{
+  assert (solver->values[lit] < 0);
+  if (depth >= MINIMIZE_DEPTH)
+    return false;
+  unsigned idx = IDX (lit);
+  struct variable * v = solver->variables + idx;
+  if (!v->level)
+    return true;
+  if (!solver->used[v->level])
+    return false;
+  if (v->poison)
+    return false;
+  if (v->minimize)
+    return true;
+  if (depth && (v->seen))
+    return true;
+  struct watch * reason = v->reason;
+  if (!reason)
+    return false;
+  depth++;
+  bool res = true;
+  const unsigned not_lit = NOT (lit);
+  if (reason->binary)
+    {
+      unsigned other = reason->sum ^ not_lit;
+      res = minimize_literal (solver, other, depth);
+    }
+  else
+    {
+      struct clause * clause = reason->clause;
+      for (all_literals_in_clause (other, clause))
+	if (other != not_lit && !minimize_literal (solver, other, depth))
+	  res = false;
+    }
+  if (res)
+    v->minimize = true;
+  else
+    v->poison = true;
+  PUSH (solver->analyzed, idx);
+  return res;
+}
+
+static void
+minimize_clause (struct solver * solver)
+{
+  struct unsigneds * clause = &solver->clause;
+  unsigned * begin = clause->begin, * q = begin + 1;
+  unsigned * end = clause->end;
+  size_t minimized = 0;
+  for (unsigned * p = q; p != end; p++)
+    {
+      unsigned lit = *q++ = *p;
+      if (!minimize_literal (solver, lit, 0))
+        continue;
+      LOG ("minimized literal %s\n", LOGLIT (lit));
+      minimized++;
+      q--;
+    }
+  size_t size = SIZE (*clause);
+  clause->end = q;
+  size_t learned = size - minimized;
+  assert (SIZE (*clause) == learned);
+  solver->statistics.learned.literals += learned;
+  solver->statistics.learned.clauses++;
+  solver->statistics.minimized += minimized;
+  solver->statistics.deduced += size;
+  LOG ("minimized %zu literals out of %zu", minimized, size);
+}
+
+static bool
 analyze (struct solver *solver, struct watch *reason)
 {
   assert (!solver->inconsistent);
+#if 1
+  for (all_variables (v))
+    assert (!v->seen), assert (!v->poison), assert (!v->minimize);
+#endif
   if (!solver->level)
     {
       LOG ("conflict on root-level produces empty clause");
@@ -1435,6 +1520,7 @@ analyze (struct solver *solver, struct watch *reason)
   averages->glue.slow += SLOW_ALPHA * (glue - averages->glue.slow);
   averages->glue.fast += FAST_ALPHA * (glue - averages->glue.fast);
   LOGTMP ("first UIP %s", LOGLIT (uip));
+  minimize_clause (solver);
   bump_score_increment (solver);
   backtrack (solver, jump);
   const unsigned not_uip = NOT (uip);
@@ -1466,7 +1552,10 @@ analyze (struct solver *solver, struct watch *reason)
   TRACE_ADDED ();
   CLEAR (*clause);
   for (all_elements_on_stack (unsigned, idx, *analyzed))
-      variables[idx].seen = false;
+    {
+      struct variable * v = variables + idx;
+      v->seen = v->poison = v->minimize = false;
+    }
   CLEAR (*analyzed);
   for (all_elements_on_stack (unsigned, used_level, *levels))
       used[used_level] = false;
@@ -2564,17 +2653,22 @@ print_statistics (struct solver * solver)
   double w = wall_clock_time ();
   double m = maximum_resident_set_size () / (double) (1<<20);
   struct statistics * s = &solver->statistics;
-  printf ("c %-14s %19zu %12.2f per sec\n", "conflicts:", s->conflicts,
+  printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", s->conflicts,
            average (s->conflicts, w));
-  printf ("c %-14s %19zu %12.2f %% variables\n", "fixed:", s->fixed,
+  printf ("c %-19s %13zu %13.2f per learned clause\n", "learned-literals:",
+           s->learned.literals,
+	   average (s->learned.literals, s->learned.clauses));
+  printf ("c %-19s %13zu %13.2f %% per deduced literals\n", "minimized-literals:",
+          s->minimized, percent (s->minimized, s->deduced));
+  printf ("c %-19s %13zu %13.2f %% variables\n", "fixed:", s->fixed,
            percent (s->fixed, solver->size));
-  printf ("c %-14s %19zu %12.2f per sec\n", "propagations:", s->propagations,
+  printf ("c %-19s %13zu %13.2f per seccond\n", "propagations:", s->propagations,
            average (s->propagations, w));
-  printf ("c %-14s %19zu %12.2f conflict interval\n", "reductions:",
+  printf ("c %-19s %13zu %13.2f conflict interval\n", "reductions:",
            s->reductions, average (s->conflicts, s->reductions));
-  printf ("c %-14s %19zu %12.2f conflict interval\n", "restarts:",
+  printf ("c %-19s %13zu %13.2f conflict interval\n", "restarts:",
            s->restarts, average (s->conflicts, s->restarts));
-  printf ("c %-14s %19zu %12.2f conflict interval\n", "switched:",
+  printf ("c %-19s %13zu %13.2f conflict interval\n", "switched:",
            s->switched, average (s->conflicts, s->switched));
   fputs ("c\n", stdout);
   printf ("c %-30s %16.2f sec\n", "process-time:", p);
