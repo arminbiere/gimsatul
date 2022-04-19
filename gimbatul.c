@@ -1415,22 +1415,57 @@ minimize_clause (struct solver * solver)
       minimized++;
       q--;
     }
-  size_t size = SIZE (*clause);
+  size_t deduced = SIZE (*clause);
   clause->end = q;
-  size_t learned = size - minimized;
-  assert (SIZE (*clause) == learned);
+  size_t learned = SIZE (*clause);
+  assert (learned + minimized == deduced);
   solver->statistics.learned.clauses++;
   solver->statistics.learned.literals += learned;
   solver->statistics.minimized += minimized;
-  solver->statistics.deduced += size;
+  solver->statistics.deduced += deduced;
   LOG ("minimized %zu literals out of %zu", minimized, size);
+}
+
+static void
+bump_reason_side_literals (struct solver * solver)
+{
+  struct variable * variables = solver->variables;
+  struct unsigneds * analyzed = &solver->analyzed;
+  for (all_elements_on_stack (unsigned, lit, solver->clause))
+    {
+      const unsigned idx = IDX (lit);
+      struct variable * v = variables + idx;
+      if (!v->level)
+	continue;
+      struct watch * watch = v->reason;
+      if (!watch)
+	continue;
+      assert (v->seen);
+      struct clause * clause = watch->clause;
+      const unsigned not_lit = NOT (lit);
+      for (all_literals_in_clause (other, clause))
+	{
+	  if (other == not_lit)
+	    continue;
+	  unsigned other_idx = IDX (other);
+	  struct variable * u = variables + other_idx;
+	  if (!u->level)
+	    continue;
+	  if (u->seen)
+	    continue;
+	  u->seen = true;
+	  if (!u->poison && !u->minimize)
+	    PUSH (*analyzed, other_idx);
+	  bump_variable_score (solver, other_idx);
+	}
+    }
 }
 
 static bool
 analyze (struct solver *solver, struct watch *reason)
 {
   assert (!solver->inconsistent);
-#if 1
+#if 0
   for (all_variables (v))
     assert (!v->seen), assert (!v->poison), assert (!v->minimize);
 #endif
@@ -1525,6 +1560,7 @@ analyze (struct solver *solver, struct watch *reason)
   literals[0] = not_uip;
   LOGTMP ("first UIP %s", LOGLIT (uip));
   minimize_clause (solver);
+  bump_reason_side_literals (solver);
   bump_score_increment (solver);
   backtrack (solver, jump);
   unsigned size = SIZE (*clause);
@@ -1901,9 +1937,9 @@ static void
 switch_to_focused_mode (struct solver *solver)
 {
   assert (solver->stable);
-  solver->stable = false;
   report (solver, ']');
   STOP (stable);
+  solver->stable = false;
   START (focused);
   report (solver, '{');
   struct statistics *statistics = &solver->statistics;
@@ -1915,9 +1951,9 @@ static void
 switch_to_stable_mode (struct solver *solver)
 {
   assert (!solver->stable);
-  solver->stable = true;
   report (solver, '}');
   STOP (focused);
+  solver->stable = true;
   START (stable);
   report (solver, '[');
   struct statistics *statistics = &solver->statistics;
