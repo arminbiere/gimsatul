@@ -199,10 +199,10 @@ struct trail
 struct clause
 {
   size_t id;
+  unsigned char used;
   bool garbage;
   bool reason;
   bool redundant;
-  unsigned char used;
   unsigned shared;
   unsigned glue;
   unsigned size;
@@ -220,6 +220,10 @@ struct watch
 {
   unsigned sum;
   unsigned middle;
+  bool binary;
+  bool garbage;
+  bool reason;
+  bool redundant;
   struct clause *clause;
 };
 
@@ -1082,7 +1086,8 @@ new_watch (struct solver *solver, struct clause *clause)
   unsigned *literals = clause->literals;
   struct watch *watch = allocate_block (sizeof *watch);
   watch->sum = literals[0] ^ literals[1];
-  watch->middle = clause->size == 2 ? INVALID : 2;
+  watch->middle = 2;
+  watch->binary = (clause->size == 2);
   watch->clause = clause;
   PUSH (WATCHES (literals[0]), watch);
   PUSH (WATCHES (literals[1]), watch);
@@ -1226,7 +1231,7 @@ propagate (struct solver *solver)
 	  if (other_value > 0)
 	    continue;
 	  struct clause *clause = watch->clause;
-	  if (watch->middle == INVALID)
+	  if (watch->binary)
 	    {
 	      if (other_value)
 		goto CONFLICT;
