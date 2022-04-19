@@ -278,6 +278,23 @@ struct averages
   double level;
 };
 
+struct profile
+{
+  double time;
+  const char * name;
+  double start;
+  int level;
+};
+
+struct profiles
+{
+  struct profile focused;
+  struct profile search;
+  struct profile stable;
+
+  struct profile total;
+};
+
 struct statistics
 {
   size_t conflicts;
@@ -317,6 +334,7 @@ struct solver
   struct averages averages[2];
   struct reluctant reluctant;
   struct statistics statistics;
+  struct profiles profiles;
 };
 
 /*------------------------------------------------------------------------*/
@@ -348,7 +366,7 @@ process_time (void)
 }
 
 static double
-current_clock_time (void)
+current_time (void)
 {
   struct timeval tv;
   if (gettimeofday (&tv, 0))
@@ -361,7 +379,7 @@ static double start_time;
 static double
 wall_clock_time (void)
 {
-  return current_clock_time () - start_time;
+  return current_time () - start_time;
 }
 
 static size_t
@@ -814,6 +832,48 @@ swap_scores (struct solver * solver)
 
 /*------------------------------------------------------------------------*/
 
+#define INIT_PROFILE(NAME) \
+do { \
+  struct profile * profile = &solver->profiles.NAME; \
+  profile->start = -1; \
+  profile->name = #NAME; \
+} while (0)
+
+static void
+start_profile (struct profile * profile)
+{
+  double time = current_time ();
+  double volatile * p = &profile->start;
+  assert (*p < 0);
+  *p = time;
+}
+
+static void
+stop_profile (struct profile * profile)
+{
+  double time = current_time ();
+  double volatile * p = &profile->start;
+  double delta = time - *p;
+  *p = -1;
+  profile->time += delta;
+}
+
+#define START(NAME) \
+  start_profile (&solver->profiles.NAME)
+
+#define STOP(NAME) \
+  stop_profile (&solver->profiles.NAME)
+
+static void
+init_profiles (struct solver * solver)
+{
+  INIT_PROFILE (focused);
+  INIT_PROFILE (search);
+  INIT_PROFILE (stable);
+  INIT_PROFILE (total);
+  START (total);
+}
+
 static struct solver *
 new_solver (unsigned size)
 {
@@ -835,6 +895,7 @@ new_solver (unsigned size)
     push_queue (queue, node);
   solver->unassigned = size;
   solver->statistics.variables = size;
+  init_profiles (solver);
   return solver;
 }
 
@@ -1729,6 +1790,8 @@ switch_to_focused_mode (struct solver *solver)
   assert (solver->stable);
   solver->stable = false;
   report (solver, ']');
+  STOP (stable);
+  START (focused);
   report (solver, '{');
   struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
@@ -1741,6 +1804,8 @@ switch_to_stable_mode (struct solver *solver)
   assert (!solver->stable);
   solver->stable = true;
   report (solver, '}');
+  STOP (focused);
+  START (stable);
   report (solver, '[');
   struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
@@ -1790,10 +1855,41 @@ iterate (struct solver *solver)
   report (solver, 'i');
 }
 
+static void
+start_search (struct solver * solver)
+{
+  START (search);
+  assert (!solver->stable);
+  START (focused);
+  report (solver, '{');
+}
+
+static void
+stop_search (struct solver * solver, int res)
+{
+  if (solver->stable)
+    {
+      report (solver, ']');
+      STOP (stable);
+    }
+  else
+    {
+      report (solver, '}');
+      STOP (focused);
+    }
+  if (res == 10)
+    report (solver, '1');
+  else if (res == 20)
+    report (solver, '0');
+  else
+    report (solver, '?');
+  STOP (search);
+}
+
 static int
 solve (struct solver *solver)
 {
-  report (solver, '{');
+  start_search (solver);
   int res = solver->inconsistent ? 20 : 0;
   while (!res)
     {
@@ -1816,8 +1912,7 @@ solve (struct solver *solver)
       else
 	decide (solver);
     }
-  report (solver, solver->stable ? ']' : '}');
-  report (solver, res == 10 ? '1' : res == 20 ? '0' : '?');
+  stop_search (solver, res);
   return res;
 }
 
@@ -2108,7 +2203,8 @@ parse_dimacs_file ()
     goto INVALID_HEADER;
   struct solver *solver = new_solver (variables);
   signed char *marked = allocate_and_clear_block (variables);
-  message ("initialized solver of %d variables", variables);
+  printf ("c\nc initialized solver of %d variables\n", variables);
+  fflush (stdout);
   int signed_lit = 0, parsed = 0;
   bool trivial = false;
   struct unsigneds *clause = &solver->clause;
@@ -2297,7 +2393,8 @@ reset_signal_handler (void)
 #undef SIGNAL
 }
 
-static void print_statistics (void);
+static void print_profiles (struct solver *);
+static void print_statistics (struct solver *);
 
 static void
 catch_signal (int sig)
@@ -2317,7 +2414,8 @@ catch_signal (int sig)
   if (write (1, buffer, bytes) != bytes)
     exit (0);
   reset_signal_handler ();
-  print_statistics ();
+  print_profiles (solver);
+  print_statistics (solver);
   raise (sig);
 }
 
@@ -2363,14 +2461,81 @@ check_witness (void) {
 
 /*------------------------------------------------------------------------*/
 
+#define begin_profiles ((struct profile *)(&solver->profiles))
+#define end_profiles (&solver->profiles.total)
+
+#define all_profiles(PROFILE) \
+struct profile * PROFILE = begin_profiles, \
+               * END_ ## PROFILE = end_profiles; \
+PROFILE != END_ ## PROFILE; \
+++PROFILE
+
 static void
-print_statistics (void)
+flush_profile (double time, struct profile * profile)
 {
+  double volatile * p = &profile->start;
+  assert (*p >= 0);
+  double delta = time - *p;
+  *p = time;
+  profile->time += delta;
+}
+
+static void
+flush_profiles (struct solver * solver)
+{
+  double time = current_time ();
+  for (all_profiles (profile))
+    if (profile->start >= 0)
+      flush_profile (time, profile);
+}
+
+static int
+cmp_profiles (struct profile * a, struct profile * b)
+{
+  if (!a)
+    return -1;
+  if (a->time < b->time)
+    return -1;
+  if (a->time > b->time)
+    return 1;
+  return strcmp (b->name, a->name);
+}
+
+static void
+print_profiles (struct solver * solver)
+{
+  lock_message_mutex ();
+  flush_profiles (solver);
+  double total = solver->profiles.total.time;
+  struct profile * prev = 0;
+  fputs ("c\n", stdout);
+  for (;;)
+    {
+      struct profile * next = 0;
+      for (all_profiles (tmp))
+	if (cmp_profiles (prev, tmp) < 0)
+	  next = tmp;
+      if (!next)
+	break;
+      printf ("c %10.2f seconds  %5.1f%%  %s\n",
+              next->time, percent (next->time, total), next->name);
+      prev = next;
+    }
+  fputs ("c ---------------------------------------\n", stdout);
+  printf ("c %10.2f seconds  100.0%%  total\n", total);
+  fputs ("c\n", stdout);
+  fflush (stdout);
+  unlock_message_mutex ();
+}
+
+static void
+print_statistics (struct solver * solver)
+{
+  lock_message_mutex ();
   double p = process_time ();
   double w = wall_clock_time ();
   double m = maximum_resident_set_size () / (double) (1<<20);
   struct statistics * s = &solver->statistics;
-  lock_message_mutex ();
   printf ("c %-14s %19zu %12.2f per sec\n", "conflicts:", s->conflicts,
            average (s->conflicts, w));
   printf ("c %-14s %19zu %12.2f %% variables\n", "fixed:", s->fixed,
@@ -2383,6 +2548,7 @@ print_statistics (void)
            s->restarts, average (s->conflicts, s->restarts));
   printf ("c %-14s %19zu %12.2f conflict interval\n", "switched:",
            s->switched, average (s->conflicts, s->switched));
+  fputs ("c\n", stdout);
   printf ("c %-30s %16.2f sec\n", "process-time:", p);
   printf ("c %-30s %16.2f sec\n", "wall-clock-time:", w);
   printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", m);
@@ -2395,7 +2561,7 @@ print_statistics (void)
 int
 main (int argc, char ** argv)
 {
-  start_time = current_clock_time ();
+  start_time = current_time ();
   check_types ();
   parse_options (argc, argv);
   print_banner ();
@@ -2410,7 +2576,7 @@ main (int argc, char ** argv)
   close_proof ();
   if (res == 20)
     {
-      printf ("s UNSATISFIABLE\n");
+      printf ("c\ns UNSATISFIABLE\n");
       fflush (stdout);
     }
   else if (res == 10)
@@ -2418,16 +2584,18 @@ main (int argc, char ** argv)
 #ifndef NDEBUG
       check_witness ();
 #endif
-      printf ("s SATISFIABLE\n");
+      printf ("c\ns SATISFIABLE\n");
       if (witness)
 	print_witness (solver);
       fflush (stdout);
     }
-  print_statistics ();
+  print_profiles (solver);
+  print_statistics (solver);
   delete_solver (solver);
 #ifndef NDEBUG
   RELEASE (original);
 #endif
-  message ("exit %d", res);
+  printf ("c\nc exit %d\n", res);
+  fflush (stdout);
   return res;
 }
