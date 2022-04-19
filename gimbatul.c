@@ -210,7 +210,7 @@ struct watch
   bool garbage:1;
   bool reason:1;
   bool redundant:1;
-  unsigned used:2;
+  unsigned used:28;
   unsigned glue;
   unsigned middle;
   unsigned sum;
@@ -1088,18 +1088,19 @@ new_watch (struct solver *solver, struct clause *clause,
   assert (clause->size >= 2);
   unsigned *literals = clause->literals;
   struct watch *watch = allocate_block (sizeof *watch);
-  watch->sum = literals[0] ^ literals[1];
-  watch->middle = 2;
   watch->binary = (clause->size == 2);
   watch->garbage = false;
   watch->reason = false;
-  watch->glue = glue;
+  watch->redundant = redundant;
   if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
     watch->used = 2;
   else if (redundant && glue >= TIER2_GLUE_LIMIT)
     watch->used = 1;
   else
     watch->used = 0;
+  watch->glue = glue;
+  watch->middle = 2;
+  watch->sum = literals[0] ^ literals[1];
   watch->clause = clause;
   PUSH (WATCHES (literals[0]), watch);
   PUSH (WATCHES (literals[1]), watch);
