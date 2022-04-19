@@ -1033,8 +1033,6 @@ trace_added (struct solver *solver)
   write_buffer (buffer, proof.file);
 }
 
-#if 0
-
 static inline void
 trace_deleted (struct solver *solver, struct clause *clause)
 {
@@ -1045,11 +1043,12 @@ trace_deleted (struct solver *solver, struct clause *clause)
   if (binary_proof_format)
     binary_proof_line (buffer, clause->size, clause->literals);
   else
-    ascii_proof_line (buffer, clause->size, clause->literals);
+    {
+      PUSH (*buffer, ' ');
+      ascii_proof_line (buffer, clause->size, clause->literals);
+    }
   write_buffer (buffer, proof.file);
 }
-
-#endif
 
 #define TRACE_EMPTY() \
 do { if (proof.file) trace_empty (solver); } while (0)
@@ -1067,8 +1066,10 @@ close_proof (void)
     return;
   if (proof.close)
     fclose (proof.file);
-  message ("closed '%s' after writing %zu proof lines",
+
+  printf ("c\nc closed '%s' after writing %zu proof lines\n",
 	   proof.path, proof.lines);
+  fflush (stdout);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1138,6 +1139,7 @@ delete_clause (struct solver *solver, struct clause *clause)
       assert (solver->statistics.irredundant > 0);
       solver->statistics.irredundant--;
     }
+  TRACE_DELETED (clause);
   free (clause);
 }
 
@@ -2571,8 +2573,11 @@ main (int argc, char ** argv)
   parse_options (argc, argv);
   print_banner ();
   if (proof.file)
-    message ("writing %s proof trace to '%s'",
-              binary_proof_format ? "binary" : "ASCII", proof.path);
+    {
+      printf ("c\nc writing %s proof trace to '%s'\n",
+		binary_proof_format ? "binary" : "ASCII", proof.path);
+      fflush (stdout);
+    }
   solver = parse_dimacs_file ();
   init_signal_handler ();
   set_limits (solver);
