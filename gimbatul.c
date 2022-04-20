@@ -2236,6 +2236,10 @@ break_literal (struct walker * walker, unsigned lit)
       if (--counts[cidx])
 	continue;
       struct clause * clause = clauses[cidx];
+#ifdef LOGGING
+      struct solver * solver = walker->solver;
+      LOGCLAUSE (clause, "broken");
+#endif
       PUSH (walker->unsatisfied, clause);
     }
 }
@@ -2247,7 +2251,10 @@ make_clause (struct walker * walker, struct clause * clause)
   signed char * values = solver->values;
   for (all_literals_in_clause (lit, clause))
     if (values[lit] > 0)
-      return;
+      {
+	LOGCLAUSE (clause, "skipping already %s satisfied", LOGLIT (lit));
+	return;
+      }
   assert (EMPTY (walker->literals));
   assert (EMPTY (walker->scores));
   for (all_literals_in_clause (lit, clause))
@@ -2257,10 +2264,12 @@ make_clause (struct walker * walker, struct clause * clause)
 	double score = break_score (walker, lit);
 	PUSH (walker->scores, score);
       }
+  LOGCLAUSE (clause, "making unsatisfied");
   size_t size = SIZE (walker->literals);
   assert (size > 1);
   unsigned pos = pick_random_modulo (solver, size);
   unsigned lit = walker->literals.begin[pos];
+  LOG ("flipping literal %s", LOGLIT (lit));
   assert (values[lit] < 0);
   unsigned not_lit = NOT (lit);
   values[lit] = 1, values[not_lit] = -1;
@@ -2284,9 +2293,10 @@ local_search (struct solver *solver)
   size_t effort = WALK_EFFORT * ticks;
   limits->walk = statistics->ticks.walk + effort;
   struct clauses * unsatisfied = &walker.unsatisfied;
-  while (walker.minimum && statistics->ticks.walk < limits->walk)
+  while (!EMPTY (*unsatisfied) /*walker.minimum*/ && statistics->ticks.walk < limits->walk)
     {
       size_t size = SIZE (*unsatisfied);
+      LOG ("randomly picking clause from %zu unsatisfied clauses", size);
       size_t pos = pick_random_modulo (solver, size);
       struct clause * clause = unsatisfied->begin[pos];
       unsatisfied->begin[pos] = *--unsatisfied->end;
@@ -2309,6 +2319,7 @@ rephase_walk (struct solver *solver)
       v->saved = decide_phase (solver, v);
       signed char phase = *p ? 0 : v->saved;
       *p++ = phase, *p++ = -phase;
+      v->level = 0;
     }
   assert (p == values + 2*solver->size);
   local_search (solver);
@@ -3129,7 +3140,6 @@ main (int argc, char **argv)
   solver = parse_dimacs_file ();
   init_signal_handler ();
   set_limits (solver);
-  rephase_walk (solver);
   int res = solve (solver);
   reset_signal_handler ();
   close_proof ();
