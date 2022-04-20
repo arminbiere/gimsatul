@@ -27,7 +27,6 @@ static const char * usage =
 
 #include <assert.h>
 #include <ctype.h>
-#include <inttypes.h>
 #include <limits.h>
 #include <math.h>
 #include <pthread.h>
@@ -35,6 +34,7 @@ static const char * usage =
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -321,6 +321,8 @@ struct last
 struct statistics
 {
   size_t conflicts;
+  size_t decisions;
+  size_t flips;
   size_t propagations;
   size_t reductions;
   size_t rephased;
@@ -362,6 +364,7 @@ struct solver
   struct variable *variables;
   signed char *values;
   bool *used;
+  size_t random;
   struct unsigneds levels;
   struct queue queue;
   struct unsigneds clause;
@@ -1706,6 +1709,7 @@ decide (struct solver *solver)
     lit = NOT (lit);
   solver->level++;
   assign_decision (solver, lit);
+  solver->statistics.decisions++;
 }
 
 static size_t reported;
@@ -2078,13 +2082,23 @@ switch_mode (struct solver *solver)
   verbose ("next mode switching limit at %zu ticks", l->mode);
 }
 
+struct doubles
+{
+  double * begin, * end, * allocated;
+};
+
 struct walker
 {
   struct solver * solver;
-  struct clauses unsatisfied;
   struct unsigneds * occs;
   struct clause ** clauses;
   unsigned * counts;
+  struct clauses unsatisfied;
+  struct unsigneds literals;
+  struct doubles scores;
+  struct doubles breaks;
+  double epsilon;
+  unsigned maxbreak;
   size_t minimum;
 };
 
@@ -2111,6 +2125,22 @@ init_walker (struct solver * solver, struct walker * walker)
   walker->occs =
     allocate_and_clear_array (2*solver->size, sizeof *walker->occs);
   INIT (walker->unsatisfied);
+  INIT (walker->literals);
+  INIT (walker->scores);
+  INIT (walker->breaks);
+  double epsilon = 1;
+  unsigned maxbreak = 0;
+  for (;;)
+    {
+      double next = epsilon / 2.0;
+      if (!next)
+	break;
+      maxbreak++;
+      PUSH (walker->breaks, epsilon);
+      epsilon = next;
+    }
+  walker->epsilon = epsilon;
+  walker->maxbreak = maxbreak;
   signed char * values = solver->values;
   unsigned * p = walker->counts;
   struct clause ** q = walker->clauses;
@@ -2146,6 +2176,96 @@ release_walker (struct walker * walker)
     RELEASE (walker->occs [lit]);
   free (walker->occs);
   RELEASE (walker->unsatisfied);
+  RELEASE (walker->literals);
+  RELEASE (walker->scores);
+  RELEASE (walker->breaks);
+}
+
+static size_t
+random64 (struct solver * solver)
+{
+  size_t res = solver->random, next = res;
+  next *= 6364136223846793005ul;
+  next += 1442695040888963407ul;
+  solver->random = next;
+  return res;
+}
+
+static unsigned
+random32 (struct solver * solver)
+{
+  return random64 (solver) >> 32;
+}
+
+static unsigned
+pick_random_modulo (struct solver * solver, unsigned mod)
+{
+  assert (mod);
+  const unsigned tmp = random32 (solver);
+  const double fraction = tmp / 4294967296.0;
+  assert (0 <= fraction), assert (fraction < 1);
+  const unsigned res = mod * fraction;
+  assert (res < mod);
+  return res;
+}
+
+static double
+break_score (struct walker * walker, unsigned lit)
+{
+  return 1.0;
+}
+
+static void
+make_literal (struct walker * walker, unsigned lit)
+{
+  assert (walker->solver->values[lit] > 0);
+  unsigned * counts = walker->counts;
+  for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
+    counts[cidx]++;
+}
+
+static void
+break_literal (struct walker * walker, unsigned lit)
+{
+  assert (walker->solver->values[lit] < 0);
+  unsigned * counts = walker->counts;
+  struct clause ** clauses = walker->clauses;
+  for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
+    {
+      assert (counts[cidx]);
+      if (--counts[cidx])
+	continue;
+      struct clause * clause = clauses[cidx];
+      PUSH (walker->unsatisfied, clause);
+    }
+}
+
+static void
+make_clause (struct walker * walker, struct clause * clause)
+{
+  assert (EMPTY (walker->literals));
+  assert (EMPTY (walker->scores));
+  struct solver * solver = walker->solver;
+  signed char * values = solver->values;
+  for (all_literals_in_clause (lit, clause))
+    if (values[lit])
+      {
+	PUSH (walker->literals, lit);
+	double score = break_score (walker, lit);
+	PUSH (walker->scores, score);
+      }
+  size_t size = SIZE (walker->literals);
+  assert (size > 1);
+  unsigned pos = pick_random_modulo (solver, size);
+  unsigned lit = walker->literals.begin[pos];
+  assert (values[lit] < 0);
+  unsigned not_lit = NOT (lit);
+  values[lit] = 1, values[not_lit] = -1;
+  make_literal (walker, lit);
+  break_literal (walker, not_lit);
+  CLEAR (walker->literals);
+  CLEAR (walker->scores);
+  walker->solver->statistics.flips++;
 }
 
 static void
@@ -2160,9 +2280,14 @@ local_search (struct solver *solver)
   size_t ticks = statistics->ticks.search - last->walk;
   size_t effort = WALK_EFFORT * ticks;
   limits->walk = statistics->ticks.walk + effort;
-  while (statistics->ticks.walk < limits->walk)
+  struct clauses * unsatisfied = &walker.unsatisfied;
+  while (walker.minimum && statistics->ticks.walk < limits->walk)
     {
-      statistics->ticks.walk++;
+      size_t size = SIZE (*unsatisfied);
+      size_t pos = pick_random_modulo (solver, size);
+      struct clause * clause = unsatisfied->begin[pos];
+      unsatisfied->begin[pos] = *--unsatisfied->end;
+      make_clause (&walker, clause);
     }
   release_walker (&walker);
   last->walk = statistics->ticks.search;
