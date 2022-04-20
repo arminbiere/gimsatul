@@ -1906,7 +1906,8 @@ sort_reduce_candidates (struct watches *candidates)
 {
   struct watch **begin = candidates->begin;
   size_t size = SIZE (*candidates);
-  qsort (begin, size, sizeof *begin, cmp_reduce_candidates);
+  if (size)
+    qsort (begin, size, sizeof *begin, cmp_reduce_candidates);
 }
 
 static void
@@ -2107,7 +2108,8 @@ init_walker (struct solver * solver, struct walker * walker)
   walker->solver = solver;
   walker->counts = allocate_array (clauses, sizeof *walker->counts);
   walker->clauses = allocate_array (clauses, sizeof *walker->clauses);
-  walker->occs = allocate_and_clear_array (2*solver->size, sizeof *walker->occs);
+  walker->occs =
+    allocate_and_clear_array (2*solver->size, sizeof *walker->occs);
   INIT (walker->unsatisfied);
   signed char * values = solver->values;
   unsigned * p = walker->counts;
