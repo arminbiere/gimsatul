@@ -2083,10 +2083,30 @@ switch_mode (struct solver *solver)
   verbose ("next mode switching limit at %zu ticks", l->mode);
 }
 
+struct walker
+{
+  struct solver * solver;
+};
+
+static void
+init_walker (struct solver * solver, struct walker * walker)
+{
+  walker->solver = solver;
+}
+
+static void
+release_walker (struct walker * walker)
+{
+  (void) walker;
+}
+
 static void
 local_search (struct solver *solver)
 {
   START (walk);
+  struct walker walker;
+  init_walker (solver, &walker);
+  release_walker (&walker);
   STOP (walk);
 }
 
