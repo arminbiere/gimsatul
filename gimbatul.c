@@ -67,6 +67,8 @@ static const char * usage =
 #define SLOW_ALPHA 1e-5
 #define RESTART_MARGIN 1.1
 
+#define INITIAL_PHASE 1
+
 /*------------------------------------------------------------------------*/
 
 #define IDX(LIT) ((LIT) >> 1)
@@ -1679,6 +1681,8 @@ decide (struct solver *solver)
     phase = v->target;
   if (!phase)
     phase = v->saved;
+  if (!phase)
+    phase = INITIAL_PHASE;
   if (phase < 0)
     lit = NOT (lit);
   solver->level++;
@@ -1694,12 +1698,12 @@ report (struct solver * solver, char type)
   struct averages * a = solver->averages + solver->stable;
   lock_message_mutex ();
   if (!(reported++ % 20))
-    printf ("c\nc    seconds    MB level reductions restarts "
+    printf ("c\nc    seconds MB level reductions restarts "
 	     "conflicts redundant trail glue irredundant variables\nc\n");
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1<<20);
-  printf ("c %c %8.2f %5.0f %6.0f %6zu %8zu "
-          "%11zu %9zu %3.0f%% %6.1f %9zu %9zu %3.0f%%\n",
+  printf ("c %c %6.2f %4.0f %5.0f %6zu %8zu "
+          "%12zu %9zu %3.0f%% %6.1f %9zu %9zu %3.0f%%\n",
     type, t, m, a->level, s->reductions, s->restarts,
     s->conflicts, s->redundant, a->trail, a->glue.slow, s->irredundant,
     s->variables, percent (s->variables, solver->size));
@@ -2053,6 +2057,30 @@ switch_mode (struct solver *solver)
   verbose ("next mode switching limit at %zu ticks", l->mode);
 }
 
+static char
+rephase_best (struct solver * solver)
+{
+  for (all_variables (v))
+    v->target = v->saved = v->best;
+  return 'B';
+}
+
+static char
+rephase_inverted (struct solver * solver)
+{
+  for (all_variables (v))
+    v->target = v->saved = -INITIAL_PHASE;
+  return 'I';
+}
+
+static char
+rephase_original (struct solver * solver)
+{
+  for (all_variables (v))
+    v->target = v->saved = INITIAL_PHASE;
+  return 'O';
+}
+
 static bool
 rephasing (struct solver * solver)
 {
@@ -2063,22 +2091,28 @@ rephasing (struct solver * solver)
 static void
 rephase (struct solver * solver)
 {
+  if (solver->level)
+    backtrack (solver, 0);
   struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
   size_t rephased = ++statistics->rephased;
   size_t schedule = (rephased - 1) % 4;
-  for (all_variables (v))
-    v->target = v->saved;
-  solver->target = 0;
   char type;
   if (schedule == 0)
-    type = 'B';
+    type = rephase_best (solver);
   else if (schedule == 1)
-    type = 'I';
+    type = rephase_inverted (solver);
   else if (schedule == 2)
-    type = 'B';
+    type = rephase_best (solver);
   else
-    type = 'O';
+    type = rephase_original (solver);
+  verbose ("resetting number of target assigned %u", solver->target);
+  solver->target = 0;
+  if (type == 'B')
+    {
+      verbose ("resetting number of best assigned %u", solver->best);
+      solver->best = 0;
+    }
   limits->rephase = statistics->conflicts;
   limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
   verbose ("next rephase limit at %zu conflicts", limits->rephase);
