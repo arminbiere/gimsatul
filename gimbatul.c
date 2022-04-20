@@ -46,21 +46,26 @@ static const char * usage =
 /*------------------------------------------------------------------------*/
 
 #define INVALID UINT_MAX
+
 #define MAX_SCORE 1e150
+#define MAX_VERBOSITY 2
 #define MINIMIZE_DEPTH 1000
-#define REDUCE_INTERVAL 1e3
+
 #define FOCUSED_RESTART_INTERVAL 50
+#define MODE_INTERVAL 3e3
+#define REDUCE_INTERVAL 1e3
+#define REPHASE_INTERVAL 1e3
 #define STABLE_RESTART_INTERVAL 500
-#define STABLE_DECAY 0.95
+
 #define FOCUSED_DECAY 0.75
+#define REDUCE_FRACTION 0.75
+#define STABLE_DECAY 0.95
 #define TIER1_GLUE_LIMIT 2
 #define TIER2_GLUE_LIMIT 6
-#define REDUCE_FRACTION 0.75
-#define MAX_VERBOSITY 2
-#define SLOW_ALPHA 1e-5
+
 #define FAST_ALPHA 3e-2
+#define SLOW_ALPHA 1e-5
 #define RESTART_MARGIN 1.1
-#define MODE_INTERVAL 3e3
 
 /*------------------------------------------------------------------------*/
 
@@ -225,7 +230,9 @@ struct watches
 struct variable
 {
   unsigned level;
+  signed char best;
   signed char phase;
+  signed char target;
   bool seen:1;
   bool poison:1;
   bool minimize:1;
@@ -257,6 +264,7 @@ struct limits
   size_t fixed;
   size_t mode;
   size_t reduce;
+  size_t rephase;
   size_t restart;
 };
 
@@ -273,6 +281,7 @@ struct averages
     double slow;
   } glue;
   double level;
+  double trail;
 };
 
 struct profile
@@ -297,6 +306,7 @@ struct statistics
   size_t conflicts;
   size_t propagations;
   size_t reductions;
+  size_t rephased;
   size_t restarts;
   size_t switched;
   size_t ticks;
@@ -323,6 +333,8 @@ struct solver
   unsigned size;
   unsigned level;
   unsigned unassigned;
+  unsigned target;
+  unsigned best;
   struct watches watches;
   struct variable *variables;
   signed char *values;
@@ -1343,6 +1355,40 @@ backtrack (struct solver *solver, unsigned level)
 }
 
 static void
+update_best_and_target_phases (struct solver * solver)
+{
+  if (!solver->stable)
+    return;
+  unsigned assigned = SIZE (solver->trail);
+  if (solver->target < assigned)
+    {
+      verbose ("updating target assigned to %u", assigned);
+      solver->target = assigned;
+      signed char * p = solver->values;
+      for (all_variables (v))
+	{
+	  signed char tmp = *p;
+	  p += 2;
+	  if (tmp)
+	    v->target = tmp;
+	}
+    }
+  if (solver->best < assigned)
+    {
+      verbose ("updating best assigned to %u", assigned);
+      solver->best = assigned;
+      signed char * p = solver->values;
+      for (all_variables (v))
+	{
+	  signed char tmp = *p;
+	  p += 2;
+	  if (tmp)
+	    v->best = tmp;
+	}
+    }
+}
+
+static void
 bump_reason (struct watch *watch)
 {
   if (!watch->redundant)
@@ -1423,7 +1469,7 @@ minimize_clause (struct solver * solver)
   solver->statistics.learned.literals += learned;
   solver->statistics.minimized += minimized;
   solver->statistics.deduced += deduced;
-  LOG ("minimized %zu literals out of %zu", minimized, size);
+  LOG ("minimized %zu literals out of %zu", minimized, deduced);
 }
 
 static void
@@ -1555,6 +1601,10 @@ analyze (struct solver *solver, struct watch *reason)
   LOG ("glucose level (LBD) %u", glue);
   averages->glue.slow += SLOW_ALPHA * (glue - averages->glue.slow);
   averages->glue.fast += FAST_ALPHA * (glue - averages->glue.fast);
+  unsigned assigned = SIZE (solver->trail);
+  double filled = percent (assigned, solver->size);
+  LOG ("assigned %u variables %.0f%% filled", assigned, filled);
+  averages->trail += SLOW_ALPHA * (filled - averages->trail);
   unsigned *literals = clause->begin;
   const unsigned not_uip = NOT (uip);
   literals[0] = not_uip;
@@ -1562,7 +1612,10 @@ analyze (struct solver *solver, struct watch *reason)
   minimize_clause (solver);
   bump_reason_side_literals (solver);
   bump_score_increment (solver);
-  backtrack (solver, jump);
+  backtrack (solver, level - 1);
+  update_best_and_target_phases (solver);
+  if (jump < level - 1)
+    backtrack (solver, jump);
   unsigned size = SIZE (*clause);
   assert (size);
   if (size == 1)
@@ -1621,15 +1674,18 @@ decide (struct solver *solver)
     }
   assert (idx < solver->size);
   struct variable *v = solver->variables + idx;
-  if (v->phase < 0)
+  signed char phase = 0;
+  if (solver->stable)
+    phase = v->target;
+  if (!phase)
+    phase = v->phase;
+  if (phase < 0)
     lit = NOT (lit);
   solver->level++;
   assign_decision (solver, lit);
 }
 
 static size_t reported;
-
-// *INDENT-OFF*
 
 static void
 report (struct solver * solver, char type)
@@ -1638,20 +1694,18 @@ report (struct solver * solver, char type)
   struct averages * a = solver->averages + solver->stable;
   lock_message_mutex ();
   if (!(reported++ % 20))
-    printf ("c\n"
-	    "c     seconds     MB  level reductions restarts conflicts redundant glue irredundant variables\n"
-	    "c\n");
+    printf ("c\nc    seconds    MB level reductions restarts "
+	     "conflicts redundant trail glue irredundant variables\nc\n");
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1<<20);
-  printf ("c %c %9.2f %6.0f %6.0f %6zu %8zu %11zu %9zu %6.1f %9zu %9zu %3.0f%%\n",
+  printf ("c %c %8.2f %5.0f %6.0f %6zu %8zu "
+          "%11zu %9zu %3.0f%% %6.1f %9zu %9zu %3.0f%%\n",
     type, t, m, a->level, s->reductions, s->restarts,
-    s->conflicts, s->redundant, a->glue.slow, s->irredundant,
+    s->conflicts, s->redundant, a->trail, a->glue.slow, s->irredundant,
     s->variables, percent (s->variables, solver->size));
   fflush (stdout);
   unlock_message_mutex ();
 }
-
-// *INDENT-ON*
 
 static void
 set_limits (struct solver *solver)
@@ -1661,9 +1715,10 @@ set_limits (struct solver *solver)
   assert (!solver->stable);
   assert (!solver->statistics.conflicts);
   struct limits *limits = &solver->limits;
+  limits->mode = MODE_INTERVAL;
   limits->reduce = REDUCE_INTERVAL;
   limits->restart = FOCUSED_RESTART_INTERVAL;
-  limits->mode = MODE_INTERVAL;
+  limits->rephase = REPHASE_INTERVAL;
   verbose ("reduce interval of %zu conflict", limits->reduce);
   verbose ("restart interval of %zu conflict", limits->restart);
   verbose ("initial mode switching interval of %zu conflicts", limits->mode);
@@ -1692,6 +1747,7 @@ restart (struct solver *solver)
   statistics->restarts++;
   verbose ("restart %zu at %zu conflicts",
 	   statistics->restarts, statistics->conflicts);
+  update_best_and_target_phases (solver);
   backtrack (solver, 0);
   struct limits *limits = &solver->limits;
   limits->restart = statistics->conflicts;
@@ -1997,6 +2053,25 @@ switch_mode (struct solver *solver)
   verbose ("next mode switching limit at %zu ticks", l->mode);
 }
 
+static bool
+rephasing (struct solver * solver)
+{
+  return solver->stable &&
+         solver->statistics.conflicts > solver->limits.rephase;
+}
+
+static void
+rephase (struct solver * solver)
+{
+  struct statistics *statistics = &solver->statistics;
+  struct limits *limits = &solver->limits;
+  size_t rephased = ++statistics->rephased;
+  limits->rephase = statistics->conflicts;
+  limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
+  verbose ("next rephase limit at %zu conflicts", limits->rephase);
+  report (solver, '~');
+}
+
 static void
 iterate (struct solver *solver)
 {
@@ -2058,6 +2133,8 @@ solve (struct solver *solver)
 	restart (solver);
       else if (switching_mode (solver))
 	switch_mode (solver);
+      else if (rephasing (solver))
+	rephase (solver);
       else
 	decide (solver);
     }
