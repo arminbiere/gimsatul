@@ -2717,6 +2717,8 @@ static void (*saved_ ## SIG ## _handler)(int);
 SIGNALS
 #undef SIGNAL
 
+// *INDENT-ON*
+
 static void
 reset_signal_handler (void)
 {
@@ -2744,8 +2746,7 @@ catch_signal (int sig)
   SIGNALS
 #undef SIGNAL
   char buffer[80];
-  sprintf (buffer,
-	   "c\nc caught signal %d (%s)\nc\n", sig, name);
+  sprintf (buffer, "c\nc caught signal %d (%s)\nc\n", sig, name);
   ssize_t bytes = strlen (buffer);
   if (write (1, buffer, bytes) != bytes)
     exit (0);
@@ -2763,7 +2764,7 @@ init_signal_handler (void)
   saved_ ## SIG ##_handler = signal (SIG, catch_signal);
   SIGNALS
 #undef SIGNAL
-  catching_signals = true;
+    catching_signals = true;
 }
 
 /*------------------------------------------------------------------------*/
@@ -2771,10 +2772,11 @@ init_signal_handler (void)
 #ifndef NDEBUG
 
 static void
-check_witness (void) {
-  signed char * values = solver->values;
+check_witness (void)
+{
+  signed char *values = solver->values;
   size_t clauses = 0;
-  for (unsigned * c = original.begin, * p; c != original.end; c = p + 1)
+  for (unsigned *c = original.begin, *p; c != original.end; c = p + 1)
     {
       bool satisfied = false;
       for (p = c; assert (p != original.end), *p != INVALID; p++)
@@ -2785,7 +2787,7 @@ check_witness (void) {
 	continue;
       lock_message_mutex ();
       fprintf (stderr, "gimbatul: error: unsatisfied clause[%zu]", clauses);
-      for (unsigned * q = c; q != p; q++)
+      for (unsigned *q = c; q != p; q++)
 	fprintf (stderr, " %d", export_literal (*q));
       fputs (" 0\n", stderr);
       unlock_message_mutex ();
@@ -2807,9 +2809,9 @@ PROFILE != END_ ## PROFILE; \
 ++PROFILE
 
 static void
-flush_profile (double time, struct profile * profile)
+flush_profile (double time, struct profile *profile)
 {
-  double volatile * p = &profile->start;
+  double volatile *p = &profile->start;
   assert (*p >= 0);
   double delta = time - *p;
   *p = time;
@@ -2817,7 +2819,7 @@ flush_profile (double time, struct profile * profile)
 }
 
 static void
-flush_profiles (struct solver * solver)
+flush_profiles (struct solver *solver)
 {
   double time = current_time ();
   for (all_profiles (profile))
@@ -2828,7 +2830,7 @@ flush_profiles (struct solver * solver)
 }
 
 static int
-cmp_profiles (struct profile * a, struct profile * b)
+cmp_profiles (struct profile *a, struct profile *b)
 {
   if (!a)
     return -1;
@@ -2842,23 +2844,23 @@ cmp_profiles (struct profile * a, struct profile * b)
 }
 
 static void
-print_profiles (struct solver * solver)
+print_profiles (struct solver *solver)
 {
   lock_message_mutex ();
   flush_profiles (solver);
   double total = solver->profiles.total.time;
-  struct profile * prev = 0;
+  struct profile *prev = 0;
   fputs ("c\n", stdout);
   for (;;)
     {
-      struct profile * next = 0;
+      struct profile *next = 0;
       for (all_profiles (tmp))
 	if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
 	  next = tmp;
       if (!next)
 	break;
       printf ("c %10.2f seconds  %5.1f%%  %s\n",
-              next->time, percent (next->time, total), next->name);
+	      next->time, percent (next->time, total), next->name);
       prev = next;
     }
   fputs ("c ---------------------------------------\n", stdout);
@@ -2869,32 +2871,33 @@ print_profiles (struct solver * solver)
 }
 
 static void
-print_statistics (struct solver * solver)
+print_statistics (struct solver *solver)
 {
   lock_message_mutex ();
   double p = process_time ();
   double w = wall_clock_time ();
-  double m = maximum_resident_set_size () / (double) (1<<20);
-  struct statistics * s = &solver->statistics;
+  double m = maximum_resident_set_size () / (double) (1 << 20);
+  struct statistics *s = &solver->statistics;
   printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", s->conflicts,
-           average (s->conflicts, w));
+	  average (s->conflicts, w));
   printf ("c %-19s %13zu %13.2f %% variables\n", "fixed-variables:", s->fixed,
-           percent (s->fixed, solver->size));
+	  percent (s->fixed, solver->size));
   printf ("c %-19s %13zu %13.2f per learned clause\n", "learned-literals:",
-           s->learned.literals,
-	   average (s->learned.literals, s->learned.clauses));
-  printf ("c %-19s %13zu %13.2f %% per deduced literals\n", "minimized-literals:",
-          s->minimized, percent (s->minimized, s->deduced));
-  printf ("c %-19s %13zu %13.2f per seccond\n", "propagations:", s->propagations,
-           average (s->propagations, w));
+	  s->learned.literals,
+	  average (s->learned.literals, s->learned.clauses));
+  printf ("c %-19s %13zu %13.2f %% per deduced literals\n",
+	  "minimized-literals:", s->minimized, percent (s->minimized,
+							s->deduced));
+  printf ("c %-19s %13zu %13.2f per seccond\n", "propagations:",
+	  s->propagations, average (s->propagations, w));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "reductions:",
-           s->reductions, average (s->conflicts, s->reductions));
+	  s->reductions, average (s->conflicts, s->reductions));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "rephased:",
-           s->rephased, average (s->conflicts, s->rephased));
+	  s->rephased, average (s->conflicts, s->rephased));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "restarts:",
-           s->restarts, average (s->conflicts, s->restarts));
+	  s->restarts, average (s->conflicts, s->restarts));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "switched:",
-           s->switched, average (s->conflicts, s->switched));
+	  s->switched, average (s->conflicts, s->switched));
   fputs ("c\n", stdout);
   printf ("c %-30s %16.2f sec\n", "process-time:", p);
   printf ("c %-30s %16.2f sec\n", "wall-clock-time:", w);
@@ -2906,7 +2909,7 @@ print_statistics (struct solver * solver)
 /*------------------------------------------------------------------------*/
 
 int
-main (int argc, char ** argv)
+main (int argc, char **argv)
 {
   start_time = current_time ();
   check_types ();
@@ -2915,7 +2918,7 @@ main (int argc, char ** argv)
   if (proof.file)
     {
       printf ("c\nc writing %s proof trace to '%s'\n",
-		binary_proof_format ? "binary" : "ASCII", proof.path);
+	      binary_proof_format ? "binary" : "ASCII", proof.path);
       fflush (stdout);
     }
   solver = parse_dimacs_file ();
