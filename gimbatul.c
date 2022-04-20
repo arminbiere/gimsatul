@@ -231,7 +231,7 @@ struct variable
 {
   unsigned level;
   signed char best;
-  signed char phase;
+  signed char saved;
   signed char target;
   bool seen:1;
   bool poison:1;
@@ -1182,7 +1182,7 @@ assign (struct solver *solver, unsigned lit, struct watch *reason)
   solver->values[not_lit] = -1;
   *solver->trail.end++ = lit;
   struct variable *v = VAR (lit);
-  v->phase = SGN (lit) ? -1 : 1;
+  v->saved = SGN (lit) ? -1 : 1;
   unsigned level = solver->level;
   v->level = level;
   if (level)
@@ -1678,7 +1678,7 @@ decide (struct solver *solver)
   if (solver->stable)
     phase = v->target;
   if (!phase)
-    phase = v->phase;
+    phase = v->saved;
   if (phase < 0)
     lit = NOT (lit);
   solver->level++;
@@ -2066,10 +2066,23 @@ rephase (struct solver * solver)
   struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
   size_t rephased = ++statistics->rephased;
+  size_t schedule = (rephased - 1) % 4;
+  for (all_variables (v))
+    v->target = v->saved;
+  solver->target = 0;
+  char type;
+  if (schedule == 0)
+    type = 'B';
+  else if (schedule == 1)
+    type = 'I';
+  else if (schedule == 2)
+    type = 'B';
+  else
+    type = 'O';
   limits->rephase = statistics->conflicts;
   limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
   verbose ("next rephase limit at %zu conflicts", limits->rephase);
-  report (solver, '~');
+  report (solver, type);
 }
 
 static void
