@@ -2243,10 +2243,13 @@ break_literal (struct walker * walker, unsigned lit)
 static void
 make_clause (struct walker * walker, struct clause * clause)
 {
-  assert (EMPTY (walker->literals));
-  assert (EMPTY (walker->scores));
   struct solver * solver = walker->solver;
   signed char * values = solver->values;
+  for (all_literals_in_clause (lit, clause))
+    if (values[lit] > 0)
+      return;
+  assert (EMPTY (walker->literals));
+  assert (EMPTY (walker->scores));
   for (all_literals_in_clause (lit, clause))
     if (values[lit])
       {
