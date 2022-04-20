@@ -67,6 +67,7 @@ static const char * usage =
 #define SLOW_ALPHA 1e-5
 #define RESTART_MARGIN 1.1
 
+#define WALK_EFFORT 0.01
 #define INITIAL_PHASE 1
 
 /*------------------------------------------------------------------------*/
@@ -77,7 +78,7 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
-#define WATCHES(LIT) (VAR(LIT)->watches[SGN (LIT)])
+#define WATCHES(LIT) (VAR (LIT)->watches[SGN (LIT)])
 
 /*------------------------------------------------------------------------*/
 
@@ -211,6 +212,13 @@ struct clause
   unsigned literals[];
 };
 
+typedef struct clause * clause_pointer;
+
+struct clauses
+{
+  struct clause **begin, **end, **allocated;
+};
+
 struct watch
 {
   bool binary:1;
@@ -306,14 +314,8 @@ struct profiles
 
 struct last
 {
-  struct
-  {
-    unsigned fixed;
-  } reduce;
-  struct
-  {
-    size_t ticks;
-  } walk;
+  size_t fixed;
+  size_t walk;
 };
 
 struct statistics
@@ -929,7 +931,7 @@ new_solver (unsigned size)
   assert (size < (1u << 30));
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
   solver->size = size;
-  solver->values = allocate_and_clear_array (2, size);
+  solver->values = allocate_and_clear_array (1, 2*size);
   solver->used = allocate_and_clear_block (size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
@@ -951,18 +953,8 @@ new_solver (unsigned size)
 static void
 release_watches (struct solver *solver)
 {
-  unsigned lit = 0;
-  for (all_variables (v))
-    {
-      for (unsigned i = 0; i != 2; i++)
-	{
-	  struct watches *watches = v->watches + i;
-	  assert (watches == &WATCHES (lit));
-	  RELEASE (*watches);
-	  lit++;
-	}
-    }
-  assert (lit == 2 * solver->size);
+  for (all_literals (lit))
+    RELEASE (WATCHES (lit));
   for (all_watches (w, solver->watches))
     {
       struct clause *clause = w->clause;
@@ -1266,6 +1258,7 @@ propagate (struct solver *solver)
 	{
 	  struct watch *watch = *q++ = *p++;
 	  unsigned other = watch->sum ^ not_lit;
+	  assert (other < 2*solver->size);
 	  signed char other_value = values[other];
 	  ticks++;
 	  if (other_value > 0)
@@ -1830,6 +1823,8 @@ unmark_reasons (struct solver *solver)
 static void
 mark_satisfied_clauses_as_garbage (struct solver *solver)
 {
+  if (solver->last.fixed == solver->statistics.fixed)
+    return;
   size_t marked = 0;
   signed char *values = solver->values;
   for (all_watches (watch, solver->watches))
@@ -1853,7 +1848,7 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
       watch->garbage = true;
       marked++;
     }
-  solver->last.reduce.fixed = solver->statistics.fixed;
+  solver->last.fixed = solver->statistics.fixed;
   verbose ("marked %zu satisfied clauses as garbage %.0f%%",
 	   marked, percent (marked, SIZE (solver->watches)));
 }
@@ -2004,8 +1999,7 @@ reduce (struct solver *solver)
   mark_reasons (solver);
   struct watches candidates;
   INIT (candidates);
-  if (solver->last.reduce.fixed < statistics->fixed)
-    mark_satisfied_clauses_as_garbage (solver);
+  mark_satisfied_clauses_as_garbage (solver);
   gather_reduce_candidates (solver, &candidates);
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (solver, &candidates);
@@ -2086,18 +2080,70 @@ switch_mode (struct solver *solver)
 struct walker
 {
   struct solver * solver;
+  struct clauses unsatisfied;
+  struct unsigneds * occs;
+  struct clause ** clauses;
+  unsigned * counts;
+  size_t minimum;
 };
 
 static void
 init_walker (struct solver * solver, struct walker * walker)
 {
+  struct clause * last = 0;
+  size_t clauses = 0;
+  for (all_watches (w, solver->watches))
+    {
+      if (w->garbage)
+	continue;
+      if (w->redundant)
+	continue;
+      struct clause * clause = w->clause;
+      last = clause;
+      clauses++;
+    }
+  verbose ("local search over %zu clauses %.0f%%", clauses,
+           percent (clauses, solver->statistics.irredundant));
   walker->solver = solver;
-}
+  walker->counts = allocate_array (clauses, sizeof *walker->counts);
+  walker->clauses = allocate_array (clauses, sizeof *walker->clauses);
+  walker->occs = allocate_and_clear_array (2*solver->size, sizeof *walker->occs);
+  INIT (walker->unsatisfied);
+  signed char * values = solver->values;
+  unsigned * p = walker->counts;
+  struct clause ** q = walker->clauses;
+  for (all_watches (w, solver->watches))
+    {
+      if (w->garbage)
+	continue;
+      if (w->redundant)
+	continue;
+      struct clause * clause = w->clause;
+      unsigned count = 0;
+      for (all_literals_in_clause (lit, clause))
+       if (values[lit] > 0)
+	 count++;
+      *p++ = count;
+      *q++ = clause;
+      if (!count)
+	PUSH (walker->unsatisfied, clause);
+      if (clause == last)
+	break;
+    }
+  walker->minimum = SIZE (walker->unsatisfied);
+  verbose ("initially %zu clauses unsatisfied", walker->minimum);
+} 
 
 static void
 release_walker (struct walker * walker)
 {
-  (void) walker;
+  struct solver * solver = walker->solver;
+  free (walker->counts);
+  free (walker->clauses);
+  for (all_literals (lit))
+    RELEASE (walker->occs [lit]);
+  free (walker->occs);
+  RELEASE (walker->unsatisfied);
 }
 
 static void
@@ -2106,32 +2152,41 @@ local_search (struct solver *solver)
   START (walk);
   struct walker walker;
   init_walker (solver, &walker);
+  struct statistics *statistics = &solver->statistics;
+  struct limits *limits = &solver->limits;
+  struct last * last = &solver->last;
+  size_t ticks = statistics->ticks.search - last->walk;
+  size_t effort = WALK_EFFORT * ticks;
+  limits->walk = statistics->ticks.walk + effort;
+  while (statistics->ticks.walk < limits->walk)
+    {
+      statistics->ticks.walk++;
+    }
   release_walker (&walker);
+  last->walk = statistics->ticks.search;
   STOP (walk);
 }
 
 static char
 rephase_walk (struct solver *solver)
 {
+  assert (!solver->level);
+  mark_satisfied_clauses_as_garbage (solver);
   signed char *values = solver->values;
   signed char *p = values;
   for (all_variables (v))
     {
-      signed phase = decide_phase (solver, v);
-      *p++ = phase;
-      *p++ = -phase;
+      v->saved = decide_phase (solver, v);
+      signed char phase = *p ? 0 : v->saved;
+      *p++ = phase, *p++ = -phase;
     }
-  size_t literals = 2 * solver->size;
-  assert (p == values + literals);
+  assert (p == values + 2*solver->size);
   local_search (solver);
-  assert (!solver->level);
-  memset (solver->values, 0, literals);
+  memset (values, 0, 2*solver->size);
   for (all_elements_on_stack (unsigned, lit, solver->trail))
-    {
-      signed char phase = SGN (lit) ? -1 : 1;
-      values[lit] = phase;
-      values[-lit] = -phase;
-    }
+    values[lit] = 1, values[NOT (lit)] = -1;
+  for (all_variables (v))
+    v->target = v->saved;
   return 'W';
 }
 
@@ -2944,6 +2999,7 @@ main (int argc, char **argv)
   solver = parse_dimacs_file ();
   init_signal_handler ();
   set_limits (solver);
+  rephase_walk (solver);
   int res = solve (solver);
   reset_signal_handler ();
   close_proof ();
