@@ -263,11 +263,11 @@ struct queue
 
 struct limits
 {
-  size_t fixed;
   size_t mode;
   size_t reduce;
   size_t rephase;
   size_t restart;
+  size_t walk;
 };
 
 struct intervals
@@ -299,8 +299,20 @@ struct profiles
   struct profile focused;
   struct profile search;
   struct profile stable;
+  struct profile walk;
 
   struct profile total;
+};
+
+struct last
+{
+  struct
+  {
+    unsigned fixed;
+  } reduce;
+  struct {
+    size_t ticks;
+  } walk;
 };
 
 struct statistics
@@ -311,7 +323,11 @@ struct statistics
   size_t rephased;
   size_t restarts;
   size_t switched;
-  size_t ticks;
+
+  struct {
+  size_t search;
+  size_t walk;
+  } ticks;
 
   size_t added;
   size_t deduced;
@@ -319,7 +335,6 @@ struct statistics
   size_t irredundant;
   size_t minimized;
   size_t redundant;
-  size_t variables;
 
   struct {
     size_t clauses;
@@ -333,6 +348,7 @@ struct solver
   bool iterating;
   bool stable;
   unsigned size;
+  unsigned active;
   unsigned level;
   unsigned unassigned;
   unsigned target;
@@ -347,6 +363,7 @@ struct solver
   struct unsigneds analyzed;
   struct buffer buffer;
   struct trail trail;
+  struct last last;
   struct limits limits;
   struct intervals intervals;
   struct averages averages[2];
@@ -898,6 +915,7 @@ init_profiles (struct solver * solver)
   INIT_PROFILE (focused);
   INIT_PROFILE (search);
   INIT_PROFILE (stable);
+  INIT_PROFILE (walk);
   INIT_PROFILE (total);
   START (total);
 }
@@ -922,7 +940,7 @@ new_solver (unsigned size)
   for (all_nodes (node))
     push_queue (queue, node);
   solver->unassigned = size;
-  solver->statistics.variables = size;
+  solver->active = size;
   init_profiles (solver);
   return solver;
 }
@@ -1192,9 +1210,9 @@ assign (struct solver *solver, unsigned lit, struct watch *reason)
   else
     {
       v->reason = 0;
-      assert (solver->statistics.variables);
-      solver->statistics.variables--;
       solver->statistics.fixed++;
+      assert (solver->active);
+      solver->active--;
     }
 }
 
@@ -1318,7 +1336,7 @@ propagate (struct solver *solver)
 	*q++ = *p++;
       watches->end = q;
     }
-  solver->statistics.ticks += ticks;
+  solver->statistics.ticks.search += ticks;
   if (conflict)
     {
       LOGCLAUSE (conflict->clause, "conflicting");
@@ -1655,6 +1673,19 @@ analyze (struct solver *solver, struct watch *reason)
   return true;
 }
 
+static signed char
+decide_phase (struct solver * solver, struct variable * v)
+{
+  signed char phase = 0;
+  if (solver->stable)
+    phase = v->target;
+  if (!phase)
+    phase = v->saved;
+  if (!phase)
+    phase = INITIAL_PHASE;
+  return phase;
+}
+
 static void
 decide (struct solver *solver)
 {
@@ -1676,13 +1707,7 @@ decide (struct solver *solver)
     }
   assert (idx < solver->size);
   struct variable *v = solver->variables + idx;
-  signed char phase = 0;
-  if (solver->stable)
-    phase = v->target;
-  if (!phase)
-    phase = v->saved;
-  if (!phase)
-    phase = INITIAL_PHASE;
+  signed char phase = decide_phase (solver, v);
   if (phase < 0)
     lit = NOT (lit);
   solver->level++;
@@ -1703,10 +1728,10 @@ report (struct solver * solver, char type)
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1<<20);
   printf ("c %c %6.2f %4.0f %5.0f %6zu %8zu "
-          "%12zu %9zu %3.0f%% %6.1f %9zu %9zu %3.0f%%\n",
+          "%12zu %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n",
     type, t, m, a->level, s->reductions, s->restarts,
     s->conflicts, s->redundant, a->trail, a->glue.slow, s->irredundant,
-    s->variables, percent (s->variables, solver->size));
+    solver->active, percent (solver->active, solver->size));
   fflush (stdout);
   unlock_message_mutex ();
 }
@@ -1827,7 +1852,7 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
       watch->garbage = true;
       marked++;
     }
-  solver->limits.fixed = solver->statistics.fixed;
+  solver->last.reduce.fixed = solver->statistics.fixed;
   verbose ("marked %zu satisfied clauses as garbage %.0f%%",
 	   marked, percent (marked, SIZE (solver->watches)));
 }
@@ -1978,7 +2003,7 @@ reduce (struct solver *solver)
   mark_reasons (solver);
   struct watches candidates;
   INIT (candidates);
-  if (limits->fixed < statistics->fixed)
+  if (solver->last.reduce.fixed < statistics->fixed)
     mark_satisfied_clauses_as_garbage (solver);
   gather_reduce_candidates (solver, &candidates);
   sort_reduce_candidates (&candidates);
@@ -2028,7 +2053,7 @@ switching_mode (struct solver *solver)
   struct statistics *s = &solver->statistics;
   struct limits *l = &solver->limits;
   if (s->switched)
-    return s->ticks > l->mode;
+    return s->ticks.search > l->mode;
   else
     return s->conflicts > l->mode;
 }
@@ -2047,14 +2072,46 @@ switch_mode (struct solver *solver)
   struct intervals *i = &solver->intervals;
   struct limits *l = &solver->limits;
   if (!s->switched++)
-    i->mode = s->ticks;
+    i->mode = s->ticks.search;
   if (solver->stable)
     switch_to_focused_mode (solver);
   else
     switch_to_stable_mode (solver);
   swap_scores (solver);
-  l->mode = s->ticks + square (s->switched / 2 + 1) * i->mode;
+  l->mode = s->ticks.search + square (s->switched / 2 + 1) * i->mode;
   verbose ("next mode switching limit at %zu ticks", l->mode);
+}
+
+static void
+local_search (struct solver * solver)
+{
+  START (walk);
+  STOP (walk);
+}
+
+static char
+rephase_walk (struct solver * solver)
+{
+  signed char * values = solver->values;
+  signed char * p = values;
+  for (all_variables (v))
+    {
+      signed phase = decide_phase (solver, v);
+      *p++ = phase;
+      *p++ = -phase;
+    }
+  size_t literals = 2*solver->size;
+  assert (p == values + literals);
+  local_search (solver);
+  assert (!solver->level);
+  memset (solver->values, 0, literals);
+  for (all_elements_on_stack (unsigned, lit, solver->trail))
+    {
+      signed char phase = SGN (lit) ? -1 : 1;
+      values[lit] = phase;
+      values[-lit] = -phase;
+    }
+  return 'W';
 }
 
 static char
@@ -2101,9 +2158,13 @@ rephase (struct solver * solver)
   if (schedule == 0)
     type = rephase_best (solver);
   else if (schedule == 1)
-    type = rephase_inverted (solver);
+    type = rephase_walk (solver);
   else if (schedule == 2)
+    type = rephase_inverted (solver);
+  else if (schedule == 3)
     type = rephase_best (solver);
+  else if (schedule == 4)
+    type = rephase_walk (solver);
   else
     type = rephase_original (solver);
   verbose ("resetting number of target assigned %u", solver->target);
