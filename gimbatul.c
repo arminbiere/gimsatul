@@ -2793,6 +2793,8 @@ print_statistics (struct solver * solver)
            average (s->propagations, w));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "reductions:",
            s->reductions, average (s->conflicts, s->reductions));
+  printf ("c %-19s %13zu %13.2f conflict interval\n", "rephased:",
+           s->rephased, average (s->conflicts, s->rephased));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "restarts:",
            s->restarts, average (s->conflicts, s->restarts));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "switched:",
