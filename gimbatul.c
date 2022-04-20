@@ -60,7 +60,7 @@ static const char * usage =
 #define SLOW_ALPHA 1e-5
 #define FAST_ALPHA 3e-2
 #define RESTART_MARGIN 1.1
-#define MODE_INTERVAL 1e3
+#define MODE_INTERVAL 3e3
 
 /*------------------------------------------------------------------------*/
 
@@ -1973,32 +1973,12 @@ switching_mode (struct solver *solver)
     return s->conflicts > l->mode;
 }
 
-# if 0
-
 static size_t
 square (size_t n)
 {
   assert (n);
   return n * n;
 }
-
-#else
-
-static double
-nlogpown (size_t count, unsigned exp)
-{
-  assert (count > 0);
-  const double tmp = log10 (count + 9);
-  double factor = 1;
-  while (exp--)
-    factor *= tmp;
-  assert (factor >= 1);
-  const double res = count * factor;
-  assert (res >= 1);
-  return res;
-}
-
-#endif
 
 static void
 switch_mode (struct solver *solver)
@@ -2013,8 +1993,7 @@ switch_mode (struct solver *solver)
   else
     switch_to_stable_mode (solver);
   swap_scores (solver);
-  size_t count = s->switched/2 + 1;
-  l->mode = s->ticks + nlogpown (count, 4) * i->mode;
+  l->mode = s->ticks + square (s->switched / 2 + 1) * i->mode;
   verbose ("next mode switching limit at %zu ticks", l->mode);
 }
 
