@@ -2335,7 +2335,7 @@ random32 (struct solver * solver)
 }
 
 static unsigned
-pick_random_modulo (struct solver * solver, unsigned mod)
+random_modulo (struct solver * solver, unsigned mod)
 {
   assert (mod);
   const unsigned tmp = random32 (solver);
@@ -2344,6 +2344,12 @@ pick_random_modulo (struct solver * solver, unsigned mod)
   const unsigned res = mod * fraction;
   assert (res < mod);
   return res;
+}
+
+static double
+random_double (struct solver * solver)
+{
+  return random32 (solver) / 4294967296.0;
 }
 
 static unsigned
@@ -2465,31 +2471,50 @@ flip_literal (struct walker * walker, unsigned lit)
 static void
 flip_literal_in_clause (struct walker * walker, struct clause * clause)
 {
-  struct solver * solver = walker->solver;
-  signed char * values = solver->values;
   assert (EMPTY (walker->literals));
   assert (EMPTY (walker->scores));
+
+  struct solver * solver = walker->solver;
+  signed char * values = solver->values;
+
   LOGCLAUSE (clause, "flipping literal in");
-  double total = 0;
-  for (all_literals_in_clause (lit, clause))
+
+  unsigned lit = INVALID;
+  double total = 0, score = -1;
+  for (all_literals_in_clause (other, clause))
     {
-      signed char value = values[lit];
-      assert (value <= 0);
-      if (!value)
+      if (!values[other])
 	continue;
-      PUSH (walker->literals, lit);
-      double score = break_score (walker, lit);
+      PUSH (walker->literals, other);
+      score = break_score (walker, other);
       PUSH (walker->scores, score);
       total += score;
+      lit = other;
     }
-  size_t size = SIZE (walker->literals);
-  assert (size);
-  unsigned pos = pick_random_modulo (solver, size);
-  unsigned lit = walker->literals.begin[pos];
-  LOG ("flipping literal %s with score %g",
-       LOGLIT (lit), (double) walker->scores.begin[pos]);
+
+  double random = random_double (solver);
+  assert (0 <= random), assert (random < 1);
+  double threshold = random * total;
+
+  double sum = 0, * scores = walker->scores.begin;
+
+  for (all_literals_in_clause (other, clause))
+    {
+      if (!values[other])
+	continue;
+      double other_score = *scores++;
+      sum += other_score;
+      if (threshold >= sum)
+	continue;
+      lit = other;
+      score = other_score;
+      break;
+    }
+
   CLEAR (walker->literals);
   CLEAR (walker->scores);
+
+  LOG ("flipping literal %s with score %g", LOGLIT (lit), score);
   flip_literal (walker, lit);
 }
 
@@ -2498,7 +2523,7 @@ walking_step (struct walker * walker)
 {
   struct unsigneds * unsatisfied = &walker->unsatisfied;
   size_t size = SIZE (*unsatisfied);
-  size_t pos = pick_random_modulo (walker->solver, size);
+  size_t pos = random_modulo (walker->solver, size);
   WOG ("picked clause %zu from %zu broken clauses", pos, size);
   unsigned cidx = unsatisfied->begin[pos];
   struct clause * clause = walker->counters[cidx].clause;
