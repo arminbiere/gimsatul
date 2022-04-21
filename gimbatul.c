@@ -2242,7 +2242,7 @@ import_decisions (struct walker * walker)
 }
  
 static void
-export_decisions (struct walker * walker)
+fix_values_after_local_search (struct walker * walker)
 {
   struct solver * solver = walker->solver;
   signed char * values = solver->values;
@@ -2404,6 +2404,17 @@ break_clause (struct walker * walker,
 }
 
 static void
+new_minimium (struct walker * walker, unsigned unsatisfied)
+{
+  struct solver * solver = walker->solver;
+  verbose ("new minimum %u of unsatisfied clauses", unsatisfied);
+  walker->minimum = unsatisfied;
+  signed char * p = solver->values;
+  for (all_variables (v))
+    v->saved = *p, p += 2;
+}
+
+static void
 make_literal (struct walker * walker, unsigned lit)
 {
   struct solver * solver = walker->solver;
@@ -2425,14 +2436,9 @@ make_literal (struct walker * walker, unsigned lit)
   unsigned unsatisfied = SIZE (walker->unsatisfied);
   LOG ("making literal %s gives %u unsatisfied clauses",
        LOGLIT (lit), unsatisfied);
-  if (unsatisfied >= walker->minimum)
-    return;
 
-  verbose ("new minimum %u of unsatisfied clauses", unsatisfied);
-  walker->minimum = unsatisfied;
-  signed char * p = solver->values;
-  for (all_variables (v))
-    v->saved = *p, p += 2;
+  if (unsatisfied < walker->minimum)
+    new_minimium (walker, unsatisfied);
 }
 
 static void
@@ -2554,7 +2560,7 @@ local_search (struct solver *solver)
     goto DONE;
   walking_loop (&walker);
   release_walker (&walker);
-  export_decisions (&walker);
+  fix_values_after_local_search (&walker);
 DONE:
   solver->last.walk = solver->statistics.ticks.search;
   STOP (walk);
