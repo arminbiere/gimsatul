@@ -2416,7 +2416,9 @@ import_decisions (struct walker * walker)
       v->saved = decide_phase (solver, v);
       signed char phase = *p ? 0 : v->saved;
       *p++ = phase, *p++ = -phase;
-      v->level = 0;
+#ifdef LOGGING
+      v->level = INVALID;
+#endif
     }
   assert (p == values + 2*solver->size);
 }
@@ -2442,6 +2444,7 @@ set_walking_limits (struct walker * walker)
   size_t effort = WALK_EFFORT * ticks;
   effort = 1000000;
   limits->walk = statistics->ticks.walk + effort;
+  WOG ("limiting walking effort to %zu ticks", effort);
 }
 
 static void
