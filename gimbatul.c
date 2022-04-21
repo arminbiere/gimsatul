@@ -2474,6 +2474,9 @@ new_minimium (struct walker * walker, unsigned unsatisfied)
   signed char * p = solver->values;
   for (all_variables (v))
     v->saved = *p, p += 2;
+  size_t size = solver->size;
+  size_t ticks = (sizeof (struct variable) * size + 2*size) >> 7;
+  solver->statistics.ticks.walk += ticks;
 }
 
 static void
