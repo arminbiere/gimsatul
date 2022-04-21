@@ -328,6 +328,7 @@ struct statistics
   size_t rephased;
   size_t restarts;
   size_t switched;
+  size_t walked;
 
   struct
   {
@@ -2284,6 +2285,7 @@ static void
 local_search (struct solver *solver)
 {
   START (walk);
+  solver->statistics.walked++;
   struct walker walker;
   init_walker (solver, &walker);
   struct statistics *statistics = &solver->statistics;
@@ -3114,6 +3116,8 @@ print_statistics (struct solver *solver)
 	  s->restarts, average (s->conflicts, s->restarts));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "switched:",
 	  s->switched, average (s->conflicts, s->switched));
+  printf ("c %-19s %13zu %13.2f flips per walkinterval\n", "walked:",
+	  s->walked, average (s->flips, s->walked));
   fputs ("c\n", stdout);
   printf ("c %-30s %16.2f sec\n", "process-time:", p);
   printf ("c %-30s %16.2f sec\n", "wall-clock-time:", w);
