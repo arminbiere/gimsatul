@@ -2294,14 +2294,18 @@ make_literal (struct walker * walker, unsigned lit)
   struct solver * solver = walker->solver;
   assert (walker->solver->values[lit] > 0);
   struct counter * counters = walker->counters;
+  size_t ticks = 1;
   for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
     {
+      ticks++;
       struct counter * counter = counters + cidx;
       if (counter->count++)
 	continue;
       LOGCLAUSE (counter->clause, "literal %s makes", LOGLIT (lit));
       make_clause (walker, counter);
+      ticks++;
     }
+  solver->statistics.ticks.walk += ticks;
 
   unsigned unsatisfied = SIZE (walker->unsatisfied);
   LOG ("making literal %s gives %u unsatisfied clauses",
@@ -2321,15 +2325,19 @@ break_literal (struct walker * walker, unsigned lit)
 {
   assert (walker->solver->values[lit] < 0);
   struct counter * counters = walker->counters;
+  size_t ticks = 1;
   for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
     {
+      ticks++;
       struct counter * counter = counters + cidx;
       assert (counter->count);
       if (--counter->count)
 	continue;
+      ticks++;
       WOGCLAUSE (counter->clause, "literal %s breaks", LOGLIT (lit));
       break_clause (walker, counter);
     }
+  walker->solver->statistics.ticks.walk += ticks;
 }
 
 static void
@@ -2412,7 +2420,7 @@ local_search (struct solver *solver)
   for (all_elements_on_stack (unsigned, lit, solver->trail))
     values[lit] = 1, values[NOT (lit)] = -1;
 DONE:
-  last->walk = statistics->ticks.search;
+  solver->last.walk = solver->statistics.ticks.search;
   STOP (walk);
 }
 
