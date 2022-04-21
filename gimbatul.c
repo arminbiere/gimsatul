@@ -2108,6 +2108,8 @@ struct walker
   size_t minimum;
 };
 
+#ifdef LOGGING
+
 #define WOG(...) \
 do { \
   struct solver * solver = walker->solver; \
@@ -2119,6 +2121,13 @@ do { \
   struct solver * solver = walker->solver; \
   LOGCLAUSE (__VA_ARGS__); \
 } while (0)
+
+#else
+
+#define WOG(...) do { } while (0)
+#define WOGCLAUSE(...) do { } while (0)
+
+#endif
 
 static size_t
 count_irredundant_non_garbage_clauses (struct solver * solver,
@@ -2278,7 +2287,7 @@ break_count (struct walker * walker, unsigned lit)
   assert (walker->solver->values[not_lit] > 0);
   unsigned res = 0;
   struct counter * counters = walker->counters;
-  for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
+  for (all_elements_on_stack (unsigned, cidx, walker->occs[not_lit]))
     if (counters[cidx].count == 1)
       res++;
   WOG ("break count of %s is %u", LOGLIT (lit), res);
@@ -2302,10 +2311,9 @@ break_score (struct walker * walker, unsigned lit)
 static void
 make_clause (struct walker * walker, struct counter * counter)
 {
-  struct clause * clause = counter->clause;
   unsigned pos = counter->pos;
   assert (pos < SIZE (walker->unsatisfied));
-  assert (walker->unsatisfied.begin[pos] == clause);
+  assert (walker->unsatisfied.begin[pos] == counter->clause);
   walker->unsatisfied.begin[pos] = *--walker->unsatisfied.end;
 }
 
@@ -2382,7 +2390,7 @@ flip_literal_in_clause (struct walker * walker, struct clause * clause)
     {
       signed char value = values[lit];
       assert (value <= 0);
-      if (!values[lit])
+      if (!value)
 	continue;
       PUSH (walker->literals, lit);
       double score = break_score (walker, lit);
