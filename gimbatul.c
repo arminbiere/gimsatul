@@ -1283,15 +1283,17 @@ assign_decision (struct solver *solver, unsigned decision)
 }
 
 static struct watch *
-propagate (struct solver *solver)
+propagate (struct solver *solver, bool search)
 {
   assert (!solver->inconsistent);
   struct trail *trail = &solver->trail;
   struct watch *conflict = 0;
   signed char *values = solver->values;
   size_t ticks = 0;
-  while (!conflict && trail->propagate != trail->end)
+  while (trail->propagate != trail->end)
     {
+      if (search && conflict)
+	break;
       unsigned lit = *trail->propagate++;
       LOG ("propagating %s", LOGLIT (lit));
       solver->statistics.propagations++;
@@ -1377,11 +1379,13 @@ propagate (struct solver *solver)
 	*q++ = *p++;
       watches->end = q;
     }
-  solver->statistics.ticks.search += ticks;
+  if (search)
+    solver->statistics.ticks.search += ticks;
   if (conflict)
     {
       LOGCLAUSE (conflict->clause, "conflicting");
-      solver->statistics.conflicts++;
+      if (search)
+	solver->statistics.conflicts++;
     }
   return conflict;
 }
@@ -1727,7 +1731,7 @@ decide_phase (struct solver *solver, struct variable *v)
 }
 
 static void
-decide (struct solver *solver)
+decide (struct solver *solver, bool search)
 {
   assert (solver->unassigned);
   struct queue *queue = &solver->queue;
@@ -1752,7 +1756,8 @@ decide (struct solver *solver)
     lit = NOT (lit);
   solver->level++;
   assign_decision (solver, lit);
-  solver->statistics.decisions++;
+  if (search)
+    solver->statistics.decisions++;
 }
 
 static size_t reported;
@@ -2251,15 +2256,35 @@ connect_counters (struct walker * walker, struct clause * last)
 }
 
 static void
+warming_up_saved_phases (struct solver * solver)
+{
+  assert (!solver->level);
+  assert (solver->trail.propagate == solver->trail.end);
+  size_t decisions = 0, conflicts = 0;
+  while (solver->unassigned)
+    {
+      decisions++;
+      decide (solver, false);
+      if (!propagate (solver, false))
+	conflicts++;
+    }
+  if (solver->level)
+    backtrack (solver, 0);
+  verbose ("warmed-up phases with %zu decisions and %zu conflicts",
+           decisions, conflicts);
+}
+
+static void
 import_decisions (struct walker * walker)
 {
   struct solver * solver = walker->solver;
+  warming_up_saved_phases (solver);
   signed char *values = solver->values;
   unsigned pos = 0, neg = 0, ignored = 0;
   signed char *p = values;
   for (all_variables (v))
     {
-      signed char phase = decide_phase (solver, v);
+      signed char phase = v->saved;
       if (*p)
 	{
 	  phase = 0;
@@ -2729,7 +2754,7 @@ solve (struct solver *solver)
   int res = solver->inconsistent ? 20 : 0;
   while (!res)
     {
-      struct watch *conflict = propagate (solver);
+      struct watch *conflict = propagate (solver, true);
       if (conflict)
 	{
 	  if (!analyze (solver, conflict))
@@ -2748,7 +2773,7 @@ solve (struct solver *solver)
       else if (rephasing (solver))
 	rephase (solver);
       else
-	decide (solver);
+	decide (solver, true);
     }
   stop_search (solver, res);
   return res;
