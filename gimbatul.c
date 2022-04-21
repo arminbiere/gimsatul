@@ -2176,7 +2176,7 @@ init_walker (struct solver * solver, struct walker * walker)
 	{
 	  p->pos = SIZE (walker->unsatisfied);
 	  PUSH (walker->unsatisfied, clause);
-	  LOGCLAUSE (clause, "initially unsatisfied");
+	  LOGCLAUSE (clause, "initially broken");
 	}
       else
 	p->pos = INVALID;
@@ -2271,6 +2271,24 @@ break_score (struct walker * walker, unsigned lit)
 }
 
 static void
+make_clause (struct walker * walker, struct counter * counter)
+{
+  struct clause * clause = counter->clause;
+  unsigned pos = counter->pos;
+  assert (pos < SIZE (walker->unsatisfied));
+  assert (walker->unsatisfied.begin[pos] == clause);
+  walker->unsatisfied.begin[pos] = *--walker->unsatisfied.end;
+}
+
+static void
+break_clause (struct walker * walker, struct counter * counter)
+{
+  struct clause * clause = counter->clause;
+  counter->pos = SIZE (walker->unsatisfied);
+  PUSH (walker->unsatisfied, clause);
+}
+
+static void
 make_literal (struct walker * walker, unsigned lit)
 {
   struct solver * solver = walker->solver;
@@ -2281,18 +2299,16 @@ make_literal (struct walker * walker, unsigned lit)
       struct counter * counter = counters + cidx;
       if (counter->count++)
 	continue;
-      struct clause * clause = counter->clause;
-      LOGCLAUSE (clause, "literal %s makes", LOGLIT (lit));
-      unsigned pos = counter->pos;
-      assert (pos < SIZE (walker->unsatisfied));
-      assert (walker->unsatisfied.begin[pos] == clause);
-      walker->unsatisfied.begin[pos] = *--walker->unsatisfied.end;
+      LOGCLAUSE (counter->clause, "literal %s makes", LOGLIT (lit));
+      make_clause (walker, counter);
     }
+
   unsigned unsatisfied = SIZE (walker->unsatisfied);
   LOG ("making literal %s gives %u unsatisfied clauses",
        LOGLIT (lit), unsatisfied);
   if (unsatisfied >= walker->minimum)
     return;
+
   verbose ("new minimum %u of unsatisfied clauses", unsatisfied);
   walker->minimum = unsatisfied;
   signed char * p = solver->values;
@@ -2311,10 +2327,8 @@ break_literal (struct walker * walker, unsigned lit)
       assert (counter->count);
       if (--counter->count)
 	continue;
-      struct clause * clause = counter->clause;
-      WOGCLAUSE (clause, "literal %s breaks", LOGLIT (lit));
-      counter->pos = SIZE (walker->unsatisfied);
-      PUSH (walker->unsatisfied, clause);
+      WOGCLAUSE (counter->clause, "literal %s breaks", LOGLIT (lit));
+      break_clause (walker, counter);
     }
 }
 
@@ -2323,29 +2337,29 @@ flip_literal_in_clause (struct walker * walker, struct clause * clause)
 {
   struct solver * solver = walker->solver;
   signed char * values = solver->values;
-  for (all_literals_in_clause (lit, clause))
-    if (values[lit] > 0)
-      {
-	LOGCLAUSE (clause, "skipping already %s satisfied", LOGLIT (lit));
-	return;
-      }
   assert (EMPTY (walker->literals));
   assert (EMPTY (walker->scores));
+  LOGCLAUSE (clause, "flipping literal in");
+  double total = 0;
   for (all_literals_in_clause (lit, clause))
-    if (values[lit])
-      {
-	PUSH (walker->literals, lit);
-	double score = break_score (walker, lit);
-	PUSH (walker->scores, score);
-      }
-  LOGCLAUSE (clause, "making unsatisfied");
+    {
+      signed char value = values[lit];
+      assert (value <= 0);
+      if (!values[lit])
+	continue;
+      PUSH (walker->literals, lit);
+      double score = break_score (walker, lit);
+      PUSH (walker->scores, score);
+      total += score;
+    }
   size_t size = SIZE (walker->literals);
   assert (size);
   unsigned pos = pick_random_modulo (solver, size);
   unsigned lit = walker->literals.begin[pos];
+  LOG ("flipping literal %s with score %g",
+       LOGLIT (lit), walker->scores.begin[lit]);
   CLEAR (walker->literals);
   CLEAR (walker->scores);
-  LOG ("flipping literal %s", LOGLIT (lit));
   assert (values[lit] < 0);
   walker->solver->statistics.flips++;
   unsigned not_lit = NOT (lit);
@@ -2387,9 +2401,8 @@ local_search (struct solver *solver)
   while (walker.minimum && statistics->ticks.walk < limits->walk)
     {
       size_t size = SIZE (*unsatisfied);
-      COVER (!size);
-      LOG ("randomly picking clause from %zu unsatisfied clauses", size);
       size_t pos = pick_random_modulo (solver, size);
+      LOG ("picked clause %zu from %zu broken clauses", pos, size);
       struct clause * clause = unsatisfied->begin[pos];
       unsatisfied->begin[pos] = *--unsatisfied->end;
       flip_literal_in_clause (&walker, clause);
