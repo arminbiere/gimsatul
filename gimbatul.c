@@ -584,8 +584,12 @@ loglit (struct solver *solver, unsigned unsigned_lit)
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
   signed char value = solver->values[unsigned_lit];
   if (value)
-    sprintf (res + strlen (res),
-	     "=%d@%u", (int) value, VAR (unsigned_lit)->level);
+    {
+      sprintf (res + strlen (res), "=%d", (int) value);
+      struct variable * v = VAR (unsigned_lit);
+      if (v->level != INVALID)
+	sprintf (res + strlen (res), "@%u", v->level);
+    }
   assert (strlen (res) + 1 < sizeof *loglitbuf);
   return res;
 }
@@ -2206,6 +2210,61 @@ connect_counters (struct walker * walker, struct clause * last)
     }
 }
 
+static void
+import_decisions (struct walker * walker)
+{
+  struct solver * solver = walker->solver;
+  signed char *values = solver->values;
+  unsigned pos = 0, neg = 0, ignored = 0;
+  signed char *p = values;
+  for (all_variables (v))
+    {
+      signed char phase = decide_phase (solver, v);
+      if (*p)
+	{
+	  phase = 0;
+	  ignored++;
+	}
+      else
+	{
+	  pos += (phase > 0);
+	  neg += (phase < 0);
+#if !defined(NDEBUG) || defined(LOGGING)
+	  v->level = INVALID;
+#endif
+	}
+      *p++ = phase;
+      *p++ = -phase;
+    }
+  assert (p == values + 2*solver->size);
+  verbose ("imported %u positive %u negative decisions (%u ignored)",
+           pos, neg, ignored);
+}
+ 
+static void
+export_decisions (struct walker * walker)
+{
+  struct solver * solver = walker->solver;
+  signed char * values = solver->values;
+  memset (values, 0, 2*solver->size);
+  for (all_elements_on_stack (unsigned, lit, solver->trail))
+    values[lit] = 1, values[NOT (lit)] = -1;
+}
+
+static void
+set_walking_limits (struct walker * walker)
+{
+  struct solver * solver = walker->solver;
+  struct statistics *statistics = &solver->statistics;
+  struct limits *limits = &solver->limits;
+  struct last * last = &solver->last;
+  size_t ticks = statistics->ticks.search - last->walk;
+  size_t effort = WALK_EFFORT * ticks;
+  effort = 1000000;
+  limits->walk = statistics->ticks.walk + effort;
+  WOG ("limiting walking effort to %zu ticks", effort);
+}
+
 static bool
 init_walker (struct solver * solver, struct walker * walker)
 {
@@ -2230,6 +2289,8 @@ init_walker (struct solver * solver, struct walker * walker)
   INIT (walker->breaks);
 
   initialize_break_table (walker);
+  import_decisions (walker);
+  set_walking_limits (walker);
   connect_counters (walker, last);
 
   walker->minimum = SIZE (walker->unsatisfied);
@@ -2378,6 +2439,19 @@ break_literal (struct walker * walker, unsigned lit)
 }
 
 static void
+flip_literal (struct walker * walker, unsigned lit)
+{
+  struct solver * solver = walker->solver;
+  signed char * values = solver->values;
+  assert (values[lit] < 0);
+  solver->statistics.flips++;
+  unsigned not_lit = NOT (lit);
+  values[lit] = 1, values[not_lit] = -1;
+  make_literal (walker, lit);
+  break_literal (walker, not_lit);
+}
+
+static void
 flip_literal_in_clause (struct walker * walker, struct clause * clause)
 {
   struct solver * solver = walker->solver;
@@ -2402,57 +2476,10 @@ flip_literal_in_clause (struct walker * walker, struct clause * clause)
   unsigned pos = pick_random_modulo (solver, size);
   unsigned lit = walker->literals.begin[pos];
   LOG ("flipping literal %s with score %g",
-       LOGLIT (lit), walker->scores.begin[lit]);
+       LOGLIT (lit), (double) walker->scores.begin[lit]);
   CLEAR (walker->literals);
   CLEAR (walker->scores);
-  assert (values[lit] < 0);
-  walker->solver->statistics.flips++;
-  unsigned not_lit = NOT (lit);
-  values[lit] = 1, values[not_lit] = -1;
-  make_literal (walker, lit);
-  break_literal (walker, not_lit);
-}
-
-static void
-import_decisions (struct walker * walker)
-{
-  struct solver * solver = walker->solver;
-  signed char *values = solver->values;
-  signed char *p = values;
-  for (all_variables (v))
-    {
-      v->saved = decide_phase (solver, v);
-      signed char phase = *p ? 0 : v->saved;
-      *p++ = phase, *p++ = -phase;
-#ifdef LOGGING
-      v->level = INVALID;
-#endif
-    }
-  assert (p == values + 2*solver->size);
-}
- 
-static void
-export_decisions (struct walker * walker)
-{
-  struct solver * solver = walker->solver;
-  signed char * values = solver->values;
-  memset (values, 0, 2*solver->size);
-  for (all_elements_on_stack (unsigned, lit, solver->trail))
-    values[lit] = 1, values[NOT (lit)] = -1;
-}
-
-static void
-set_walking_limits (struct walker * walker)
-{
-  struct solver * solver = walker->solver;
-  struct statistics *statistics = &solver->statistics;
-  struct limits *limits = &solver->limits;
-  struct last * last = &solver->last;
-  size_t ticks = statistics->ticks.search - last->walk;
-  size_t effort = WALK_EFFORT * ticks;
-  effort = 1000000;
-  limits->walk = statistics->ticks.walk + effort;
-  WOG ("limiting walking effort to %zu ticks", effort);
+  flip_literal (walker, lit);
 }
 
 static void
@@ -2489,8 +2516,6 @@ local_search (struct solver *solver)
   struct walker walker;
   if (!init_walker (solver, &walker))
     goto DONE;
-  import_decisions (&walker);
-  set_walking_limits (&walker);
   walking_loop (&walker);
   release_walker (&walker);
   export_decisions (&walker);
