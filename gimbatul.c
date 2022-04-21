@@ -2108,11 +2108,24 @@ struct walker
   size_t minimum;
 };
 
-static bool
-init_walker (struct solver * solver, struct walker * walker)
+#define WOG(...) \
+do { \
+  struct solver * solver = walker->solver; \
+  LOG (__VA_ARGS__); \
+} while (0)
+
+#define WOGCLAUSE(...) \
+do { \
+  struct solver * solver = walker->solver; \
+  LOGCLAUSE (__VA_ARGS__); \
+} while (0)
+
+static size_t
+count_irredundant_non_garbage_clauses (struct solver * solver,
+                                       struct clause ** last_ptr)
 {
+  size_t res = 0;
   struct clause * last = 0;
-  size_t clauses = 0;
   for (all_watches (w, solver->watches))
     {
       if (w->garbage)
@@ -2121,23 +2134,15 @@ init_walker (struct solver * solver, struct walker * walker)
 	continue;
       struct clause * clause = w->clause;
       last = clause;
-      clauses++;
+      res++;
     }
-  if (clauses > UINT_MAX)
-    {
-      verbose ("too many clauses %zu for local search", clauses);
-      return false;
-    }
-  verbose ("local search over %zu clauses %.0f%%", clauses,
-           percent (clauses, solver->statistics.irredundant));
-  walker->solver = solver;
-  walker->counters = allocate_array (clauses, sizeof *walker->counters);
-  walker->occs =
-    allocate_and_clear_array (2*solver->size, sizeof *walker->occs);
-  INIT (walker->unsatisfied);
-  INIT (walker->literals);
-  INIT (walker->scores);
-  INIT (walker->breaks);
+  *last_ptr = last;
+  return res;
+}
+
+static void
+initialize_break_table (struct walker * walker)
+{
   double epsilon = 1;
   unsigned maxbreak = 0;
   for (;;)
@@ -2151,6 +2156,13 @@ init_walker (struct solver * solver, struct walker * walker)
     }
   walker->epsilon = epsilon;
   walker->maxbreak = maxbreak;
+  WOG ("epsilon score %g of %u break count and more", epsilon, maxbreak);
+}
+
+static void
+connect_counters (struct walker * walker, struct clause * last)
+{
+  struct solver * solver = walker->solver;
   signed char * values = solver->values;
   struct counter * p = walker->counters;
   unsigned cidx = 0;
@@ -2183,8 +2195,37 @@ init_walker (struct solver * solver, struct walker * walker)
       if (clause == last)
 	break;
     }
+}
+
+static bool
+init_walker (struct solver * solver, struct walker * walker)
+{
+  struct clause * last = 0;
+  size_t clauses = count_irredundant_non_garbage_clauses (solver, &last);
+  if (clauses > UINT_MAX)
+    {
+      verbose ("too many clauses %zu for local search", clauses);
+      return false;
+    }
+
+  verbose ("local search over %zu clauses %.0f%%", clauses,
+           percent (clauses, solver->statistics.irredundant));
+
+  walker->solver = solver;
+  walker->counters = allocate_array (clauses, sizeof *walker->counters);
+  walker->occs =
+    allocate_and_clear_array (2*solver->size, sizeof *walker->occs);
+  INIT (walker->unsatisfied);
+  INIT (walker->literals);
+  INIT (walker->scores);
+  INIT (walker->breaks);
+
+  initialize_break_table (walker);
+  connect_counters (walker, last);
+
   walker->minimum = SIZE (walker->unsatisfied);
   verbose ("initially %zu clauses unsatisfied", walker->minimum);
+
   return true;
 } 
 
@@ -2229,18 +2270,6 @@ pick_random_modulo (struct solver * solver, unsigned mod)
   assert (res < mod);
   return res;
 }
-
-#define WOG(...) \
-do { \
-  struct solver * solver = walker->solver; \
-  LOG (__VA_ARGS__); \
-} while (0)
-
-#define WOGCLAUSE(...) \
-do { \
-  struct solver * solver = walker->solver; \
-  LOGCLAUSE (__VA_ARGS__); \
-} while (0)
 
 static unsigned
 break_count (struct walker * walker, unsigned lit)
@@ -2377,6 +2406,67 @@ flip_literal_in_clause (struct walker * walker, struct clause * clause)
 }
 
 static void
+import_decisions (struct walker * walker)
+{
+  struct solver * solver = walker->solver;
+  signed char *values = solver->values;
+  signed char *p = values;
+  for (all_variables (v))
+    {
+      v->saved = decide_phase (solver, v);
+      signed char phase = *p ? 0 : v->saved;
+      *p++ = phase, *p++ = -phase;
+      v->level = 0;
+    }
+  assert (p == values + 2*solver->size);
+}
+ 
+static void
+export_decisions (struct walker * walker)
+{
+  struct solver * solver = walker->solver;
+  signed char * values = solver->values;
+  memset (values, 0, 2*solver->size);
+  for (all_elements_on_stack (unsigned, lit, solver->trail))
+    values[lit] = 1, values[NOT (lit)] = -1;
+}
+
+static void
+set_walking_limits (struct walker * walker)
+{
+  struct solver * solver = walker->solver;
+  struct statistics *statistics = &solver->statistics;
+  struct limits *limits = &solver->limits;
+  struct last * last = &solver->last;
+  size_t ticks = statistics->ticks.search - last->walk;
+  size_t effort = WALK_EFFORT * ticks;
+  effort = 1000000;
+  limits->walk = statistics->ticks.walk + effort;
+}
+
+static void
+walking_step (struct walker * walker)
+{
+  struct clauses * unsatisfied = &walker->unsatisfied;
+  size_t size = SIZE (*unsatisfied);
+  size_t pos = pick_random_modulo (walker->solver, size);
+  WOG ("picked clause %zu from %zu broken clauses", pos, size);
+  struct clause * clause = unsatisfied->begin[pos];
+  unsatisfied->begin[pos] = *--unsatisfied->end;
+  flip_literal_in_clause (walker, clause);
+}
+
+static void
+walking_loop (struct walker * walker)
+{
+  struct solver * solver = walker->solver;
+  size_t * ticks = &solver->statistics.ticks.walk;
+  size_t limit = solver->limits.walk;
+  while (walker->minimum && *ticks <= limit)
+    walking_step (walker);
+}
+
+static void
 local_search (struct solver *solver)
 {
   START (walk);
@@ -2388,37 +2478,11 @@ local_search (struct solver *solver)
   struct walker walker;
   if (!init_walker (solver, &walker))
     goto DONE;
-  signed char *values = solver->values;
-  signed char *p = values;
-  for (all_variables (v))
-    {
-      v->saved = decide_phase (solver, v);
-      signed char phase = *p ? 0 : v->saved;
-      *p++ = phase, *p++ = -phase;
-      v->level = 0;
-    }
-  assert (p == values + 2*solver->size);
-  struct statistics *statistics = &solver->statistics;
-  struct limits *limits = &solver->limits;
-  struct last * last = &solver->last;
-  size_t ticks = statistics->ticks.search - last->walk;
-  size_t effort = WALK_EFFORT * ticks;
-  effort = 1000000;
-  limits->walk = statistics->ticks.walk + effort;
-  struct clauses * unsatisfied = &walker.unsatisfied;
-  while (walker.minimum && statistics->ticks.walk < limits->walk)
-    {
-      size_t size = SIZE (*unsatisfied);
-      size_t pos = pick_random_modulo (solver, size);
-      LOG ("picked clause %zu from %zu broken clauses", pos, size);
-      struct clause * clause = unsatisfied->begin[pos];
-      unsatisfied->begin[pos] = *--unsatisfied->end;
-      flip_literal_in_clause (&walker, clause);
-    }
+  import_decisions (&walker);
+  set_walking_limits (&walker);
+  walking_loop (&walker);
   release_walker (&walker);
-  memset (values, 0, 2*solver->size);
-  for (all_elements_on_stack (unsigned, lit, solver->trail))
-    values[lit] = 1, values[NOT (lit)] = -1;
+  export_decisions (&walker);
 DONE:
   solver->last.walk = solver->statistics.ticks.search;
   STOP (walk);
@@ -3244,7 +3308,7 @@ main (int argc, char **argv)
   solver = parse_dimacs_file ();
   init_signal_handler ();
   set_limits (solver);
-  rephase_walk (solver);
+  local_search (solver);
   int res = solve (solver);
   reset_signal_handler ();
   close_proof ();
