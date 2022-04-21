@@ -2007,7 +2007,7 @@ reduce (struct solver *solver)
   mark_reasons (solver);
   struct watches candidates;
   INIT (candidates);
-  if (solver->last.fixed == solver->statistics.fixed)
+  if (solver->last.fixed != solver->statistics.fixed)
     mark_satisfied_clauses_as_garbage (solver);
   gather_reduce_candidates (solver, &candidates);
   sort_reduce_candidates (&candidates);
@@ -2264,7 +2264,6 @@ set_walking_limits (struct walker * walker)
   struct last * last = &solver->last;
   size_t ticks = statistics->ticks.search - last->walk;
   size_t effort = WALK_EFFORT * ticks;
-  effort = 1000000;
   limits->walk = statistics->ticks.walk + effort;
   WOG ("limiting walking effort to %zu ticks", effort);
 }
@@ -2474,8 +2473,8 @@ flip_literal (struct walker * walker, unsigned lit)
   make_literal (walker, lit);
 }
 
-static void
-flip_literal_in_clause (struct walker * walker, struct clause * clause)
+static unsigned
+pick_literal_to_flip (struct walker * walker, struct clause * clause)
 {
   assert (EMPTY (walker->literals));
   assert (EMPTY (walker->scores));
@@ -2485,17 +2484,18 @@ flip_literal_in_clause (struct walker * walker, struct clause * clause)
 
   LOGCLAUSE (clause, "flipping literal in");
 
-  unsigned lit = INVALID;
+  unsigned res = INVALID;
   double total = 0, score = -1;
-  for (all_literals_in_clause (other, clause))
+
+  for (all_literals_in_clause (lit, clause))
     {
-      if (!values[other])
+      if (!values[lit])
 	continue;
-      PUSH (walker->literals, other);
-      score = break_score (walker, other);
+      PUSH (walker->literals, lit);
+      score = break_score (walker, lit);
       PUSH (walker->scores, score);
       total += score;
-      lit = other;
+      res = lit;
     }
 
   double random = random_double (solver);
@@ -2508,20 +2508,24 @@ flip_literal_in_clause (struct walker * walker, struct clause * clause)
     {
       if (!values[other])
 	continue;
-      double other_score = *scores++;
-      sum += other_score;
+      double tmp = *scores++;
+      sum += tmp;
       if (threshold >= sum)
 	continue;
-      lit = other;
-      score = other_score;
+      res = other;
+      score = tmp;
       break;
     }
+
+  assert (res != INVALID);
+  assert (score >= 0);
 
   CLEAR (walker->literals);
   CLEAR (walker->scores);
 
-  LOG ("flipping literal %s with score %g", LOGLIT (lit), score);
-  flip_literal (walker, lit);
+  LOG ("flipping literal %s with score %g", LOGLIT (res), score);
+
+  return res;
 }
 
 static void
@@ -2533,7 +2537,8 @@ walking_step (struct walker * walker)
   WOG ("picked clause %zu from %zu broken clauses", pos, size);
   unsigned cidx = unsatisfied->begin[pos];
   struct clause * clause = walker->counters[cidx].clause;
-  flip_literal_in_clause (walker, clause);
+  unsigned lit = pick_literal_to_flip (walker, clause);
+  flip_literal (walker, lit);
 }
 
 static void
@@ -2553,7 +2558,7 @@ local_search (struct solver *solver)
   solver->statistics.walked++;
   if (solver->level)
     backtrack (solver, 0);
-  if (solver->last.fixed == solver->statistics.fixed)
+  if (solver->last.fixed != solver->statistics.fixed)
     mark_satisfied_clauses_as_garbage (solver);
   struct walker walker;
   if (!init_walker (solver, &walker))
@@ -3386,7 +3391,6 @@ main (int argc, char **argv)
   solver = parse_dimacs_file ();
   init_signal_handler ();
   set_limits (solver);
-  local_search (solver);
   int res = solve (solver);
   reset_signal_handler ();
   close_proof ();
