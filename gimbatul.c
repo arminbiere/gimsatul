@@ -2103,7 +2103,7 @@ struct walker
   struct solver * solver;
   struct unsigneds * occs;
   struct counter * counters;
-  struct clauses unsatisfied;
+  struct unsigneds unsatisfied;
   struct unsigneds literals;
   struct doubles scores;
   struct doubles breaks;
@@ -2189,22 +2189,24 @@ connect_counters (struct walker * walker, struct clause * last)
       unsigned count = 0;
       for (all_literals_in_clause (lit, clause))
 	{
-	  PUSH (walker->occs[lit], cidx);
 	  signed char value = values[lit];
-	  if (value > 0)
-	     count++;
+	  if (!value)
+	    continue;
+	  count += (value > 0);
+	  PUSH (walker->occs[lit], cidx);
 	}
       p->count = count;
       p->clause = clause;
-      cidx++;
       if (!count)
 	{
 	  p->pos = SIZE (walker->unsatisfied);
-	  PUSH (walker->unsatisfied, clause);
+	  PUSH (walker->unsatisfied, cidx);
 	  LOGCLAUSE (clause, "initially broken");
 	}
       else
 	p->pos = INVALID;
+      cidx++;
+      p++;
       if (clause == last)
 	break;
     }
@@ -2229,9 +2231,7 @@ import_decisions (struct walker * walker)
 	{
 	  pos += (phase > 0);
 	  neg += (phase < 0);
-#if !defined(NDEBUG) || defined(LOGGING)
 	  v->level = INVALID;
-#endif
 	}
       *p++ = phase;
       *p++ = -phase;
@@ -2248,7 +2248,11 @@ export_decisions (struct walker * walker)
   signed char * values = solver->values;
   memset (values, 0, 2*solver->size);
   for (all_elements_on_stack (unsigned, lit, solver->trail))
-    values[lit] = 1, values[NOT (lit)] = -1;
+    {
+      values[lit] = 1;
+      values[NOT (lit)] = -1;
+      VAR (lit)->level = 0;
+    }
 }
 
 static void
@@ -2280,7 +2284,8 @@ init_walker (struct solver * solver, struct walker * walker)
            percent (clauses, solver->statistics.irredundant));
 
   walker->solver = solver;
-  walker->counters = allocate_array (clauses, sizeof *walker->counters);
+  walker->counters =
+    allocate_and_clear_array (clauses, sizeof *walker->counters);
   walker->occs =
     allocate_and_clear_array (2*solver->size, sizeof *walker->occs);
   INIT (walker->unsatisfied);
@@ -2351,7 +2356,6 @@ break_count (struct walker * walker, unsigned lit)
   for (all_elements_on_stack (unsigned, cidx, walker->occs[not_lit]))
     if (counters[cidx].count == 1)
       res++;
-  WOG ("break count of %s is %u", LOGLIT (lit), res);
   return res;
 }
 
@@ -2365,25 +2369,32 @@ break_score (struct walker * walker, unsigned lit)
     res = walker->epsilon;
   else
     res = walker->breaks.begin[count];
-  WOG ("break score of %s is %g", LOGLIT (lit), res);
+  WOG ("break count of %s is %u and score %g",
+       LOGLIT (lit), count, res);
   return res;
 }
 
 static void
-make_clause (struct walker * walker, struct counter * counter)
+make_clause (struct walker * walker,
+             struct counter * counter, unsigned cidx)
 {
+  assert (walker->counters + cidx == counter);
   unsigned pos = counter->pos;
   assert (pos < SIZE (walker->unsatisfied));
-  assert (walker->unsatisfied.begin[pos] == counter->clause);
-  walker->unsatisfied.begin[pos] = *--walker->unsatisfied.end;
+  assert (walker->unsatisfied.begin[pos] == cidx);
+  unsigned other_cidx = *--walker->unsatisfied.end;
+  walker->unsatisfied.begin[pos] = other_cidx;
+  walker->counters[other_cidx].pos = pos;
+  counter->pos = INVALID;
 }
 
 static void
-break_clause (struct walker * walker, struct counter * counter)
+break_clause (struct walker * walker,
+              struct counter * counter, unsigned cidx)
 {
-  struct clause * clause = counter->clause;
+  assert (walker->counters + cidx == counter);
   counter->pos = SIZE (walker->unsatisfied);
-  PUSH (walker->unsatisfied, clause);
+  PUSH (walker->unsatisfied, cidx);
 }
 
 static void
@@ -2400,7 +2411,7 @@ make_literal (struct walker * walker, unsigned lit)
       if (counter->count++)
 	continue;
       LOGCLAUSE (counter->clause, "literal %s makes", LOGLIT (lit));
-      make_clause (walker, counter);
+      make_clause (walker, counter, cidx);
       ticks++;
     }
   solver->statistics.ticks.walk += ticks;
@@ -2433,7 +2444,7 @@ break_literal (struct walker * walker, unsigned lit)
 	continue;
       ticks++;
       WOGCLAUSE (counter->clause, "literal %s breaks", LOGLIT (lit));
-      break_clause (walker, counter);
+      break_clause (walker, counter, cidx);
     }
   walker->solver->statistics.ticks.walk += ticks;
 }
@@ -2447,8 +2458,8 @@ flip_literal (struct walker * walker, unsigned lit)
   solver->statistics.flips++;
   unsigned not_lit = NOT (lit);
   values[lit] = 1, values[not_lit] = -1;
-  make_literal (walker, lit);
   break_literal (walker, not_lit);
+  make_literal (walker, lit);
 }
 
 static void
@@ -2476,7 +2487,7 @@ flip_literal_in_clause (struct walker * walker, struct clause * clause)
   unsigned pos = pick_random_modulo (solver, size);
   unsigned lit = walker->literals.begin[pos];
   LOG ("flipping literal %s with score %g",
-       LOGLIT (lit), (double) walker->scores.begin[lit]);
+       LOGLIT (lit), (double) walker->scores.begin[pos]);
   CLEAR (walker->literals);
   CLEAR (walker->scores);
   flip_literal (walker, lit);
@@ -2485,12 +2496,12 @@ flip_literal_in_clause (struct walker * walker, struct clause * clause)
 static void
 walking_step (struct walker * walker)
 {
-  struct clauses * unsatisfied = &walker->unsatisfied;
+  struct unsigneds * unsatisfied = &walker->unsatisfied;
   size_t size = SIZE (*unsatisfied);
   size_t pos = pick_random_modulo (walker->solver, size);
   WOG ("picked clause %zu from %zu broken clauses", pos, size);
-  struct clause * clause = unsatisfied->begin[pos];
-  unsatisfied->begin[pos] = *--unsatisfied->end;
+  unsigned cidx = unsatisfied->begin[pos];
+  struct clause * clause = walker->counters[cidx].clause;
   flip_literal_in_clause (walker, clause);
 }
 
