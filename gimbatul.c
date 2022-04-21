@@ -177,6 +177,12 @@ do { \
   P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
   ++ P_ ## LIT
 
+#define all_averages(AVG) \
+  struct average * AVG = (struct average*) &solver->averages, \
+  * END_ ## AVG = (struct average*) ((char*) AVG + sizeof solver->averages); \
+  AVG != END_ ## AVG; \
+  ++AVG
+
 /*------------------------------------------------------------------------*/
 
 struct file
@@ -283,15 +289,20 @@ struct intervals
   size_t mode;
 };
 
+struct average
+{
+  double value, biased, exp;
+};
+
 struct averages
 {
   struct
   {
-    double fast;
-    double slow;
+    struct average fast;
+    struct average slow;
   } glue;
-  double level;
-  double trail;
+  struct average level;
+  struct average trail;
 };
 
 struct profile
@@ -447,6 +458,31 @@ current_resident_set_size (void)
   int scanned = fscanf (file, "%zu %zu", &dummy, &rss);
   fclose (file);
   return scanned == 2 ? rss * sysconf (_SC_PAGESIZE) : 0;
+}
+
+/*------------------------------------------------------------------------*/
+
+static void
+update_average (struct average * average, double alpha, double y)
+{
+  double beta = 1 - alpha;
+  double old_biased = average->biased;
+  double delta = y - old_biased;
+  double scaled_delta = alpha * delta;
+  double new_biased = old_biased + scaled_delta;
+  average->biased = new_biased;
+  double old_exp = average->exp;
+  double new_value;
+  if (old_exp)
+    {
+      double new_exp = old_exp * beta;
+      average->exp = new_exp;
+      double div = 1 - new_exp;
+      new_value = new_biased / div;
+    }
+  else
+    new_value = new_biased;
+  average->value = new_value;
 }
 
 /*------------------------------------------------------------------------*/
@@ -955,6 +991,8 @@ new_solver (unsigned size)
   solver->unassigned = size;
   solver->active = size;
   init_profiles (solver);
+  for (all_averages (a))
+    a->exp = 1.0;
   return solver;
 }
 
@@ -1620,14 +1658,14 @@ analyze (struct solver *solver, struct watch *reason)
     }
   LOG ("back jump level %u", jump);
   struct averages *averages = solver->averages + solver->stable;
-  averages->level += SLOW_ALPHA * (jump - averages->level);
+  update_average (&averages->level, SLOW_ALPHA, jump);
   LOG ("glucose level (LBD) %u", glue);
-  averages->glue.slow += SLOW_ALPHA * (glue - averages->glue.slow);
-  averages->glue.fast += FAST_ALPHA * (glue - averages->glue.fast);
+  update_average (&averages->glue.slow, SLOW_ALPHA, glue);
+  update_average (&averages->glue.fast, FAST_ALPHA, glue);
   unsigned assigned = SIZE (solver->trail);
   double filled = percent (assigned, solver->size);
   LOG ("assigned %u variables %.0f%% filled", assigned, filled);
-  averages->trail += SLOW_ALPHA * (filled - averages->trail);
+  update_average (&averages->trail, SLOW_ALPHA, filled);
   unsigned *literals = clause->begin;
   const unsigned not_uip = NOT (uip);
   literals[0] = not_uip;
@@ -1732,8 +1770,8 @@ report (struct solver *solver, char type)
   double m = current_resident_set_size () / (double) (1 << 20);
   printf ("c %c %6.2f %4.0f %5.0f %6zu %8zu "
 	  "%12zu %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n",
-	  type, t, m, a->level, s->reductions, s->restarts,
-	  s->conflicts, s->redundant, a->trail, a->glue.slow, s->irredundant,
+	  type, t, m, a->level.value, s->reductions, s->restarts, s->conflicts,
+	  s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
 	  solver->active, percent (solver->active, solver->size));
   fflush (stdout);
   unlock_message_mutex ();
@@ -1766,7 +1804,7 @@ restarting (struct solver *solver)
   if (!solver->stable)
     {
       struct averages *a = solver->averages;
-      if (a->glue.fast <= RESTART_MARGIN * a->glue.slow)
+      if (a->glue.fast.value <= RESTART_MARGIN * a->glue.slow.value)
 	return false;
     }
   return l->restart < s->conflicts;
