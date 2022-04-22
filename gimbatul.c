@@ -939,18 +939,16 @@ do { \
 } while (0)
 
 static void
-start_profile (struct profile *profile)
+start_profile (struct profile *profile, double time)
 {
-  double time = current_time ();
   double volatile *p = &profile->start;
   assert (*p < 0);
   *p = time;
 }
 
 static void
-stop_profile (struct profile *profile)
+stop_profile (struct profile *profile, double time)
 {
-  double time = current_time ();
   double volatile *p = &profile->start;
   double delta = time - *p;
   *p = -1;
@@ -958,10 +956,29 @@ stop_profile (struct profile *profile)
 }
 
 #define START(NAME) \
-  start_profile (&solver->profiles.NAME)
+  start_profile (&solver->profiles.NAME, current_time ())
 
 #define STOP(NAME) \
-  stop_profile (&solver->profiles.NAME)
+  stop_profile (&solver->profiles.NAME, current_time ())
+
+#define MODE_PROFILE \
+  (solver->stable ? &solver->profiles.stable : &solver->profiles.focused)
+
+#define STOP_SEARCH_AND_START(NAME) \
+do { \
+  double t = current_time (); \
+  stop_profile (MODE_PROFILE, t); \
+  stop_profile (&solver->profiles.search, t); \
+  start_profile (&solver->profiles.NAME, t); \
+} while (0)
+
+#define STOP_AND_START_SEARCH(NAME) \
+do { \
+  double t = current_time (); \
+  stop_profile (&solver->profiles.NAME, t); \
+  start_profile (&solver->profiles.search, t); \
+  start_profile (MODE_PROFILE, t); \
+} while (0)
 
 static void
 init_profiles (struct solver *solver)
@@ -2720,7 +2737,7 @@ walking_loop (struct walker * walker)
 static void
 local_search (struct solver *solver)
 {
-  START (walk);
+  STOP_SEARCH_AND_START (walk);
   solver->statistics.walked++;
   if (solver->level)
     backtrack (solver, 0);
@@ -2736,7 +2753,7 @@ local_search (struct solver *solver)
   fix_values_after_local_search (&walker);
 DONE:
   solver->last.walk = solver->statistics.ticks.search;
-  STOP (walk);
+  STOP_AND_START_SEARCH (walk);
 }
 
 static char
@@ -3364,7 +3381,6 @@ reset_signal_handler (void)
 #undef SIGNAL
 }
 
-static void print_profiles (struct solver *);
 static void print_statistics (struct solver *);
 
 static void
@@ -3384,7 +3400,6 @@ catch_signal (int sig)
   if (write (1, buffer, bytes) != bytes)
     exit (0);
   reset_signal_handler ();
-  print_profiles (solver);
   print_statistics (solver);
   raise (sig);
 }
@@ -3451,7 +3466,7 @@ flush_profile (double time, struct profile *profile)
   profile->time += delta;
 }
 
-static void
+static double
 flush_profiles (struct solver *solver)
 {
   double time = current_time ();
@@ -3460,6 +3475,7 @@ flush_profiles (struct solver *solver)
       flush_profile (time, profile);
 
   flush_profile (time, &solver->profiles.total);
+  return time;
 }
 
 static int
@@ -3476,11 +3492,10 @@ cmp_profiles (struct profile *a, struct profile *b)
   return strcmp (b->name, a->name);
 }
 
-static void
+static double
 print_profiles (struct solver *solver)
 {
-  lock_message_mutex ();
-  flush_profiles (solver);
+  double time = flush_profiles (solver);
   double total = solver->profiles.total.time;
   struct profile *prev = 0;
   fputs ("c\n", stdout);
@@ -3500,7 +3515,7 @@ print_profiles (struct solver *solver)
   printf ("c %10.2f seconds  100.0%%  total\n", total);
   fputs ("c\n", stdout);
   fflush (stdout);
-  unlock_message_mutex ();
+  return time - start_time;
 }
 
 static void
@@ -3508,21 +3523,24 @@ print_statistics (struct solver *solver)
 {
   lock_message_mutex ();
   double p = process_time ();
-  double w = wall_clock_time ();
+  double t = print_profiles (solver);
+  double w = solver->profiles.walk.time;
   double m = maximum_resident_set_size () / (double) (1 << 20);
   struct statistics *s = &solver->statistics;
   printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", s->conflicts,
-	  average (s->conflicts, w));
+	  average (s->conflicts, t));
   printf ("c %-19s %13zu %13.2f %% variables\n", "fixed-variables:", s->fixed,
 	  percent (s->fixed, solver->size));
+  printf ("c %-19s %13zu %13.2f thousands per second\n", "flips:",
+	  s->flips, average (s->flips, 1e3 * w));
   printf ("c %-19s %13zu %13.2f per learned clause\n", "learned-literals:",
 	  s->learned.literals,
 	  average (s->learned.literals, s->learned.clauses));
   printf ("c %-19s %13zu %13.2f %% per deduced literals\n",
 	  "minimized-literals:", s->minimized, percent (s->minimized,
 							s->deduced));
-  printf ("c %-19s %13zu %13.2f per seccond\n", "propagations:",
-	  s->propagations, average (s->propagations, w));
+  printf ("c %-19s %13zu %13.2f millions per second\n", "propagations:",
+	  s->propagations, average (s->propagations, 1e6*t));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "reductions:",
 	  s->reductions, average (s->conflicts, s->reductions));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "rephased:",
@@ -3535,7 +3553,7 @@ print_statistics (struct solver *solver)
 	  s->walked, average (s->flips, s->walked));
   fputs ("c\n", stdout);
   printf ("c %-30s %16.2f sec\n", "process-time:", p);
-  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", w);
+  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", t);
   printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", m);
   fflush (stdout);
   unlock_message_mutex ();
@@ -3577,7 +3595,6 @@ main (int argc, char **argv)
 	print_witness (solver);
       fflush (stdout);
     }
-  print_profiles (solver);
   print_statistics (solver);
   delete_solver (solver);
 #ifndef NDEBUG
