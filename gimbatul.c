@@ -2223,14 +2223,47 @@ count_irredundant_non_garbage_clauses (struct solver * solver,
   return res;
 }
 
+static double base_values[][2] = {
+  {0.0, 2.00},
+  {3.0, 2.50},
+  {4.0, 2.85},
+  {5.0, 3.70},
+  {6.0, 5.10},
+  {7.0, 7.40}
+};
+
+static double
+interpolate_base (double size)
+{
+  const size_t num_base_values = sizeof base_values / sizeof *base_values;
+  size_t i = 0;
+  while (i + 2 < num_base_values &&
+         (base_values[i][0] > size || base_values[i + 1][0] < size))
+    i++;
+  double x2 = base_values[i + 1][0], x1 = base_values[i][0];
+  double y2 = base_values[i + 1][1], y1 = base_values[i][1];
+  double dx = x2 - x1, dy = y2 - y1;
+  assert (dx);
+  double res = dy * (size - x1) / dx + y1;
+  assert (res > 0);
+  if (res < 1.01)
+    res = 1.01;
+  return res;
+}
+
 static void
-initialize_break_table (struct walker * walker)
+initialize_break_table (struct walker * walker, double length)
 {
   double epsilon = 1;
   unsigned maxbreak = 0;
+  struct solver * solver = walker->solver;
+  size_t walked = solver->statistics.walked;
+  const double base = (walked & 1) ? 2.0 : interpolate_base (length);
+  verbose ("propability exponential sample base %.2f", base);
+  assert (base > 1);
   for (;;)
     {
-      double next = epsilon / 2.0;
+      double next = epsilon / base;
       if (!next)
 	break;
       maxbreak++;
@@ -2242,13 +2275,14 @@ initialize_break_table (struct walker * walker)
   WOG ("epsilon score %g of %u break count and more", epsilon, maxbreak);
 }
 
-static void
+static double
 connect_counters (struct walker * walker, struct clause * last)
 {
   struct solver * solver = walker->solver;
   signed char * values = solver->values;
   struct counter * p = walker->counters;
-  unsigned cidx = 0;
+  double sum_lengths = 0;
+  unsigned clauses = 0;
   for (all_watches (w, solver->watches))
     {
       if (w->garbage)
@@ -2257,29 +2291,35 @@ connect_counters (struct walker * walker, struct clause * last)
 	continue;
       struct clause * clause = w->clause;
       unsigned count = 0;
+      unsigned length = 0;
       for (all_literals_in_clause (lit, clause))
 	{
 	  signed char value = values[lit];
 	  if (!value)
 	    continue;
 	  count += (value > 0);
-	  PUSH (walker->occs[lit], cidx);
+	  PUSH (walker->occs[lit], clauses);
+	  length++;
 	}
+      sum_lengths += length;
       p->count = count;
       p->clause = clause;
       if (!count)
 	{
 	  p->pos = SIZE (walker->unsatisfied);
-	  PUSH (walker->unsatisfied, cidx);
+	  PUSH (walker->unsatisfied, clauses);
 	  LOGCLAUSE (clause, "initially broken");
 	}
       else
 	p->pos = INVALID;
-      cidx++;
+      clauses++;
       p++;
       if (clause == last)
 	break;
     }
+  double average_length = average (sum_lengths, clauses);
+  verbose ("average clause length %.2f", average_length);
+  return average_length;
 }
 
 static void
@@ -2384,10 +2424,10 @@ init_walker (struct solver * solver, struct walker * walker)
   walker->best = 0;
   walker->flips = 0;
 
-  initialize_break_table (walker);
   import_decisions (walker);
   set_walking_limits (walker);
-  connect_counters (walker, last);
+  double length = connect_counters (walker, last);
+  initialize_break_table (walker, length);
 
   walker->initial = walker->minimum = SIZE (walker->unsatisfied);
   verbose ("initially %zu clauses unsatisfied", walker->minimum);
