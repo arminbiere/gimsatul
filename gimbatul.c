@@ -281,7 +281,6 @@ struct limits
   size_t reduce;
   size_t rephase;
   size_t restart;
-  size_t walk;
 };
 
 struct intervals
@@ -2153,6 +2152,7 @@ struct walker
   double epsilon;
   unsigned maxbreak;
   size_t minimum;
+  size_t limit;
 };
 
 #ifdef LOGGING
@@ -2323,11 +2323,10 @@ set_walking_limits (struct walker * walker)
 {
   struct solver * solver = walker->solver;
   struct statistics *statistics = &solver->statistics;
-  struct limits *limits = &solver->limits;
   struct last * last = &solver->last;
   size_t ticks = statistics->ticks.search - last->walk;
   size_t effort = WALK_EFFORT * ticks;
-  limits->walk = statistics->ticks.walk + effort;
+  walker->limit = statistics->ticks.walk + effort;
   WOG ("limiting walking effort to %zu ticks", effort);
 }
 
@@ -2612,7 +2611,7 @@ walking_loop (struct walker * walker)
 {
   struct solver * solver = walker->solver;
   size_t * ticks = &solver->statistics.ticks.walk;
-  size_t limit = solver->limits.walk;
+  size_t limit = walker->limit;
   while (walker->minimum && *ticks <= limit)
     walking_step (walker);
 }
