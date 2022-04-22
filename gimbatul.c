@@ -48,7 +48,7 @@ static const char * usage =
 #define INVALID UINT_MAX
 
 #define MAX_SCORE 1e150
-#define MAX_VERBOSITY 2
+#define MAX_VERBOSITY 3
 #define MINIMIZE_DEPTH 1000
 
 #define FOCUSED_RESTART_INTERVAL 50
@@ -580,6 +580,12 @@ static int verbosity;
 #define verbose(...) \
 do { \
   if (verbosity > 1) \
+    message (__VA_ARGS__); \
+} while (0)
+
+#define very_verbose(...) \
+do { \
+  if (verbosity > 2) \
     message (__VA_ARGS__); \
 } while (0)
 
@@ -1426,7 +1432,7 @@ update_best_and_target_phases (struct solver *solver)
   unsigned assigned = SIZE (solver->trail);
   if (solver->target < assigned)
     {
-      verbose ("updating target assigned to %u", assigned);
+      very_verbose ("updating target assigned to %u", assigned);
       solver->target = assigned;
       signed char *p = solver->values;
       for (all_variables (v))
@@ -1439,7 +1445,7 @@ update_best_and_target_phases (struct solver *solver)
     }
   if (solver->best < assigned)
     {
-      verbose ("updating best assigned to %u", assigned);
+      very_verbose ("updating best assigned to %u", assigned);
       solver->best = assigned;
       signed char *p = solver->values;
       for (all_variables (v))
@@ -2147,12 +2153,16 @@ struct walker
   struct counter * counters;
   struct unsigneds unsatisfied;
   struct unsigneds literals;
+  struct unsigneds trail;
   struct doubles scores;
   struct doubles breaks;
-  double epsilon;
   unsigned maxbreak;
+  double epsilon;
   size_t minimum;
+  size_t initial;
+  unsigned best;
   size_t limit;
+  size_t flips;
 };
 
 #ifdef LOGGING
@@ -2351,15 +2361,18 @@ init_walker (struct solver * solver, struct walker * walker)
     allocate_and_clear_array (2*solver->size, sizeof *walker->occs);
   INIT (walker->unsatisfied);
   INIT (walker->literals);
+  INIT (walker->trail);
   INIT (walker->scores);
   INIT (walker->breaks);
+  walker->best = 0;
+  walker->flips = 0;
 
   initialize_break_table (walker);
   import_decisions (walker);
   set_walking_limits (walker);
   connect_counters (walker, last);
 
-  walker->minimum = SIZE (walker->unsatisfied);
+  walker->initial = walker->minimum = SIZE (walker->unsatisfied);
   verbose ("initially %zu clauses unsatisfied", walker->minimum);
 
   return true;
@@ -2375,6 +2388,7 @@ release_walker (struct walker * walker)
   free (walker->occs);
   RELEASE (walker->unsatisfied);
   RELEASE (walker->literals);
+  RELEASE (walker->trail);
   RELEASE (walker->scores);
   RELEASE (walker->breaks);
 }
@@ -2465,17 +2479,108 @@ break_clause (struct walker * walker,
 }
 
 static void
-new_minimium (struct walker * walker, unsigned unsatisfied)
+save_all_values (struct walker * walker)
 {
+  assert (walker->best == INVALID);
   struct solver * solver = walker->solver;
-  verbose ("new minimum %u of unsatisfied clauses", unsatisfied);
-  walker->minimum = unsatisfied;
   signed char * p = solver->values;
   for (all_variables (v))
-    v->saved = *p, p += 2;
-  size_t size = solver->size;
-  size_t ticks = (sizeof (struct variable) * size + 2*size) >> 7;
-  solver->statistics.ticks.walk += ticks;
+  {
+    signed char value = *p;
+    p += 2;
+    if (value)
+      v->saved = value;
+  }
+  walker->best = 0;
+}
+
+static void
+save_walker_trail (struct walker * walker, bool keep)
+{
+  assert (walker->best != INVALID);
+  unsigned * begin = walker->trail.begin;
+  unsigned * best = begin + walker->best;
+  unsigned * end = walker->trail.end;
+  assert (best <= end);
+  struct solver * solver = walker->solver;
+  struct variable * variables = solver->variables;
+  for (unsigned * p = begin; p != best; p++)
+    {
+      unsigned lit = *p;
+      signed phase = SGN (lit) ? -1 : 1;
+      unsigned idx = IDX (lit);
+      struct variable * v = variables + idx;
+      v->saved = phase;
+    }
+  if (!keep)
+    return;
+  unsigned * q = begin;
+  for (unsigned * p = best; p != end; p++)
+    *q++ = *p;
+  walker->trail.end = q;
+  walker->best = 0;
+}
+
+static void
+save_final_minimum (struct walker * walker)
+{
+  if (walker->minimum == walker->initial)
+    {
+      verbose ("minimum number of unsatisfied clauses %zu unchanged",
+               walker->minimum);
+      return;
+    }
+
+  verbose ("saving improved assignment of %zu unsatisfied clauses",
+           walker->minimum);
+  
+  if (walker->best && walker->best != INVALID)
+    save_walker_trail (walker, false);
+}
+
+static void
+push_flipped (struct walker * walker, unsigned flipped)
+{
+  if (walker->best == INVALID)
+    return;
+  struct solver * solver = walker->solver;
+  struct unsigneds * trail = &walker->trail;
+  size_t size = SIZE (*trail), limit = solver->size / 4 + 1;
+  if (size < limit)
+    PUSH (*trail, flipped);
+  else if (walker->best)
+    {
+      save_walker_trail (walker, true);
+      PUSH (*trail, flipped);
+    }
+  else
+    {
+      CLEAR (*trail);
+      walker->best = INVALID;
+    }
+}
+
+static void
+new_minimium (struct walker * walker, unsigned unsatisfied)
+{
+  very_verbose ("new minimum %u of unsatisfied clauses after %zu flips",
+                unsatisfied, walker->flips);
+  walker->minimum = unsatisfied;
+  if (walker->best == INVALID)
+    save_all_values (walker);
+  else
+    walker->best = SIZE (walker->trail);
+}
+
+static void
+update_minimum (struct walker * walker)
+{
+  unsigned unsatisfied = SIZE (walker->unsatisfied);
+  WOG ("making literal %s gives %u unsatisfied clauses",
+       LOGLIT (lit), unsatisfied);
+
+  if (unsatisfied < walker->minimum)
+    new_minimium (walker, unsatisfied);
 }
 
 static void
@@ -2496,13 +2601,6 @@ make_literal (struct walker * walker, unsigned lit)
       ticks++;
     }
   solver->statistics.ticks.walk += ticks;
-
-  unsigned unsatisfied = SIZE (walker->unsatisfied);
-  LOG ("making literal %s gives %u unsatisfied clauses",
-       LOGLIT (lit), unsatisfied);
-
-  if (unsatisfied < walker->minimum)
-    new_minimium (walker, unsatisfied);
 }
 
 static void
@@ -2532,6 +2630,7 @@ flip_literal (struct walker * walker, unsigned lit)
   signed char * values = solver->values;
   assert (values[lit] < 0);
   solver->statistics.flips++;
+  walker->flips++;
   unsigned not_lit = NOT (lit);
   values[lit] = 1, values[not_lit] = -1;
   break_literal (walker, not_lit);
@@ -2604,6 +2703,8 @@ walking_step (struct walker * walker)
   struct clause * clause = walker->counters[cidx].clause;
   unsigned lit = pick_literal_to_flip (walker, clause);
   flip_literal (walker, lit);
+  push_flipped (walker, lit);
+  update_minimum (walker);
 }
 
 static void
@@ -2629,6 +2730,8 @@ local_search (struct solver *solver)
   if (!init_walker (solver, &walker))
     goto DONE;
   walking_loop (&walker);
+  save_final_minimum (&walker);
+  verbose ("local search flipped %zu literals", walker.flips);
   release_walker (&walker);
   fix_values_after_local_search (&walker);
 DONE:
