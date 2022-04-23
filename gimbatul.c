@@ -7,15 +7,16 @@ static const char * usage =
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
-"-a          use ASCII format for proof output\n"
-"-h          print this command line option summary\n"
-"-f          force reading and writing\n"
+"-a             use ASCII format for proof output\n"
+"-c <conflicts> set conflict limit\n"
+"-f             force reading and writing\n"
+"-h             print this command line option summary\n"
 #ifdef LOGGING
-"-l          enable very verbose internal logging\n"
+"-l             enable very verbose internal logging\n"
 #endif
-"-n          do not print satisfying assignments\n"
-"-v          increase verbosity\n"
-"--version   print version\n"
+"-n             do not print satisfying assignments\n"
+"-v             increase verbosity\n"
+"--version      print version\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof output file in 'DRAT' format\n"
@@ -281,6 +282,7 @@ struct limits
   size_t reduce;
   size_t rephase;
   size_t restart;
+  long conflicts;
 };
 
 struct intervals
@@ -1015,6 +1017,7 @@ new_solver (unsigned size)
   init_profiles (solver);
   for (all_averages (a))
     a->exp = 1.0;
+  solver->limits.conflicts = -1;
   return solver;
 }
 
@@ -1802,23 +1805,6 @@ report (struct solver *solver, char type)
 	  solver->active, percent (solver->active, solver->size));
   fflush (stdout);
   unlock_message_mutex ();
-}
-
-static void
-set_limits (struct solver *solver)
-{
-  if (solver->inconsistent)
-    return;
-  assert (!solver->stable);
-  assert (!solver->statistics.conflicts);
-  struct limits *limits = &solver->limits;
-  limits->mode = MODE_INTERVAL;
-  limits->reduce = REDUCE_INTERVAL;
-  limits->restart = FOCUSED_RESTART_INTERVAL;
-  limits->rephase = REPHASE_INTERVAL;
-  verbose ("reduce interval of %zu conflict", limits->reduce);
-  verbose ("restart interval of %zu conflict", limits->restart);
-  verbose ("initial mode switching interval of %zu conflicts", limits->mode);
 }
 
 static bool
@@ -2909,6 +2895,19 @@ stop_search (struct solver *solver, int res)
   STOP (search);
 }
 
+static bool
+conflict_limit_hit (struct solver * solver)
+{
+  long limit = solver->limits.conflicts;
+  if (limit < 0)
+    return false;
+  size_t conflicts = solver->statistics.conflicts;
+  if (conflicts < (unsigned long) limit)
+    return false;
+  verbose ("conflict limit %ld hit at %zu conflicts", limit, conflicts);
+  return true;
+}
+
 static int
 solve (struct solver *solver)
 {
@@ -2926,6 +2925,8 @@ solve (struct solver *solver)
 	res = 10;
       else if (solver->iterating)
 	iterate (solver);
+      else if (conflict_limit_hit (solver))
+	break;
       else if (reducing (solver))
 	reduce (solver);
       else if (restarting (solver))
@@ -2996,13 +2997,29 @@ open_and_read_from_pipe (const char *path, const char *fmt)
 
 #include "config.h"
 
+static long conflicts = -1;
+
 static void
 parse_options (int argc, char **argv)
 {
   for (int i = 1; i != argc; i++)
     {
       const char *arg = argv[i];
-      if (!strcmp (arg, "-h"))
+      if (!strcmp (arg, "-a"))
+	binary_proof_format = false;
+      else if (!strcmp (arg, "-c"))
+	{
+	  if (++i == argc)
+	    die ("argument to '-c' missing (try '-h')");
+	  if (conflicts >= 0)
+	    die ("multiple '-c %ld' and '-c %s'", conflicts, arg);
+	  arg = argv[i];
+	  if (sscanf (arg, "%ld", &conflicts) != 1 || conflicts < 0)
+	    die ("invalid argument in '-c %s'", arg);
+	}
+      else if (!strcmp (arg, "-f"))
+	force = true;
+      else if (!strcmp (arg, "-h"))
 	{
 	  fputs (usage, stdout);
 	  exit (0);
@@ -3028,10 +3045,6 @@ parse_options (int argc, char **argv)
 	  printf ("%s\n", VERSION);
 	  exit (0);
 	}
-      else if (!strcmp (arg, "-a"))
-	binary_proof_format = false;
-      else if (!strcmp (arg, "-f"))
-	force = true;
       else if (arg[0] == '-' && arg[1])
 	die ("invalid option '%s' (try '-h')", arg);
       else if (proof.file)
@@ -3091,6 +3104,28 @@ parse_options (int argc, char **argv)
     {
       dimacs.path = "<stdin>";
       dimacs.file = stdin;
+    }
+}
+
+static void
+set_limits (struct solver *solver)
+{
+  if (solver->inconsistent)
+    return;
+  assert (!solver->stable);
+  assert (!solver->statistics.conflicts);
+  struct limits *limits = &solver->limits;
+  limits->mode = MODE_INTERVAL;
+  limits->reduce = REDUCE_INTERVAL;
+  limits->restart = FOCUSED_RESTART_INTERVAL;
+  limits->rephase = REPHASE_INTERVAL;
+  verbose ("reduce interval of %zu conflict", limits->reduce);
+  verbose ("restart interval of %zu conflict", limits->restart);
+  verbose ("initial mode switching interval of %zu conflicts", limits->mode);
+  if (conflicts >= 0)
+    {
+      limits->conflicts = conflicts;
+      message ("conflict limit set to %ld conflicts", conflicts);
     }
 }
 
