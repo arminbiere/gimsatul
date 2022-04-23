@@ -209,6 +209,8 @@ struct trail
   unsigned *begin, *end, *propagate;
 };
 
+#define MAX_GLUE ((1u<<31)-1)
+
 struct clause
 {
 #ifdef LOGGING
@@ -1303,8 +1305,8 @@ new_watch (struct solver *solver, struct clause *clause,
     watch->used = 1;
   else
     watch->used = 0;
-  if (glue > 255)
-    glue = 255;
+  if (glue > MAX_GLUE)
+    glue = MAX_GLUE;
   watch->glue = glue;
   watch->middle = 2;
   watch->sum = literals[0] ^ literals[1];
@@ -2062,22 +2064,22 @@ cmp_reduce_candidates (const void *p, const void *q)
   if (h > 255)
     h = 255;
   if (g > h)
-    return 1;
-  if (g < h)
     return -1;
+  if (g < h)
+    return 1;
 #endif
   struct clause *c = u->clause;
   struct clause *d = v->clause;
 #if 0
   if (c->size > d->size)
-    return 1;
-  if (c->size < d->size)
     return -1;
+  if (c->size < d->size)
+    return 1;
 #endif
   if (c->id < d->id)
-    return 1;
-  if (c->id > d->id)
     return -1;
+  if (c->id > d->id)
+    return 1;
   assert (c == d);
   return 0;
 }
@@ -2106,12 +2108,14 @@ sort_reduce_candidates (struct watches * candidates)
       unsigned glue = clause->glue;
       if (glue > 255)
 	glue = 255;
+      glue ^= 255;
       count[glue]++;
     }
   size_t pos = 0;
-  for (unsigned i = 0; i != 256; i++)
+  unsigned i = 256;
+  while (i)
     {
-      size_t size = count[i];
+      size_t size = count[--i];
       count[i] = pos;
       pos += size;
     }
@@ -2125,6 +2129,7 @@ sort_reduce_candidates (struct watches * candidates)
       unsigned glue = clause->glue;
       if (glue > 255)
 	glue = 255;
+      glue ^= 255;
       tmp[count[glue]++] = watch;
     }
   memcpy (begin, tmp, bytes);
@@ -2139,12 +2144,9 @@ mark_reduce_candidates_as_garbage (struct solver *solver,
 {
   size_t size = SIZE (*candidates);
   size_t target = REDUCE_FRACTION * size;
-  struct watch ** begin = candidates->begin;
-  struct watch ** p = candidates->end;
   size_t reduced = 0;
-  while (p != begin)
+  for (all_watches (watch, *candidates))
     {
-      struct watch * watch = *--p;
       LOGCLAUSE (watch->clause, "marking garbage");
       assert (!watch->garbage);
       watch->garbage = true;
