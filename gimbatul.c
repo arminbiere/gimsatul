@@ -2127,7 +2127,10 @@ switch_mode (struct solver *solver)
   struct intervals *i = &solver->intervals;
   struct limits *l = &solver->limits;
   if (!s->switched++)
-    i->mode = s->ticks.search;
+    {
+      i->mode = s->ticks.search;
+      verbose ("determined mode switching ticks interval %zu", i->mode);
+    }
   if (solver->stable)
     switch_to_focused_mode (solver);
   else
@@ -2377,10 +2380,13 @@ set_walking_limits (struct walker * walker)
   struct solver * solver = walker->solver;
   struct statistics *statistics = &solver->statistics;
   struct last * last = &solver->last;
-  size_t ticks = statistics->ticks.search - last->walk;
+  size_t search = statistics->ticks.search;
+  size_t ticks = search - last->walk;
   size_t effort = WALK_EFFORT * ticks;
   walker->limit = statistics->ticks.walk + effort;
-  WOG ("limiting walking effort to %zu ticks", effort);
+  very_verbose ("walking effort %zu ticks = %g * %zu = %g * (%zu - %zu)",
+                effort, (double) WALK_EFFORT, ticks,
+		(double) WALK_EFFORT, search, last->walk);
 }
 
 static bool
@@ -2411,8 +2417,8 @@ init_walker (struct solver * solver, struct walker * walker)
   walker->flips = 0;
 
   import_decisions (walker);
-  set_walking_limits (walker);
   double length = connect_counters (walker, last);
+  set_walking_limits (walker);
   initialize_break_table (walker, length);
 
   walker->initial = walker->minimum = SIZE (walker->unsatisfied);
