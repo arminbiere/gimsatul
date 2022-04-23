@@ -250,15 +250,27 @@ union reference
   size_t raw;
 };
 
-struct pointers
-{
-  void** begin, **end, **allocated;
-};
-
 struct watches
 {
-  struct watch **begin, **end, **allocated;
+  struct watch **begin, ** end, ** allocated;
 };
+
+#ifndef NCOMPACT
+
+struct watchers
+{
+  struct watch **begin;
+  unsigned size, capacity;
+};
+
+#else
+
+struct watchers
+{
+  struct watch **begin, ** end, ** allocated;
+};
+
+#endif
 
 struct variable
 {
@@ -266,13 +278,10 @@ struct variable
   signed char best;
   signed char saved;
   signed char target;
-  bool seen:1;
-  bool poison:1;
   bool minimize:1;
+  bool poison:1;
+  bool seen:1;
   struct watch *reason;
-#ifndef WATCHTAB
-  struct watches watches[2];
-#endif
 };
 
 struct node
@@ -401,7 +410,7 @@ struct solver
   unsigned best;
   struct watches watches;
   struct variable *variables;
-  struct watches * watchtab;
+  struct watchers * watchtab;
   signed char *values;
   bool *used;
   size_t random;
@@ -1207,12 +1216,73 @@ close_proof (void)
 
 /*------------------------------------------------------------------------*/
 
+#ifndef NCOMPACT
+
+static void
+enlarge_watchers (struct watchers * watchers)
+{
+  size_t old_capacity = watchers->capacity;
+  size_t new_capacity = 2*old_capacity;
+  if (!old_capacity)
+    new_capacity = 1;
+  else if (old_capacity == 1u<<31)
+    new_capacity = UINT_MAX;
+  else if (old_capacity == UINT_MAX)
+    fatal_error ("maximum watcher stack size exhausted");
+  size_t bytes = new_capacity * sizeof *watchers->begin;
+  watchers->begin = reallocate_block (watchers->begin, bytes);
+  watchers->capacity = new_capacity;
+}
+
 static void
 push_watch (struct solver * solver, unsigned lit, struct watch * watch)
 {
-  struct watches * watches = WATCHES (lit);
-  PUSH (*watches, watch);
+  struct watchers * watchers = WATCHES (lit);
+  if (watchers->size == watchers->capacity)
+    enlarge_watchers (watchers);
+  watchers->begin[watchers->size++] = watch;
 }
+
+static struct watch **
+end_watchers (struct watchers * watchers)
+{
+  return watchers->begin + watchers->size;
+}
+
+static void
+set_end_of_watchers (struct watchers * watchers, struct watch ** end)
+{
+  assert (watchers->begin <= end);
+  assert (end <= end_watchers (watchers));
+  size_t new_size = end - watchers->begin;
+  assert (new_size <= UINT_MAX);
+  watchers->size = new_size;
+}
+
+#else
+
+static void
+push_watch (struct solver * solver, unsigned lit, struct watch * watch)
+{
+  struct watchers * watchers = WATCHES (lit);
+  PUSH (*watchers, watch);
+}
+
+static struct watch **
+end_watchers (struct watchers * watchers)
+{
+  return watchers->end;
+}
+
+static void
+set_end_of_watchers (struct watchers * watchers, struct watch ** end)
+{
+  assert (watchers->begin <= end);
+  assert (end <= end_watchers (watchers));
+  watchers->end = end;
+}
+
+#endif
 
 static struct watch *
 new_watch (struct solver *solver, struct clause *clause,
@@ -1358,9 +1428,9 @@ propagate (struct solver *solver, bool search)
       LOG ("propagating %s", LOGLIT (lit));
       propagations++;
       unsigned not_lit = NOT (lit);
-      struct watches *watches = WATCHES (not_lit);
-      struct watch **begin = watches->begin, **q = begin;
-      struct watch **end = watches->end, **p = begin;
+      struct watchers *watchers = WATCHES (not_lit);
+      struct watch **begin = watchers->begin, **q = begin;
+      struct watch **end = end_watchers (watchers), **p = begin;
       ticks++;
       while (!conflict && p != end)
 	{
@@ -1437,11 +1507,13 @@ propagate (struct solver *solver, bool search)
 	}
       while (p != end)
 	*q++ = *p++;
-      watches->end = q;
+      set_end_of_watchers (watchers, q);
     }
+
   solver->statistics.contexts[solver->context].conflicts += !!conflict;
   solver->statistics.contexts[solver->context].ticks += ticks;
   solver->statistics.contexts[solver->context].propagations += propagations;
+
   return conflict;
 }
 
@@ -2035,9 +2107,9 @@ flush_garbage_watches_from_watch_lists (struct solver *solver)
   size_t flushed = 0;
   for (all_literals (lit))
     {
-      struct watches *watches = WATCHES (lit);
-      struct watch **begin = watches->begin, **q = begin;
-      struct watch **end = watches->end;
+      struct watchers *watchers = WATCHES (lit);
+      struct watch **begin = watchers->begin, **q = begin;
+      struct watch **end = end_watchers (watchers);
       for (struct watch ** p = begin; p != end; p++)
 	{
 	  struct watch *watch = *q++ = *p;
@@ -2048,7 +2120,7 @@ flush_garbage_watches_from_watch_lists (struct solver *solver)
 	  flushed++;
 	  q--;
 	}
-      watches->end = q;
+      set_end_of_watchers (watchers, q);
     }
   verbose ("flushed %zu garbage watches from watch lists", flushed);
 }
@@ -3225,10 +3297,12 @@ check_types (void)
   CHECK_SIZE_OF_TYPE (bool, 1);
   CHECK_SIZE_OF_TYPE (int, 4);
   CHECK_SIZE_OF_TYPE (unsigned, 4);
-  if (sizeof (void *) != sizeof (size_t))
-    fatal_error ("'sizeof (void*) = %zu' "
-		 "different from 'sizeof (size_t) = %zu'",
-		 sizeof (void *), sizeof (size_t));
+  CHECK_SIZE_OF_TYPE (size_t, 8);
+  CHECK_SIZE_OF_TYPE (void*, 8);
+  CHECK_SIZE_OF_TYPE (struct variable, 16);
+#ifndef NCOMPACT
+  CHECK_SIZE_OF_TYPE (struct watchers, 16);
+#endif
 
   CHECK_SIZE_OF_TYPE (union reference, 8);
 

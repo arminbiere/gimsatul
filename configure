@@ -6,14 +6,17 @@ usage: configure [ <option> ... ]
 where '<option>' is one of the following:
 
 -c     enable assertion checking even without '-g'
--f‥.   passed to compiler (for instance '-fsanitize=address,undefined')
+-f...  passed to compiler (for instance '-fsanitize=address,undefined')
 -g     debugging compile (implies '-c', '-l' and '-s')
 -h     print this command line option summary
 -l     include logging code even without '-g'
 -s     add symbol table even without '-g'
+
+--no-compact  less compact watchers supporting more occurrences
 EOF
 exit 1
 }
+compact=yes
 debug=no
 symbols=no
 logging=no
@@ -32,6 +35,7 @@ do
     -h) usage; exit 0;;
     -l) logging=yes;;
     -s) symbols=yes;;
+    --no-compact) compact=no;;
     *)  die "invalid option '$1' (try '-h')";;
   esac
   shift
@@ -44,6 +48,7 @@ CFLAGS="-Wall$options"
 [ $debug = no ] && CFLAGS="$CFLAGS -O3"
 [ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
+[ $compact = no ] && CFLAGS="$CFLAGS -DNCOMPACT"
 [ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
 echo "configure: $CC $CFLAGS"
 rm -f makefile
