@@ -239,6 +239,17 @@ struct watch
   struct clause *clause;
 };
 
+union reference
+{
+  struct {
+    unsigned other;
+    unsigned redundant:31;
+    unsigned binary:1;
+  } tag;
+  struct watch * watch;
+  size_t raw;
+};
+
 struct watches
 {
   struct watch **begin, **end, **allocated;
@@ -1187,6 +1198,13 @@ close_proof (void)
 
 /*------------------------------------------------------------------------*/
 
+static void
+push_watch (struct solver * solver, unsigned lit, struct watch * watch)
+{
+  struct watches * watches = &WATCHES (lit);
+  PUSH (*watches, watch);
+}
+
 static struct watch *
 new_watch (struct solver *solver, struct clause *clause,
 	   bool redundant, unsigned glue)
@@ -1208,8 +1226,8 @@ new_watch (struct solver *solver, struct clause *clause,
   watch->middle = 2;
   watch->sum = literals[0] ^ literals[1];
   watch->clause = clause;
-  PUSH (WATCHES (literals[0]), watch);
-  PUSH (WATCHES (literals[1]), watch);
+  push_watch (solver, literals[0], watch);
+  push_watch (solver, literals[1], watch);
   PUSH (solver->watches, watch);
   return watch;
 }
@@ -1390,8 +1408,7 @@ propagate (struct solver *solver, bool search)
 	  if (replacement_value >= 0)
 	    {
 	      watch->sum = other ^ replacement;
-	      struct watches *replacement_watches = &WATCHES (replacement);
-	      PUSH (*replacement_watches, watch);
+	      push_watch (solver, replacement, watch);
 	      ticks++;
 	      q--;
 	    }
@@ -2316,7 +2333,6 @@ connect_counters (struct walker * walker, struct clause * last)
 	  p->pos = SIZE (walker->unsatisfied);
 	  PUSH (walker->unsatisfied, clauses);
 	  LOGCLAUSE (clause, "initially broken");
-	  ticks++;
 	}
       else
 	p->pos = INVALID;
@@ -2355,7 +2371,7 @@ static void
 import_decisions (struct walker * walker)
 {
   struct solver * solver = walker->solver;
-  assert (solver->contest == WALK);
+  assert (solver->context == WALK);
   size_t saved = solver->statistics.contexts[WALK].ticks;
   warming_up_saved_phases (solver);
   size_t extra = solver->statistics.contexts[WALK].ticks - saved;
@@ -3202,6 +3218,21 @@ check_types (void)
     fatal_error ("'sizeof (void*) = %zu' "
 		 "different from 'sizeof (size_t) = %zu'",
 		 sizeof (void *), sizeof (size_t));
+
+  CHECK_SIZE_OF_TYPE (union reference, 8);
+
+  {
+    struct watch dummy_watch, * watch = &dummy_watch;
+    if (3 & (size_t) watch)
+      fatal_error ("watch on stack not 4-bytes aligned");
+
+    union reference ref;
+    ref.raw = 0;
+    ref.tag.binary = 1;
+    ref.watch = watch;
+    if (ref.tag.binary)
+      fatal_error ("assumptions about bit-order incorrect");
+  }
 }
 
 /*------------------------------------------------------------------------*/
@@ -3623,12 +3654,12 @@ print_profiles (struct solver *solver)
 	  next = tmp;
       if (!next)
 	break;
-      printf ("c %10.2f seconds  %5.1f%%  %s\n",
+      printf ("c %10.2f seconds  %5.1f %%  %s\n",
 	      next->time, percent (next->time, total), next->name);
       prev = next;
     }
   fputs ("c ---------------------------------------\n", stdout);
-  printf ("c %10.2f seconds  100.0%%  total\n", total);
+  printf ("c %10.2f seconds  100.0 %%  total\n", total);
   fputs ("c\n", stdout);
   fflush (stdout);
   return time - start_time;
