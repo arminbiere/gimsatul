@@ -1943,16 +1943,31 @@ cmp_reduce_candidates (const void *p, const void *q)
 {
   struct watch *u = *(struct watch **) p;
   struct watch *v = *(struct watch **) q;
+#if 0
   if (u->glue > v->glue)
     return -1;
   if (u->glue < v->glue)
     return 1;
+#else
+  unsigned g = u->glue;
+  if (g > 255)
+    g = 255;
+  unsigned h = v->glue;
+  if (h > 255)
+    h = 255;
+  if (g > h)
+    return -1;
+  if (g < h)
+    return 1;
+#endif
   struct clause *c = u->clause;
   struct clause *d = v->clause;
+#if 0
   if (c->size > d->size)
     return -1;
   if (c->size < d->size)
     return 1;
+#endif
   if (c->id < d->id)
     return -1;
   if (c->id > d->id)
