@@ -330,23 +330,30 @@ struct last
   size_t walk;
 };
 
+#define SEARCH 0
+#define WALK 1
+#define CONTEXTS 2
+
+#define SEARCH_CONFLICTS solver->statistics.contexts[SEARCH].conflicts
+#define SEARCH_PROPAGATIONS solver->statistics.contexts[SEARCH].propagations
+#define SEARCH_TICKS solver->statistics.contexts[SEARCH].ticks
+
+
 struct statistics
 {
-  size_t conflicts;
-  size_t decisions;
   size_t flips;
-  size_t propagations;
   size_t reductions;
   size_t rephased;
   size_t restarts;
   size_t switched;
   size_t walked;
 
-  struct
-  {
-    size_t search;
-    size_t walk;
-  } ticks;
+  struct {
+    size_t conflicts;
+    size_t decisions;
+    size_t propagations;
+    size_t ticks;
+  } contexts[CONTEXTS];
 
   size_t added;
   size_t deduced;
@@ -367,6 +374,7 @@ struct solver
   bool inconsistent;
   bool iterating;
   bool stable;
+  int context;
   unsigned size;
   unsigned active;
   unsigned level;
@@ -1314,14 +1322,14 @@ propagate (struct solver *solver, bool search)
   struct trail *trail = &solver->trail;
   struct watch *conflict = 0;
   signed char *values = solver->values;
-  size_t ticks = 0;
+  size_t ticks = 0, propagations = 0;
   while (trail->propagate != trail->end)
     {
       if (search && conflict)
 	break;
       unsigned lit = *trail->propagate++;
       LOG ("propagating %s", LOGLIT (lit));
-      solver->statistics.propagations++;
+      propagations++;
       unsigned not_lit = NOT (lit);
       struct watches *watches = &WATCHES (not_lit);
       struct watch **begin = watches->begin, **q = begin;
@@ -1392,6 +1400,7 @@ propagate (struct solver *solver, bool search)
 	    CONFLICT:
 	      assert (other_value < 0);
 	      conflict = watch;
+	      LOGCLAUSE (conflict->clause, "conflicting");
 	    }
 	  else
 	    {
@@ -1404,14 +1413,9 @@ propagate (struct solver *solver, bool search)
 	*q++ = *p++;
       watches->end = q;
     }
-  if (search)
-    solver->statistics.ticks.search += ticks;
-  if (conflict)
-    {
-      LOGCLAUSE (conflict->clause, "conflicting");
-      if (search)
-	solver->statistics.conflicts++;
-    }
+  solver->statistics.contexts[solver->context].conflicts += !!conflict;
+  solver->statistics.contexts[solver->context].ticks += ticks;
+  solver->statistics.contexts[solver->context].propagations += propagations;
   return conflict;
 }
 
@@ -1756,7 +1760,7 @@ decide_phase (struct solver *solver, struct variable *v)
 }
 
 static void
-decide (struct solver *solver, bool search)
+decide (struct solver *solver)
 {
   assert (solver->unassigned);
   struct queue *queue = &solver->queue;
@@ -1781,8 +1785,7 @@ decide (struct solver *solver, bool search)
     lit = NOT (lit);
   solver->level++;
   assign_decision (solver, lit);
-  if (search)
-    solver->statistics.decisions++;
+  solver->statistics.contexts[solver->context].decisions++;
 }
 
 static size_t reported;
@@ -1799,8 +1802,8 @@ report (struct solver *solver, char type)
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
   printf ("c %c %6.2f %4.0f %5.0f %6zu %8zu "
-	  "%12zu %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n",
-	  type, t, m, a->level.value, s->reductions, s->restarts, s->conflicts,
+	  "%12zu %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n", type, t, m,
+	  a->level.value, s->reductions, s->restarts, SEARCH_CONFLICTS,
 	  s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
 	  solver->active, percent (solver->active, solver->size));
   fflush (stdout);
@@ -1812,7 +1815,6 @@ restarting (struct solver *solver)
 {
   if (!solver->level)
     return false;
-  struct statistics *s = &solver->statistics;
   struct limits *l = &solver->limits;
   if (!solver->stable)
     {
@@ -1820,7 +1822,7 @@ restarting (struct solver *solver)
       if (a->glue.fast.value <= RESTART_MARGIN * a->glue.slow.value)
 	return false;
     }
-  return l->restart < s->conflicts;
+  return l->restart < SEARCH_CONFLICTS;
 }
 
 static void
@@ -1829,11 +1831,11 @@ restart (struct solver *solver)
   struct statistics *statistics = &solver->statistics;
   statistics->restarts++;
   verbose ("restart %zu at %zu conflicts",
-	   statistics->restarts, statistics->conflicts);
+	   statistics->restarts, SEARCH_CONFLICTS);
   update_best_and_target_phases (solver);
   backtrack (solver, 0);
   struct limits *limits = &solver->limits;
-  limits->restart = statistics->conflicts;
+  limits->restart = SEARCH_CONFLICTS;
   if (solver->stable)
     {
       struct reluctant *reluctant = &solver->reluctant;
@@ -2044,7 +2046,7 @@ flush_garbage_watches_and_delete_unshared_clauses (struct solver *solver)
 static bool
 reducing (struct solver *solver)
 {
-  return solver->limits.reduce < solver->statistics.conflicts;
+  return solver->limits.reduce < SEARCH_CONFLICTS;
 }
 
 static void
@@ -2054,7 +2056,7 @@ reduce (struct solver *solver)
   struct limits *limits = &solver->limits;
   statistics->reductions++;
   verbose ("reduction %zu at %zu conflicts",
-	   statistics->reductions, statistics->conflicts);
+	   statistics->reductions, SEARCH_CONFLICTS);
   mark_reasons (solver);
   struct watches candidates;
   INIT (candidates);
@@ -2067,7 +2069,7 @@ reduce (struct solver *solver)
   flush_garbage_watches_from_watch_lists (solver);
   flush_garbage_watches_and_delete_unshared_clauses (solver);
   unmark_reasons (solver);
-  limits->reduce = statistics->conflicts;
+  limits->reduce = SEARCH_CONFLICTS;
   limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
   verbose ("next reduce limit at %zu conflicts", limits->reduce);
   report (solver, '-');
@@ -2082,9 +2084,8 @@ switch_to_focused_mode (struct solver *solver)
   solver->stable = false;
   START (focused);
   report (solver, '{');
-  struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
-  limits->restart = statistics->conflicts + FOCUSED_RESTART_INTERVAL;
+  limits->restart = SEARCH_CONFLICTS + FOCUSED_RESTART_INTERVAL;
 }
 
 static void
@@ -2096,21 +2097,19 @@ switch_to_stable_mode (struct solver *solver)
   solver->stable = true;
   START (stable);
   report (solver, '[');
-  struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
-  limits->restart = statistics->conflicts + STABLE_RESTART_INTERVAL;
+  limits->restart = SEARCH_CONFLICTS + STABLE_RESTART_INTERVAL;
   solver->reluctant.u = solver->reluctant.v = 1;
 }
 
 static bool
 switching_mode (struct solver *solver)
 {
-  struct statistics *s = &solver->statistics;
   struct limits *l = &solver->limits;
-  if (s->switched)
-    return s->ticks.search > l->mode;
+  if (solver->statistics.switched)
+    return SEARCH_TICKS > l->mode;
   else
-    return s->conflicts > l->mode;
+    return SEARCH_CONFLICTS > l->mode;
 }
 
 static size_t
@@ -2128,7 +2127,7 @@ switch_mode (struct solver *solver)
   struct limits *l = &solver->limits;
   if (!s->switched++)
     {
-      i->mode = s->ticks.search;
+      i->mode = SEARCH_TICKS;
       verbose ("determined mode switching ticks interval %zu", i->mode);
     }
   if (solver->stable)
@@ -2136,7 +2135,7 @@ switch_mode (struct solver *solver)
   else
     switch_to_stable_mode (solver);
   swap_scores (solver);
-  l->mode = s->ticks.search + square (s->switched / 2 + 1) * i->mode;
+  l->mode = SEARCH_TICKS + square (s->switched / 2 + 1) * i->mode;
   verbose ("next mode switching limit at %zu ticks", l->mode);
 }
 
@@ -2168,6 +2167,7 @@ struct walker
   size_t initial;
   unsigned best;
   size_t limit;
+  size_t extra;
   size_t flips;
 };
 
@@ -2272,12 +2272,14 @@ connect_counters (struct walker * walker, struct clause * last)
   struct counter * p = walker->counters;
   double sum_lengths = 0;
   unsigned clauses = 0;
+  size_t ticks = 1;
   for (all_watches (w, solver->watches))
     {
       if (w->garbage)
 	continue;
       if (w->redundant)
 	continue;
+      ticks++;
       struct clause * clause = w->clause;
       unsigned count = 0;
       unsigned length = 0;
@@ -2288,6 +2290,7 @@ connect_counters (struct walker * walker, struct clause * last)
 	    continue;
 	  count += (value > 0);
 	  PUSH (walker->occs[lit], clauses);
+	  ticks++;
 	  length++;
 	}
       sum_lengths += length;
@@ -2298,6 +2301,7 @@ connect_counters (struct walker * walker, struct clause * last)
 	  p->pos = SIZE (walker->unsatisfied);
 	  PUSH (walker->unsatisfied, clauses);
 	  LOGCLAUSE (clause, "initially broken");
+	  ticks++;
 	}
       else
 	p->pos = INVALID;
@@ -2308,6 +2312,8 @@ connect_counters (struct walker * walker, struct clause * last)
     }
   double average_length = average (sum_lengths, clauses);
   verbose ("average clause length %.2f", average_length);
+  very_verbose ("connecting counters took %zu extra ticks", ticks);
+  walker->extra += ticks;
   return average_length;
 }
 
@@ -2320,7 +2326,7 @@ warming_up_saved_phases (struct solver * solver)
   while (solver->unassigned)
     {
       decisions++;
-      decide (solver, false);
+      decide (solver);
       if (!propagate (solver, false))
 	conflicts++;
     }
@@ -2334,7 +2340,12 @@ static void
 import_decisions (struct walker * walker)
 {
   struct solver * solver = walker->solver;
+  assert (solver->contest == WALK);
+  size_t saved = solver->statistics.contexts[WALK].ticks;
   warming_up_saved_phases (solver);
+  size_t extra = solver->statistics.contexts[WALK].ticks - saved;
+  walker->extra += extra;
+  very_verbose ("warming up needed %zu extra ticks", extra);
   signed char *values = solver->values;
   unsigned pos = 0, neg = 0, ignored = 0;
   signed char *p = values;
@@ -2380,13 +2391,16 @@ set_walking_limits (struct walker * walker)
   struct solver * solver = walker->solver;
   struct statistics *statistics = &solver->statistics;
   struct last * last = &solver->last;
-  size_t search = statistics->ticks.search;
+  size_t search = statistics->contexts[SEARCH].ticks;
+  size_t walk = statistics->contexts[WALK].ticks;
   size_t ticks = search - last->walk;
-  size_t effort = WALK_EFFORT * ticks;
-  walker->limit = statistics->ticks.walk + effort;
-  very_verbose ("walking effort %zu ticks = %g * %zu = %g * (%zu - %zu)",
-                effort, (double) WALK_EFFORT, ticks,
-		(double) WALK_EFFORT, search, last->walk);
+  size_t extra = walker->extra;
+  size_t effort = extra + WALK_EFFORT * ticks;
+  walker->limit = walk + effort;
+  very_verbose ("walking effort %zu ticks = "
+                "%zu + %g * %zu = %zu + %g * (%zu - %zu)",
+                effort, extra, (double) WALK_EFFORT, ticks,
+		extra, (double) WALK_EFFORT, search, last->walk);
 }
 
 static bool
@@ -2415,6 +2429,7 @@ init_walker (struct solver * solver, struct walker * walker)
   INIT (walker->breaks);
   walker->best = 0;
   walker->flips = 0;
+  walker->extra = 0;
 
   import_decisions (walker);
   double length = connect_counters (walker, last);
@@ -2636,7 +2651,7 @@ static void
 make_literal (struct walker * walker, unsigned lit)
 {
   struct solver * solver = walker->solver;
-  assert (walker->solver->values[lit] > 0);
+  assert (solver->values[lit] > 0);
   struct counter * counters = walker->counters;
   size_t ticks = 1;
   for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
@@ -2649,13 +2664,14 @@ make_literal (struct walker * walker, unsigned lit)
       make_clause (walker, counter, cidx);
       ticks++;
     }
-  solver->statistics.ticks.walk += ticks;
+  solver->statistics.contexts[WALK].ticks += ticks;
 }
 
 static void
 break_literal (struct walker * walker, unsigned lit)
 {
-  assert (walker->solver->values[lit] < 0);
+  struct solver * solver = walker->solver;
+  assert (solver->values[lit] < 0);
   struct counter * counters = walker->counters;
   size_t ticks = 1;
   for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
@@ -2669,7 +2685,7 @@ break_literal (struct walker * walker, unsigned lit)
       WOGCLAUSE (counter->clause, "literal %s breaks", LOGLIT (lit));
       break_clause (walker, counter, cidx);
     }
-  walker->solver->statistics.ticks.walk += ticks;
+  solver->statistics.contexts[WALK].ticks += ticks;
 }
 
 static void
@@ -2760,7 +2776,7 @@ static void
 walking_loop (struct walker * walker)
 {
   struct solver * solver = walker->solver;
-  size_t * ticks = &solver->statistics.ticks.walk;
+  size_t * ticks = &solver->statistics.contexts[WALK].ticks;
   size_t limit = walker->limit;
   while (walker->minimum && *ticks <= limit)
     walking_step (walker);
@@ -2770,6 +2786,8 @@ static void
 local_search (struct solver *solver)
 {
   STOP_SEARCH_AND_START (walk);
+  assert (solver->context == SEARCH);
+  solver->context = WALK;
   solver->statistics.walked++;
   if (solver->level)
     backtrack (solver, 0);
@@ -2784,7 +2802,9 @@ local_search (struct solver *solver)
   release_walker (&walker);
   fix_values_after_local_search (&walker);
 DONE:
-  solver->last.walk = solver->statistics.ticks.search;
+  solver->last.walk = solver->statistics.contexts[SEARCH].ticks;
+  assert (solver->context == WALK);
+  solver->context = SEARCH;
   STOP_AND_START_SEARCH (walk);
 }
 
@@ -2825,7 +2845,7 @@ static bool
 rephasing (struct solver *solver)
 {
   return solver->stable &&
-    solver->statistics.conflicts > solver->limits.rephase;
+    SEARCH_CONFLICTS > solver->limits.rephase;
 }
 
 static void
@@ -2857,7 +2877,7 @@ rephase (struct solver *solver)
       verbose ("resetting number of best assigned %u", solver->best);
       solver->best = 0;
     }
-  limits->rephase = statistics->conflicts;
+  limits->rephase = SEARCH_CONFLICTS;
   limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
   verbose ("next rephase limit at %zu conflicts", limits->rephase);
   report (solver, type);
@@ -2907,7 +2927,7 @@ conflict_limit_hit (struct solver * solver)
   long limit = solver->limits.conflicts;
   if (limit < 0)
     return false;
-  size_t conflicts = solver->statistics.conflicts;
+  size_t conflicts = SEARCH_CONFLICTS;
   if (conflicts < (unsigned long) limit)
     return false;
   verbose ("conflict limit %ld hit at %zu conflicts", limit, conflicts);
@@ -2942,7 +2962,7 @@ solve (struct solver *solver)
       else if (rephasing (solver))
 	rephase (solver);
       else
-	decide (solver, true);
+	decide (solver);
     }
   stop_search (solver, res);
   return res;
@@ -3119,7 +3139,7 @@ set_limits (struct solver *solver)
   if (solver->inconsistent)
     return;
   assert (!solver->stable);
-  assert (!solver->statistics.conflicts);
+  assert (!SEARCH_CONFLICTS);
   struct limits *limits = &solver->limits;
   limits->mode = MODE_INTERVAL;
   limits->reduce = REDUCE_INTERVAL;
@@ -3603,17 +3623,23 @@ static void
 print_statistics (struct solver *solver)
 {
   lock_message_mutex ();
-  double p = process_time ();
-  double t = print_profiles (solver);
-  double w = solver->profiles.walk.time;
-  double m = maximum_resident_set_size () / (double) (1 << 20);
+  double process = process_time ();
+  double total = print_profiles (solver);
+  double search = solver->profiles.search.time;
+  double walk = solver->profiles.total.time;
+  double memory = maximum_resident_set_size () / (double) (1 << 20);
   struct statistics *s = &solver->statistics;
-  printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", s->conflicts,
-	  average (s->conflicts, t));
+  size_t conflicts = s->contexts[SEARCH].conflicts;
+  size_t decisions = s->contexts[SEARCH].decisions;
+  size_t propagations = s->contexts[SEARCH].propagations;
+  printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", conflicts,
+	  average (conflicts, search));
+  printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", decisions,
+	  average (decisions, search));
   printf ("c %-19s %13zu %13.2f %% variables\n", "fixed-variables:", s->fixed,
 	  percent (s->fixed, solver->size));
   printf ("c %-19s %13zu %13.2f thousands per second\n", "flips:",
-	  s->flips, average (s->flips, 1e3 * w));
+	  s->flips, average (s->flips, 1e3 * walk));
   printf ("c %-19s %13zu %13.2f per learned clause\n", "learned-literals:",
 	  s->learned.literals,
 	  average (s->learned.literals, s->learned.clauses));
@@ -3621,21 +3647,21 @@ print_statistics (struct solver *solver)
 	  "minimized-literals:", s->minimized, percent (s->minimized,
 							s->deduced));
   printf ("c %-19s %13zu %13.2f millions per second\n", "propagations:",
-	  s->propagations, average (s->propagations, 1e6*t));
+	  propagations, average (propagations, 1e6*search));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "reductions:",
-	  s->reductions, average (s->conflicts, s->reductions));
+	  s->reductions, average (conflicts, s->reductions));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "rephased:",
-	  s->rephased, average (s->conflicts, s->rephased));
+	  s->rephased, average (conflicts, s->rephased));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "restarts:",
-	  s->restarts, average (s->conflicts, s->restarts));
+	  s->restarts, average (conflicts, s->restarts));
   printf ("c %-19s %13zu %13.2f conflict interval\n", "switched:",
-	  s->switched, average (s->conflicts, s->switched));
+	  s->switched, average (conflicts, s->switched));
   printf ("c %-19s %13zu %13.2f flips per walkinterval\n", "walked:",
 	  s->walked, average (s->flips, s->walked));
   fputs ("c\n", stdout);
-  printf ("c %-30s %16.2f sec\n", "process-time:", p);
-  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", t);
-  printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", m);
+  printf ("c %-30s %16.2f sec\n", "process-time:", process);
+  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", total);
+  printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", memory);
   fflush (stdout);
   unlock_message_mutex ();
 }
