@@ -79,7 +79,7 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
-#define WATCHES(LIT) (VAR (LIT)->watches[SGN (LIT)])
+#define WATCHES(LIT) (&VAR (LIT)->watches[SGN (LIT)])
 
 /*------------------------------------------------------------------------*/
 
@@ -248,6 +248,11 @@ union reference
   } tag;
   struct watch * watch;
   size_t raw;
+};
+
+struct pointers
+{
+  void** begin, **end, **allocated;
 };
 
 struct watches
@@ -1044,7 +1049,7 @@ static void
 release_watches (struct solver *solver)
 {
   for (all_literals (lit))
-    RELEASE (WATCHES (lit));
+    RELEASE (*WATCHES (lit));
   for (all_watches (w, solver->watches))
     {
       struct clause *clause = w->clause;
@@ -1201,7 +1206,7 @@ close_proof (void)
 static void
 push_watch (struct solver * solver, unsigned lit, struct watch * watch)
 {
-  struct watches * watches = &WATCHES (lit);
+  struct watches * watches = WATCHES (lit);
   PUSH (*watches, watch);
 }
 
@@ -1349,7 +1354,7 @@ propagate (struct solver *solver, bool search)
       LOG ("propagating %s", LOGLIT (lit));
       propagations++;
       unsigned not_lit = NOT (lit);
-      struct watches *watches = &WATCHES (not_lit);
+      struct watches *watches = WATCHES (not_lit);
       struct watch **begin = watches->begin, **q = begin;
       struct watch **end = watches->end, **p = begin;
       ticks++;
@@ -2026,7 +2031,7 @@ flush_garbage_watches_from_watch_lists (struct solver *solver)
   size_t flushed = 0;
   for (all_literals (lit))
     {
-      struct watches *watches = &WATCHES (lit);
+      struct watches *watches = WATCHES (lit);
       struct watch **begin = watches->begin, **q = begin;
       struct watch **end = watches->end;
       for (struct watch ** p = begin; p != end; p++)
@@ -2668,8 +2673,10 @@ new_minimium (struct walker * walker, unsigned unsatisfied)
 }
 
 static void
-update_minimum (struct walker * walker)
+update_minimum (struct walker * walker, unsigned lit)
 {
+  (void) lit;
+
   unsigned unsatisfied = SIZE (walker->unsatisfied);
   WOG ("making literal %s gives %u unsatisfied clauses",
        LOGLIT (lit), unsatisfied);
@@ -2800,7 +2807,7 @@ walking_step (struct walker * walker)
   unsigned lit = pick_literal_to_flip (walker, clause);
   flip_literal (walker, lit);
   push_flipped (walker, lit);
-  update_minimum (walker);
+  update_minimum (walker, lit);
 }
 
 static void
