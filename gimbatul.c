@@ -79,7 +79,7 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
-#define WATCHES(LIT) (&VAR (LIT)->watches[SGN (LIT)])
+#define WATCHES(LIT) (&solver->watchtab[LIT])
 
 /*------------------------------------------------------------------------*/
 
@@ -270,7 +270,9 @@ struct variable
   bool poison:1;
   bool minimize:1;
   struct watch *reason;
+#ifndef WATCHTAB
   struct watches watches[2];
+#endif
 };
 
 struct node
@@ -399,6 +401,7 @@ struct solver
   unsigned best;
   struct watches watches;
   struct variable *variables;
+  struct watches * watchtab;
   signed char *values;
   bool *used;
   size_t random;
@@ -1024,6 +1027,8 @@ new_solver (unsigned size)
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
   solver->size = size;
   solver->values = allocate_and_clear_array (1, 2*size);
+  solver->watchtab =
+    allocate_and_clear_array (sizeof (struct watches), 2*size);
   solver->used = allocate_and_clear_block (size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
@@ -1048,8 +1053,7 @@ new_solver (unsigned size)
 static void
 release_watches (struct solver *solver)
 {
-  for (all_literals (lit))
-    RELEASE (*WATCHES (lit));
+  free (solver->watchtab);
   for (all_watches (w, solver->watches))
     {
       struct clause *clause = w->clause;
