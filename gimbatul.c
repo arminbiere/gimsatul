@@ -2260,7 +2260,7 @@ mark_reduce_candidates_as_garbage (struct solver *solver,
 }
 
 static void
-flush_garbage_watches_from_watch_lists (struct solver *solver)
+flush_garbage_watches_from_watchers (struct solver *solver)
 {
   size_t flushed = 0;
   for (all_literals (lit))
@@ -2338,7 +2338,7 @@ reduce (struct solver *solver)
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (solver, &candidates);
   RELEASE (candidates);
-  flush_garbage_watches_from_watch_lists (solver);
+  flush_garbage_watches_from_watchers (solver);
   flush_garbage_watches_and_delete_unshared_clauses (solver);
   unmark_reasons (solver);
   limits->reduce = SEARCH_CONFLICTS;
