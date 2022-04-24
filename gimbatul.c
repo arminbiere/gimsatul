@@ -2051,7 +2051,7 @@ gather_reduce_candidates (struct solver *solver, struct watches *candidates)
 	   percent (SIZE (*candidates), solver->statistics.redundant));
 }
 
-#if 1
+#if 0
 
 static int
 cmp_reduce_candidates (const void *p, const void *q)
