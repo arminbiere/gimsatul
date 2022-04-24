@@ -252,7 +252,7 @@ struct watches
 
 struct watchers
 {
-  struct watch **begin;
+  void **begin;
   unsigned size, capacity;
 };
 
@@ -260,7 +260,7 @@ struct watchers
 
 struct watchers
 {
-  struct watch **begin, ** end, ** allocated;
+  void **begin, ** end, ** allocated;
 };
 
 #endif
@@ -1291,7 +1291,7 @@ enlarge_watchers (struct watchers * watchers)
 }
 
 static void
-push_watch (struct solver * solver, unsigned lit, struct watch * watch)
+push_watch (struct solver * solver, unsigned lit, void * watch)
 {
   struct watchers * watchers = WATCHES (lit);
   if (watchers->size == watchers->capacity)
@@ -1299,14 +1299,14 @@ push_watch (struct solver * solver, unsigned lit, struct watch * watch)
   watchers->begin[watchers->size++] = watch;
 }
 
-static struct watch **
+static void **
 end_watchers (struct watchers * watchers)
 {
   return watchers->begin + watchers->size;
 }
 
 static void
-set_end_of_watchers (struct watchers * watchers, struct watch ** end)
+set_end_of_watchers (struct watchers * watchers, void ** end)
 {
   assert (watchers->begin <= end);
   assert (end <= end_watchers (watchers));
@@ -1315,27 +1315,41 @@ set_end_of_watchers (struct watchers * watchers, struct watch ** end)
   watchers->size = new_size;
 }
 
+static void
+release_watchers (struct watchers * watchers)
+{
+  watchers->size = watchers->capacity = 0;
+  free (watchers->begin);
+  watchers->begin = 0;
+}
+
 #else
 
 static void
-push_watch (struct solver * solver, unsigned lit, struct watch * watch)
+push_watch (struct solver * solver, unsigned lit, void * watch)
 {
   struct watchers * watchers = WATCHES (lit);
   PUSH (*watchers, watch);
 }
 
-static struct watch **
+static void **
 end_watchers (struct watchers * watchers)
 {
   return watchers->end;
 }
 
 static void
-set_end_of_watchers (struct watchers * watchers, struct watch ** end)
+set_end_of_watchers (struct watchers * watchers, void ** end)
 {
   assert (watchers->begin <= end);
   assert (end <= end_watchers (watchers));
   watchers->end = end;
+}
+
+static void
+release_watchers (struct watchers * watchers)
+{
+  RELEASE (*watchers);
 }
 
 #endif
@@ -1524,8 +1538,8 @@ propagate (struct solver *solver, bool search, unsigned * failed)
       propagations++;
       unsigned not_lit = NOT (lit);
       struct watchers *watchers = WATCHES (not_lit);
-      struct watch **begin = watchers->begin, **q = begin;
-      struct watch **end = end_watchers (watchers), **p = begin;
+      void **begin = watchers->begin, **q = begin;
+      void **end = end_watchers (watchers), **p = begin;
       ticks++;
       while (!conflict && p != end)
 	{
@@ -2278,9 +2292,9 @@ flush_garbage_watchers (struct solver *solver, bool fixed)
 	    lit_value = 0;
 	}
       struct watchers *watchers = WATCHES (lit);
-      struct watch **begin = watchers->begin, **q = begin;
-      struct watch **end = end_watchers (watchers);
-      for (struct watch ** p = begin; p != end; p++)
+      void **begin = watchers->begin, **q = begin;
+      void **end = end_watchers (watchers);
+      for (void ** p = begin; p != end; p++)
 	{
 	  struct watch *watch = *q++ = *p;
 	  unsigned tag = tagged_watch (watch);
@@ -2316,7 +2330,10 @@ flush_garbage_watchers (struct solver *solver, bool fixed)
 	      q--;
 	    }
 	}
-      set_end_of_watchers (watchers, q);
+      if (lit_value > 0 || q == begin)
+	release_watchers (watchers);
+      else
+	set_end_of_watchers (watchers, q);
     }
   verbose ("flushed %zu garbage watches from watch lists", flushed);
 }
