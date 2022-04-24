@@ -1894,25 +1894,30 @@ decide (struct solver *solver)
   solver->statistics.contexts[solver->context].decisions++;
 }
 
-static size_t reported;
-
 static void
 report (struct solver *solver, char type)
 {
   struct statistics *s = &solver->statistics;
   struct averages *a = solver->averages + solver->stable;
+
   lock_message_mutex ();
-  if (!(reported++ % 20))
-    printf ("c\nc    seconds MB level reductions restarts "
-	    "conflicts redundant trail glue irredundant variables\nc\n");
+
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
-  printf ("c %c %6.2f %4.0f %5.0f %6zu %8zu "
-	  "%12zu %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n", type, t, m,
+
+  static size_t reported;
+  if (!(reported++ % 20))
+    printf ("c\nc     seconds MB level reductions restarts "
+	    "conflicts redundant trail glue irredundant variables\nc\n");
+
+  printf ("c %c %7.2f %4.0f %5.0f %6zu %9zu "
+	  "%11zu %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n", type, t, m,
 	  a->level.value, s->reductions, s->restarts, SEARCH_CONFLICTS,
 	  s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
 	  solver->active, percent (solver->active, solver->size));
+
   fflush (stdout);
+
   unlock_message_mutex ();
 }
 
@@ -3017,6 +3022,16 @@ rephasing (struct solver *solver)
     SEARCH_CONFLICTS > solver->limits.rephase;
 }
 
+// *INDENT-OFF*
+
+static char (*schedule[])(struct solver *) =
+{
+  rephase_original, rephase_best, rephase_walk,
+  rephase_inverted, rephase_best, rephase_walk,
+};
+
+// *INDENT-OFF*
+
 static void
 rephase (struct solver *solver)
 {
@@ -3025,20 +3040,8 @@ rephase (struct solver *solver)
   struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
   size_t rephased = ++statistics->rephased;
-  size_t schedule = (rephased - 1) % 4;
-  char type;
-  if (schedule == 0)
-    type = rephase_best (solver);
-  else if (schedule == 1)
-    type = rephase_walk (solver);
-  else if (schedule == 2)
-    type = rephase_inverted (solver);
-  else if (schedule == 3)
-    type = rephase_best (solver);
-  else if (schedule == 4)
-    type = rephase_walk (solver);
-  else
-    type = rephase_original (solver);
+  size_t size_schedule = sizeof schedule / sizeof *schedule;
+  char type = schedule[rephased % size_schedule] (solver);
   verbose ("resetting number of target assigned %u", solver->target);
   solver->target = 0;
   if (type == 'B')
