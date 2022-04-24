@@ -81,7 +81,7 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
-#define WATCHES(LIT) (&solver->watchtab[LIT])
+#define WATCHERS(LIT) (&solver->watchtab[LIT])
 
 /*------------------------------------------------------------------------*/
 
@@ -140,9 +140,9 @@ do { \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
-#define all_watches(ELEM,WATCHES) \
-  struct watch ** P_ ## ELEM = (WATCHES).begin, \
-               ** END_ ## ELEM = (WATCHES).end, * ELEM; \
+#define all_watches(ELEM,WATCHERS) \
+  struct watch ** P_ ## ELEM = (WATCHERS).begin, \
+               ** END_ ## ELEM = (WATCHERS).end, * ELEM; \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
@@ -250,7 +250,7 @@ struct watches
 
 #ifndef NCOMPACT
 
-struct watchers
+struct pointers
 {
   void **begin;
   unsigned size, capacity;
@@ -258,7 +258,7 @@ struct watchers
 
 #else
 
-struct watchers
+struct pointers
 {
   void **begin, ** end, ** allocated;
 };
@@ -407,7 +407,7 @@ struct solver
   unsigned best;
   struct watches watches;
   struct variable *variables;
-  struct watchers * watchtab;
+  struct pointers * watchtab;
   signed char *values;
   bool *used;
   uint64_t random;
@@ -1085,7 +1085,7 @@ new_solver (unsigned size)
   solver->size = size;
   solver->values = allocate_and_clear_array (1, 2*size);
   solver->watchtab =
-    allocate_and_clear_array (sizeof (struct watchers), 2*size);
+    allocate_and_clear_array (sizeof (struct pointers), 2*size);
   solver->used = allocate_and_clear_block (size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
@@ -1112,7 +1112,7 @@ release_watches (struct solver *solver)
 {
 
   for (all_literals (lit))
-    free (WATCHES (lit)->begin);
+    free (WATCHERS (lit)->begin);
   free (solver->watchtab);
 
   for (all_watches (watch, solver->watches))
@@ -1275,7 +1275,7 @@ close_proof (void)
 #ifndef NCOMPACT
 
 static void
-enlarge_watchers (struct watchers * watchers)
+enlarge_watchers (struct pointers * watchers)
 {
   size_t old_capacity = watchers->capacity;
   size_t new_capacity = 2*old_capacity;
@@ -1293,20 +1293,20 @@ enlarge_watchers (struct watchers * watchers)
 static void
 push_watch (struct solver * solver, unsigned lit, void * watch)
 {
-  struct watchers * watchers = WATCHES (lit);
+  struct pointers * watchers = WATCHERS (lit);
   if (watchers->size == watchers->capacity)
     enlarge_watchers (watchers);
   watchers->begin[watchers->size++] = watch;
 }
 
 static void **
-end_watchers (struct watchers * watchers)
+end_watchers (struct pointers * watchers)
 {
   return watchers->begin + watchers->size;
 }
 
 static void
-set_end_of_watchers (struct watchers * watchers, void ** end)
+set_end_of_watchers (struct pointers * watchers, void ** end)
 {
   assert (watchers->begin <= end);
   assert (end <= end_watchers (watchers));
@@ -1316,7 +1316,7 @@ set_end_of_watchers (struct watchers * watchers, void ** end)
 }
 
 static void
-release_watchers (struct watchers * watchers)
+release_watchers (struct pointers * watchers)
 {
   watchers->size = watchers->capacity = 0;
   free (watchers->begin);
@@ -1328,18 +1328,18 @@ release_watchers (struct watchers * watchers)
 static void
 push_watch (struct solver * solver, unsigned lit, void * watch)
 {
-  struct watchers * watchers = WATCHES (lit);
+  struct pointers * watchers = WATCHERS (lit);
   PUSH (*watchers, watch);
 }
 
 static void **
-end_watchers (struct watchers * watchers)
+end_watchers (struct pointers * watchers)
 {
   return watchers->end;
 }
 
 static void
-set_end_of_watchers (struct watchers * watchers, void ** end)
+set_end_of_watchers (struct pointers * watchers, void ** end)
 {
   assert (watchers->begin <= end);
   assert (end <= end_watchers (watchers));
@@ -1347,7 +1347,7 @@ set_end_of_watchers (struct watchers * watchers, void ** end)
 }
 
 static void
-release_watchers (struct watchers * watchers)
+release_watchers (struct pointers * watchers)
 {
   RELEASE (*watchers);
 }
@@ -1537,7 +1537,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
       LOG ("propagating %s", LOGLIT (lit));
       propagations++;
       unsigned not_lit = NOT (lit);
-      struct watchers *watchers = WATCHES (not_lit);
+      struct pointers *watchers = WATCHERS (not_lit);
       void **begin = watchers->begin, **q = begin;
       void **end = end_watchers (watchers), **p = begin;
       ticks++;
@@ -2291,7 +2291,7 @@ flush_garbage_watchers (struct solver *solver, bool fixed)
 	  if (variables[IDX (lit)].level)
 	    lit_value = 0;
 	}
-      struct watchers *watchers = WATCHES (lit);
+      struct pointers *watchers = WATCHERS (lit);
       void **begin = watchers->begin, **q = begin;
       void **end = end_watchers (watchers);
       for (void ** p = begin; p != end; p++)
