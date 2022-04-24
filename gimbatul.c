@@ -979,6 +979,42 @@ swap_scores (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
+#define REDUNDANT 1
+#define BINARY 2
+#define TAGGED 3
+#define SHIFT (sizeof (size_t) == 8 ? 32 : 2)
+
+static unsigned
+tagged_watch (struct watch * watch)
+{
+  return TAGGED & (size_t) watch;
+}
+
+static unsigned
+lit_watch (struct watch * watch)
+{
+  assert (tagged_watch (watch));
+  return (size_t) watch >> SHIFT;
+}
+
+static struct watch *
+tag_watch (bool redundant, unsigned lit)
+{
+  size_t word = lit;
+  word <<= SHIFT;
+  if (redundant)
+    word |= REDUNDANT;
+  word |= BINARY;
+  struct watch * res = (struct watch*) word;
+  assert (tagged_watch (res));
+  assert (tagged_watch (res) & BINARY);
+  assert ((tagged_watch (res) & REDUNDANT) == redundant);
+  assert (lit_watch (res) == lit);
+  return res;
+}
+
+/*------------------------------------------------------------------------*/
+
 #define INIT_PROFILE(NAME) \
 do { \
   struct profile * profile = &solver->profiles.NAME; \
@@ -1039,6 +1075,8 @@ init_profiles (struct solver *solver)
   START (total);
 }
 
+/*------------------------------------------------------------------------*/
+
 static struct solver *
 new_solver (unsigned size)
 {
@@ -1077,12 +1115,13 @@ release_watches (struct solver *solver)
     free (WATCHES (lit)->begin);
   free (solver->watchtab);
 
-  for (all_watches (w, solver->watches))
+  for (all_watches (watch, solver->watches))
     {
-      struct clause *clause = w->clause;
+      assert (!tagged_watch (watch));
+      struct clause *clause = watch->clause;
       if (atomic_fetch_sub (&clause->shared, 1) == 1)
 	free (clause);
-      free (w);
+      free (watch);
     }
   RELEASE (solver->watches);
 }
@@ -1363,40 +1402,6 @@ dec_clauses (struct solver* solver, bool redundant)
     }
 }
 
-#define REDUNDANT 1
-#define BINARY 2
-#define TAGGED 3
-#define SHIFT (sizeof (size_t) == 8 ? 32 : 2)
-
-static unsigned
-tagged_watch (struct watch * watch)
-{
-  return TAGGED & (size_t) watch;
-}
-
-static unsigned
-lit_watch (struct watch * watch)
-{
-  assert (tagged_watch (watch));
-  return (size_t) watch >> SHIFT;
-}
-
-static struct watch *
-tag_watch (bool redundant, unsigned lit)
-{
-  size_t word = lit;
-  word <<= SHIFT;
-  if (redundant)
-    word |= REDUNDANT;
-  word |= BINARY;
-  struct watch * res = (struct watch*) word;
-  assert (tagged_watch (res));
-  assert (tagged_watch (res) & BINARY);
-  assert ((tagged_watch (res) & REDUNDANT) == redundant);
-  assert (lit_watch (res) == lit);
-  return res;
-}
-
 static struct watch *
 new_binary_clause (struct solver * solver, bool redundant,
                    unsigned lit, unsigned other)
@@ -1534,53 +1539,40 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	      other_value = values[other];
 	      if (other_value > 0)
 		continue;
+	      bool redundant = tag & REDUNDANT;
 	      if (other_value < 0)
 		{
-		  LOGBINARY (tag & REDUNDANT, lit, other, "conflicting");
+		  LOGBINARY (redundant, lit, other, "conflicting");
 		  if (failed)
 		    *failed = not_lit;
-		  goto CONFLICT;
+		  conflict = watch;
 		}
-	      goto ASSIGN;
-	    }
-	  other = watch->sum ^ not_lit;
-	  assert (other < 2*solver->size);
-	  other_value = values[other];
-	  ticks++;
-	  if (other_value > 0)
-	    continue;
-	  struct clause *clause = watch->clause;
-	  COVER (watch->binary);
-	  if (watch->binary)
-	    {
-	      if (other_value)
-		goto CONFLICT;
 	      else
-		goto ASSIGN;
-	    }
-	  unsigned replacement = INVALID;
-	  signed char replacement_value = -1;
-	  unsigned *literals = clause->literals;
-	  assert (watch->middle <= clause->size);
-	  unsigned *middle_literals = literals + watch->middle;
-	  unsigned *end_literals = literals + clause->size;
-	  unsigned *r = middle_literals;
-	  ticks++;
-	  while (r != end_literals)
-	    {
-	      replacement = *r;
-	      if (replacement != not_lit && replacement != other)
 		{
-		  replacement_value = values[replacement];
-		  if (replacement_value >= 0)
-		    break;
+		  struct watch * reason = tag_watch (redundant, not_lit);
+		  assign_with_reason (solver, other, reason);
+		  ticks++;
 		}
-	      r++;
 	    }
-	  if (replacement_value < 0)
+	  else
 	    {
-	      r = literals;
-	      while (r != middle_literals)
+	      other = watch->sum ^ not_lit;
+	      assert (other < 2*solver->size);
+	      other_value = values[other];
+	      ticks++;
+	      if (other_value > 0)
+		continue;
+	      struct clause *clause = watch->clause;
+	      assert (!watch->binary);
+	      unsigned replacement = INVALID;
+	      signed char replacement_value = -1;
+	      unsigned *literals = clause->literals;
+	      assert (watch->middle <= clause->size);
+	      unsigned *middle_literals = literals + watch->middle;
+	      unsigned *end_literals = literals + clause->size;
+	      unsigned *r = middle_literals;
+	      ticks++;
+	      while (r != end_literals)
 		{
 		  replacement = *r;
 		  if (replacement != not_lit && replacement != other)
@@ -1591,28 +1583,41 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 		    }
 		  r++;
 		}
-	    }
-	  watch->middle = r - literals;
-	  if (replacement_value >= 0)
-	    {
-	      watch->sum = other ^ replacement;
-	      push_watch (solver, replacement, watch);
-	      ticks++;
-	      q--;
-	    }
-	  else if (other_value)
-	    {
-	      LOGCLAUSE (watch->clause, "conflicting");
-	      assert (*failed == INVALID);
-	    CONFLICT:
-	      assert (other_value < 0);
-	      conflict = watch;
-	    }
-	  else
-	    {
-	    ASSIGN:
-	      assign_with_reason (solver, other, watch);
-	      ticks++;
+	      if (replacement_value < 0)
+		{
+		  r = literals;
+		  while (r != middle_literals)
+		    {
+		      replacement = *r;
+		      if (replacement != not_lit && replacement != other)
+			{
+			  replacement_value = values[replacement];
+			  if (replacement_value >= 0)
+			    break;
+			}
+		      r++;
+		    }
+		}
+	      watch->middle = r - literals;
+	      if (replacement_value >= 0)
+		{
+		  watch->sum = other ^ replacement;
+		  push_watch (solver, replacement, watch);
+		  ticks++;
+		  q--;
+		}
+	      else if (other_value)
+		{
+		  LOGCLAUSE (watch->clause, "conflicting");
+		  assert (*failed == INVALID);
+		  assert (other_value < 0);
+		  conflict = watch;
+		}
+	      else
+		{
+		  assign_with_reason (solver, other, watch);
+		  ticks++;
+		}
 	    }
 	}
       while (p != end)
@@ -1879,7 +1884,6 @@ analyze (struct solver *solver, struct watch *reason, unsigned failed)
       else
 	{
 	  LOGCLAUSE (reason->clause, "analyzing");
-	  assert (failed == INVALID);
 	  bump_reason (reason);
 	  for (all_literals_in_clause (lit, reason->clause))
 	    {
@@ -2289,6 +2293,7 @@ flush_garbage_watches_and_delete_unshared_clauses (struct solver *solver)
   for (struct watch ** p = begin; p != end; p++)
     {
       struct watch *watch = *q++ = *p;
+      assert (!tagged_watch (watch));
       if (!watch->garbage)
 	continue;
       if (watch->reason)
@@ -2465,19 +2470,22 @@ count_irredundant_non_garbage_clauses (struct solver * solver,
 {
   size_t res = 0;
   struct clause * last = 0;
-  for (all_watches (w, solver->watches))
+  for (all_watches (watch, solver->watches))
     {
-      if (w->garbage)
+      assert (!tagged_watch (watch));
+      if (watch->garbage)
 	continue;
-      if (w->redundant)
+      if (watch->redundant)
 	continue;
-      struct clause * clause = w->clause;
+      struct clause * clause = watch->clause;
       last = clause;
       res++;
     }
   *last_ptr = last;
   return res;
 }
+
+// *INDENT-OFF*
 
 static double base_values[][2] = {
   {0.0, 2.00},
@@ -2487,6 +2495,8 @@ static double base_values[][2] = {
   {6.0, 5.10},
   {7.0, 7.40}
 };
+
+// *INDENT-ON*
 
 static double
 interpolate_base (double size)
@@ -2540,14 +2550,14 @@ connect_counters (struct walker * walker, struct clause * last)
   double sum_lengths = 0;
   unsigned clauses = 0;
   uint64_t ticks = 1;
-  for (all_watches (w, solver->watches))
+  for (all_watches (watch, solver->watches))
     {
-      if (w->garbage)
+      if (watch->garbage)
 	continue;
-      if (w->redundant)
+      if (watch->redundant)
 	continue;
       ticks++;
-      struct clause * clause = w->clause;
+      struct clause * clause = watch->clause;
       unsigned count = 0;
       unsigned length = 0;
       for (all_literals_in_clause (lit, clause))
