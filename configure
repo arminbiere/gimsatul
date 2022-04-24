@@ -13,7 +13,7 @@ where '<option>' is one of the following:
 
 --no-compact  less compact watchers supporting more occurrences
 -f...         passed to compiler (for instance '-fsanitize=address,undefined')
--m32          passed to compiler to enforce 32-bit compilation
+-m32          enforce 32-bit compilation (also implies '-mpc64')
 EOF
 exit 1
 }
@@ -31,7 +31,8 @@ while [ $# -gt 0 ]
 do
   case "$1" in
     -c) check=yes;;
-    -f*|-m32) options="$options $1";;
+    -f*) options="$options $1";;
+    -m32) options="$options $1 -mpc64";;
     -g) debug=yes;;
     -h) usage; exit 0;;
     -l) logging=yes;;
