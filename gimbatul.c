@@ -223,8 +223,6 @@ struct clause
   unsigned literals[];
 };
 
-typedef struct clause * clause_pointer;
-
 struct clauses
 {
   struct clause **begin, **end, **allocated;
@@ -241,17 +239,6 @@ struct watch
   unsigned middle;
   unsigned sum;
   struct clause *clause;
-};
-
-union reference
-{
-  struct {
-    unsigned other;
-    unsigned redundant:31;
-    unsigned binary:1;
-  } tag;
-  struct watch * watch;
-  size_t raw;
 };
 
 struct watches
@@ -3364,21 +3351,6 @@ check_types (void)
 #ifndef NCOMPACT
   CHECK_SIZE_OF_TYPE (struct watchers, 16);
 #endif
-
-  CHECK_SIZE_OF_TYPE (union reference, 8);
-
-  {
-    struct watch dummy_watch, * watch = &dummy_watch;
-    if (3 & (size_t) watch)
-      fatal_error ("watch on stack not 4-bytes aligned");
-
-    union reference ref;
-    ref.raw = 0;
-    ref.tag.binary = 1;
-    ref.watch = watch;
-    if (ref.tag.binary)
-      fatal_error ("assumptions about bit-order incorrect");
-  }
 }
 
 /*------------------------------------------------------------------------*/
