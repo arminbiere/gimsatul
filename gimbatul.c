@@ -28,11 +28,13 @@ static const char * usage =
 
 #include <assert.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <math.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -191,7 +193,7 @@ struct file
   const char *path;
   FILE *file;
   int close;
-  size_t lines;
+  uint64_t lines;
 };
 
 struct unsigneds
@@ -209,16 +211,16 @@ struct trail
   unsigned *begin, *end, *propagate;
 };
 
-#define MAX_GLUE ((1u<<31)-1)
+#define GLUEMAX 255
 
 struct clause
 {
 #ifdef LOGGING
-  size_t id:63;
+  uint64_t id;
 #endif
-  bool redundant:1;
-  unsigned glue:31;
-  unsigned shared;
+  atomic_ushort shared;
+  unsigned char glue;
+  bool redundant;
   unsigned size;
   unsigned literals[];
 };
@@ -230,12 +232,12 @@ struct clauses
 
 struct watch
 {
-  bool binary:1;
-  bool garbage:1;
-  bool reason:1;
-  bool redundant:1;
-  unsigned used:28;
-  unsigned glue;
+  unsigned short used;
+  unsigned char glue;
+  bool binary;
+  bool garbage;
+  bool reason;
+  bool redundant;
   unsigned middle;
   unsigned sum;
   struct clause *clause;
@@ -283,7 +285,7 @@ struct node
 
 struct reluctant
 {
-  size_t u, v;
+  uint64_t u, v;
 };
 
 struct queue
@@ -296,16 +298,16 @@ struct queue
 
 struct limits
 {
-  size_t mode;
-  size_t reduce;
-  size_t rephase;
-  size_t restart;
-  long conflicts;
+  uint64_t mode;
+  uint64_t reduce;
+  uint64_t rephase;
+  uint64_t restart;
+  long long conflicts;
 };
 
 struct intervals
 {
-  size_t mode;
+  uint64_t mode;
 };
 
 struct average
@@ -344,8 +346,8 @@ struct profiles
 
 struct last
 {
-  size_t fixed;
-  size_t walk;
+  unsigned fixed;
+  uint64_t walk;
 };
 
 #define SEARCH 0
@@ -359,31 +361,33 @@ struct last
 
 struct statistics
 {
-  size_t flips;
-  size_t reductions;
-  size_t rephased;
-  size_t restarts;
-  size_t switched;
-  size_t walked;
+  uint64_t flips;
+  uint64_t reductions;
+  uint64_t rephased;
+  uint64_t restarts;
+  uint64_t switched;
+  uint64_t walked;
 
   struct {
-    size_t conflicts;
-    size_t decisions;
-    size_t propagations;
-    size_t ticks;
+    uint64_t conflicts;
+    uint64_t decisions;
+    uint64_t propagations;
+    uint64_t ticks;
   } contexts[CONTEXTS];
 
-  size_t added;
-  size_t deduced;
-  size_t fixed;
+  uint64_t added;
+  uint64_t deduced;
+  uint64_t minimized;
+
+  unsigned fixed;
+
   size_t irredundant;
-  size_t minimized;
   size_t redundant;
 
   struct
   {
-    size_t clauses;
-    size_t literals;
+    uint64_t clauses;
+    uint64_t literals;
   } learned;
 };
 
@@ -404,7 +408,7 @@ struct solver
   struct watchers * watchtab;
   signed char *values;
   bool *used;
-  size_t random;
+  uint64_t random;
   struct unsigneds levels;
   struct queue queue;
   struct unsigneds clause;
@@ -700,7 +704,8 @@ do { \
     printf (" redundant glue %u", (CLAUSE)->glue); \
   else \
     printf (" irredundant"); \
-  printf (" size %u clause[%zu]", (CLAUSE)->size, (size_t) (CLAUSE)->id); \
+  printf (" size %u clause[%" PRIu64 "]", \
+          (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
   for (all_literals_in_clause (LIT, (CLAUSE))) \
     printf (" %s", LOGLIT (LIT)); \
   LOGSUFFIX (); \
@@ -1053,11 +1058,15 @@ new_solver (unsigned size)
 static void
 release_watches (struct solver *solver)
 {
+
+  for (all_literals (lit))
+    free (WATCHES (lit)->begin);
   free (solver->watchtab);
+
   for (all_watches (w, solver->watches))
     {
       struct clause *clause = w->clause;
-      if (!--clause->shared)
+      if (atomic_fetch_sub (&clause->shared, 1) == 1)
 	free (clause);
       free (w);
     }
@@ -1203,7 +1212,7 @@ close_proof (void)
   if (proof.close)
     fclose (proof.file);
 
-  printf ("c\nc closed '%s' after writing %zu proof lines\n",
+  printf ("c\nc closed '%s' after writing %" PRIu64 " proof lines\n",
 	  proof.path, proof.lines);
   fflush (stdout);
 }
@@ -1295,8 +1304,8 @@ new_watch (struct solver *solver, struct clause *clause,
     watch->used = 1;
   else
     watch->used = 0;
-  if (glue > MAX_GLUE)
-    glue = MAX_GLUE;
+  if (glue > GLUEMAX)
+    glue = GLUEMAX;
   watch->glue = glue;
   watch->middle = 2;
   watch->sum = literals[0] ^ literals[1];
@@ -1304,6 +1313,8 @@ new_watch (struct solver *solver, struct clause *clause,
   push_watch (solver, literals[0], watch);
   push_watch (solver, literals[1], watch);
   PUSH (solver->watches, watch);
+  assert (watch->glue == clause->glue);
+  assert (watch->redundant == clause->redundant);
   return watch;
 }
 
@@ -1417,7 +1428,7 @@ propagate (struct solver *solver, bool search)
   struct trail *trail = &solver->trail;
   struct watch *conflict = 0;
   signed char *values = solver->values;
-  size_t ticks = 0, propagations = 0;
+  uint64_t ticks = 0, propagations = 0;
   while (trail->propagate != trail->end)
     {
       if (search && conflict)
@@ -1862,12 +1873,12 @@ decide (struct solver *solver)
   struct queue *queue = &solver->queue;
   signed char *values = solver->values;
   assert (queue->root);
-  unsigned lit;
-  size_t idx;
+  unsigned lit, idx;
   for (;;)
     {
       struct node *root = queue->root;
       assert (root);
+      assert (root - queue->nodes < solver->size);
       idx = root - queue->nodes;
       lit = LIT (idx);
       if (!values[lit])
@@ -1894,15 +1905,16 @@ report (struct solver *solver, char type)
 
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
+  uint64_t conflicts = s->contexts[SEARCH].conflicts;
 
-  static size_t reported;
+  static uint64_t reported;
   if (!(reported++ % 20))
     printf ("c\nc     seconds MB level reductions restarts "
 	    "conflicts redundant trail glue irredundant variables\nc\n");
 
-  printf ("c %c %7.2f %4.0f %5.0f %6zu %9zu "
-	  "%11zu %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n", type, t, m,
-	  a->level.value, s->reductions, s->restarts, SEARCH_CONFLICTS,
+  printf ("c %c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
+          " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n", type, t, m,
+	  a->level.value, s->reductions, s->restarts, conflicts,
 	  s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
 	  solver->active, percent (solver->active, solver->size));
 
@@ -1931,7 +1943,7 @@ restart (struct solver *solver)
 {
   struct statistics *statistics = &solver->statistics;
   statistics->restarts++;
-  verbose ("restart %zu at %zu conflicts",
+  verbose ("restart %" PRIu64 " at %" PRIu64 " conflicts",
 	   statistics->restarts, SEARCH_CONFLICTS);
   update_best_and_target_phases (solver);
   backtrack (solver, 0);
@@ -1940,7 +1952,7 @@ restart (struct solver *solver)
   if (solver->stable)
     {
       struct reluctant *reluctant = &solver->reluctant;
-      size_t u = reluctant->u, v = reluctant->v;
+      uint64_t u = reluctant->u, v = reluctant->v;
       if ((u & -u) == v)
 	u++, v = 1;
       else
@@ -1950,7 +1962,7 @@ restart (struct solver *solver)
     }
   else
     limits->restart += FOCUSED_RESTART_INTERVAL;
-  verbose ("next restart limit at %zu conflicts", limits->restart);
+  verbose ("next restart limit at %" PRIu64 " conflicts", limits->restart);
   if (verbosity > 0)
     report (solver, 'r');
 }
@@ -2039,43 +2051,25 @@ gather_reduce_candidates (struct solver *solver, struct watches *candidates)
 	   percent (SIZE (*candidates), solver->statistics.redundant));
 }
 
-#if 0
+#if 1
 
 static int
 cmp_reduce_candidates (const void *p, const void *q)
 {
   struct watch *u = *(struct watch **) p;
   struct watch *v = *(struct watch **) q;
-#if 0
-  if (u->glue > v->glue)
-    return -1;
   if (u->glue < v->glue)
     return 1;
-#else
-  unsigned g = u->glue;
-  if (g > 255)
-    g = 255;
-  unsigned h = v->glue;
-  if (h > 255)
-    h = 255;
-  if (g > h)
+  if (u->glue > v->glue)
     return -1;
-  if (g < h)
-    return 1;
-#endif
-  struct clause *c = u->clause;
-  struct clause *d = v->clause;
-#if 0
-  if (c->size > d->size)
-    return -1;
-  if (c->size < d->size)
-    return 1;
-#endif
+  struct clause * c = u->clause;
+  struct clause * d = v->clause;
   if (c->id < d->id)
     return -1;
   if (c->id > d->id)
     return 1;
   assert (c == d);
+  assert (u == v);
   return 0;
 }
 
@@ -2093,41 +2087,18 @@ sort_reduce_candidates (struct watches *candidates)
 static void
 sort_reduce_candidates (struct watches * candidates)
 {
-  struct watch **begin = candidates->begin;
-  struct watch **end = candidates->begin;
-  size_t count[256];
-  for (struct watch ** p = begin; p != end; p++)
-    {
-      struct watch * watch = *p;
-      struct clause * clause = watch->clause;
-      unsigned glue = clause->glue;
-      if (glue > 255)
-	glue = 255;
-      glue ^= 255;
-      count[glue]++;
-    }
-  size_t pos = 0;
-  unsigned i = 256;
-  while (i)
-    {
-      size_t size = count[--i];
-      count[i] = pos;
-      pos += size;
-    }
-  size_t size = end - begin;
-  size_t bytes = size * sizeof (struct watch*);
+  size_t size_count = GLUEMAX + 1, count[size_count];
+  memset (count, 0, sizeof count);
+  for (all_watches (watch, *candidates))
+    assert (watch->glue <= GLUEMAX), count[watch->glue]++;
+  size_t pos = 0, * c = count + size_count, size;
+  while (c-- != count)
+    size = *c, *c = pos, pos += size;
+  size_t bytes = SIZE (*candidates) * sizeof (struct watch*);
   struct watch ** tmp = allocate_block (bytes);
-  for (struct watch ** p = begin; p != end; p++)
-    {
-      struct watch * watch = *p;
-      struct clause * clause = watch->clause;
-      unsigned glue = clause->glue;
-      if (glue > 255)
-	glue = 255;
-      glue ^= 255;
-      tmp[count[glue]++] = watch;
-    }
-  memcpy (begin, tmp, bytes);
+  for (all_watches (watch, *candidates))
+    tmp[count[watch->glue]++] = watch;
+  memcpy (candidates->begin, tmp, bytes);
   free (tmp);
 }
 
@@ -2218,7 +2189,7 @@ reduce (struct solver *solver)
   struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
   statistics->reductions++;
-  verbose ("reduction %zu at %zu conflicts",
+  verbose ("reduction %" PRIu64 " at %" PRIu64 " conflicts",
 	   statistics->reductions, SEARCH_CONFLICTS);
   mark_reasons (solver);
   struct watches candidates;
@@ -2234,7 +2205,7 @@ reduce (struct solver *solver)
   unmark_reasons (solver);
   limits->reduce = SEARCH_CONFLICTS;
   limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
-  verbose ("next reduce limit at %zu conflicts", limits->reduce);
+  verbose ("next reduce limit at %" PRIu64 " conflicts", limits->reduce);
   report (solver, '-');
 }
 
@@ -2299,7 +2270,7 @@ switch_mode (struct solver *solver)
     switch_to_stable_mode (solver);
   swap_scores (solver);
   l->mode = SEARCH_TICKS + square (s->switched / 2 + 1) * i->mode;
-  verbose ("next mode switching limit at %zu ticks", l->mode);
+  verbose ("next mode switching limit at %" PRIu64 " ticks", l->mode);
 }
 
 struct doubles
@@ -2329,9 +2300,9 @@ struct walker
   size_t minimum;
   size_t initial;
   unsigned best;
-  size_t limit;
-  size_t extra;
-  size_t flips;
+  uint64_t limit;
+  uint64_t extra;
+  uint64_t flips;
 };
 
 #ifdef LOGGING
@@ -2435,7 +2406,7 @@ connect_counters (struct walker * walker, struct clause * last)
   struct counter * p = walker->counters;
   double sum_lengths = 0;
   unsigned clauses = 0;
-  size_t ticks = 1;
+  uint64_t ticks = 1;
   for (all_watches (w, solver->watches))
     {
       if (w->garbage)
@@ -2474,7 +2445,7 @@ connect_counters (struct walker * walker, struct clause * last)
     }
   double average_length = average (sum_lengths, clauses);
   verbose ("average clause length %.2f", average_length);
-  very_verbose ("connecting counters took %zu extra ticks", ticks);
+  very_verbose ("connecting counters took %" PRIu64 " extra ticks", ticks);
   walker->extra += ticks;
   return average_length;
 }
@@ -2619,7 +2590,7 @@ release_walker (struct walker * walker)
   RELEASE (walker->breaks);
 }
 
-static size_t
+static uint64_t
 random64 (struct solver * solver)
 {
   size_t res = solver->random, next = res;
@@ -2789,8 +2760,8 @@ push_flipped (struct walker * walker, unsigned flipped)
 static void
 new_minimium (struct walker * walker, unsigned unsatisfied)
 {
-  very_verbose ("new minimum %u of unsatisfied clauses after %zu flips",
-                unsatisfied, walker->flips);
+  very_verbose ("new minimum %u of unsatisfied clauses after %" PRIu64
+                " flips", unsatisfied, walker->flips);
   walker->minimum = unsatisfied;
   if (walker->best == INVALID)
     save_all_values (walker);
@@ -2940,8 +2911,8 @@ static void
 walking_loop (struct walker * walker)
 {
   struct solver * solver = walker->solver;
-  size_t * ticks = &solver->statistics.contexts[WALK].ticks;
-  size_t limit = walker->limit;
+  uint64_t * ticks = &solver->statistics.contexts[WALK].ticks;
+  uint64_t limit = walker->limit;
   while (walker->minimum && *ticks <= limit)
     walking_step (walker);
 }
@@ -2962,7 +2933,7 @@ local_search (struct solver *solver)
     goto DONE;
   walking_loop (&walker);
   save_final_minimum (&walker);
-  verbose ("local search flipped %zu literals", walker.flips);
+  verbose ("local search flipped %" PRIu64 " literals", walker.flips);
   release_walker (&walker);
   fix_values_after_local_search (&walker);
 DONE:
@@ -3041,7 +3012,7 @@ rephase (struct solver *solver)
     }
   limits->rephase = SEARCH_CONFLICTS;
   limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
-  verbose ("next rephase limit at %zu conflicts", limits->rephase);
+  verbose ("next rephase limit at %" PRIu64 " conflicts", limits->rephase);
   report (solver, type);
 }
 
@@ -3161,7 +3132,7 @@ static void parse_error (const char *, ...)
 static void
 parse_error (const char *fmt, ...)
 {
-  fprintf (stderr, "gimbatul: parse error: at line %zu in '%s': ",
+  fprintf (stderr, "gimbatul: parse error: at line %" PRIu64 " in '%s': ",
 	   dimacs.lines, dimacs.path);
   va_list ap;
   va_start (ap, fmt);
@@ -3185,7 +3156,7 @@ open_and_read_from_pipe (const char *path, const char *fmt)
 
 #include "config.h"
 
-static long conflicts = -1;
+static long long conflicts = -1;
 
 static void
 parse_options (int argc, char **argv)
@@ -3200,9 +3171,9 @@ parse_options (int argc, char **argv)
 	  if (++i == argc)
 	    die ("argument to '-c' missing (try '-h')");
 	  if (conflicts >= 0)
-	    die ("multiple '-c %ld' and '-c %s'", conflicts, arg);
+	    die ("multiple '-c %lld' and '-c %s'", conflicts, arg);
 	  arg = argv[i];
-	  if (sscanf (arg, "%ld", &conflicts) != 1 || conflicts < 0)
+	  if (sscanf (arg, "%lld", &conflicts) != 1 || conflicts < 0)
 	    die ("invalid argument in '-c %s'", arg);
 	}
       else if (!strcmp (arg, "-f"))
@@ -3307,13 +3278,13 @@ set_limits (struct solver *solver)
   limits->reduce = REDUCE_INTERVAL;
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
-  verbose ("reduce interval of %zu conflict", limits->reduce);
-  verbose ("restart interval of %zu conflict", limits->restart);
-  verbose ("initial mode switching interval of %zu conflicts", limits->mode);
+  verbose ("reduce interval of %" PRIu64 " conflict", limits->reduce);
+  verbose ("restart interval of %" PRIu64 " conflict", limits->restart);
+  verbose ("initial mode switching interval of %" PRIu64 " conflicts", limits->mode);
   if (conflicts >= 0)
     {
       limits->conflicts = conflicts;
-      message ("conflict limit set to %ld conflicts", conflicts);
+      message ("conflict limit set to %lld conflicts", conflicts);
     }
 }
 
@@ -3338,20 +3309,6 @@ do { \
   fatal_error ("'sizeof (%s)' is %zu bytes in size but expected %zu", \
                # TYPE, (size_t) ACTUAL, (size_t) (EXPECTED)); \
 } while (0)
-
-static void
-check_types (void)
-{
-  CHECK_SIZE_OF_TYPE (bool, 1);
-  CHECK_SIZE_OF_TYPE (int, 4);
-  CHECK_SIZE_OF_TYPE (unsigned, 4);
-  CHECK_SIZE_OF_TYPE (size_t, 8);
-  CHECK_SIZE_OF_TYPE (void*, 8);
-  CHECK_SIZE_OF_TYPE (struct variable, 16);
-#ifndef NCOMPACT
-  CHECK_SIZE_OF_TYPE (struct watchers, 16);
-#endif
-}
 
 /*------------------------------------------------------------------------*/
 
@@ -3793,34 +3750,34 @@ print_statistics (struct solver *solver)
   double walk = solver->profiles.total.time;
   double memory = maximum_resident_set_size () / (double) (1 << 20);
   struct statistics *s = &solver->statistics;
-  size_t conflicts = s->contexts[SEARCH].conflicts;
-  size_t decisions = s->contexts[SEARCH].decisions;
-  size_t propagations = s->contexts[SEARCH].propagations;
-  printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", conflicts,
+  uint64_t conflicts = s->contexts[SEARCH].conflicts;
+  uint64_t decisions = s->contexts[SEARCH].decisions;
+  uint64_t propagations = s->contexts[SEARCH].propagations;
+  printf ("c %-19s %13" PRIu64 " %13.2f per second\n", "conflicts:", conflicts,
 	  average (conflicts, search));
-  printf ("c %-19s %13zu %13.2f per second\n", "decisions:", decisions,
+  printf ("c %-19s %13" PRIu64 " %13.2f per second\n", "decisions:", decisions,
 	  average (decisions, search));
-  printf ("c %-19s %13zu %13.2f %% variables\n", "fixed-variables:", s->fixed,
+  printf ("c %-19s %13u %13.2f %% variables\n", "fixed-variables:", s->fixed,
 	  percent (s->fixed, solver->size));
-  printf ("c %-19s %13zu %13.2f thousands per second\n", "flips:",
+  printf ("c %-19s %13" PRIu64 " %13.2f thousands per second\n", "flips:",
 	  s->flips, average (s->flips, 1e3 * walk));
-  printf ("c %-19s %13zu %13.2f per learned clause\n", "learned-literals:",
+  printf ("c %-19s %13" PRIu64 " %13.2f per learned clause\n", "learned-literals:",
 	  s->learned.literals,
 	  average (s->learned.literals, s->learned.clauses));
-  printf ("c %-19s %13zu %13.2f %% per deduced literals\n",
+  printf ("c %-19s %13" PRIu64 " %13.2f %% per deduced literals\n",
 	  "minimized-literals:", s->minimized, percent (s->minimized,
 							s->deduced));
-  printf ("c %-19s %13zu %13.2f millions per second\n", "propagations:",
+  printf ("c %-19s %13" PRIu64 " %13.2f millions per second\n", "propagations:",
 	  propagations, average (propagations, 1e6*search));
-  printf ("c %-19s %13zu %13.2f conflict interval\n", "reductions:",
+  printf ("c %-19s %13" PRIu64 " %13.2f conflict interval\n", "reductions:",
 	  s->reductions, average (conflicts, s->reductions));
-  printf ("c %-19s %13zu %13.2f conflict interval\n", "rephased:",
+  printf ("c %-19s %13" PRIu64 " %13.2f conflict interval\n", "rephased:",
 	  s->rephased, average (conflicts, s->rephased));
-  printf ("c %-19s %13zu %13.2f conflict interval\n", "restarts:",
+  printf ("c %-19s %13" PRIu64 " %13.2f conflict interval\n", "restarts:",
 	  s->restarts, average (conflicts, s->restarts));
-  printf ("c %-19s %13zu %13.2f conflict interval\n", "switched:",
+  printf ("c %-19s %13" PRIu64 " %13.2f conflict interval\n", "switched:",
 	  s->switched, average (conflicts, s->switched));
-  printf ("c %-19s %13zu %13.2f flips per walkinterval\n", "walked:",
+  printf ("c %-19s %13" PRIu64 " %13.2f flips per walkinterval\n", "walked:",
 	  s->walked, average (s->flips, s->walked));
   fputs ("c\n", stdout);
   printf ("c %-30s %16.2f sec\n", "process-time:", process);
@@ -3836,7 +3793,6 @@ int
 main (int argc, char **argv)
 {
   start_time = current_time ();
-  check_types ();
   parse_options (argc, argv);
   print_banner ();
   if (proof.file)

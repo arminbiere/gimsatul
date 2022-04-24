@@ -6,13 +6,14 @@ usage: configure [ <option> ... ]
 where '<option>' is one of the following:
 
 -c     enable assertion checking even without '-g'
--f...  passed to compiler (for instance '-fsanitize=address,undefined')
 -g     debugging compile (implies '-c', '-l' and '-s')
 -h     print this command line option summary
 -l     include logging code even without '-g'
 -s     add symbol table even without '-g'
 
 --no-compact  less compact watchers supporting more occurrences
+-f...         passed to compiler (for instance '-fsanitize=address,undefined')
+-m32          passed to compiler to enforce 32-bit compilation
 EOF
 exit 1
 }
@@ -30,7 +31,7 @@ while [ $# -gt 0 ]
 do
   case "$1" in
     -c) check=yes;;
-    -f*) options="$options $1";;
+    -f*|-m32) options="$options $1";;
     -g) debug=yes;;
     -h) usage; exit 0;;
     -l) logging=yes;;
