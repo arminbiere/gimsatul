@@ -19,7 +19,7 @@ static const char * usage =
 "--version      print version\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
-"and '<proof>' the proof output file in 'DRAT' format\n"
+"and '<proof>' the proof output file in 'DRAT' format (no proof if missing).\n"
 ;
 
 // *INDENT-ON*
@@ -1033,7 +1033,7 @@ new_solver (unsigned size)
   solver->size = size;
   solver->values = allocate_and_clear_array (1, 2*size);
   solver->watchtab =
-    allocate_and_clear_array (sizeof (struct watches), 2*size);
+    allocate_and_clear_array (sizeof (struct watchers), 2*size);
   solver->used = allocate_and_clear_block (size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
