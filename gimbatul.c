@@ -2246,8 +2246,8 @@ switching_mode (struct solver *solver)
     return SEARCH_CONFLICTS > l->mode;
 }
 
-static size_t
-square (size_t n)
+static uint64_t
+square (uint64_t n)
 {
   assert (n);
   return n * n;
@@ -2262,7 +2262,7 @@ switch_mode (struct solver *solver)
   if (!s->switched++)
     {
       i->mode = SEARCH_TICKS;
-      verbose ("determined mode switching ticks interval %zu", i->mode);
+      verbose ("determined mode switching ticks interval %" PRIu64, i->mode);
     }
   if (solver->stable)
     switch_to_focused_mode (solver);
@@ -2380,7 +2380,7 @@ initialize_break_table (struct walker * walker, double length)
   double epsilon = 1;
   unsigned maxbreak = 0;
   struct solver * solver = walker->solver;
-  size_t walked = solver->statistics.walked;
+  uint64_t walked = solver->statistics.walked;
   const double base = (walked & 1) ? 2.0 : interpolate_base (length);
   verbose ("propability exponential sample base %.2f", base);
   assert (base > 1);
@@ -2455,7 +2455,7 @@ warming_up_saved_phases (struct solver * solver)
 {
   assert (!solver->level);
   assert (solver->trail.propagate == solver->trail.end);
-  size_t decisions = 0, conflicts = 0;
+  uint64_t decisions = 0, conflicts = 0;
   while (solver->unassigned)
     {
       decisions++;
@@ -2465,7 +2465,7 @@ warming_up_saved_phases (struct solver * solver)
     }
   if (solver->level)
     backtrack (solver, 0);
-  verbose ("warmed-up phases with %zu decisions and %zu conflicts",
+  verbose ("warmed-up phases with %" PRIu64 " decisions and %" PRIu64 " conflicts",
            decisions, conflicts);
 }
 
@@ -2474,11 +2474,11 @@ import_decisions (struct walker * walker)
 {
   struct solver * solver = walker->solver;
   assert (solver->context == WALK);
-  size_t saved = solver->statistics.contexts[WALK].ticks;
+  uint64_t saved = solver->statistics.contexts[WALK].ticks;
   warming_up_saved_phases (solver);
-  size_t extra = solver->statistics.contexts[WALK].ticks - saved;
+  uint64_t extra = solver->statistics.contexts[WALK].ticks - saved;
   walker->extra += extra;
-  very_verbose ("warming up needed %zu extra ticks", extra);
+  very_verbose ("warming up needed %" PRIu64 " extra ticks", extra);
   signed char *values = solver->values;
   unsigned pos = 0, neg = 0, ignored = 0;
   signed char *p = values;
@@ -2524,14 +2524,15 @@ set_walking_limits (struct walker * walker)
   struct solver * solver = walker->solver;
   struct statistics *statistics = &solver->statistics;
   struct last * last = &solver->last;
-  size_t search = statistics->contexts[SEARCH].ticks;
-  size_t walk = statistics->contexts[WALK].ticks;
-  size_t ticks = search - last->walk;
-  size_t extra = walker->extra;
-  size_t effort = extra + WALK_EFFORT * ticks;
+  uint64_t search = statistics->contexts[SEARCH].ticks;
+  uint64_t walk = statistics->contexts[WALK].ticks;
+  uint64_t ticks = search - last->walk;
+  uint64_t extra = walker->extra;
+  uint64_t effort = extra + WALK_EFFORT * ticks;
   walker->limit = walk + effort;
-  very_verbose ("walking effort %zu ticks = "
-                "%zu + %g * %zu = %zu + %g * (%zu - %zu)",
+  very_verbose ("walking effort %" PRIu64 " ticks = "
+                "%" PRIu64 " + %g * %" PRIu64
+		" = %" PRIu64 " + %g * (%" PRIu64 " - %" PRIu64 ")",
                 effort, extra, (double) WALK_EFFORT, ticks,
 		extra, (double) WALK_EFFORT, search, last->walk);
 }
@@ -2593,7 +2594,7 @@ release_walker (struct walker * walker)
 static uint64_t
 random64 (struct solver * solver)
 {
-  size_t res = solver->random, next = res;
+  uint64_t res = solver->random, next = res;
   next *= 6364136223846793005ul;
   next += 1442695040888963407ul;
   solver->random = next;
@@ -2742,7 +2743,8 @@ push_flipped (struct walker * walker, unsigned flipped)
     return;
   struct solver * solver = walker->solver;
   struct unsigneds * trail = &walker->trail;
-  size_t size = SIZE (*trail), limit = solver->size / 4 + 1;
+  size_t size = SIZE (*trail);
+  unsigned limit = solver->size / 4 + 1;
   if (size < limit)
     PUSH (*trail, flipped);
   else if (walker->best)
@@ -2788,7 +2790,7 @@ make_literal (struct walker * walker, unsigned lit)
   struct solver * solver = walker->solver;
   assert (solver->values[lit] > 0);
   struct counter * counters = walker->counters;
-  size_t ticks = 1;
+  uint64_t ticks = 1;
   for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
     {
       ticks++;
@@ -2808,7 +2810,7 @@ break_literal (struct walker * walker, unsigned lit)
   struct solver * solver = walker->solver;
   assert (solver->values[lit] < 0);
   struct counter * counters = walker->counters;
-  size_t ticks = 1;
+  uint64_t ticks = 1;
   for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
     {
       ticks++;
@@ -3000,7 +3002,7 @@ rephase (struct solver *solver)
     backtrack (solver, 0);
   struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
-  size_t rephased = ++statistics->rephased;
+  uint64_t rephased = ++statistics->rephased;
   size_t size_schedule = sizeof schedule / sizeof *schedule;
   char type = schedule[rephased % size_schedule] (solver);
   verbose ("resetting number of target assigned %u", solver->target);
@@ -3060,10 +3062,10 @@ conflict_limit_hit (struct solver * solver)
   long limit = solver->limits.conflicts;
   if (limit < 0)
     return false;
-  size_t conflicts = SEARCH_CONFLICTS;
+  uint64_t conflicts = SEARCH_CONFLICTS;
   if (conflicts < (unsigned long) limit)
     return false;
-  verbose ("conflict limit %ld hit at %zu conflicts", limit, conflicts);
+  verbose ("conflict limit %ld hit at %" PRIu64 " conflicts", limit, conflicts);
   return true;
 }
 
@@ -3618,7 +3620,7 @@ catch_signal (int sig)
 #undef SIGNAL
   char buffer[80];
   sprintf (buffer, "c\nc caught signal %d (%s)\nc\n", sig, name);
-  ssize_t bytes = strlen (buffer);
+  size_t bytes = strlen (buffer);
   if (write (1, buffer, bytes) != bytes)
     exit (0);
   reset_signal_handler ();
