@@ -2110,11 +2110,12 @@ mark_reasons (struct solver *solver)
   for (all_literals_on_trail (lit))
     {
       struct watch *watch = VAR (lit)->reason;
-      if (watch)
-	{
-	  assert (!watch->reason);
-	  watch->reason = true;
-	}
+      if (!watch)
+	continue;
+      if (tagged_watch (watch))
+	continue;
+      assert (!watch->reason);
+      watch->reason = true;
     }
 }
 
@@ -2124,11 +2125,12 @@ unmark_reasons (struct solver *solver)
   for (all_literals_on_trail (lit))
     {
       struct watch *watch = VAR (lit)->reason;
-      if (watch)
-	{
-	  assert (watch->reason);
-	  watch->reason = false;
-	}
+      if (!watch)
+	continue;
+      if (tagged_watch (watch))
+	continue;
+      assert (watch->reason);
+      watch->reason = false;
     }
 }
 
@@ -2137,6 +2139,7 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
 {
   size_t marked = 0;
   signed char *values = solver->values;
+  struct variable * variables = solver->variables;
   for (all_watches (watch, solver->watches))
     {
       if (watch->garbage)
@@ -2147,7 +2150,8 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
 	{
 	  if (values[lit] <= 0)
 	    continue;
-	  if (VAR (lit)->level)
+	  unsigned idx = IDX (lit);
+	  if (variables[idx].level)
 	    continue;
 	  satisfied = true;
 	  break;
@@ -2260,23 +2264,57 @@ mark_reduce_candidates_as_garbage (struct solver *solver,
 }
 
 static void
-flush_garbage_watches_from_watchers (struct solver *solver)
+flush_garbage_watchers (struct solver *solver, bool fixed)
 {
   size_t flushed = 0;
+  signed char * values = solver->values;
+  struct variable * variables = solver->variables;
   for (all_literals (lit))
     {
+      signed char lit_value = values[lit];
+      if (lit_value > 0)
+	{
+	  if (variables[IDX (lit)].level)
+	    lit_value = 0;
+	}
       struct watchers *watchers = WATCHES (lit);
       struct watch **begin = watchers->begin, **q = begin;
       struct watch **end = end_watchers (watchers);
       for (struct watch ** p = begin; p != end; p++)
 	{
 	  struct watch *watch = *q++ = *p;
-	  if (!watch->garbage)
-	    continue;
-	  if (watch->reason)
-	    continue;
-	  flushed++;
-	  q--;
+	  unsigned tag = tagged_watch (watch);
+	  if (tag)
+	    {
+	      if (!fixed)
+		continue;
+	      unsigned other = lit_watch (watch);
+	      signed char other_value = values[other];
+	      if (other_value > 0)
+		{
+		  if (variables[IDX (other)].level)
+		    other_value = 0;
+		}
+	      if (lit_value > 0 || other_value > 0)
+		{
+		  if (lit < other)
+		    {
+		      bool redundant = tag & REDUNDANT;
+		      dec_clauses (solver, redundant);
+		    }
+		  flushed++;
+		  q--;
+		}
+	    }
+	  else
+	    {
+	      if (!watch->garbage)
+		continue;
+	      if (watch->reason)
+		continue;
+	      flushed++;
+	      q--;
+	    }
 	}
       set_end_of_watchers (watchers, q);
     }
@@ -2332,13 +2370,14 @@ reduce (struct solver *solver)
   mark_reasons (solver);
   struct watches candidates;
   INIT (candidates);
-  if (solver->last.fixed != solver->statistics.fixed)
+  bool fixed = solver->last.fixed != solver->statistics.fixed;
+  if (fixed)
     mark_satisfied_clauses_as_garbage (solver);
   gather_reduce_candidates (solver, &candidates);
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (solver, &candidates);
   RELEASE (candidates);
-  flush_garbage_watches_from_watchers (solver);
+  flush_garbage_watchers (solver, fixed);
   flush_garbage_watches_and_delete_unshared_clauses (solver);
   unmark_reasons (solver);
   limits->reduce = SEARCH_CONFLICTS;
