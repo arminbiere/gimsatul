@@ -1126,6 +1126,7 @@ trace_empty (struct solver *solver)
       PUSH (*buffer, '\n');
     }
   write_buffer (buffer, proof.file);
+  proof.lines++;
 }
 
 static void
@@ -1177,6 +1178,7 @@ trace_added (struct solver *solver)
   else
     ascii_proof_line (buffer, SIZE (*clause), clause->begin);
   write_buffer (buffer, proof.file);
+  proof.lines++;
 }
 
 static inline void
@@ -1194,6 +1196,7 @@ trace_deleted (struct solver *solver, struct clause *clause)
       ascii_proof_line (buffer, clause->size, clause->literals);
     }
   write_buffer (buffer, proof.file);
+  proof.lines++;
 }
 
 #define TRACE_EMPTY() \
