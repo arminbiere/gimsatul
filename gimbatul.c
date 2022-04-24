@@ -3823,7 +3823,7 @@ print_statistics (struct solver *solver)
   size_t propagations = s->contexts[SEARCH].propagations;
   printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", conflicts,
 	  average (conflicts, search));
-  printf ("c %-19s %13zu %13.2f per second\n", "conflicts:", decisions,
+  printf ("c %-19s %13zu %13.2f per second\n", "decisions:", decisions,
 	  average (decisions, search));
   printf ("c %-19s %13zu %13.2f %% variables\n", "fixed-variables:", s->fixed,
 	  percent (s->fixed, solver->size));
