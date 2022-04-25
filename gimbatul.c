@@ -237,7 +237,9 @@ struct watch
   bool garbage;
   bool reason;
   bool redundant;
+#ifdef MIDDLE
   unsigned middle;
+#endif
   unsigned sum;
   struct clause *clause;
 };
@@ -356,7 +358,6 @@ struct last
 #define SEARCH_CONFLICTS solver->statistics.contexts[SEARCH].conflicts
 #define SEARCH_PROPAGATIONS solver->statistics.contexts[SEARCH].propagations
 #define SEARCH_TICKS solver->statistics.contexts[SEARCH].ticks
-
 
 struct statistics
 {
@@ -1372,7 +1373,9 @@ new_watch (struct solver *solver, struct clause *clause,
   if (glue > GLUEMAX)
     glue = GLUEMAX;
   watch->glue = glue;
+#ifdef MIDDLE
   watch->middle = 2;
+#endif
   watch->sum = literals[0] ^ literals[1];
   watch->clause = clause;
   push_watch (solver, literals[0], watch);
@@ -1578,10 +1581,14 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	      unsigned replacement = INVALID;
 	      signed char replacement_value = -1;
 	      unsigned *literals = clause->literals;
+	      unsigned *end_literals = literals + clause->size;
+#ifdef MIDDLE
 	      assert (watch->middle <= clause->size);
 	      unsigned *middle_literals = literals + watch->middle;
-	      unsigned *end_literals = literals + clause->size;
 	      unsigned *r = middle_literals;
+#else
+	      unsigned *r = literals;
+#endif
 	      ticks++;
 	      while (r != end_literals)
 		{
@@ -1594,6 +1601,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 		    }
 		  r++;
 		}
+#ifdef MIDDLE
 	      if (replacement_value < 0)
 		{
 		  r = literals;
@@ -1610,6 +1618,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 		    }
 		}
 	      watch->middle = r - literals;
+#endif
 	      if (replacement_value >= 0)
 		{
 		  watch->sum = other ^ replacement;
