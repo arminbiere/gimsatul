@@ -230,6 +230,8 @@ struct clauses
   struct clause **begin, **end, **allocated;
 };
 
+#define MIDDLE
+
 struct watch
 {
   unsigned short used;
