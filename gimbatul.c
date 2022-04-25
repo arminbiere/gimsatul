@@ -1623,7 +1623,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	      else if (other_value)
 		{
 		  LOGCLAUSE (watch->clause, "conflicting");
-		  assert (*failed == INVALID);
+		  assert (!failed || *failed == INVALID);
 		  assert (other_value < 0);
 		  conflict = watch;
 		}
@@ -2242,6 +2242,9 @@ sort_reduce_candidates (struct watches *candidates)
 static void
 sort_reduce_candidates (struct watches * candidates)
 {
+  size_t size_candidates = SIZE (*candidates);
+  if (size_candidates < 2)
+    return;
   size_t size_count = GLUEMAX + 1, count[size_count];
   memset (count, 0, sizeof count);
   for (all_watches (watch, *candidates))
@@ -2249,7 +2252,7 @@ sort_reduce_candidates (struct watches * candidates)
   size_t pos = 0, * c = count + size_count, size;
   while (c-- != count)
     size = *c, *c = pos, pos += size;
-  size_t bytes = SIZE (*candidates) * sizeof (struct watch*);
+  size_t bytes = size_candidates * sizeof (struct watch*);
   struct watch ** tmp = allocate_block (bytes);
   for (all_watches (watch, *candidates))
     tmp[count[watch->glue]++] = watch;
