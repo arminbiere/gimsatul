@@ -234,7 +234,6 @@ struct watch
 {
   unsigned short used;
   unsigned char glue;
-  bool binary;
   bool garbage;
   bool reason;
   bool redundant;
@@ -1361,7 +1360,6 @@ new_watch (struct solver *solver, struct clause *clause,
   assert (clause->size >= 2);
   unsigned *literals = clause->literals;
   struct watch *watch = allocate_block (sizeof *watch);
-  watch->binary = (clause->size == 2);
   watch->garbage = false;
   watch->reason = false;
   watch->redundant = redundant;
@@ -1577,7 +1575,6 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	      if (other_value > 0)
 		continue;
 	      struct clause *clause = watch->clause;
-	      assert (!watch->binary);
 	      unsigned replacement = INVALID;
 	      signed char replacement_value = -1;
 	      unsigned *literals = clause->literals;
