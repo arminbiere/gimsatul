@@ -4012,6 +4012,10 @@ check_types (void)
     fatal_error ("unsupported platform: 'sizeof (size_t) = %zu' "
                  "different from 'sizeof (void*) = %zu'",
 		 sizeof (size_t), sizeof (void*));
+#if 0
+  printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
+  printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
+#endif
 }
 
 /*------------------------------------------------------------------------*/
@@ -4019,8 +4023,6 @@ check_types (void)
 int
 main (int argc, char **argv)
 {
-  printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
-  printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
   start_time = current_time ();
   check_types ();
   parse_options (argc, argv);
