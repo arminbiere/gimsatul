@@ -11,7 +11,6 @@ where '<option>' is one of the following:
 -l     include logging code even without '-g'
 -s     add symbol table even without '-g'
 
---no-compact  less compact watchers supporting more occurrences
 -f...         passed to compiler (for instance '-fsanitize=address,undefined')
 -m32          enforce 32-bit compilation (also implies '-mpc64')
 EOF
@@ -37,7 +36,6 @@ do
     -h) usage; exit 0;;
     -l) logging=yes;;
     -s) symbols=yes;;
-    --no-compact) compact=no;;
     *)  die "invalid option '$1' (try '-h')";;
   esac
   shift
@@ -50,7 +48,6 @@ CFLAGS="-Wall$options"
 [ $debug = no ] && CFLAGS="$CFLAGS -O3"
 [ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
-[ $compact = no ] && CFLAGS="$CFLAGS -DNCOMPACT"
 [ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
 echo "configure: $CC $CFLAGS"
 rm -f makefile

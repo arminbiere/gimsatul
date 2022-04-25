@@ -251,22 +251,10 @@ struct watches
   struct watch **begin, ** end, ** allocated;
 };
 
-#ifndef NCOMPACT
-
-struct pointers
-{
-  void **begin;
-  unsigned size, capacity;
-};
-
-#else
-
 struct pointers
 {
   void **begin, ** end, ** allocated;
 };
-
-#endif
 
 struct variable
 {
@@ -1274,88 +1262,6 @@ close_proof (void)
 
 /*------------------------------------------------------------------------*/
 
-#ifndef NCOMPACT
-
-static void
-enlarge_watchers (struct pointers * watchers)
-{
-  size_t old_capacity = watchers->capacity;
-  size_t new_capacity = 2*old_capacity;
-  if (!old_capacity)
-    new_capacity = 1;
-  else if (old_capacity == 1u<<31)
-    new_capacity = UINT_MAX;
-  else if (old_capacity == UINT_MAX)
-    fatal_error ("maximum watcher stack size exhausted");
-  size_t bytes = new_capacity * sizeof *watchers->begin;
-  watchers->begin = reallocate_block (watchers->begin, bytes);
-  watchers->capacity = new_capacity;
-}
-
-static void
-push_watch (struct solver * solver, unsigned lit, void * watch)
-{
-  struct pointers * watchers = WATCHERS (lit);
-  if (watchers->size == watchers->capacity)
-    enlarge_watchers (watchers);
-  watchers->begin[watchers->size++] = watch;
-}
-
-static void **
-end_watchers (struct pointers * watchers)
-{
-  return watchers->begin + watchers->size;
-}
-
-static void
-set_end_of_watchers (struct pointers * watchers, void ** end)
-{
-  assert (watchers->begin <= end);
-  assert (end <= end_watchers (watchers));
-  size_t new_size = end - watchers->begin;
-  assert (new_size <= UINT_MAX);
-  watchers->size = new_size;
-}
-
-static void
-release_watchers (struct pointers * watchers)
-{
-  watchers->size = watchers->capacity = 0;
-  free (watchers->begin);
-  watchers->begin = 0;
-}
-
-#else
-
-static void
-push_watch (struct solver * solver, unsigned lit, void * watch)
-{
-  struct pointers * watchers = WATCHERS (lit);
-  PUSH (*watchers, watch);
-}
-
-static void **
-end_watchers (struct pointers * watchers)
-{
-  return watchers->end;
-}
-
-static void
-set_end_of_watchers (struct pointers * watchers, void ** end)
-{
-  assert (watchers->begin <= end);
-  assert (end <= end_watchers (watchers));
-  watchers->end = end;
-}
-
-static void
-release_watchers (struct pointers * watchers)
-{
-  RELEASE (*watchers);
-}
-
-#endif
-
 static struct watch *
 new_watch (struct solver *solver, struct clause *clause,
 	   bool redundant, unsigned glue)
@@ -1380,8 +1286,8 @@ new_watch (struct solver *solver, struct clause *clause,
 #endif
   watch->sum = literals[0] ^ literals[1];
   watch->clause = clause;
-  push_watch (solver, literals[0], watch);
-  push_watch (solver, literals[1], watch);
+  PUSH (*WATCHERS (literals[0]), watch);
+  PUSH (*WATCHERS (literals[1]), watch);
   PUSH (solver->watches, watch);
   assert (watch->glue == clause->glue);
   assert (watch->redundant == clause->redundant);
@@ -1426,8 +1332,8 @@ new_binary_clause (struct solver * solver, bool redundant,
   inc_clauses (solver, redundant);
   struct watch * watch_lit = tag_watch (redundant, other);
   struct watch * watch_other = tag_watch (redundant, lit);
-  push_watch (solver, lit, watch_lit);
-  push_watch (solver, other, watch_other);
+  PUSH (*WATCHERS (lit), watch_lit);
+  PUSH (*WATCHERS (other), watch_other);
   LOGBINARY (redundant, lit, other, "new");
   return watch_lit;
 }
@@ -1542,7 +1448,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
       unsigned not_lit = NOT (lit);
       struct pointers *watchers = WATCHERS (not_lit);
       void **begin = watchers->begin, **q = begin;
-      void **end = end_watchers (watchers), **p = begin;
+      void **end = watchers->end, **p = begin;
       ticks++;
       while (!conflict && p != end)
 	{
@@ -1624,7 +1530,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	      if (replacement_value >= 0)
 		{
 		  watch->sum = other ^ replacement;
-		  push_watch (solver, replacement, watch);
+		  PUSH (*WATCHERS (replacement), watch);
 		  ticks++;
 		  q--;
 		}
@@ -1644,7 +1550,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	}
       while (p != end)
 	*q++ = *p++;
-      set_end_of_watchers (watchers, q);
+      watchers->end = q;
     }
 
   solver->statistics.contexts[solver->context].conflicts += !!conflict;
@@ -2304,7 +2210,7 @@ flush_garbage_watchers (struct solver *solver, bool fixed)
 	}
       struct pointers *watchers = WATCHERS (lit);
       void **begin = watchers->begin, **q = begin;
-      void **end = end_watchers (watchers);
+      void **end = watchers->end;
       for (void ** p = begin; p != end; p++)
 	{
 	  struct watch *watch = *q++ = *p;
@@ -2342,9 +2248,9 @@ flush_garbage_watchers (struct solver *solver, bool fixed)
 	    }
 	}
       if (lit_value > 0 || q == begin)
-	release_watchers (watchers);
+	RELEASE (*watchers);
       else
-	set_end_of_watchers (watchers, q);
+	watchers->end = q;
     }
   verbose ("flushed %zu garbage watches from watch lists", flushed);
 }
