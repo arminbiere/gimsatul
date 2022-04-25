@@ -81,7 +81,7 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
-#define WATCHERS(LIT) (&solver->watchtab[LIT])
+#define WATCHES(LIT) (&solver->watchtab[LIT])
 
 /*------------------------------------------------------------------------*/
 
@@ -140,9 +140,9 @@ do { \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
-#define all_watches(ELEM,WATCHERS) \
-  struct watch ** P_ ## ELEM = (WATCHERS).begin, \
-               ** END_ ## ELEM = (WATCHERS).end, * ELEM; \
+#define all_watches(ELEM,WATCHES) \
+  struct watch ** P_ ## ELEM = (WATCHES).begin, \
+               ** END_ ## ELEM = (WATCHES).end, * ELEM; \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
@@ -249,11 +249,6 @@ struct watch
 struct watches
 {
   struct watch **begin, ** end, ** allocated;
-};
-
-struct pointers
-{
-  void **begin, ** end, ** allocated;
 };
 
 struct variable
@@ -395,9 +390,9 @@ struct solver
   unsigned unassigned;
   unsigned target;
   unsigned best;
-  struct watches watches;
   struct variable *variables;
-  struct pointers * watchtab;
+  struct watches * watchtab;
+  struct watches watchlist;
   signed char *values;
   bool *used;
   uint64_t random;
@@ -1075,7 +1070,7 @@ new_solver (unsigned size)
   solver->size = size;
   solver->values = allocate_and_clear_array (1, 2*size);
   solver->watchtab =
-    allocate_and_clear_array (sizeof (struct pointers), 2*size);
+    allocate_and_clear_array (sizeof (struct watches), 2*size);
   solver->used = allocate_and_clear_block (size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
@@ -1102,10 +1097,10 @@ release_watches (struct solver *solver)
 {
 
   for (all_literals (lit))
-    free (WATCHERS (lit)->begin);
+    free (WATCHES (lit)->begin);
   free (solver->watchtab);
 
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, solver->watchlist))
     {
       assert (!tagged_watch (watch));
       struct clause *clause = watch->clause;
@@ -1113,7 +1108,7 @@ release_watches (struct solver *solver)
 	free (clause);
       free (watch);
     }
-  RELEASE (solver->watches);
+  RELEASE (solver->watchlist);
 }
 
 static void
@@ -1286,9 +1281,9 @@ new_watch (struct solver *solver, struct clause *clause,
 #endif
   watch->sum = literals[0] ^ literals[1];
   watch->clause = clause;
-  PUSH (*WATCHERS (literals[0]), watch);
-  PUSH (*WATCHERS (literals[1]), watch);
-  PUSH (solver->watches, watch);
+  PUSH (*WATCHES (literals[0]), watch);
+  PUSH (*WATCHES (literals[1]), watch);
+  PUSH (solver->watchlist, watch);
   assert (watch->glue == clause->glue);
   assert (watch->redundant == clause->redundant);
   return watch;
@@ -1332,8 +1327,8 @@ new_binary_clause (struct solver * solver, bool redundant,
   inc_clauses (solver, redundant);
   struct watch * watch_lit = tag_watch (redundant, other);
   struct watch * watch_other = tag_watch (redundant, lit);
-  PUSH (*WATCHERS (lit), watch_lit);
-  PUSH (*WATCHERS (other), watch_other);
+  PUSH (*WATCHES (lit), watch_lit);
+  PUSH (*WATCHES (other), watch_other);
   LOGBINARY (redundant, lit, other, "new");
   return watch_lit;
 }
@@ -1446,9 +1441,9 @@ propagate (struct solver *solver, bool search, unsigned * failed)
       LOG ("propagating %s", LOGLIT (lit));
       propagations++;
       unsigned not_lit = NOT (lit);
-      struct pointers *watchers = WATCHERS (not_lit);
-      void **begin = watchers->begin, **q = begin;
-      void **end = watchers->end, **p = begin;
+      struct watches *watches = WATCHES (not_lit);
+      struct watch **begin = watches->begin, **q = begin;
+      struct watch **end = watches->end, **p = begin;
       ticks++;
       while (!conflict && p != end)
 	{
@@ -1530,7 +1525,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	      if (replacement_value >= 0)
 		{
 		  watch->sum = other ^ replacement;
-		  PUSH (*WATCHERS (replacement), watch);
+		  PUSH (*WATCHES (replacement), watch);
 		  ticks++;
 		  q--;
 		}
@@ -1550,7 +1545,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	}
       while (p != end)
 	*q++ = *p++;
-      watchers->end = q;
+      watches->end = q;
     }
 
   solver->statistics.contexts[solver->context].conflicts += !!conflict;
@@ -2068,7 +2063,7 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
   size_t marked = 0;
   signed char *values = solver->values;
   struct variable * variables = solver->variables;
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, solver->watchlist))
     {
       if (watch->garbage)
 	continue;
@@ -2092,13 +2087,13 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
     }
   solver->last.fixed = solver->statistics.fixed;
   verbose ("marked %zu satisfied clauses as garbage %.0f%%",
-	   marked, percent (marked, SIZE (solver->watches)));
+	   marked, percent (marked, SIZE (solver->watchlist)));
 }
 
 static void
 gather_reduce_candidates (struct solver *solver, struct watches *candidates)
 {
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, solver->watchlist))
     {
       if (watch->garbage)
 	continue;
@@ -2195,7 +2190,7 @@ mark_reduce_candidates_as_garbage (struct solver *solver,
 }
 
 static void
-flush_garbage_watchers (struct solver *solver, bool fixed)
+flush_watchtab (struct solver *solver, bool fixed)
 {
   size_t flushed = 0;
   signed char * values = solver->values;
@@ -2208,10 +2203,10 @@ flush_garbage_watchers (struct solver *solver, bool fixed)
 	  if (variables[IDX (lit)].level)
 	    lit_value = 0;
 	}
-      struct pointers *watchers = WATCHERS (lit);
-      void **begin = watchers->begin, **q = begin;
-      void **end = watchers->end;
-      for (void ** p = begin; p != end; p++)
+      struct watches *watches = WATCHES (lit);
+      struct watch **begin = watches->begin, **q = begin;
+      struct watch **end = watches->end;
+      for (struct watch ** p = begin; p != end; p++)
 	{
 	  struct watch *watch = *q++ = *p;
 	  unsigned tag = tagged_watch (watch);
@@ -2248,17 +2243,17 @@ flush_garbage_watchers (struct solver *solver, bool fixed)
 	    }
 	}
       if (lit_value > 0 || q == begin)
-	RELEASE (*watchers);
+	RELEASE (*watches);
       else
-	watchers->end = q;
+	watches->end = q;
     }
   verbose ("flushed %zu garbage watches from watch lists", flushed);
 }
 
 static void
-flush_garbage_watches_and_delete_unshared_clauses (struct solver *solver)
+flush_watchlist (struct solver *solver)
 {
-  struct watches *watches = &solver->watches;
+  struct watches *watches = &solver->watchlist;
   struct watch **begin = watches->begin, **q = begin;
   struct watch **end = watches->end;
   size_t flushed = 0, deleted = 0;
@@ -2311,8 +2306,8 @@ reduce (struct solver *solver)
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (solver, &candidates);
   RELEASE (candidates);
-  flush_garbage_watchers (solver, fixed);
-  flush_garbage_watches_and_delete_unshared_clauses (solver);
+  flush_watchtab (solver, fixed);
+  flush_watchlist (solver);
   unmark_reasons (solver);
   limits->reduce = SEARCH_CONFLICTS;
   limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
@@ -2443,7 +2438,7 @@ count_irredundant_non_garbage_clauses (struct solver * solver,
 {
   size_t res = 0;
   struct clause * last = 0;
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, solver->watchlist))
     {
       assert (!tagged_watch (watch));
       if (watch->garbage)
@@ -2523,7 +2518,7 @@ connect_counters (struct walker * walker, struct clause * last)
   double sum_lengths = 0;
   unsigned clauses = 0;
   uint64_t ticks = 1;
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, solver->watchlist))
     {
       if (watch->garbage)
 	continue;
