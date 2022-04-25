@@ -234,9 +234,9 @@ struct watch
 {
   unsigned short used;
   unsigned char glue;
-  bool garbage;
-  bool reason;
-  bool redundant;
+  bool garbage:1;
+  bool reason:1;
+  bool redundant:1;
 #ifdef MIDDLE
   unsigned middle;
 #endif
@@ -4019,6 +4019,8 @@ check_types (void)
 int
 main (int argc, char **argv)
 {
+  printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
+  printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
   start_time = current_time ();
   check_types ();
   parse_options (argc, argv);
