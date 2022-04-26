@@ -395,6 +395,7 @@ struct root
 {
   atomic_uint shared;
   struct binaries binaries;
+  unsigned size;
 };
 
 struct solver
@@ -1094,9 +1095,9 @@ static struct root *
 new_root (struct solver * solver)
 {
   struct root *root = allocate_and_clear_block (sizeof *root);
+  root->size = solver->size;
   assert (!solver->id);
   LOG ("new root");
-  (void) solver;
   return root;
 }
 
@@ -1136,8 +1137,8 @@ new_solver (unsigned size, struct root * root)
 {
   assert (size < (1u << 30));
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
-  solver->root = root ? share_root (root, solver) : new_root (solver);
   solver->size = size;
+  solver->root = root ? share_root (root, solver) : new_root (solver);
   LOG ("new solver of size %u", size);
   solver->values = allocate_and_clear_array (1, 2*size);
   solver->watchtab =
