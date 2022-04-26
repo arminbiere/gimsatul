@@ -391,8 +391,16 @@ struct binaries
   struct unsigneds irredundant;
 };
 
+struct root
+{
+  atomic_uint shared;
+  struct binaries binaries;
+};
+
 struct solver
 {
+  struct root * root;
+  unsigned id;
   bool inconsistent;
   bool iterating;
   bool stable;
@@ -406,7 +414,6 @@ struct solver
   struct variable *variables;
   struct watches * watchtab;
   struct watchlist watchlist;
-  struct binaries binaries;
   signed char *values;
   bool *used;
   uint64_t random;
@@ -1076,12 +1083,62 @@ init_profiles (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
+static void
+release_binaries (struct root * root)
+{
+  RELEASE (root->binaries.irredundant);
+  RELEASE (root->binaries.redundant);
+}
+
+static struct root *
+new_root (struct solver * solver)
+{
+  struct root *root = allocate_and_clear_block (sizeof *root);
+  assert (!solver->id);
+  LOG ("new root");
+  (void) solver;
+  return root;
+}
+
+static struct root *
+share_root (struct root * root, struct solver * solver)
+{
+  solver->id = atomic_fetch_add (&root->shared, 1) + 1;
+  LOG ("share root");
+  return root;
+}
+
+static void
+delete_root (struct root * root)
+{
+  assert (!root->shared);
+  release_binaries (root);
+  free (root);
+}
+
+static void
+unshare_root (struct solver * solver)
+{
+  LOG ("unshare root");
+  struct root * root = solver->root;
+  unsigned shared = atomic_fetch_sub (&root->shared, 1);
+  assert (shared);
+  if (shared > 1)
+    return;
+  LOG ("delete root");
+  delete_root (root);
+}
+
+/*------------------------------------------------------------------------*/
+
 static struct solver *
-new_solver (unsigned size)
+new_solver (unsigned size, struct root * root)
 {
   assert (size < (1u << 30));
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
+  solver->root = root ? share_root (root, solver) : new_root (solver);
   solver->size = size;
+  LOG ("new solver of size %u", size);
   solver->values = allocate_and_clear_array (1, 2*size);
   solver->watchtab =
     allocate_and_clear_array (sizeof (struct watches), 2*size);
@@ -1129,27 +1186,21 @@ release_watches (struct solver *solver)
 }
 
 static void
-release_binaries (struct solver * solver)
-{
-  RELEASE (solver->binaries.irredundant);
-  RELEASE (solver->binaries.redundant);
-}
-
-static void
 delete_solver (struct solver *solver)
 {
+  LOG ("delete solver");
   RELEASE (solver->clause);
   RELEASE (solver->analyzed);
   free (solver->trail.begin);
   RELEASE (solver->levels);
   RELEASE (solver->buffer);
-  release_binaries (solver);
   release_watches (solver);
   free (solver->queue.nodes);
   free (solver->queue.scores);
   free (solver->variables);
   free (solver->values);
   free (solver->used);
+  unshare_root (solver);
   free (solver);
 }
 
@@ -2300,7 +2351,9 @@ flush_watchlist (struct solver *solver)
       struct clause *clause = watch->clause;
       delete_watch (solver, watch);
 
-      if (--clause->shared)
+      unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+      assert (shared);
+      if (shared > 1)
 	continue;
 
       delete_clause (solver, clause);
@@ -3554,7 +3607,7 @@ parse_dimacs_file ()
     ch = next_char ();
   if (ch != '\n')
     goto INVALID_HEADER;
-  struct solver *solver = new_solver (variables);
+  struct solver *solver = new_solver (variables, 0);
   signed char *marked = allocate_and_clear_block (variables);
   printf ("c\nc initialized solver of %d variables\n", variables);
   fflush (stdout);
