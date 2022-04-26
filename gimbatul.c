@@ -237,7 +237,6 @@ struct watch
 {
   unsigned short used;
   unsigned char glue;
-  bool binary:1;
   bool garbage:1;
   bool reason:1;
   bool redundant:1;
@@ -1293,10 +1292,9 @@ static struct watch *
 new_watch (struct solver *solver, struct clause *clause,
 	   bool redundant, unsigned glue)
 {
-  assert (clause->size >= 2);
+  assert (clause->size > 2);
   unsigned *literals = clause->literals;
   struct watch *watch = allocate_block (sizeof *watch);
-  watch->binary = (clause->size == 2);
   watch->garbage = false;
   watch->reason = false;
   watch->redundant = redundant;
@@ -1367,7 +1365,7 @@ new_binary_clause (struct solver * solver, bool redundant,
 }
 
 static struct watch *
-new_clause (struct solver *solver, size_t size, unsigned *literals,
+new_large_clause (struct solver *solver, size_t size, unsigned *literals,
 		  bool redundant, unsigned glue)
 {
   assert (2 <= size);
@@ -1511,13 +1509,6 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	      ticks++;
 	      if (other_value > 0)
 		continue;
-	      if (watch->binary)
-		{
-		  if (other_value < 0)
-		    goto CONFLICT;
-		  assert (!other_value);
-		  goto ASSIGN;
-		}
 	      struct clause *clause = watch->clause;
 	      unsigned replacement = INVALID;
 	      signed char replacement_value = -1;
@@ -1569,7 +1560,6 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 		}
 	      else if (other_value)
 		{
-                CONFLICT:
 		  LOGCLAUSE (watch->clause, "conflicting");
 		  assert (!failed || *failed == INVALID);
 		  assert (other_value < 0);
@@ -1577,7 +1567,6 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 		}
 	      else
 		{
-                ASSIGN:
 		  assign_with_reason (solver, other, watch);
 		  ticks++;
 		}
@@ -1935,7 +1924,7 @@ analyze (struct solver *solver, struct watch *reason, unsigned failed)
 	      literals[1] = replacement;
 	      *p = other;
 	    }
-	  learned = new_clause (solver, size, literals, true, glue);
+	  learned = new_large_clause (solver, size, literals, true, glue);
 	}
       assign_with_reason (solver, not_uip, learned);
     }
@@ -3653,8 +3642,10 @@ parse_dimacs_file ()
 		  else if (!value)
 		    assign_unit (solver, unit);
 		}
+	      else if (size == 2)
+		new_binary_clause (solver, false, literals[0], literals[1]);
 	      else
-		new_clause (solver, size, literals, false, 0);
+		new_large_clause (solver, size, literals, false, 0);
 	    }
 	  else
 	    trivial = false;
