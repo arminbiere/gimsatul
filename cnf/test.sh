@@ -7,7 +7,7 @@ run () {
   log=cnf/$2.log
   err=cnf/$2.err
   rm -f $log $err
-  cmd="./gimbatul $cnf"
+  cmd="./gimsatul $cnf"
   echo "$cmd"
   $cmd 1>$log 2>$err
   status=$?

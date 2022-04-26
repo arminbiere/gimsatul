@@ -1,13 +1,13 @@
 CC=@CC@
 CFLAGS=@CFLAGS@
-all: gimbatul
+all: gimsatul
 clean:
-	rm -f makfile config.h gimbatul *~
+	rm -f makfile config.h gimsatul *~
 indent:
-	indent gimbatul.c
+	indent gimsatul.c
 test: all
 	cnf/test.sh
-gimbatul: gimbatul.c config.h
+gimsatul: gimsatul.c config.h
 	$(CC) $(CFLAGS) -o $@ $< -lm
 config.h: makefile
 	./mkconfig.sh > $@

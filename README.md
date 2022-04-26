@@ -1,4 +1,4 @@
-# Gimbatul SAT Solver
+# Gimsatul SAT Solver
 
 Use the following to configure, compile and test the solver
 

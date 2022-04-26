@@ -3,7 +3,7 @@
 // *INDENT-OFF*
 
 static const char * usage =
-"usage: gimbatul [ <option> ... ] [ <dimacs> [ <proof> ] ]\n"
+"usage: gimsatul [ <option> ... ] [ <dimacs> [ <proof> ] ]\n"
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
@@ -547,7 +547,7 @@ lock_message_mutex (void)
   if (pthread_mutex_lock (&message_mutex))
     {
       fprintf (stderr,
-	       "gimbatul: locking error: failed to lock message mutex\n");
+	       "gimsatul: locking error: failed to lock message mutex\n");
       fflush (stderr);
       abort ();
     }
@@ -559,7 +559,7 @@ unlock_message_mutex (void)
   if (pthread_mutex_unlock (&message_mutex))
     {
       fprintf (stderr,
-	       "gimbatul: locking error: failed to unlock message mutex\n");
+	       "gimsatul: locking error: failed to unlock message mutex\n");
       fflush (stderr);
       abort ();
     }
@@ -571,7 +571,7 @@ static void
 die (const char *fmt, ...)
 {
   lock_message_mutex ();
-  fputs ("gimbatul: error: ", stderr);
+  fputs ("gimsatul: error: ", stderr);
   va_list ap;
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
@@ -589,7 +589,7 @@ static void
 fatal_error (const char *fmt, ...)
 {
   lock_message_mutex ();
-  fputs ("gimbatul: fatal error: ", stderr);
+  fputs ("gimsatul: fatal error: ", stderr);
   va_list ap;
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
@@ -3341,7 +3341,7 @@ static void parse_error (const char *, ...)
 static void
 parse_error (const char *fmt, ...)
 {
-  fprintf (stderr, "gimbatul: parse error: at line %" PRIu64 " in '%s': ",
+  fprintf (stderr, "gimsatul: parse error: at line %" PRIu64 " in '%s': ",
 	   dimacs.lines, dimacs.path);
   va_list ap;
   va_start (ap, fmt);
@@ -3501,7 +3501,7 @@ static void
 print_banner (void)
 {
   lock_message_mutex ();
-  printf ("c Gimbatul SAT Solver\n");
+  printf ("c Gimsatul SAT Solver\n");
   printf ("c Copyright (c) 2022 Armin Biere University of Freiburg\n");
   fputs ("c\n", stdout);
   printf ("c Version %s%s\n", VERSION, GITID ? " " GITID : "");
@@ -3871,7 +3871,7 @@ check_witness (void)
       if (satisfied)
 	continue;
       lock_message_mutex ();
-      fprintf (stderr, "gimbatul: error: unsatisfied clause[%zu]", clauses);
+      fprintf (stderr, "gimsatul: error: unsatisfied clause[%zu]", clauses);
       for (unsigned *q = c; q != p; q++)
 	fprintf (stderr, " %d", export_literal (*q));
       fputs (" 0\n", stderr);
