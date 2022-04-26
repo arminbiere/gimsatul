@@ -401,23 +401,22 @@ struct root
 struct solver
 {
   struct root * root;
-  unsigned id;
   bool inconsistent;
   bool iterating;
   bool stable;
-  int context;
+  unsigned id;
   unsigned size;
+  unsigned context;
   unsigned active;
   unsigned level;
   unsigned unassigned;
   unsigned target;
   unsigned best;
+  bool *used;
+  signed char *values;
   struct variable *variables;
   struct watches * watchtab;
   struct watchlist watchlist;
-  signed char *values;
-  bool *used;
-  uint64_t random;
   struct unsigneds levels;
   struct queue queue;
   struct unsigneds clause;
@@ -431,6 +430,7 @@ struct solver
   struct reluctant reluctant;
   struct statistics statistics;
   struct profiles profiles;
+  uint64_t random;
 };
 
 /*------------------------------------------------------------------------*/
