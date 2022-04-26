@@ -246,9 +246,15 @@ struct watch
   struct clause *clause;
 };
 
+struct watchlist
+{
+  struct watch **begin, ** end, ** allocated;
+};
+
 struct watches
 {
   struct watch **begin, ** end, ** allocated;
+  unsigned * binaries;
 };
 
 struct variable
@@ -378,6 +384,12 @@ struct statistics
   } learned;
 };
 
+struct binaries
+{
+  struct unsigneds redundant;
+  struct unsigneds irredundant;
+};
+
 struct solver
 {
   bool inconsistent;
@@ -392,7 +404,8 @@ struct solver
   unsigned best;
   struct variable *variables;
   struct watches * watchtab;
-  struct watches watchlist;
+  struct watchlist watchlist;
+  struct binaries binaries;
   signed char *values;
   bool *used;
   uint64_t random;
@@ -1112,6 +1125,15 @@ release_watches (struct solver *solver)
 }
 
 static void
+release_binaries (struct solver * solver)
+{
+  for (all_literals (lit))
+    free (WATCHES (lit)->binaries);
+  RELEASE (solver->binaries.irredundant);
+  RELEASE (solver->binaries.redundant);
+}
+
+static void
 delete_solver (struct solver *solver)
 {
   RELEASE (solver->clause);
@@ -1120,6 +1142,7 @@ delete_solver (struct solver *solver)
   RELEASE (solver->levels);
   RELEASE (solver->buffer);
   release_watches (solver);
+  release_binaries (solver);
   free (solver->queue.nodes);
   free (solver->queue.scores);
   free (solver->variables);
@@ -2253,7 +2276,7 @@ flush_watchtab (struct solver *solver, bool fixed)
 static void
 flush_watchlist (struct solver *solver)
 {
-  struct watches *watches = &solver->watchlist;
+  struct watchlist *watches = &solver->watchlist;
   struct watch **begin = watches->begin, **q = begin;
   struct watch **end = watches->end;
   size_t flushed = 0, deleted = 0;
