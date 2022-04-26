@@ -48,6 +48,7 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
+#define FREE (UINT_MAX-1)
 #define INVALID UINT_MAX
 
 #define MAX_SCORE 1e150
@@ -81,7 +82,7 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
-#define WATCHES(LIT) (&solver->watchtab[LIT])
+#define WATCHES(LIT) (solver->watchtab[LIT])
 
 /*------------------------------------------------------------------------*/
 
@@ -1112,8 +1113,8 @@ release_watches (struct solver *solver)
 
   for (all_literals (lit))
     {
-      free (WATCHES (lit)->binaries);
-      free (WATCHES (lit)->begin);
+      free (WATCHES (lit).binaries);
+      free (WATCHES (lit).begin);
     }
   free (solver->watchtab);
 
@@ -1282,6 +1283,12 @@ close_proof (void)
 
 /*------------------------------------------------------------------------*/
 
+static void
+push_watch (struct solver * solver, unsigned lit, struct watch * watch)
+{
+  PUSH (WATCHES (lit), watch);
+}
+
 static struct watch *
 new_watch (struct solver *solver, struct clause *clause,
 	   bool redundant, unsigned glue)
@@ -1307,8 +1314,8 @@ new_watch (struct solver *solver, struct clause *clause,
 #endif
   watch->sum = literals[0] ^ literals[1];
   watch->clause = clause;
-  PUSH (*WATCHES (literals[0]), watch);
-  PUSH (*WATCHES (literals[1]), watch);
+  push_watch (solver, literals[0], watch);
+  push_watch (solver, literals[1], watch);
   PUSH (solver->watchlist, watch);
   assert (watch->glue == clause->glue);
   assert (watch->redundant == clause->redundant);
@@ -1353,8 +1360,8 @@ new_binary_clause (struct solver * solver, bool redundant,
   inc_clauses (solver, redundant);
   struct watch * watch_lit = tag_watch (redundant, other);
   struct watch * watch_other = tag_watch (redundant, lit);
-  PUSH (*WATCHES (lit), watch_lit);
-  PUSH (*WATCHES (other), watch_other);
+  push_watch (solver, lit, watch_lit);
+  push_watch (solver, other, watch_other);
   LOGBINARY (redundant, lit, other, "new");
   return watch_lit;
 }
@@ -1465,7 +1472,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
       LOG ("propagating %s", LOGLIT (lit));
       propagations++;
       unsigned not_lit = NOT (lit);
-      struct watches *watches = WATCHES (not_lit);
+      struct watches *watches = &WATCHES (not_lit);
       struct watch **begin = watches->begin, **q = begin;
       struct watch **end = watches->end, **p = begin;
       ticks++;
@@ -1556,7 +1563,7 @@ propagate (struct solver *solver, bool search, unsigned * failed)
 	      if (replacement_value >= 0)
 		{
 		  watch->sum = other ^ replacement;
-		  PUSH (*WATCHES (replacement), watch);
+		  push_watch (solver, replacement, watch);
 		  ticks++;
 		  q--;
 		}
@@ -2236,7 +2243,7 @@ flush_watchtab (struct solver *solver, bool fixed)
 	  if (variables[IDX (lit)].level)
 	    lit_value = 0;
 	}
-      struct watches *watches = WATCHES (lit);
+      struct watches *watches = &WATCHES (lit);
       struct watch **begin = watches->begin, **q = begin;
       struct watch **end = watches->end;
       for (struct watch ** p = begin; p != end; p++)
