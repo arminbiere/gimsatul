@@ -187,6 +187,11 @@ do { \
   AVG != END_ ## AVG; \
   ++AVG
 
+#define all_solvers(SOLVER) \
+  struct solver * SOLVER = root->solvers.first; \
+  SOLVER; \
+  SOLVER = SOLVER->next
+
 /*------------------------------------------------------------------------*/
 
 struct file
@@ -392,9 +397,16 @@ struct binaries
   struct unsigneds irredundant;
 };
 
+struct solvers
+{
+  unsigned count;
+  pthread_mutex_t lock;
+  struct solver * first, * last;
+};
+
 struct root
 {
-  atomic_uint shared;
+  struct solvers solvers;
   struct unsigneds binaries;
   unsigned *watches;
   unsigned size;
@@ -403,6 +415,7 @@ struct root
 struct solver
 {
   struct root *root;
+  struct solver * prev, * next;
   bool inconsistent;
   bool iterating;
   bool stable;
@@ -1086,61 +1099,85 @@ init_profiles (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
-static void
-release_binaries (struct root *root)
-{
-  RELEASE (root->binaries);
-  free (root->watches);
-}
-
 static struct root *
-new_root (struct solver *solver)
+new_root (size_t size)
 {
   struct root *root = allocate_and_clear_block (sizeof *root);
-  root->size = solver->size;
-  assert (!solver->id);
-  LOG ("new root");
-  return root;
-}
-
-static struct root *
-share_root (struct root *root, struct solver *solver)
-{
-  solver->id = atomic_fetch_add (&root->shared, 1) + 1;
-  LOG ("share root");
+  pthread_mutex_init (&root->solvers.lock, 0);
+  root->size = size;
   return root;
 }
 
 static void
 delete_root (struct root *root)
 {
-  assert (!root->shared);
-  release_binaries (root);
+  assert (!root->solvers.count);
+  assert (!root->solvers.first);
+  assert (!root->solvers.last);
+  RELEASE (root->binaries);
+  free (root->watches);
   free (root);
 }
 
 static void
-unshare_root (struct solver *solver)
+enqueue_solver (struct root * root, struct solver * solver)
 {
-  LOG ("unshare root");
-  struct root *root = solver->root;
-  unsigned shared = atomic_fetch_sub (&root->shared, 1);
-  assert (shared);
-  if (shared > 1)
-    return;
-  LOG ("delete root");
-  delete_root (root);
+  if (pthread_mutex_lock (&root->solvers.lock))
+    fatal_error ("could not lock root lock during solver enqueue");
+  solver->id = root->solvers.count++;
+  solver->root = root;
+  if (root->solvers.last)
+    root->solvers.last->next = solver;
+  else
+    root->solvers.first = solver;
+  solver->prev = root->solvers.last;
+  root->solvers.last = solver;
+  if (pthread_mutex_unlock (&root->solvers.lock))
+    fatal_error ("could not unlock root lock during solver enqueue");
+}
+
+static void
+dequeue_solver (struct root * root, struct solver * solver)
+{
+  if (pthread_mutex_lock (&root->solvers.lock))
+    fatal_error ("could not lock root lock during solver dequeue");
+  assert (root->solvers.count);
+  assert (solver->root == root);
+  root->solvers.count--;
+  if (solver->prev)
+    {
+      assert (solver->prev->next == solver);
+      solver->prev->next = solver->next;
+    }
+  else
+    {
+      assert (root->solvers.first == solver);
+      root->solvers.first = solver->next;
+    }
+  if (solver->next)
+    {
+      assert (solver->next->prev == solver);
+      solver->next->prev = solver->prev;
+    }
+  else
+    {
+      assert (root->solvers.last == solver);
+      root->solvers.last = solver->prev;
+    }
+  if (pthread_mutex_unlock (&root->solvers.lock))
+    fatal_error ("could not unlock root lock during solver dequeue");
 }
 
 /*------------------------------------------------------------------------*/
 
 static struct solver *
-new_solver (unsigned size, struct root *root)
+new_solver (struct root * root)
 {
+  unsigned size = root->size;
   assert (size < (1u << 30));
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
+  enqueue_solver (root, solver);
   solver->size = size;
-  solver->root = root ? share_root (root, solver) : new_root (solver);
   LOG ("new solver of size %u", size);
   solver->values = allocate_and_clear_array (1, 2 * size);
   solver->watchtab =
@@ -1203,7 +1240,7 @@ delete_solver (struct solver *solver)
   free (solver->variables);
   free (solver->values);
   free (solver->used);
-  unshare_root (solver);
+  dequeue_solver (solver->root, solver);
   free (solver);
 }
 
@@ -3662,7 +3699,7 @@ parse_int (int *res_ptr, int prev, int *next)
 static struct unsigneds original;
 #endif
 
-static struct solver *
+static struct root *
 parse_dimacs_file ()
 {
   int ch;
@@ -3693,7 +3730,8 @@ parse_dimacs_file ()
     goto INVALID_HEADER;
   printf ("c\nc parsed header with %d variables\n", variables);
   fflush (stdout);
-  struct solver *solver = new_solver (variables, 0);
+  struct root * root = new_root (variables);
+  struct solver *solver = new_solver (root);
   signed char *marked = allocate_and_clear_block (variables);
   int signed_lit = 0, parsed = 0;
   bool trivial = false;
@@ -3804,7 +3842,7 @@ parse_dimacs_file ()
     fclose (dimacs.file);
   if (dimacs.close == 2)
     pclose (dimacs.file);
-  return solver;
+  return root;
 }
 
 /*------------------------------------------------------------------------*/
@@ -3858,7 +3896,8 @@ print_witness (struct solver *solver)
 
 static volatile bool caught_signal;
 static volatile bool catching_signals;
-static struct solver *solver;
+
+static struct root *root;
 
 #define SIGNALS \
 SIGNAL(SIGABRT) \
@@ -3890,7 +3929,7 @@ reset_signal_handler (void)
 #undef SIGNAL
 }
 
-static void print_statistics (struct solver *);
+static void print_root_statistics (struct root *);
 
 static void
 catch_signal (int sig)
@@ -3909,7 +3948,7 @@ catch_signal (int sig)
   if (write (1, buffer, bytes) != bytes)
     exit (0);
   reset_signal_handler ();
-  print_statistics (solver);
+  print_root_statistics (root);
   raise (sig);
 }
 
@@ -3929,7 +3968,7 @@ init_signal_handler (void)
 #ifndef NDEBUG
 
 static void
-check_witness (void)
+check_witness (struct solver * solver)
 {
   signed char *values = solver->values;
   size_t clauses = 0;
@@ -4001,10 +4040,10 @@ cmp_profiles (struct profile *a, struct profile *b)
   return strcmp (b->name, a->name);
 }
 
-static double
+static void
 print_profiles (struct solver *solver)
 {
-  double time = flush_profiles (solver);
+  flush_profiles (solver);
   double total = solver->profiles.total.time;
   struct profile *prev = 0;
   fputs ("c\n", stdout);
@@ -4024,18 +4063,14 @@ print_profiles (struct solver *solver)
   printf ("c%-2u %10.2f seconds  100.0 %%  total\n", solver->id, total);
   fputs ("c\n", stdout);
   fflush (stdout);
-  return time - start_time;
 }
 
 static void
-print_statistics (struct solver *solver)
+print_solver_statistics (struct solver *solver)
 {
-  lock_message_mutex ();
-  double process = process_time ();
-  double total = print_profiles (solver);
+  print_profiles (solver);
   double search = solver->profiles.search.time;
   double walk = solver->profiles.total.time;
-  double memory = maximum_resident_set_size () / (double) (1 << 20);
   struct statistics *s = &solver->statistics;
   uint64_t conflicts = s->contexts[SEARCH].conflicts;
   uint64_t decisions = s->contexts[SEARCH].decisions;
@@ -4068,13 +4103,27 @@ print_statistics (struct solver *solver)
 	  "switched:", s->switched, average (conflicts, s->switched));
   printf ("c%-2u %-19s %13" PRIu64 " %13.2f flips per walkinterval\n", id,
 	  "walked:", s->walked, average (s->flips, s->walked));
-  printf ("c%-2u\n", id);
-  printf ("c%-2u %-30s %16.2f sec\n", id, "process-time:", process);
-  printf ("c%-2u %-30s %16.2f sec\n", id, "wall-clock-time:", total);
-  printf ("c%-2u %-30s %16.2f MB\n", id, "maximum-resident-set-size:",
-	  memory);
   fflush (stdout);
-  unlock_message_mutex ();
+}
+
+static void
+print_root_statistics (struct root * root)
+{
+  for (all_solvers (solver))
+    {
+      print_solver_statistics (solver);
+      printf ("c\n");
+    }
+
+  double process = process_time ();
+  double total = current_time () - start_time;
+  double memory = maximum_resident_set_size () / (double) (1 << 20);
+
+  printf ("c %-30s %16.2f sec\n", "process-time:", process);
+  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", total);
+  printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", memory);
+
+  fflush (stdout);
 }
 
 /*------------------------------------------------------------------------*/
@@ -4107,7 +4156,8 @@ main (int argc, char **argv)
 	      binary_proof_format ? "binary" : "ASCII", proof.path);
       fflush (stdout);
     }
-  solver = parse_dimacs_file ();
+  root = parse_dimacs_file ();
+  struct solver * solver = root->solvers.first;
   initialize_root_watches (solver);
   set_limits (solver);
   init_signal_handler ();
@@ -4122,15 +4172,16 @@ main (int argc, char **argv)
   else if (res == 10)
     {
 #ifndef NDEBUG
-      check_witness ();
+      check_witness (solver);
 #endif
       printf ("c\ns SATISFIABLE\n");
       if (witness)
 	print_witness (solver);
       fflush (stdout);
     }
-  print_statistics (solver);
+  print_root_statistics (root);
   delete_solver (solver);
+  delete_root (root);
 #ifndef NDEBUG
   RELEASE (original);
 #endif
