@@ -1111,7 +1111,10 @@ release_watches (struct solver *solver)
 {
 
   for (all_literals (lit))
-    free (WATCHES (lit)->begin);
+    {
+      free (WATCHES (lit)->binaries);
+      free (WATCHES (lit)->begin);
+    }
   free (solver->watchtab);
 
   for (all_watches (watch, solver->watchlist))
@@ -1128,8 +1131,6 @@ release_watches (struct solver *solver)
 static void
 release_binaries (struct solver * solver)
 {
-  for (all_literals (lit))
-    free (WATCHES (lit)->binaries);
   RELEASE (solver->binaries.irredundant);
   RELEASE (solver->binaries.redundant);
 }
@@ -1142,8 +1143,8 @@ delete_solver (struct solver *solver)
   free (solver->trail.begin);
   RELEASE (solver->levels);
   RELEASE (solver->buffer);
-  release_watches (solver);
   release_binaries (solver);
+  release_watches (solver);
   free (solver->queue.nodes);
   free (solver->queue.scores);
   free (solver->variables);
