@@ -394,7 +394,8 @@ struct binaries
 struct root
 {
   atomic_uint shared;
-  struct binaries binaries;
+  struct unsigneds binaries;
+  unsigned * watches;
   unsigned size;
 };
 
@@ -1087,8 +1088,8 @@ init_profiles (struct solver *solver)
 static void
 release_binaries (struct root * root)
 {
-  RELEASE (root->binaries.irredundant);
-  RELEASE (root->binaries.redundant);
+  RELEASE (root->binaries);
+  free (root->watches);
 }
 
 static struct root *
@@ -1409,16 +1410,27 @@ dec_clauses (struct solver* solver, bool redundant)
     }
 }
 
+static void
+new_global_binary_clause (struct solver * solver, bool redundant,
+                          unsigned lit, unsigned other)
+{
+  struct root * root = solver->root;
+  struct unsigneds * binaries = &root->binaries;
+  PUSH (*binaries, lit);
+  PUSH (*binaries, other);
+  LOGBINARY (redundant, lit, other, "new global");
+}
+
 static struct watch *
-new_binary_clause (struct solver * solver, bool redundant,
-                   unsigned lit, unsigned other)
+new_local_binary_clause (struct solver * solver, bool redundant,
+                         unsigned lit, unsigned other)
 {
   inc_clauses (solver, redundant);
   struct watch * watch_lit = tag_watch (redundant, other);
   struct watch * watch_other = tag_watch (redundant, lit);
   push_watch (solver, lit, watch_lit);
   push_watch (solver, other, watch_other);
-  LOGBINARY (redundant, lit, other, "new");
+  LOGBINARY (redundant, lit, other, "new local");
   return watch_lit;
 }
 
@@ -1450,6 +1462,64 @@ delete_clause (struct solver *solver, struct clause *clause)
   dec_clauses (solver, clause->redundant);
   TRACE_DELETED (clause);
   free (clause);
+}
+
+/*------------------------------------------------------------------------*/
+
+static void
+initialize_root_watches (struct solver * solver)
+{
+  struct root * root = solver->root;
+  size_t * counts = allocate_and_clear_array (2*root->size, sizeof (size_t));
+  struct unsigneds * binaries = &root->binaries;
+  unsigned * begin = binaries->begin;
+  unsigned * end = binaries->begin;
+  for (unsigned * p = begin; p != end; p += 2)
+    counts[p[0]]++, counts[p[1]]++;
+  size_t size = 0;
+  for (all_literals (lit))
+    {
+      size_t count = counts[lit];
+      if (count)
+	{
+	  size += count;
+	  assert (size < UINT64_MAX);
+	  assert (size);
+	  counts[lit] = size++;
+	}
+      else
+	counts[lit] = UINT64_MAX;
+    }
+  unsigned * global_watches = allocate_array (size, sizeof *global_watches);
+  root->watches = global_watches;
+  for (all_literals (lit))
+    if (counts[lit])
+      global_watches[counts[lit]] = INVALID;
+  for (unsigned * p = begin; p != end; p += 2)
+    {
+      unsigned lit = p[0], other = p[1];
+      size_t count_lit = counts[lit];
+      size_t count_other = counts[other];
+      assert (count_lit), counts[lit] = --count_lit;
+      assert (count_other), counts[other] = --count_other;
+      global_watches[count_lit] = other;
+      global_watches[count_other] = lit;
+    }
+  for (all_literals (lit))
+    {
+      size_t count = counts[lit];
+      struct watches * lit_watches = &WATCHES (lit);
+      if (count < UINT64_MAX)
+	{
+	  lit_watches->binaries = global_watches + count;
+	  assert (lit_watches->binaries);
+	}
+      else
+	  assert (!lit_watches->binaries);
+    }
+  free (counts);
+  printf ("c need %zu global binary clause watches\n", size);
+  fflush (stdout);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1969,7 +2039,7 @@ analyze (struct solver *solver, struct watch *reason, unsigned failed)
       if (size == 2)
 	{
 	  assert (VAR (other)->level == jump);
-	  learned = new_binary_clause (solver, true, not_uip, other);
+	  learned = new_local_binary_clause (solver, true, not_uip, other);
 	}
       else
 	{
@@ -3709,7 +3779,8 @@ parse_dimacs_file ()
 		    assign_unit (solver, unit);
 		}
 	      else if (size == 2)
-		new_binary_clause (solver, false, literals[0], literals[1]);
+		new_global_binary_clause (solver, false,
+		                          literals[0], literals[1]);
 	      else
 		new_large_clause (solver, size, literals, false, 0);
 	    }
@@ -4034,8 +4105,10 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   solver = parse_dimacs_file ();
-  init_signal_handler ();
+  initialize_root_watches (solver);
+  connect_global_binary_clauses (solver);
   set_limits (solver);
+  init_signal_handler ();
   int res = solve (solver);
   reset_signal_handler ();
   close_proof ();
