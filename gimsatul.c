@@ -413,6 +413,10 @@ struct statistics
 
   struct
   {
+    uint64_t glue1;
+    uint64_t tier1;
+    uint64_t tier2;
+    uint64_t tier3;
     uint64_t clauses;
     uint64_t literals;
   } learned;
@@ -1564,6 +1568,14 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
   clause->redundant = redundant;
   clause->shared = 0;
   clause->size = size;
+  if (glue == 1)
+    solver->statistics.learned.glue1++;
+  if (glue <= TIER1_GLUE_LIMIT)
+    solver->statistics.learned.tier1++;
+  else if (glue <= TIER2_GLUE_LIMIT)
+    solver->statistics.learned.tier2++;
+  else
+    solver->statistics.learned.tier3++;
   memcpy (clause->literals, literals, bytes);
   LOGCLAUSE (clause, "new");
   return new_watch (solver, clause, redundant, glue);
@@ -4546,6 +4558,21 @@ print_solver_statistics (struct solver *solver)
   printf (PFX "%-19s %13" PRIu64 " %13.2f per learned clause\n", id,
 	  "learned-literals:", s->learned.literals,
 	  average (s->learned.literals, s->learned.clauses));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+	  "learned-clauses:", s->learned.clauses,
+	  average (s->learned.clauses, search));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+	  "  glue1-clauses:", s->learned.glue1,
+	  average (s->learned.glue1, search));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+	  "  tier1-clauses:", s->learned.tier1,
+	  average (s->learned.tier1, search));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+	  "  tier2-clauses:", s->learned.tier2,
+	  average (s->learned.tier2, search));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+	  "  tier3-clauses:", s->learned.tier3,
+	  average (s->learned.tier3, search));
   printf (PFX "%-19s %13" PRIu64 " %13.2f %% per deduced literals\n", id,
 	  "minimized-literals:", s->minimized, percent (s->minimized,
 							s->deduced));
