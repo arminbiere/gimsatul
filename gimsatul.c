@@ -3503,7 +3503,7 @@ static char (*schedule[])(struct solver *) =
   rephase_inverted, rephase_best, rephase_walk,
 };
 
-// *INDENT-OFF*
+// *INDENT-ON*
 
 static void
 rephase (struct solver *solver)
@@ -3524,7 +3524,8 @@ rephase (struct solver *solver)
     }
   limits->rephase = SEARCH_CONFLICTS;
   limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
-  verbose (solver, "next rephase limit at %" PRIu64 " conflicts", limits->rephase);
+  verbose (solver, "next rephase limit at %" PRIu64 " conflicts",
+	   limits->rephase);
   report (solver, type);
 }
 
@@ -3567,7 +3568,7 @@ stop_search (struct solver *solver, int res)
 }
 
 static bool
-conflict_limit_hit (struct solver * solver)
+conflict_limit_hit (struct solver *solver)
 {
   long limit = solver->limits.conflicts;
   if (limit < 0)
@@ -3575,7 +3576,8 @@ conflict_limit_hit (struct solver * solver)
   uint64_t conflicts = SEARCH_CONFLICTS;
   if (conflicts < (unsigned long) limit)
     return false;
-  verbose (solver, "conflict limit %ld hit at %" PRIu64 " conflicts", limit, conflicts);
+  verbose (solver, "conflict limit %ld hit at %" PRIu64 " conflicts", limit,
+	   conflicts);
   return true;
 }
 
@@ -3617,9 +3619,9 @@ solve (struct solver *solver)
 }
 
 static void *
-solve_routine (void * ptr)
+solve_routine (void *ptr)
 {
-  struct solver * solver = ptr;
+  struct solver *solver = ptr;
   int res = solve (solver);
   assert (solver->status == res);
   (void) res;
@@ -3688,7 +3690,7 @@ struct options
 };
 
 static void
-parse_options (int argc, char **argv, struct options * options)
+parse_options (int argc, char **argv, struct options *options)
 {
   options->conflicts = -1;
   options->seconds = 0;
@@ -3704,7 +3706,8 @@ parse_options (int argc, char **argv, struct options * options)
 	  if (options->conflicts >= 0)
 	    die ("multiple '-c %lld' and '-c %s'", options->conflicts, arg);
 	  arg = argv[i];
-	  if (sscanf (arg, "%lld", &options->conflicts) != 1 || options->conflicts < 0)
+	  if (sscanf (arg, "%lld", &options->conflicts) != 1
+	      || options->conflicts < 0)
 	    die ("invalid argument in '-c %s'", arg);
 	}
       else if (!strcmp (arg, "-f"))
@@ -3820,8 +3823,10 @@ set_limits (struct solver *solver, long long conflicts)
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
   verbose (solver, "reduce interval of %" PRIu64 " conflict", limits->reduce);
-  verbose (solver, "restart interval of %" PRIu64 " conflict", limits->restart);
-  verbose (solver, "initial mode switching interval of %" PRIu64 " conflicts", limits->mode);
+  verbose (solver, "restart interval of %" PRIu64 " conflict",
+	   limits->restart);
+  verbose (solver, "initial mode switching interval of %" PRIu64 " conflicts",
+	   limits->mode);
   if (conflicts >= 0)
     {
       limits->conflicts = conflicts;
@@ -3946,7 +3951,7 @@ parse_dimacs_file ()
       ch != ' ' || !parse_int (&expected, EOF, &ch) || expected < 0)
   INVALID_HEADER:
     parse_error ("invalid 'p cnf ...' header line");
-  if (sizeof (size_t) < 8 && variables > (1<<29))
+  if (sizeof (size_t) < 8 && variables > (1 << 29))
     parse_error ("too many variables in 32-bit compilation");
   while (ch == ' ' || ch == '\t')
     ch = next_char ();
@@ -3954,7 +3959,7 @@ parse_dimacs_file ()
     goto INVALID_HEADER;
   printf ("c\nc parsed header with %d variables\n", variables);
   fflush (stdout);
-  struct root * root = new_root (variables);
+  struct root *root = new_root (variables);
   struct solver *solver = new_solver (root);
   signed char *marked = allocate_and_clear_block (variables);
   int signed_lit = 0, parsed = 0;
@@ -4018,7 +4023,7 @@ parse_dimacs_file ()
 	  PUSH (original, INVALID);
 #endif
 	  parsed++;
-	  unsigned * literals = clause->begin;
+	  unsigned *literals = clause->begin;
 	  if (!solver->inconsistent && !trivial)
 	    {
 	      const size_t size = SIZE (*clause);
@@ -4039,7 +4044,7 @@ parse_dimacs_file ()
 		}
 	      else if (size == 2)
 		new_global_binary_clause (solver, false,
-		                          literals[0], literals[1]);
+					  literals[0], literals[1]);
 	      else
 		new_large_clause (solver, size, literals, false, 0);
 	    }
@@ -4055,7 +4060,7 @@ parse_dimacs_file ()
   free (marked);
   assert (parsed == expected);
   printf ("c parsed 'p cnf %d %d' DIMACS file '%s'\n",
-	   variables, parsed, dimacs.path);
+	  variables, parsed, dimacs.path);
   fflush (stdout);
   assert (dimacs.file);
   if (dimacs.close == 1)
@@ -4157,7 +4162,7 @@ reset_signal_handlers (void)
       signal (SIG, saved_ ## SIG ## _handler);
       SIGNALS
 #undef SIGNAL
-  // *INDENT-OFF*
+  // *INDENT-ON*
     }
   reset_alarm_handler ();
 }
@@ -4172,7 +4177,7 @@ caught_message (int sig)
   if (sig == SIG) name = #SIG;
   SIGNALS
 #undef SIGNAL
-  if (sig == SIGALRM)
+    if (sig == SIGALRM)
     name = "SIGALRM";
   char buffer[80];
   sprintf (buffer, "c\nc caught signal %d (%s)\nc\n", sig, name);
@@ -4228,37 +4233,38 @@ set_signal_handlers (unsigned seconds)
   SIGNALS
 #undef SIGNAL
   // *INDENT-ON*
-      atomic_store (&catching_signals, true);
-      if (seconds)
-	set_alarm_handler (seconds);
-    }
+  atomic_store (&catching_signals, true);
+  if (seconds)
+    set_alarm_handler (seconds);
+}
 
 /*------------------------------------------------------------------------*/
 
 #ifndef NDEBUG
 
-  static void check_witness (struct solver *solver)
-  {
-    signed char *values = solver->values;
-    size_t clauses = 0;
-    for (unsigned *c = original.begin, *p; c != original.end; c = p + 1)
-      {
-	bool satisfied = false;
-	for (p = c; assert (p != original.end), *p != INVALID; p++)
-	  if (values[*p] > 0)
-	    satisfied = true;
-	clauses++;
-	if (satisfied)
-	  continue;
-	lock_message_mutex ();
-	fprintf (stderr, "gimsatul: error: unsatisfied clause[%zu]", clauses);
-	for (unsigned *q = c; q != p; q++)
-	  fprintf (stderr, " %d", export_literal (*q));
-	fputs (" 0\n", stderr);
-	unlock_message_mutex ();
-	abort ();
-      }
-  }
+static void
+check_witness (struct solver *solver)
+{
+  signed char *values = solver->values;
+  size_t clauses = 0;
+  for (unsigned *c = original.begin, *p; c != original.end; c = p + 1)
+    {
+      bool satisfied = false;
+      for (p = c; assert (p != original.end), *p != INVALID; p++)
+	if (values[*p] > 0)
+	  satisfied = true;
+      clauses++;
+      if (satisfied)
+	continue;
+      lock_message_mutex ();
+      fprintf (stderr, "gimsatul: error: unsatisfied clause[%zu]", clauses);
+      for (unsigned *q = c; q != p; q++)
+	fprintf (stderr, " %d", export_literal (*q));
+      fputs (" 0\n", stderr);
+      unlock_message_mutex ();
+      abort ();
+    }
+}
 
 #endif
 
@@ -4273,201 +4279,211 @@ struct profile * PROFILE = begin_profiles, \
 PROFILE != END_ ## PROFILE; \
 ++PROFILE
 
-  static void flush_profile (double time, struct profile *profile)
-  {
-    double volatile *p = &profile->start;
-    assert (*p >= 0);
-    double delta = time - *p;
-    *p = time;
-    profile->time += delta;
-  }
+static void
+flush_profile (double time, struct profile *profile)
+{
+  double volatile *p = &profile->start;
+  assert (*p >= 0);
+  double delta = time - *p;
+  *p = time;
+  profile->time += delta;
+}
 
-  static double flush_profiles (struct solver *solver)
-  {
-    double time = current_time ();
-    for (all_profiles (profile))
-      if (profile->start >= 0)
-	flush_profile (time, profile);
+static double
+flush_profiles (struct solver *solver)
+{
+  double time = current_time ();
+  for (all_profiles (profile))
+    if (profile->start >= 0)
+      flush_profile (time, profile);
 
-    flush_profile (time, &solver->profiles.total);
-    return time;
-  }
+  flush_profile (time, &solver->profiles.total);
+  return time;
+}
 
-  static int cmp_profiles (struct profile *a, struct profile *b)
-  {
-    if (!a)
-      return -1;
-    if (!b)
-      return -1;
-    if (a->time < b->time)
-      return -1;
-    if (a->time > b->time)
-      return 1;
-    return strcmp (b->name, a->name);
-  }
+static int
+cmp_profiles (struct profile *a, struct profile *b)
+{
+  if (!a)
+    return -1;
+  if (!b)
+    return -1;
+  if (a->time < b->time)
+    return -1;
+  if (a->time > b->time)
+    return 1;
+  return strcmp (b->name, a->name);
+}
 
-  static void print_profiles (struct solver *solver)
-  {
-    flush_profiles (solver);
-    double total = solver->profiles.total.time;
-    struct profile *prev = 0;
-    fputs ("c\n", stdout);
-    for (;;)
-      {
-	struct profile *next = 0;
-	for (all_profiles (tmp))
-	  if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
-	    next = tmp;
-	if (!next)
-	  break;
-	printf (PFX "%10.2f seconds  %5.1f %%  %s\n", solver->id,
-		next->time, percent (next->time, total), next->name);
-	prev = next;
-      }
-    printf (PFX "---------------------------------------\n", solver->id);
-    printf (PFX "%10.2f seconds  100.0 %%  total\n", solver->id, total);
-    fputs ("c\n", stdout);
-    fflush (stdout);
-  }
+static void
+print_profiles (struct solver *solver)
+{
+  flush_profiles (solver);
+  double total = solver->profiles.total.time;
+  struct profile *prev = 0;
+  fputs ("c\n", stdout);
+  for (;;)
+    {
+      struct profile *next = 0;
+      for (all_profiles (tmp))
+	if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
+	  next = tmp;
+      if (!next)
+	break;
+      printf (PFX "%10.2f seconds  %5.1f %%  %s\n", solver->id,
+	      next->time, percent (next->time, total), next->name);
+      prev = next;
+    }
+  printf (PFX "---------------------------------------\n", solver->id);
+  printf (PFX "%10.2f seconds  100.0 %%  total\n", solver->id, total);
+  fputs ("c\n", stdout);
+  fflush (stdout);
+}
 
-  static void print_solver_statistics (struct solver *solver)
-  {
-    print_profiles (solver);
-    double search = solver->profiles.search.time;
-    double walk = solver->profiles.total.time;
-    struct statistics *s = &solver->statistics;
-    uint64_t conflicts = s->contexts[SEARCH].conflicts;
-    uint64_t decisions = s->contexts[SEARCH].decisions;
-    uint64_t propagations = s->contexts[SEARCH].propagations;
-    unsigned id = solver->id;
-    printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "conflicts:",
-	    conflicts, average (conflicts, search));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "decisions:",
-	    decisions, average (decisions, search));
-    printf (PFX "%-19s %13u %13.2f %% variables\n", id, "fixed-variables:",
-	    s->fixed, percent (s->fixed, solver->size));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f thousands per second\n", id,
-	    "flips:", s->flips, average (s->flips, 1e3 * walk));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f per learned clause\n", id,
-	    "learned-literals:", s->learned.literals,
-	    average (s->learned.literals, s->learned.clauses));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f %% per deduced literals\n", id,
-	    "minimized-literals:", s->minimized, percent (s->minimized,
-							  s->deduced));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f millions per second\n", id,
-	    "propagations:", propagations, average (propagations,
-						    1e6 * search));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
-	    "reductions:", s->reductions, average (conflicts, s->reductions));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
-	    "rephased:", s->rephased, average (conflicts, s->rephased));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
-	    "restarts:", s->restarts, average (conflicts, s->restarts));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
-	    "switched:", s->switched, average (conflicts, s->switched));
-    printf (PFX "%-19s %13" PRIu64 " %13.2f flips per walkinterval\n", id,
-	    "walked:", s->walked, average (s->flips, s->walked));
-    fflush (stdout);
-  }
+static void
+print_solver_statistics (struct solver *solver)
+{
+  print_profiles (solver);
+  double search = solver->profiles.search.time;
+  double walk = solver->profiles.total.time;
+  struct statistics *s = &solver->statistics;
+  uint64_t conflicts = s->contexts[SEARCH].conflicts;
+  uint64_t decisions = s->contexts[SEARCH].decisions;
+  uint64_t propagations = s->contexts[SEARCH].propagations;
+  unsigned id = solver->id;
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "conflicts:",
+	  conflicts, average (conflicts, search));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "decisions:",
+	  decisions, average (decisions, search));
+  printf (PFX "%-19s %13u %13.2f %% variables\n", id, "fixed-variables:",
+	  s->fixed, percent (s->fixed, solver->size));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f thousands per second\n", id,
+	  "flips:", s->flips, average (s->flips, 1e3 * walk));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per learned clause\n", id,
+	  "learned-literals:", s->learned.literals,
+	  average (s->learned.literals, s->learned.clauses));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f %% per deduced literals\n", id,
+	  "minimized-literals:", s->minimized, percent (s->minimized,
+							s->deduced));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f millions per second\n", id,
+	  "propagations:", propagations, average (propagations,
+						  1e6 * search));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+	  "reductions:", s->reductions, average (conflicts, s->reductions));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+	  "rephased:", s->rephased, average (conflicts, s->rephased));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+	  "restarts:", s->restarts, average (conflicts, s->restarts));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+	  "switched:", s->switched, average (conflicts, s->switched));
+  printf (PFX "%-19s %13" PRIu64 " %13.2f flips per walkinterval\n", id,
+	  "walked:", s->walked, average (s->flips, s->walked));
+  fflush (stdout);
+}
 
-  static void print_root_statistics (struct root *root)
-  {
-    for (all_solvers (solver))
-      {
-	print_solver_statistics (solver);
-	printf ("c\n");
-      }
+static void
+print_root_statistics (struct root *root)
+{
+  for (all_solvers (solver))
+    {
+      print_solver_statistics (solver);
+      printf ("c\n");
+    }
 
-    double process = process_time ();
-    double total = current_time () - start_time;
-    double memory = maximum_resident_set_size () / (double) (1 << 20);
+  double process = process_time ();
+  double total = current_time () - start_time;
+  double memory = maximum_resident_set_size () / (double) (1 << 20);
 
-    printf ("c %-30s %16.2f sec\n", "process-time:", process);
-    printf ("c %-30s %16.2f sec\n", "wall-clock-time:", total);
-    printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", memory);
+  printf ("c %-30s %16.2f sec\n", "process-time:", process);
+  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", total);
+  printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", memory);
 
-    fflush (stdout);
-  }
+  fflush (stdout);
+}
 
 /*------------------------------------------------------------------------*/
 
-  static void check_types (void)
-  {
-    if (sizeof (size_t) != sizeof (void *))
-      fatal_error ("unsupported platform: 'sizeof (size_t) = %zu' "
-		   "different from 'sizeof (void*) = %zu'",
-		   sizeof (size_t), sizeof (void *));
+static void
+check_types (void)
+{
+  if (sizeof (size_t) != sizeof (void *))
+    fatal_error ("unsupported platform: 'sizeof (size_t) = %zu' "
+		 "different from 'sizeof (void*) = %zu'",
+		 sizeof (size_t), sizeof (void *));
 #if 0
-    printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
-    printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
+  printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
+  printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
 #endif
-  }
+}
 
 /*------------------------------------------------------------------------*/
 
-  static void start_running_solve (struct solver *solver)
-  {
-    if (pthread_create (&solver->thread, 0, solve_routine, solver))
-      fatal_error ("failed to create solving thread");
-  }
+static void
+start_running_solve (struct solver *solver)
+{
+  if (pthread_create (&solver->thread, 0, solve_routine, solver))
+    fatal_error ("failed to create solving thread");
+}
 
-  static void stop_running_solve (struct solver *solver)
-  {
-    if (pthread_join (solver->thread, 0))
-      fatal_error ("failed to join solving thread");
-  }
+static void
+stop_running_solve (struct solver *solver)
+{
+  if (pthread_join (solver->thread, 0))
+    fatal_error ("failed to join solving thread");
+}
 
-  int main (int argc, char **argv)
-  {
-    start_time = current_time ();
-    check_types ();
-    struct options options;
-    parse_options (argc, argv, &options);
-    print_banner ();
-    if (proof.file)
-      {
-	printf ("c\nc writing %s proof trace to '%s'\n",
-		binary_proof_format ? "binary" : "ASCII", proof.path);
-	fflush (stdout);
-      }
-    root = parse_dimacs_file ();
-    struct solver *solver = root->solvers.first;
-    init_root_watches (solver);
-    struct solver *clone = clone_solver (solver);
-    set_limits (solver, options.conflicts);
-    set_limits (clone, options.conflicts);
-    set_signal_handlers (options.seconds);
-    start_running_solve (solver);
-    start_running_solve (clone);
-    stop_running_solve (solver);
-    stop_running_solve (clone);
-    struct solver *winner = (struct solver *) root->winner;
-    int res = winner ? winner->status : 0;
-    reset_signal_handlers ();
-    close_proof ();
-    if (res == 20)
-      {
-	printf ("c\ns UNSATISFIABLE\n");
-	fflush (stdout);
-      }
-    else if (res == 10)
-      {
+int
+main (int argc, char **argv)
+{
+  start_time = current_time ();
+  check_types ();
+  struct options options;
+  parse_options (argc, argv, &options);
+  print_banner ();
+  if (proof.file)
+    {
+      printf ("c\nc writing %s proof trace to '%s'\n",
+	      binary_proof_format ? "binary" : "ASCII", proof.path);
+      fflush (stdout);
+    }
+  root = parse_dimacs_file ();
+  struct solver *solver = root->solvers.first;
+  init_root_watches (solver);
+  struct solver *clone = clone_solver (solver);
+  set_limits (solver, options.conflicts);
+  set_limits (clone, options.conflicts);
+  set_signal_handlers (options.seconds);
+  start_running_solve (solver);
+  start_running_solve (clone);
+  stop_running_solve (solver);
+  stop_running_solve (clone);
+  struct solver *winner = (struct solver *) root->winner;
+  int res = winner ? winner->status : 0;
+  reset_signal_handlers ();
+  close_proof ();
+  if (res == 20)
+    {
+      printf ("c\ns UNSATISFIABLE\n");
+      fflush (stdout);
+    }
+  else if (res == 10)
+    {
 #ifndef NDEBUG
-	check_witness (winner);
+      check_witness (winner);
 #endif
-	printf ("c\ns SATISFIABLE\n");
-	if (witness)
-	  print_witness (winner);
-	fflush (stdout);
-      }
-    print_root_statistics (root);
-    delete_solver (solver);
-    delete_solver (clone);
-    delete_root (root);
+      printf ("c\ns SATISFIABLE\n");
+      if (witness)
+	print_witness (winner);
+      fflush (stdout);
+    }
+  print_root_statistics (root);
+  delete_solver (solver);
+  delete_solver (clone);
+  delete_root (root);
 #ifndef NDEBUG
-    RELEASE (original);
+  RELEASE (original);
 #endif
-    printf ("c\nc exit %d\n", res);
-    fflush (stdout);
-    return res;
-  }
+  printf ("c\nc exit %d\n", res);
+  fflush (stdout);
+  return res;
+}
