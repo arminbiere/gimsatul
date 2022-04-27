@@ -1206,7 +1206,7 @@ new_solver (struct root * root)
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
   enqueue_solver (root, solver);
   solver->size = size;
-  LOG ("new solver of size %u", size);
+  verbose (solver, "new solver[%u] of size %u", solver->id, size);
   solver->values = allocate_and_clear_array (1, 2 * size);
   solver->watchtab =
     allocate_and_clear_array (sizeof (struct watches), 2 * size);
@@ -1252,7 +1252,7 @@ release_watches (struct solver *solver)
 static void
 delete_solver (struct solver *solver)
 {
-  LOG ("delete solver");
+  verbose (solver, "delete solver[%u]", solver->id);
   RELEASE (solver->clause);
   RELEASE (solver->analyzed);
   free (solver->trail.begin);
@@ -1677,6 +1677,66 @@ assign_decision (struct solver *solver, unsigned decision)
   LOG ("assign %s decision score %g",
        LOGLIT (decision), solver->queue.nodes[IDX (decision)].score);
 }
+
+/*------------------------------------------------------------------------*/
+
+static void
+share_clauses (struct solver * dst, struct solver * src)
+{
+  struct solver * solver = dst;
+  verbose (solver, "copying clauses from solver[%u] to solver[%u]",
+           src->id, dst->id);
+  assert (!src->level);
+  assert (src->trail.propagate == src->trail.begin);
+  if (src->inconsistent)
+    {
+      very_verbose (solver, "copying inconsistent empty clause");
+      solver->inconsistent = true;
+      TRACE_EMPTY ();
+      return;
+    }
+  unsigned units = 0;
+  for (all_elements_on_stack (unsigned, lit, src->trail))
+    {
+      LOG ("copying unit %s", LOGLIT (lit));
+      assign_unit (solver, lit);
+      units++;
+    }
+  very_verbose (solver, "copied %u units", units);
+  struct watches * src_watchtab = src->watchtab;
+  struct watches * dst_watchtab = dst->watchtab;
+  size_t copied_binary_watch_lists = 0;
+  for (all_literals (lit))
+    {
+      struct watches * src_watches = src_watchtab + lit;
+      struct watches * dst_watches = dst_watchtab + lit;
+      assert (EMPTY (*dst_watches));
+      unsigned * src_binaries = src_watches->binaries;
+      if(src_binaries)
+	{
+	  dst_watches->binaries = src_binaries;
+	  copied_binary_watch_lists++;
+	}
+#ifndef NDEBUG
+      for (all_watches (src_watch, *src_watches))
+	assert (!tagged_watch (src_watch));
+#endif
+    }
+  very_verbose (solver, "shared %zu global binary watch lists",
+                copied_binary_watch_lists);
+  for (all_watches (src_watch, src->watchlist))
+    {
+      struct clause * clause = src_watch->clause;
+      assert (!clause->redundant);
+      unsigned shared = atomic_fetch_add (&clause->shared, 1);
+      assert (shared);
+      (void) shared;
+      inc_clauses (solver, false);
+      new_watch (solver, clause, false, 0);
+    }
+}
+
+/*------------------------------------------------------------------------*/
 
 static struct watch *
 propagate (struct solver *solver, bool search, unsigned *failed)
