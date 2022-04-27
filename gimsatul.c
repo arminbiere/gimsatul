@@ -17,9 +17,9 @@ static const char * usage =
 "-v|--verbose     increase verbosity\n"
 "--version        print version\n"
 "\n"
-"--conflicts=<conflicts>  set conflict limit (zero or more - default unlimited)\n"
+"--conflicts=<conflicts>  limit conflicts (zero or more - default unlimited)\n"
 "--threads=<number>       set number of threads (1 ... %zu - default '1')\n"
-"--time=<seconds>         set time limit (1,2,3, ... - default unlimited)\n"
+"--time=<seconds>         limit time (1,2,3, ... - default unlimited)\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof output file in 'DRAT' format (no proof if missing).\n"
@@ -3777,7 +3777,7 @@ long_option (const char * arg, const char * match)
     return 0;
   if (arg[1] != '-')
     return 0;
-  const char * p = arg;
+  const char * p = arg + 2;
   for (const char * q = match; *q; q++, p++)
     if (*q != *p)
       return 0;
@@ -3954,14 +3954,12 @@ set_limits (struct solver *solver, long long conflicts)
 static void
 print_banner (void)
 {
-  acquire_message_lock ();
   printf ("c GimSATul SAT Solver\n");
   printf ("c Copyright (c) 2022 Armin Biere University of Freiburg\n");
   fputs ("c\n", stdout);
   printf ("c Version %s%s\n", VERSION, GITID ? " " GITID : "");
   printf ("c %s\n", COMPILER);
   printf ("c %s\n", BUILD);
-  release_message_lock ();
 }
 
 #define CHECK_SIZE_OF_TYPE(TYPE,EXPECTED) \
@@ -4239,6 +4237,11 @@ print_witness (struct solver *solver)
 static void
 clone_solvers (struct root * root, unsigned threads)
 {
+  if (threads == 1)
+    return;
+  assert (threads - 1);
+  printf ("c cloning %u solvers\n", threads - 1);
+  fflush (stdout);
   struct solver * solver = first_solver (root);
   while (SIZE (root->solvers) < threads)
     {
@@ -4271,11 +4274,24 @@ stop_running_solver (struct solver *solver)
 static void
 run_solvers (struct root * root)
 {
-  for (all_solvers (solver))
-    start_running_solver (solver);
+  size_t threads = SIZE (root->solvers);
+  if (threads > 1)
+    {
+      printf ("c starting and running %zu solver threads\n", threads);
+      fflush (stdout);
+      for (all_solvers (solver))
+	start_running_solver (solver);
 
-  for (all_solvers (solver))
-    stop_running_solver (solver);
+      for (all_solvers (solver))
+	stop_running_solver (solver);
+    }
+  else
+    {
+      printf ("c running single solver in main thread\n");
+      fflush (stdout);
+      struct solver * solver = first_solver (root);
+      solve_routine (solver);
+    }
 }
 
 static void
