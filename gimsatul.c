@@ -1505,49 +1505,54 @@ delete_clause (struct solver *solver, struct clause *clause)
 /*------------------------------------------------------------------------*/
 
 static void
-initialize_root_watches (struct solver *solver)
+init_root_watches (struct solver *solver)
 {
   struct root *root = solver->root;
-  size_t *counts = allocate_and_clear_array (2 * root->size, sizeof (size_t));
+  long *counts = allocate_and_clear_array (2 * root->size, sizeof *counts);
   struct unsigneds *binaries = &root->binaries;
   unsigned *begin = binaries->begin;
-  unsigned *end = binaries->begin;
+  unsigned *end = binaries->end;
   for (unsigned *p = begin; p != end; p += 2)
     counts[p[0]]++, counts[p[1]]++;
-  size_t size = 0;
+  long size = 0;
   for (all_literals (lit))
     {
-      size_t count = counts[lit];
+      long count = counts[lit];
       if (count)
 	{
+	  assert (count < LONG_MAX);
+	  assert (count + 1 <= LONG_MAX - size);
 	  size += count;
-	  assert (size < UINT64_MAX);
-	  assert (size);
 	  counts[lit] = size++;
 	}
       else
-	counts[lit] = UINT64_MAX;
+	counts[lit] = -1;
     }
   unsigned *global_watches = allocate_array (size, sizeof *global_watches);
   root->watches = global_watches;
   for (all_literals (lit))
-    if (counts[lit])
+    if (counts[lit] >= 0)
       global_watches[counts[lit]] = INVALID;
-  for (unsigned *p = begin; p != end; p += 2)
-    {
-      unsigned lit = p[0], other = p[1];
-      size_t count_lit = counts[lit];
-      size_t count_other = counts[other];
-      assert (count_lit), counts[lit] = --count_lit;
-      assert (count_other), counts[other] = --count_other;
-      global_watches[count_lit] = other;
-      global_watches[count_other] = lit;
-    }
+  {
+    unsigned * p = end;
+    while (p != begin)
+      {
+	unsigned lit = *--p;
+	assert (p != begin);
+	unsigned other = *--p;
+	long count_lit = counts[lit];
+	long count_other = counts[other];
+	assert (count_lit > 0), counts[lit] = --count_lit;
+	assert (count_other > 0), counts[other] = --count_other;
+	global_watches[count_lit] = other;
+	global_watches[count_other] = lit;
+      }
+  }
   for (all_literals (lit))
     {
-      size_t count = counts[lit];
+      long count = counts[lit];
       struct watches *lit_watches = &WATCHES (lit);
-      if (count < UINT64_MAX)
+      if (count >= 0)
 	{
 	  lit_watches->binaries = global_watches + count;
 	  assert (lit_watches->binaries);
@@ -1556,6 +1561,23 @@ initialize_root_watches (struct solver *solver)
 	assert (!lit_watches->binaries);
     }
   free (counts);
+#if 1
+  for (all_literals (lit))
+    {
+      unsigned * binaries = WATCHES (lit).binaries;
+      printf ("c global binary watches of %s:", LOGLIT (lit));
+      if (binaries)
+	{
+	  for (unsigned * p = binaries, other;
+	       (other = *p) != INVALID;
+	       p++)
+	    printf (" %s", LOGLIT (other));
+	  printf ("\n");
+	}
+      else
+	printf (" none\n");
+    }
+#endif
   printf ("c need %zu global binary clause watches\n", size);
   fflush (stdout);
 }
@@ -4158,7 +4180,7 @@ main (int argc, char **argv)
     }
   root = parse_dimacs_file ();
   struct solver * solver = root->solvers.first;
-  initialize_root_watches (solver);
+  init_root_watches (solver);
   set_limits (solver);
   init_signal_handler ();
   int res = solve (solver);
