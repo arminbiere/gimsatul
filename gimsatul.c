@@ -667,17 +667,24 @@ do { \
 #ifdef LOGGING
 
 static bool logging;
-static char loglitbuf[4][32];
+static char loglitbuf[4][64];
 static unsigned loglitpos;
 
 #define loglitsize (sizeof loglitbuf / sizeof *loglitbuf)
 
-static const char *
-loglit (struct solver *solver, unsigned unsigned_lit)
+static char *
+next_loglitbuf (void)
 {
   char *res = loglitbuf[loglitpos++];
   if (loglitpos == loglitsize)
     loglitpos = 0;
+  return res;
+}
+
+static const char *
+loglit (struct solver *solver, unsigned unsigned_lit)
+{
+  char *res = next_loglitbuf ();
   int signed_lit = export_literal (unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
   signed char value = solver->values[unsigned_lit];
@@ -691,6 +698,18 @@ loglit (struct solver *solver, unsigned unsigned_lit)
   assert (strlen (res) + 1 < sizeof *loglitbuf);
   return res;
 }
+
+static const char *
+logvar (struct solver * solver, unsigned idx)
+{
+  unsigned lit = LIT (idx);
+  const char * tmp = loglit (solver, lit);
+  char * res = next_loglitbuf ();
+  sprintf (res, "variable %u(%u) (literal %s)", idx, idx+1, tmp);
+  return res;
+}
+
+#define LOGVAR(...) logvar (solver, __VA_ARGS__)
 
 #define LOGLIT(...) loglit (solver, __VA_ARGS__)
 
@@ -959,6 +978,8 @@ bump_variable_score (struct solver *solver, unsigned idx)
   struct node *node = queue->nodes + idx;
   double old_score = node->score;
   double new_score = old_score + queue->increment[solver->stable];
+  LOG ("bumping %s old score %g to new score %g",
+       LOGVAR (idx), old_score, new_score);
   update_queue (queue, node, new_score);
   if (new_score > MAX_SCORE)
     rescale_variable_scores (solver);
@@ -1382,6 +1403,17 @@ close_proof (void)
 static void
 push_watch (struct solver *solver, unsigned lit, struct watch *watch)
 {
+#ifdef LOGGING
+  unsigned tag = tagged_watch (watch);
+  if (tag)
+    {
+      unsigned other = lit_watch (watch);
+      bool redundant = tag & REDUNDANT;
+      LOGBINARY (redundant, lit, other, "watching %s in", LOGLIT (lit));
+    }
+  else
+    LOGCLAUSE (watch->clause, "watching %s in", LOGLIT (lit));
+#endif
   PUSH (WATCHES (lit), watch);
 }
 
@@ -1659,11 +1691,39 @@ propagate (struct solver *solver, bool search, unsigned *failed)
       propagations++;
       unsigned not_lit = NOT (lit);
       struct watches *watches = &WATCHES (not_lit);
+      unsigned * binaries = watches->binaries;
+      if (binaries)
+	{
+	  unsigned other;
+	  for (unsigned * p = binaries; (other = *p) != INVALID; p++)
+	    {
+	      signed char other_value = values[other];
+	      if (other_value < 0)
+		{
+		  LOGBINARY (false, lit, other, "global conflicting");
+		  if (failed)
+		    *failed = not_lit;
+		  conflict = tag_watch (false, other);
+		  if (search)
+		    break;
+		}
+	      else if (!other_value)
+		{
+		  struct watch *reason = tag_watch (false, not_lit);
+		  assign_with_reason (solver, other, reason);
+		  ticks++;
+		}
+	    }
+	  if (search && conflict)
+	    break;
+	}
       struct watch **begin = watches->begin, **q = begin;
       struct watch **end = watches->end, **p = begin;
       ticks++;
-      while (!conflict && p != end)
+      while (p != end)
 	{
+	  if (search && conflict)
+	    break;
 	  struct watch *watch = *q++ = *p++;
 	  unsigned other;
 	  signed char other_value;
@@ -1742,6 +1802,8 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 	      if (replacement_value >= 0)
 		{
 		  watch->sum = other ^ replacement;
+		  LOGCLAUSE (watch->clause,
+		             "unwatching %s in", LOGLIT (lit));
 		  push_watch (solver, replacement, watch);
 		  ticks++;
 		  q--;
