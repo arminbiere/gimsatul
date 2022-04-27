@@ -1227,12 +1227,8 @@ new_solver (struct root * root)
 static void
 release_watches (struct solver *solver)
 {
-
   for (all_literals (lit))
-    {
-      free (WATCHES (lit).binaries);
-      free (WATCHES (lit).begin);
-    }
+    free (WATCHES (lit).begin);
   free (solver->watchtab);
 
   for (all_watches (watch, solver->watchlist))
