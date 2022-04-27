@@ -17,9 +17,9 @@ static const char * usage =
 "-v|--verbose     increase verbosity\n"
 "--version        print version\n"
 "\n"
-"--conflicts=<conflicts>  set conflict limit (default unlimited)\n"
-"--threads=<number>       set number of threads (default one)\n"
-"--time=<seconds>         set time limit (default unlimited)\n"
+"--conflicts=<conflicts>  set conflict limit (zero or more - default unlimited)\n"
+"--threads=<number>       set number of threads (1 ... %zu - default '1')\n"
+"--time=<seconds>         set time limit (1,2,3, ... - default unlimited)\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof output file in 'DRAT' format (no proof if missing).\n"
@@ -1818,7 +1818,7 @@ share_clauses (struct solver *dst, struct solver *src)
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
       unsigned tmp = atomic_fetch_add (&clause->shared, 1);
-      assert (tmp);
+      assert (tmp < MAX_THREADS - 1);
       (void) tmp;
       inc_clauses (solver, false);
       new_watch (solver, clause, false, 0);
@@ -3809,7 +3809,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	force = true;
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
 	{
-	  fputs (usage, stdout);
+	  printf (usage, (size_t) MAX_THREADS);
 	  exit (0);
 	}
       else if (!strcmp (opt, "-l") || !strcmp (opt, "--log") || !strcmp (opt, "logging"))
@@ -4574,9 +4574,24 @@ print_root_statistics (struct root *root)
 
 /*------------------------------------------------------------------------*/
 
+#define CHECK_TYPE(TYPE,BYTES) \
+do { \
+  if (sizeof (TYPE) != (BYTES)) \
+    fatal_error ("unsupported platform: " \
+                 "'sizeof (" #TYPE ") == %zu' but expected '%zu'", \
+	         sizeof (TYPE), (size_t) (BYTES)); \
+} while (0)
+
 static void
 check_types (void)
 {
+  CHECK_TYPE (signed char, 1);
+  CHECK_TYPE (unsigned char, 1);
+  CHECK_TYPE (unsigned short, 2);
+  CHECK_TYPE (atomic_ushort, 2);
+  CHECK_TYPE (unsigned, 4);
+  CHECK_TYPE (int, 4);
+
   if (sizeof (size_t) != sizeof (void *))
     fatal_error ("unsupported platform: 'sizeof (size_t) = %zu' "
 		 "different from 'sizeof (void*) = %zu'",
