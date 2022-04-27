@@ -62,6 +62,7 @@ static const char * usage =
 #define REDUCE_INTERVAL 1e3
 #define REPHASE_INTERVAL 1e3
 #define STABLE_RESTART_INTERVAL 500
+#define RANDOM_DECISIONS 100
 
 #define FOCUSED_DECAY 0.75
 #define REDUCE_FRACTION 0.75
@@ -375,6 +376,14 @@ struct last
 #define SEARCH_PROPAGATIONS solver->statistics.contexts[SEARCH].propagations
 #define SEARCH_TICKS solver->statistics.contexts[SEARCH].ticks
 
+struct context
+{
+  uint64_t conflicts;
+  uint64_t decisions;
+  uint64_t propagations;
+  uint64_t ticks;
+};
+
 struct statistics
 {
   uint64_t flips;
@@ -384,13 +393,7 @@ struct statistics
   uint64_t switched;
   uint64_t walked;
 
-  struct
-  {
-    uint64_t conflicts;
-    uint64_t decisions;
-    uint64_t propagations;
-    uint64_t ticks;
-  } contexts[CONTEXTS];
+  struct context contexts[CONTEXTS];
 
   uint64_t deduced;
   uint64_t minimized;
@@ -845,6 +848,42 @@ reallocate_block (void *ptr, size_t bytes)
   if (bytes && !res)
     fatal_error ("out-of-memory reallocating %zu bytes", bytes);
   return res;
+}
+
+/*------------------------------------------------------------------------*/
+
+static uint64_t
+random64 (struct solver *solver)
+{
+  uint64_t res = solver->random, next = res;
+  next *= 6364136223846793005ul;
+  next += 1442695040888963407ul;
+  solver->random = next;
+  return res;
+}
+
+static unsigned
+random32 (struct solver *solver)
+{
+  return random64 (solver) >> 32;
+}
+
+static unsigned
+random_modulo (struct solver *solver, unsigned mod)
+{
+  assert (mod);
+  const unsigned tmp = random32 (solver);
+  const double fraction = tmp / 4294967296.0;
+  assert (0 <= fraction), assert (fraction < 1);
+  const unsigned res = mod * fraction;
+  assert (res < mod);
+  return res;
+}
+
+static double
+random_double (struct solver *solver)
+{
+  return random32 (solver) / 4294967296.0;
 }
 
 /*------------------------------------------------------------------------*/
@@ -2337,33 +2376,99 @@ decide_phase (struct solver *solver, struct variable *v)
   return phase;
 }
 
-static void
-decide (struct solver *solver)
+static unsigned
+gcd (unsigned a, unsigned b)
+{
+  while (b) {
+    unsigned r = a % b;
+    a = b, b = r;
+  }
+  return a;
+}
+
+static unsigned
+random_decision (struct solver * solver)
 {
   assert (solver->unassigned);
-  struct queue *queue = &solver->queue;
+
   signed char *values = solver->values;
+  unsigned size = solver->size;
+
+  unsigned idx = random_modulo (solver, size);
+  unsigned lit = LIT (idx);
+
+  if (values[lit])
+    {
+      unsigned delta = random_modulo (solver, size);
+      while (gcd (delta, size) != 1)
+	if (++delta == size)
+	  delta = 1;
+      assert (delta < size);
+      do {
+	idx += delta;
+	if (idx >= size)
+	  idx -= size;
+	lit = LIT (idx);
+      } while (values[lit]);
+    }
+
+  LOG ("random decision %s", LOGVAR (idx));
+
+  return idx;
+}
+
+static unsigned
+best_score_decision (struct solver * solver)
+{
+  assert (solver->unassigned);
+
+  signed char *values = solver->values;
+  struct queue *queue = &solver->queue;
+  struct node *nodes = queue->nodes;
+
   assert (queue->root);
+
   unsigned lit, idx;
   for (;;)
     {
       struct node *root = queue->root;
       assert (root);
-      assert (root - queue->nodes < solver->size);
-      idx = root - queue->nodes;
+      assert (root - nodes < solver->size);
+      idx = root - nodes;
       lit = LIT (idx);
       if (!values[lit])
 	break;
       pop_queue (queue, root);
     }
   assert (idx < solver->size);
+
+  LOG ("best score decision %s score %g",
+       LOGVAR (idx), nodes[idx].score);
+
+  return idx;
+}
+
+static void
+decide (struct solver *solver)
+{
+  struct context * context = solver->statistics.contexts;
+  context += solver->context;
+  uint64_t decisions = context->decisions++;
+
+  unsigned idx;
+  if (decisions < RANDOM_DECISIONS)
+    idx = random_decision (solver);
+  else
+    idx = best_score_decision (solver);
+
   struct variable *v = solver->variables + idx;
   signed char phase = decide_phase (solver, v);
+  unsigned lit = LIT (idx);
   if (phase < 0)
     lit = NOT (lit);
+
   solver->level++;
   assign_decision (solver, lit);
-  solver->statistics.contexts[solver->context].decisions++;
 }
 
 static void
@@ -3118,40 +3223,6 @@ release_walker (struct walker *walker)
   RELEASE (walker->trail);
   RELEASE (walker->scores);
   RELEASE (walker->breaks);
-}
-
-static uint64_t
-random64 (struct solver *solver)
-{
-  uint64_t res = solver->random, next = res;
-  next *= 6364136223846793005ul;
-  next += 1442695040888963407ul;
-  solver->random = next;
-  return res;
-}
-
-static unsigned
-random32 (struct solver *solver)
-{
-  return random64 (solver) >> 32;
-}
-
-static unsigned
-random_modulo (struct solver *solver, unsigned mod)
-{
-  assert (mod);
-  const unsigned tmp = random32 (solver);
-  const double fraction = tmp / 4294967296.0;
-  assert (0 <= fraction), assert (fraction < 1);
-  const unsigned res = mod * fraction;
-  assert (res < mod);
-  return res;
-}
-
-static double
-random_double (struct solver *solver)
-{
-  return random32 (solver) / 4294967296.0;
 }
 
 static unsigned
