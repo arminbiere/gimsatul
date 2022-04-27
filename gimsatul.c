@@ -4417,10 +4417,15 @@ check_types (void)
 /*------------------------------------------------------------------------*/
 
 static void
-run_solve (struct solver * solver)
+start_running_solve (struct solver * solver)
 {
   if (pthread_create (&solver->thread, 0, solve_routine, solver))
     fatal_error ("failed to create solving thread");
+}
+
+static void
+stop_running_solve (struct solver * solver)
+{
   if (pthread_join (solver->thread, 0))
     fatal_error ("failed to join solving thread");
 }
@@ -4446,8 +4451,10 @@ main (int argc, char **argv)
   set_limits (solver, options.conflicts);
   set_limits (clone, options.conflicts);
   set_signal_handlers (options.seconds);
-  run_solve (solver);
-  run_solve (clone);
+  start_running_solve (solver);
+  start_running_solve (clone);
+  stop_running_solve (solver);
+  stop_running_solve (clone);
   struct solver * winner = (struct solver *) root->winner;
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();
