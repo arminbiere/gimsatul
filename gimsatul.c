@@ -1736,6 +1736,14 @@ share_clauses (struct solver * dst, struct solver * src)
     }
 }
 
+struct solver *
+clone_solver (struct solver * src)
+{
+  struct solver * solver = new_solver (src->root);
+  share_clauses (solver, src);
+  return solver;
+}
+
 /*------------------------------------------------------------------------*/
 
 static struct watch *
@@ -4376,9 +4384,14 @@ main (int argc, char **argv)
   root = parse_dimacs_file ();
   struct solver * solver = root->solvers.first;
   init_root_watches (solver);
+  struct solver * clone = clone_solver (solver);
   set_limits (solver, options.conflicts);
+  set_limits (clone, options.conflicts);
   set_signal_handlers (options.seconds);
   int res = solve (solver);
+  int other = solve (clone);
+  assert (res == other);
+  (void) other;
   reset_signal_handlers ();
   close_proof ();
   if (res == 20)
@@ -4398,6 +4411,7 @@ main (int argc, char **argv)
     }
   print_root_statistics (root);
   delete_solver (solver);
+  delete_solver (clone);
   delete_root (root);
 #ifndef NDEBUG
   RELEASE (original);
