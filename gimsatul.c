@@ -125,6 +125,23 @@ do { \
   *(STACK).end++ = (ELEM); \
 } while (0)
 
+#define SHRINK(STACK) \
+do { \
+  size_t OLD_SIZE = SIZE (STACK); \
+  if (!OLD_SIZE) \
+    { \
+      RELEASE (STACK); \
+      break; \
+    } \
+  size_t OLD_CAPACITY = CAPACITY (STACK); \
+  if (OLD_CAPACITY == OLD_SIZE) \
+    break; \
+  size_t NEW_CAPACITY = OLD_SIZE; \
+  size_t NEW_BYTES = NEW_CAPACITY * sizeof *(STACK).begin; \
+  (STACK).begin = reallocate_block ((STACK).begin, NEW_BYTES); \
+  (STACK).end = (STACK).allocated = (STACK).begin + OLD_SIZE; \
+} while (0)
+
 #define CLEAR(STACK) \
 do { \
   (STACK).end = (STACK).begin; \
@@ -1937,6 +1954,8 @@ propagate (struct solver *solver, bool search, unsigned *failed)
       while (p != end)
 	*q++ = *p++;
       watches->end = q;
+      if (q == watches->begin)
+	RELEASE (*watches);
     }
 
   solver->statistics.contexts[solver->context].conflicts += !!conflict;
@@ -2635,10 +2654,8 @@ flush_watchtab (struct solver *solver, bool fixed)
 	      q--;
 	    }
 	}
-      if (lit_value > 0 || q == begin)
-	RELEASE (*watches);
-      else
-	watches->end = q;
+      watches->end = q;
+      SHRINK (*watches);
     }
   verbose (solver, "flushed %zu garbage watches from watch lists", flushed);
 }
