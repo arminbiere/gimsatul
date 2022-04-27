@@ -403,13 +403,13 @@ struct solvers
 {
   unsigned count;
   pthread_mutex_t lock;
-  struct solver * first, * last;
+  struct solver *first, *last;
 };
 
 struct root
 {
   volatile bool terminate;
-  volatile struct solver * winner;
+  volatile struct solver *winner;
   struct solvers solvers;
   struct unsigneds binaries;
   unsigned *watches;
@@ -419,7 +419,7 @@ struct root
 struct solver
 {
   struct root *root;
-  struct solver * prev, * next;
+  struct solver *prev, *next;
   pthread_t thread;
   volatile int status;
   bool inconsistent;
@@ -708,12 +708,12 @@ loglit (struct solver *solver, unsigned unsigned_lit)
 }
 
 static const char *
-logvar (struct solver * solver, unsigned idx)
+logvar (struct solver *solver, unsigned idx)
 {
   unsigned lit = LIT (idx);
-  const char * tmp = loglit (solver, lit);
-  char * res = next_loglitbuf ();
-  sprintf (res, "variable %u(%u) (literal %s)", idx, idx+1, tmp);
+  const char *tmp = loglit (solver, lit);
+  char *res = next_loglitbuf ();
+  sprintf (res, "variable %u(%u) (literal %s)", idx, idx + 1, tmp);
   return res;
 }
 
@@ -1149,7 +1149,7 @@ delete_root (struct root *root)
 }
 
 static void
-enqueue_solver (struct root * root, struct solver * solver)
+enqueue_solver (struct root *root, struct solver *solver)
 {
   if (pthread_mutex_lock (&root->solvers.lock))
     fatal_error ("could not lock root lock during solver enqueue");
@@ -1166,7 +1166,7 @@ enqueue_solver (struct root * root, struct solver * solver)
 }
 
 static void
-dequeue_solver (struct root * root, struct solver * solver)
+dequeue_solver (struct root *root, struct solver *solver)
 {
   if (pthread_mutex_lock (&root->solvers.lock))
     fatal_error ("could not lock root lock during solver dequeue");
@@ -1200,7 +1200,7 @@ dequeue_solver (struct root * root, struct solver * solver)
 /*------------------------------------------------------------------------*/
 
 static struct solver *
-new_solver (struct root * root)
+new_solver (struct root *root)
 {
   unsigned size = root->size;
   assert (size < (1u << 30));
@@ -1570,7 +1570,7 @@ init_root_watches (struct solver *solver)
     if (counts[lit] >= 0)
       global_watches[counts[lit]] = INVALID;
   {
-    unsigned * p = end;
+    unsigned *p = end;
     while (p != begin)
       {
 	unsigned lit = *--p;
@@ -1601,13 +1601,11 @@ init_root_watches (struct solver *solver)
 #ifdef LOGGING
   for (all_literals (lit))
     {
-      unsigned * binaries = WATCHES (lit).binaries;
+      unsigned *binaries = WATCHES (lit).binaries;
       LOGPREFIX ("global binary watches of %s:", LOGLIT (lit));
       if (binaries)
 	{
-	  for (unsigned * p = binaries, other;
-	       (other = *p) != INVALID;
-	       p++)
+	  for (unsigned *p = binaries, other; (other = *p) != INVALID; p++)
 	    printf (" %s", LOGLIT (other));
 	}
       else
@@ -1682,11 +1680,11 @@ assign_decision (struct solver *solver, unsigned decision)
 /*------------------------------------------------------------------------*/
 
 static void
-set_winner (struct solver * solver)
+set_winner (struct solver *solver)
 {
-  struct solver * winner = 0;
-  struct root * root = solver->root;
-  bool winning = 
+  struct solver *winner = 0;
+  struct root *root = solver->root;
+  bool winning =
     atomic_compare_exchange_strong (&root->winner, &winner, solver);
   if (!winning)
     {
@@ -1697,12 +1695,12 @@ set_winner (struct solver * solver)
   verbose (solver, "winning solver[%u] with status %d",
 	   solver->id, solver->status);
   /*
-  atomic_store (&root->terminate, true);
-  */
+     atomic_store (&root->terminate, true);
+   */
 }
 
 static void
-set_inconsistent (struct solver * solver, const char * msg)
+set_inconsistent (struct solver *solver, const char *msg)
 {
   assert (!solver->inconsistent);
   very_verbose (solver, "%s", msg);
@@ -1713,7 +1711,7 @@ set_inconsistent (struct solver * solver, const char * msg)
 }
 
 static void
-set_satisfied (struct solver * solver)
+set_satisfied (struct solver *solver)
 {
   assert (!solver->inconsistent);
   assert (!solver->unassigned);
@@ -1725,11 +1723,11 @@ set_satisfied (struct solver * solver)
 /*------------------------------------------------------------------------*/
 
 static void
-share_clauses (struct solver * dst, struct solver * src)
+share_clauses (struct solver *dst, struct solver *src)
 {
-  struct solver * solver = dst;
+  struct solver *solver = dst;
   verbose (solver, "copying clauses from solver[%u] to solver[%u]",
-           src->id, dst->id);
+	   src->id, dst->id);
   assert (!src->level);
   assert (src->trail.propagate == src->trail.begin);
   if (src->inconsistent)
@@ -1746,16 +1744,16 @@ share_clauses (struct solver * dst, struct solver * src)
       units++;
     }
   very_verbose (solver, "copied %u units", units);
-  struct watches * src_watchtab = src->watchtab;
-  struct watches * dst_watchtab = dst->watchtab;
+  struct watches *src_watchtab = src->watchtab;
+  struct watches *dst_watchtab = dst->watchtab;
   size_t copied_binary_watch_lists = 0;
   for (all_literals (lit))
     {
-      struct watches * src_watches = src_watchtab + lit;
-      struct watches * dst_watches = dst_watchtab + lit;
+      struct watches *src_watches = src_watchtab + lit;
+      struct watches *dst_watches = dst_watchtab + lit;
       assert (EMPTY (*dst_watches));
-      unsigned * src_binaries = src_watches->binaries;
-      if(src_binaries)
+      unsigned *src_binaries = src_watches->binaries;
+      if (src_binaries)
 	{
 	  dst_watches->binaries = src_binaries;
 	  copied_binary_watch_lists++;
@@ -1766,10 +1764,10 @@ share_clauses (struct solver * dst, struct solver * src)
 #endif
     }
   very_verbose (solver, "shared %zu global binary watch lists",
-                copied_binary_watch_lists);
+		copied_binary_watch_lists);
   for (all_watches (src_watch, src->watchlist))
     {
-      struct clause * clause = src_watch->clause;
+      struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
       unsigned shared = atomic_fetch_add (&clause->shared, 1);
       assert (shared);
@@ -1780,9 +1778,9 @@ share_clauses (struct solver * dst, struct solver * src)
 }
 
 struct solver *
-clone_solver (struct solver * src)
+clone_solver (struct solver *src)
 {
-  struct solver * solver = new_solver (src->root);
+  struct solver *solver = new_solver (src->root);
   share_clauses (solver, src);
   return solver;
 }
@@ -1806,11 +1804,11 @@ propagate (struct solver *solver, bool search, unsigned *failed)
       propagations++;
       unsigned not_lit = NOT (lit);
       struct watches *watches = &WATCHES (not_lit);
-      unsigned * binaries = watches->binaries;
+      unsigned *binaries = watches->binaries;
       if (binaries)
 	{
 	  unsigned other;
-	  for (unsigned * p = binaries; (other = *p) != INVALID; p++)
+	  for (unsigned *p = binaries; (other = *p) != INVALID; p++)
 	    {
 	      signed char other_value = values[other];
 	      if (other_value < 0)
@@ -1917,8 +1915,7 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 	      if (replacement_value >= 0)
 		{
 		  watch->sum = other ^ replacement;
-		  LOGCLAUSE (watch->clause,
-		             "unwatching %s in", LOGLIT (lit));
+		  LOGCLAUSE (watch->clause, "unwatching %s in", LOGLIT (lit));
 		  push_watch (solver, replacement, watch);
 		  ticks++;
 		  q--;
@@ -2147,7 +2144,7 @@ analyze (struct solver *solver, struct watch *reason, unsigned failed)
   if (!solver->level)
     {
       set_inconsistent (solver,
-                        "conflict on root-level produces empty clause");
+			"conflict on root-level produces empty clause");
       TRACE_EMPTY ();
       return false;
     }
@@ -4231,38 +4228,37 @@ set_signal_handlers (unsigned seconds)
   SIGNALS
 #undef SIGNAL
   // *INDENT-ON*
-  atomic_store (&catching_signals, true);
-  if (seconds)
-    set_alarm_handler (seconds);
-}
+      atomic_store (&catching_signals, true);
+      if (seconds)
+	set_alarm_handler (seconds);
+    }
 
 /*------------------------------------------------------------------------*/
 
 #ifndef NDEBUG
 
-static void
-check_witness (struct solver * solver)
-{
-  signed char *values = solver->values;
-  size_t clauses = 0;
-  for (unsigned *c = original.begin, *p; c != original.end; c = p + 1)
-    {
-      bool satisfied = false;
-      for (p = c; assert (p != original.end), *p != INVALID; p++)
-	if (values[*p] > 0)
-	  satisfied = true;
-      clauses++;
-      if (satisfied)
-	continue;
-      lock_message_mutex ();
-      fprintf (stderr, "gimsatul: error: unsatisfied clause[%zu]", clauses);
-      for (unsigned *q = c; q != p; q++)
-	fprintf (stderr, " %d", export_literal (*q));
-      fputs (" 0\n", stderr);
-      unlock_message_mutex ();
-      abort ();
-    }
-}
+  static void check_witness (struct solver *solver)
+  {
+    signed char *values = solver->values;
+    size_t clauses = 0;
+    for (unsigned *c = original.begin, *p; c != original.end; c = p + 1)
+      {
+	bool satisfied = false;
+	for (p = c; assert (p != original.end), *p != INVALID; p++)
+	  if (values[*p] > 0)
+	    satisfied = true;
+	clauses++;
+	if (satisfied)
+	  continue;
+	lock_message_mutex ();
+	fprintf (stderr, "gimsatul: error: unsatisfied clause[%zu]", clauses);
+	for (unsigned *q = c; q != p; q++)
+	  fprintf (stderr, " %d", export_literal (*q));
+	fputs (" 0\n", stderr);
+	unlock_message_mutex ();
+	abort ();
+      }
+  }
 
 #endif
 
@@ -4277,211 +4273,201 @@ struct profile * PROFILE = begin_profiles, \
 PROFILE != END_ ## PROFILE; \
 ++PROFILE
 
-static void
-flush_profile (double time, struct profile *profile)
-{
-  double volatile *p = &profile->start;
-  assert (*p >= 0);
-  double delta = time - *p;
-  *p = time;
-  profile->time += delta;
-}
+  static void flush_profile (double time, struct profile *profile)
+  {
+    double volatile *p = &profile->start;
+    assert (*p >= 0);
+    double delta = time - *p;
+    *p = time;
+    profile->time += delta;
+  }
 
-static double
-flush_profiles (struct solver *solver)
-{
-  double time = current_time ();
-  for (all_profiles (profile))
-    if (profile->start >= 0)
-      flush_profile (time, profile);
+  static double flush_profiles (struct solver *solver)
+  {
+    double time = current_time ();
+    for (all_profiles (profile))
+      if (profile->start >= 0)
+	flush_profile (time, profile);
 
-  flush_profile (time, &solver->profiles.total);
-  return time;
-}
+    flush_profile (time, &solver->profiles.total);
+    return time;
+  }
 
-static int
-cmp_profiles (struct profile *a, struct profile *b)
-{
-  if (!a)
-    return -1;
-  if (!b)
-    return -1;
-  if (a->time < b->time)
-    return -1;
-  if (a->time > b->time)
-    return 1;
-  return strcmp (b->name, a->name);
-}
+  static int cmp_profiles (struct profile *a, struct profile *b)
+  {
+    if (!a)
+      return -1;
+    if (!b)
+      return -1;
+    if (a->time < b->time)
+      return -1;
+    if (a->time > b->time)
+      return 1;
+    return strcmp (b->name, a->name);
+  }
 
-static void
-print_profiles (struct solver *solver)
-{
-  flush_profiles (solver);
-  double total = solver->profiles.total.time;
-  struct profile *prev = 0;
-  fputs ("c\n", stdout);
-  for (;;)
-    {
-      struct profile *next = 0;
-      for (all_profiles (tmp))
-	if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
-	  next = tmp;
-      if (!next)
-	break;
-      printf (PFX "%10.2f seconds  %5.1f %%  %s\n", solver->id,
-	      next->time, percent (next->time, total), next->name);
-      prev = next;
-    }
-  printf (PFX "---------------------------------------\n", solver->id);
-  printf (PFX "%10.2f seconds  100.0 %%  total\n", solver->id, total);
-  fputs ("c\n", stdout);
-  fflush (stdout);
-}
+  static void print_profiles (struct solver *solver)
+  {
+    flush_profiles (solver);
+    double total = solver->profiles.total.time;
+    struct profile *prev = 0;
+    fputs ("c\n", stdout);
+    for (;;)
+      {
+	struct profile *next = 0;
+	for (all_profiles (tmp))
+	  if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
+	    next = tmp;
+	if (!next)
+	  break;
+	printf (PFX "%10.2f seconds  %5.1f %%  %s\n", solver->id,
+		next->time, percent (next->time, total), next->name);
+	prev = next;
+      }
+    printf (PFX "---------------------------------------\n", solver->id);
+    printf (PFX "%10.2f seconds  100.0 %%  total\n", solver->id, total);
+    fputs ("c\n", stdout);
+    fflush (stdout);
+  }
 
-static void
-print_solver_statistics (struct solver *solver)
-{
-  print_profiles (solver);
-  double search = solver->profiles.search.time;
-  double walk = solver->profiles.total.time;
-  struct statistics *s = &solver->statistics;
-  uint64_t conflicts = s->contexts[SEARCH].conflicts;
-  uint64_t decisions = s->contexts[SEARCH].decisions;
-  uint64_t propagations = s->contexts[SEARCH].propagations;
-  unsigned id = solver->id;
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "conflicts:",
-	  conflicts, average (conflicts, search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "decisions:",
-	  decisions, average (decisions, search));
-  printf (PFX "%-19s %13u %13.2f %% variables\n", id, "fixed-variables:",
-	  s->fixed, percent (s->fixed, solver->size));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f thousands per second\n", id,
-	  "flips:", s->flips, average (s->flips, 1e3 * walk));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per learned clause\n", id,
-	  "learned-literals:", s->learned.literals,
-	  average (s->learned.literals, s->learned.clauses));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f %% per deduced literals\n", id,
-	  "minimized-literals:", s->minimized, percent (s->minimized,
-							s->deduced));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f millions per second\n", id,
-	  "propagations:", propagations, average (propagations,
-						  1e6 * search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
-	  "reductions:", s->reductions, average (conflicts, s->reductions));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
-	  "rephased:", s->rephased, average (conflicts, s->rephased));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
-	  "restarts:", s->restarts, average (conflicts, s->restarts));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
-	  "switched:", s->switched, average (conflicts, s->switched));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f flips per walkinterval\n", id,
-	  "walked:", s->walked, average (s->flips, s->walked));
-  fflush (stdout);
-}
+  static void print_solver_statistics (struct solver *solver)
+  {
+    print_profiles (solver);
+    double search = solver->profiles.search.time;
+    double walk = solver->profiles.total.time;
+    struct statistics *s = &solver->statistics;
+    uint64_t conflicts = s->contexts[SEARCH].conflicts;
+    uint64_t decisions = s->contexts[SEARCH].decisions;
+    uint64_t propagations = s->contexts[SEARCH].propagations;
+    unsigned id = solver->id;
+    printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "conflicts:",
+	    conflicts, average (conflicts, search));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "decisions:",
+	    decisions, average (decisions, search));
+    printf (PFX "%-19s %13u %13.2f %% variables\n", id, "fixed-variables:",
+	    s->fixed, percent (s->fixed, solver->size));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f thousands per second\n", id,
+	    "flips:", s->flips, average (s->flips, 1e3 * walk));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f per learned clause\n", id,
+	    "learned-literals:", s->learned.literals,
+	    average (s->learned.literals, s->learned.clauses));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f %% per deduced literals\n", id,
+	    "minimized-literals:", s->minimized, percent (s->minimized,
+							  s->deduced));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f millions per second\n", id,
+	    "propagations:", propagations, average (propagations,
+						    1e6 * search));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+	    "reductions:", s->reductions, average (conflicts, s->reductions));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+	    "rephased:", s->rephased, average (conflicts, s->rephased));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+	    "restarts:", s->restarts, average (conflicts, s->restarts));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+	    "switched:", s->switched, average (conflicts, s->switched));
+    printf (PFX "%-19s %13" PRIu64 " %13.2f flips per walkinterval\n", id,
+	    "walked:", s->walked, average (s->flips, s->walked));
+    fflush (stdout);
+  }
 
-static void
-print_root_statistics (struct root * root)
-{
-  for (all_solvers (solver))
-    {
-      print_solver_statistics (solver);
-      printf ("c\n");
-    }
+  static void print_root_statistics (struct root *root)
+  {
+    for (all_solvers (solver))
+      {
+	print_solver_statistics (solver);
+	printf ("c\n");
+      }
 
-  double process = process_time ();
-  double total = current_time () - start_time;
-  double memory = maximum_resident_set_size () / (double) (1 << 20);
+    double process = process_time ();
+    double total = current_time () - start_time;
+    double memory = maximum_resident_set_size () / (double) (1 << 20);
 
-  printf ("c %-30s %16.2f sec\n", "process-time:", process);
-  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", total);
-  printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", memory);
+    printf ("c %-30s %16.2f sec\n", "process-time:", process);
+    printf ("c %-30s %16.2f sec\n", "wall-clock-time:", total);
+    printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", memory);
 
-  fflush (stdout);
-}
+    fflush (stdout);
+  }
 
 /*------------------------------------------------------------------------*/
 
-static void
-check_types (void)
-{
-  if (sizeof (size_t) != sizeof (void *))
-    fatal_error ("unsupported platform: 'sizeof (size_t) = %zu' "
-		 "different from 'sizeof (void*) = %zu'",
-		 sizeof (size_t), sizeof (void *));
+  static void check_types (void)
+  {
+    if (sizeof (size_t) != sizeof (void *))
+      fatal_error ("unsupported platform: 'sizeof (size_t) = %zu' "
+		   "different from 'sizeof (void*) = %zu'",
+		   sizeof (size_t), sizeof (void *));
 #if 0
-  printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
-  printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
+    printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
+    printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
 #endif
-}
+  }
 
 /*------------------------------------------------------------------------*/
 
-static void
-start_running_solve (struct solver * solver)
-{
-  if (pthread_create (&solver->thread, 0, solve_routine, solver))
-    fatal_error ("failed to create solving thread");
-}
+  static void start_running_solve (struct solver *solver)
+  {
+    if (pthread_create (&solver->thread, 0, solve_routine, solver))
+      fatal_error ("failed to create solving thread");
+  }
 
-static void
-stop_running_solve (struct solver * solver)
-{
-  if (pthread_join (solver->thread, 0))
-    fatal_error ("failed to join solving thread");
-}
+  static void stop_running_solve (struct solver *solver)
+  {
+    if (pthread_join (solver->thread, 0))
+      fatal_error ("failed to join solving thread");
+  }
 
-int
-main (int argc, char **argv)
-{
-  start_time = current_time ();
-  check_types ();
-  struct options options;
-  parse_options (argc, argv, &options);
-  print_banner ();
-  if (proof.file)
-    {
-      printf ("c\nc writing %s proof trace to '%s'\n",
-	      binary_proof_format ? "binary" : "ASCII", proof.path);
-      fflush (stdout);
-    }
-  root = parse_dimacs_file ();
-  struct solver * solver = root->solvers.first;
-  init_root_watches (solver);
-  struct solver * clone = clone_solver (solver);
-  set_limits (solver, options.conflicts);
-  set_limits (clone, options.conflicts);
-  set_signal_handlers (options.seconds);
-  start_running_solve (solver);
-  start_running_solve (clone);
-  stop_running_solve (solver);
-  stop_running_solve (clone);
-  struct solver * winner = (struct solver *) root->winner;
-  int res = winner ? winner->status : 0;
-  reset_signal_handlers ();
-  close_proof ();
-  if (res == 20)
-    {
-      printf ("c\ns UNSATISFIABLE\n");
-      fflush (stdout);
-    }
-  else if (res == 10)
-    {
+  int main (int argc, char **argv)
+  {
+    start_time = current_time ();
+    check_types ();
+    struct options options;
+    parse_options (argc, argv, &options);
+    print_banner ();
+    if (proof.file)
+      {
+	printf ("c\nc writing %s proof trace to '%s'\n",
+		binary_proof_format ? "binary" : "ASCII", proof.path);
+	fflush (stdout);
+      }
+    root = parse_dimacs_file ();
+    struct solver *solver = root->solvers.first;
+    init_root_watches (solver);
+    struct solver *clone = clone_solver (solver);
+    set_limits (solver, options.conflicts);
+    set_limits (clone, options.conflicts);
+    set_signal_handlers (options.seconds);
+    start_running_solve (solver);
+    start_running_solve (clone);
+    stop_running_solve (solver);
+    stop_running_solve (clone);
+    struct solver *winner = (struct solver *) root->winner;
+    int res = winner ? winner->status : 0;
+    reset_signal_handlers ();
+    close_proof ();
+    if (res == 20)
+      {
+	printf ("c\ns UNSATISFIABLE\n");
+	fflush (stdout);
+      }
+    else if (res == 10)
+      {
 #ifndef NDEBUG
-      check_witness (winner);
+	check_witness (winner);
 #endif
-      printf ("c\ns SATISFIABLE\n");
-      if (witness)
-	print_witness (winner);
-      fflush (stdout);
-    }
-  print_root_statistics (root);
-  delete_solver (solver);
-  delete_solver (clone);
-  delete_root (root);
+	printf ("c\ns SATISFIABLE\n");
+	if (witness)
+	  print_witness (winner);
+	fflush (stdout);
+      }
+    print_root_statistics (root);
+    delete_solver (solver);
+    delete_solver (clone);
+    delete_root (root);
 #ifndef NDEBUG
-  RELEASE (original);
+    RELEASE (original);
 #endif
-  printf ("c\nc exit %d\n", res);
-  fflush (stdout);
-  return res;
-}
+    printf ("c\nc exit %d\n", res);
+    fflush (stdout);
+    return res;
+  }
