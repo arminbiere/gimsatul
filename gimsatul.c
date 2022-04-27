@@ -8,7 +8,6 @@ static const char * usage =
 "where '<option>' is one of the following\n"
 "\n"
 "-a             use ASCII format for proof output\n"
-"-c <conflicts> set conflict limit\n"
 "-f             force reading and writing\n"
 "-h             print this command line option summary\n"
 #ifdef LOGGING
@@ -17,6 +16,9 @@ static const char * usage =
 "-n             do not print satisfying assignments\n"
 "-v             increase verbosity\n"
 "--version      print version\n"
+"\n"
+"-c <conflicts> set conflict limit\n"
+"-s <seconds>   set time limit\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof output file in 'DRAT' format (no proof if missing).\n"
@@ -3557,6 +3559,7 @@ open_and_read_from_pipe (const char *path, const char *fmt)
 #include "config.h"
 
 static long long conflicts = -1;
+static int seconds = -1;
 
 static void
 parse_options (int argc, char **argv)
@@ -3594,6 +3597,16 @@ parse_options (int argc, char **argv)
 #endif
       else if (!strcmp (arg, "-n"))
 	witness = false;
+      else if (!strcmp (arg, "-s"))
+	{
+	  if (++i == argc)
+	    die ("argument to '-s' missing (try '-h')");
+	  if (seconds >= 0)
+	    die ("multiple '-s %d' and '-s %s'", seconds, arg);
+	  arg = argv[i];
+	  if (sscanf (arg, "%d", &seconds) != 1 || seconds < 0)
+	    die ("invalid argument in '-s %s'", arg);
+	}
       else if (!strcmp (arg, "-v"))
 	{
 	  if (verbosity < MAX_VERBOSITY)
@@ -3977,7 +3990,7 @@ print_witness (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
-static volatile bool caught_signal;
+static volatile int caught_signal;
 static volatile bool catching_signals;
 
 static struct root *root;
@@ -4001,11 +4014,10 @@ SIGNALS
 // *INDENT-ON*
 
 static void
-reset_signal_handler (void)
+reset_signal_handlers (void)
 {
-  if (!catching_signals)
+  if (!atomic_exchange (&catching_signals, false))
     return;
-  catching_signals = false;
 #define SIGNAL(SIG) \
   signal (SIG, saved_ ## SIG ## _handler);
   SIGNALS
@@ -4017,9 +4029,8 @@ static void print_root_statistics (struct root *);
 static void
 catch_signal (int sig)
 {
-  if (caught_signal)
+  if (atomic_exchange (&caught_signal, sig))
     return;
-  caught_signal = sig;
   const char *name = "SIGNUNKNOWN";
 #define SIGNAL(SIG) \
   if (sig == SIG) name = #SIG;
@@ -4030,13 +4041,13 @@ catch_signal (int sig)
   size_t bytes = strlen (buffer);
   if (write (1, buffer, bytes) != bytes)
     exit (0);
-  reset_signal_handler ();
+  reset_signal_handlers ();
   print_root_statistics (root);
   raise (sig);
 }
 
 static void
-init_signal_handler (void)
+init_signal_handlers (void)
 {
   assert (!catching_signals);
 #define SIGNAL(SIG) \
@@ -4243,9 +4254,9 @@ main (int argc, char **argv)
   struct solver * solver = root->solvers.first;
   init_root_watches (solver);
   set_limits (solver);
-  init_signal_handler ();
+  init_signal_handlers ();
   int res = solve (solver);
-  reset_signal_handler ();
+  reset_signal_handlers ();
   close_proof ();
   if (res == 20)
     {
