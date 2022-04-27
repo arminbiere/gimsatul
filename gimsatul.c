@@ -1749,11 +1749,9 @@ set_winner (struct solver *solver)
       assert (winner->status == solver->status);
       return;
     }
+  atomic_store (&root->terminate, true);
   verbose (solver, "winning solver[%u] with status %d",
 	   solver->id, solver->status);
-  /*
-     atomic_store (&root->terminate, true);
-   */
 }
 
 static void
