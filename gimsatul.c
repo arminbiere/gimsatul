@@ -1171,6 +1171,7 @@ enqueue_solver (struct root *root, struct solver *solver)
   if (pthread_mutex_lock (&root->solvers.lock))
     fatal_error ("could not lock root lock during solver enqueue");
   solver->id = root->solvers.count++;
+  solver->random = solver->id;
   solver->root = root;
   if (root->solvers.last)
     root->solvers.last->next = solver;
