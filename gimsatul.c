@@ -3772,55 +3772,59 @@ struct options
   unsigned threads;
 };
 
-static void
-parse_options (int argc, char **argv, struct options *options)
+static const char *
+long_option (const char * arg, const char * match)
 {
-  options->conflicts = -1;
-  options->seconds = 0;
+  if (arg[0] != '-')
+    return 0;
+  if (arg[1] != '-')
+    return 0;
+  const char * p = arg;
+  for (const char * q = match; *q; q++, p++)
+    if (*q != *p)
+      return 0;
+  if (*p++ != '=')
+    return 0;
+  const char * res = p;
+  int ch;
+  if (!(ch = *p++))
+    return 0;
+  if (!isdigit (ch))
+    return 0;
+  while ((ch = *p++) && isdigit (ch))
+    p++;
+  return ch ? 0 : res;
+}
+
+static void
+parse_options (int argc, char **argv, struct options *opts)
+{
+  opts->conflicts = -1;
+  opts->seconds = 0;
+  opts->threads = 0;
   for (int i = 1; i != argc; i++)
     {
-      const char *opt = argv[i];
+      const char *opt = argv[i], * arg;
       if (!strcmp (opt, "-a") || !strcmp (opt, "--ascii"))
 	binary_proof_format = false;
-      else if (!strcmp (opt, "-c"))
-	{
-	  if (++i == argc)
-	    die ("argument to '-c' missing (try '-h')");
-	  if (options->conflicts >= 0)
-	    die ("multiple '-c %lld' and '-c %s'", options->conflicts, opt);
-	  opt = argv[i];
-	  if (sscanf (opt, "%lld", &options->conflicts) != 1
-	      || options->conflicts < 0)
-	    die ("invalid argument in '-c %s'", opt);
-	}
-      else if (!strcmp (opt, "-f"))
+      else if (!strcmp (opt, "-f") || !strcmp (opt, "--force"))
 	force = true;
-      else if (!strcmp (opt, "-h"))
+      else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
 	{
 	  fputs (usage, stdout);
 	  exit (0);
 	}
-      else if (!strcmp (opt, "-l"))
+      else if (!strcmp (opt, "-l") || !strcmp (opt, "--log") || !strcmp (opt, "logging"))
 #ifdef LOGGING
 	{
 	  logging = true;
 	  verbosity = MAX_VERBOSITY;
 	}
 #else
-	die ("invalid option '-l' (compiled without logging support)");
+	die ("invalid option '%s' (compiled without logging support)", opt);
 #endif
-      else if (!strcmp (opt, "-n"))
+      else if (!strcmp (opt, "-n") || !strcmp (opt, "--no-witness"))
 	witness = false;
-      else if (!strcmp (opt, "-s"))
-	{
-	  if (++i == argc)
-	    die ("argument to '-s' missing (try '-h')");
-	  if (options->seconds)
-	    die ("multiple '-s %u' and '-s %s'", options->seconds, opt);
-	  opt = argv[i];
-	  if (sscanf (opt, "%u", &options->seconds) != 1 || !options->seconds)
-	    die ("invalid argument in '-s %s'", opt);
-	}
       else if (!strcmp (opt, "-v"))
 	{
 	  if (verbosity < MAX_VERBOSITY)
@@ -3830,6 +3834,35 @@ parse_options (int argc, char **argv, struct options *options)
 	{
 	  printf ("%s\n", VERSION);
 	  exit (0);
+	}
+      else if ((arg = long_option (opt, "conflicts")))
+	{
+	  if (opts->conflicts >= 0)
+	    die ("multiple '--conflicts=%lld' and '%s'", opts->conflicts, opt);
+	  if (sscanf (arg, "%lld", &opts->conflicts) != 1)
+	    die ("invalid argument in '%s'", opt);
+	  if (opts->conflicts < 0)
+	    die ("invalid negative argument in '%s'", opt);
+	}
+      else if ((arg = long_option (opt, "threads")))
+	{
+	  if (opts->threads)
+	    die ("multiple '--threads=%u' and '%s'", opts->seconds, opt);
+	  if (sscanf (arg, "%u", &opts->threads) != 1)
+	    die ("invalid argument in '%s'", opt);
+	  if (!opts->threads)
+	    die ("invalid zero argument in '%s'", opt);
+	  if (opts->threads > MAX_THREADS)
+	    die ("invalid argument in '%s' (maximum %zu)", opt, MAX_THREADS);
+	}
+      else if ((arg = long_option (opt, "time")))
+	{
+	  if (opts->seconds)
+	    die ("multiple '--time=%u' and '%s'", opts->seconds, opt);
+	  if (sscanf (arg, "%u", &opts->seconds) != 1)
+	    die ("invalid argument in '%s'", opt);
+	  if (!opts->seconds)
+	    die ("invalid zero argument in '%s'", opt);
 	}
       else if (opt[0] == '-' && opt[1])
 	die ("invalid option '%s' (try '-h')", opt);
@@ -3891,6 +3924,9 @@ parse_options (int argc, char **argv, struct options *options)
       dimacs.path = "<stdin>";
       dimacs.file = stdin;
     }
+
+  if (!opts->threads)
+    opts->threads = 1;
 }
 
 static void
