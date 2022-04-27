@@ -408,7 +408,6 @@ struct solvers
 
 struct root
 {
-  volatile int status;
   volatile bool terminate;
   volatile struct solver * winner;
   struct solvers solvers;
@@ -421,6 +420,8 @@ struct solver
 {
   struct root *root;
   struct solver * prev, * next;
+  pthread_t thread;
+  volatile int status;
   bool inconsistent;
   bool iterating;
   bool stable;
@@ -1681,6 +1682,39 @@ assign_decision (struct solver *solver, unsigned decision)
 /*------------------------------------------------------------------------*/
 
 static void
+set_winner (struct solver * solver)
+{
+  struct solver * winner = 0;
+  struct root * root = solver->root;
+  bool winning = 
+    atomic_compare_exchange_strong (&root->winner, &winner, solver);
+  if (!winning)
+    {
+      assert (winner);
+      assert (winner->status == solver->status);
+      return;
+    }
+  verbose (solver, "winning solver[%u] with status %d",
+	   solver->id, solver->status);
+  /*
+  atomic_store (&root->terminate, true);
+  */
+}
+
+static void
+set_inconsistent (struct solver * solver, const char * msg)
+{
+  assert (!solver->inconsistent);
+  very_verbose (solver, "%s", msg);
+  solver->inconsistent = true;
+  assert (!solver->status);
+  solver->status = 20;
+  set_winner (solver);
+}
+
+/*------------------------------------------------------------------------*/
+
+static void
 share_clauses (struct solver * dst, struct solver * src)
 {
   struct solver * solver = dst;
@@ -1690,8 +1724,7 @@ share_clauses (struct solver * dst, struct solver * src)
   assert (src->trail.propagate == src->trail.begin);
   if (src->inconsistent)
     {
-      very_verbose (solver, "copying inconsistent empty clause");
-      solver->inconsistent = true;
+      set_inconsistent (solver, "copying inconsistent empty clause");
       TRACE_EMPTY ();
       return;
     }
@@ -2103,8 +2136,8 @@ analyze (struct solver *solver, struct watch *reason, unsigned failed)
 #endif
   if (!solver->level)
     {
-      LOG ("conflict on root-level produces empty clause");
-      solver->inconsistent = true;
+      set_inconsistent (solver,
+                        "conflict on root-level produces empty clause");
       TRACE_EMPTY ();
       return false;
     }
@@ -3554,7 +3587,7 @@ solve (struct solver *solver)
 	    res = 20;
 	}
       else if (!solver->unassigned)
-	res = 10;
+	set_winner (solver), res = 10;
       else if (solver->iterating)
 	iterate (solver);
       else if (solver->root->terminate)
@@ -3574,6 +3607,16 @@ solve (struct solver *solver)
     }
   stop_search (solver, res);
   return res;
+}
+
+static void *
+solve_routine (void * ptr)
+{
+  struct solver * solver = ptr;
+  int res = solve (solver);
+  assert (solver->status == res);
+  (void) res;
+  return solver;
 }
 
 /*------------------------------------------------------------------------*/
@@ -3974,18 +4017,14 @@ parse_dimacs_file ()
 	      const size_t size = SIZE (*clause);
 	      assert (size <= solver->size);
 	      if (!size)
-		{
-		  LOG ("found empty original clause");
-		  solver->inconsistent = true;
-		}
+		set_inconsistent (solver, "found empty original clause");
 	      else if (size == 1)
 		{
 		  const unsigned unit = *clause->begin;
 		  const signed char value = solver->values[unit];
 		  if (value < 0)
 		    {
-		      LOG ("found inconsistent units");
-		      solver->inconsistent = true;
+		      set_inconsistent (solver, "found inconsistent unit");
 		      TRACE_EMPTY ();
 		    }
 		  else if (!value)
@@ -4367,6 +4406,15 @@ check_types (void)
 
 /*------------------------------------------------------------------------*/
 
+static void
+run_solve (struct solver * solver)
+{
+  if (pthread_create (&solver->thread, 0, solve_routine, solver))
+    fatal_error ("failed to create solving thread");
+  if (pthread_join (solver->thread, 0))
+    fatal_error ("failed to join solving thread");
+}
+
 int
 main (int argc, char **argv)
 {
@@ -4388,10 +4436,10 @@ main (int argc, char **argv)
   set_limits (solver, options.conflicts);
   set_limits (clone, options.conflicts);
   set_signal_handlers (options.seconds);
-  int res = solve (solver);
-  int other = solve (clone);
-  assert (res == other);
-  (void) other;
+  run_solve (solver);
+  run_solve (clone);
+  struct solver * winner = (struct solver *) root->winner;
+  int res = winner ? winner->status : 0;
   reset_signal_handlers ();
   close_proof ();
   if (res == 20)
@@ -4402,11 +4450,11 @@ main (int argc, char **argv)
   else if (res == 10)
     {
 #ifndef NDEBUG
-      check_witness (solver);
+      check_witness (winner);
 #endif
       printf ("c\ns SATISFIABLE\n");
       if (witness)
-	print_witness (solver);
+	print_witness (winner);
       fflush (stdout);
     }
   print_root_statistics (root);

@@ -8,7 +8,7 @@ indent:
 test: all
 	cnf/test.sh
 gimsatul: gimsatul.c config.h
-	$(CC) $(CFLAGS) -o $@ $< -lm
+	$(CC) $(CFLAGS) -o $@ $< -lm -pthread
 config.h: makefile
 	./mkconfig.sh > $@
 .PHONY: all clean indent test
