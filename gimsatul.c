@@ -408,6 +408,9 @@ struct solvers
 
 struct root
 {
+  volatile int status;
+  volatile bool terminate;
+  volatile struct solver * winner;
   struct solvers solvers;
   struct unsigneds binaries;
   unsigned *watches;
@@ -3486,6 +3489,8 @@ solve (struct solver *solver)
 	res = 10;
       else if (solver->iterating)
 	iterate (solver);
+      else if (solver->root->terminate)
+	break;
       else if (conflict_limit_hit (solver))
 	break;
       else if (reducing (solver))
@@ -3558,12 +3563,17 @@ open_and_read_from_pipe (const char *path, const char *fmt)
 
 #include "config.h"
 
-static long long conflicts = -1;
-static int seconds = -1;
+struct options
+{
+  long long conflicts;
+  unsigned seconds;
+};
 
 static void
-parse_options (int argc, char **argv)
+parse_options (int argc, char **argv, struct options * options)
 {
+  options->conflicts = -1;
+  options->seconds = 0;
   for (int i = 1; i != argc; i++)
     {
       const char *arg = argv[i];
@@ -3573,10 +3583,10 @@ parse_options (int argc, char **argv)
 	{
 	  if (++i == argc)
 	    die ("argument to '-c' missing (try '-h')");
-	  if (conflicts >= 0)
-	    die ("multiple '-c %lld' and '-c %s'", conflicts, arg);
+	  if (options->conflicts >= 0)
+	    die ("multiple '-c %lld' and '-c %s'", options->conflicts, arg);
 	  arg = argv[i];
-	  if (sscanf (arg, "%lld", &conflicts) != 1 || conflicts < 0)
+	  if (sscanf (arg, "%lld", &options->conflicts) != 1 || options->conflicts < 0)
 	    die ("invalid argument in '-c %s'", arg);
 	}
       else if (!strcmp (arg, "-f"))
@@ -3601,10 +3611,10 @@ parse_options (int argc, char **argv)
 	{
 	  if (++i == argc)
 	    die ("argument to '-s' missing (try '-h')");
-	  if (seconds >= 0)
-	    die ("multiple '-s %d' and '-s %s'", seconds, arg);
+	  if (options->seconds)
+	    die ("multiple '-s %u' and '-s %s'", options->seconds, arg);
 	  arg = argv[i];
-	  if (sscanf (arg, "%d", &seconds) != 1 || seconds < 0)
+	  if (sscanf (arg, "%u", &options->seconds) != 1 || !options->seconds)
 	    die ("invalid argument in '-s %s'", arg);
 	}
       else if (!strcmp (arg, "-v"))
@@ -3680,7 +3690,7 @@ parse_options (int argc, char **argv)
 }
 
 static void
-set_limits (struct solver *solver)
+set_limits (struct solver *solver, long long conflicts)
 {
   if (solver->inconsistent)
     return;
@@ -3992,12 +4002,14 @@ print_witness (struct solver *solver)
 
 static volatile int caught_signal;
 static volatile bool catching_signals;
+static volatile bool catching_alarm;
 
 static struct root *root;
 
 #define SIGNALS \
 SIGNAL(SIGABRT) \
 SIGNAL(SIGBUS) \
+SIGNAL(SIGILL) \
 SIGNAL(SIGINT) \
 SIGNAL(SIGSEGV) \
 SIGNAL(SIGTERM)
@@ -4010,51 +4022,101 @@ SIGNAL(SIGTERM)
 static void (*saved_ ## SIG ## _handler)(int);
 SIGNALS
 #undef SIGNAL
+static void (*saved_SIGALRM_handler)(int);
 
 // *INDENT-ON*
 
 static void
+reset_alarm_handler (void)
+{
+  if (atomic_exchange (&catching_alarm, false))
+    signal (SIGALRM, saved_SIGALRM_handler);
+}
+
+static void
 reset_signal_handlers (void)
 {
-  if (!atomic_exchange (&catching_signals, false))
-    return;
+  if (atomic_exchange (&catching_signals, false))
+    {
+  // *INDENT-OFF*
 #define SIGNAL(SIG) \
-  signal (SIG, saved_ ## SIG ## _handler);
-  SIGNALS
+      signal (SIG, saved_ ## SIG ## _handler);
+      SIGNALS
 #undef SIGNAL
+  // *INDENT-OFF*
+    }
+  reset_alarm_handler ();
 }
 
 static void print_root_statistics (struct root *);
+
+static void
+caught_message (int sig)
+{
+  const char *name = "SIGNUNKNOWN";
+#define SIGNAL(SIG) \
+  if (sig == SIG) name = #SIG;
+  SIGNALS
+#undef SIGNAL
+  if (sig == SIGALRM)
+    name = "SIGALRM";
+  char buffer[80];
+  sprintf (buffer, "c\nc caught signal %d (%s)\nc\n", sig, name);
+  size_t bytes = strlen (buffer);
+  if (write (1, buffer, bytes) != bytes)
+    exit (0);
+}
 
 static void
 catch_signal (int sig)
 {
   if (atomic_exchange (&caught_signal, sig))
     return;
-  const char *name = "SIGNUNKNOWN";
-#define SIGNAL(SIG) \
-  if (sig == SIG) name = #SIG;
-  SIGNALS
-#undef SIGNAL
-  char buffer[80];
-  sprintf (buffer, "c\nc caught signal %d (%s)\nc\n", sig, name);
-  size_t bytes = strlen (buffer);
-  if (write (1, buffer, bytes) != bytes)
-    exit (0);
+  caught_message (sig);
   reset_signal_handlers ();
   print_root_statistics (root);
   raise (sig);
 }
 
 static void
-init_signal_handlers (void)
+catch_alarm (int sig)
 {
-  assert (!catching_signals);
+  assert (sig == SIGALRM);
+  if (!atomic_load (&catching_alarm))
+    catch_signal (sig);
+  if (atomic_exchange (&caught_signal, sig))
+    return;
+  if (verbosity)
+    caught_message (sig);
+  reset_alarm_handler ();
+  assert (root);
+  atomic_store (&root->terminate, true);
+  atomic_store (&caught_signal, 0);
+}
+
+static void
+set_alarm_handler (unsigned seconds)
+{
+  assert (seconds);
+  assert (!atomic_load (&catching_alarm));
+  saved_SIGALRM_handler = signal (SIGALRM, catch_alarm);
+  alarm (seconds);
+  atomic_store (&catching_alarm, true);
+}
+
+static void
+set_signal_handlers (unsigned seconds)
+{
+  assert (!atomic_load (&catching_signals));
+  // *INDENT-OFF*
 #define SIGNAL(SIG) \
   saved_ ## SIG ##_handler = signal (SIG, catch_signal);
   SIGNALS
 #undef SIGNAL
-    catching_signals = true;
+  // *INDENT-ON*
+  atomic_store (&catching_signals, true);
+  if (seconds)
+    set_alarm_handler (seconds);
 }
 
 /*------------------------------------------------------------------------*/
@@ -4242,7 +4304,8 @@ main (int argc, char **argv)
 {
   start_time = current_time ();
   check_types ();
-  parse_options (argc, argv);
+  struct options options;
+  parse_options (argc, argv, &options);
   print_banner ();
   if (proof.file)
     {
@@ -4253,8 +4316,8 @@ main (int argc, char **argv)
   root = parse_dimacs_file ();
   struct solver * solver = root->solvers.first;
   init_root_watches (solver);
-  set_limits (solver);
-  init_signal_handlers ();
+  set_limits (solver, options.conflicts);
+  set_signal_handlers (options.seconds);
   int res = solve (solver);
   reset_signal_handlers ();
   close_proof ();
