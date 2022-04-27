@@ -2780,9 +2780,7 @@ flush_watchlist (struct solver *solver)
       struct clause *clause = watch->clause;
       delete_watch (solver, watch);
 
-      unsigned shared = atomic_fetch_sub (&clause->shared, 1);
-      assert (shared);
-      if (shared > 1)
+      if (atomic_fetch_sub (&clause->shared, 1))
 	continue;
 
       delete_clause (solver, clause);
@@ -4281,17 +4279,13 @@ run_solvers (struct root * root)
 }
 
 static void
-detach_solvers (struct root * root)
+detach_and_delete_solvers (struct root * root)
 {
   for (all_solvers (solver))
+    {
       detach_solver (root, solver);
-}
-
-static void
-delete_solvers (struct root * root)
-{
-  for (all_solvers (solver))
-    delete_solver (solver);
+      delete_solver (solver);
+    }
 }
 
 /*------------------------------------------------------------------------*/
@@ -4635,8 +4629,7 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   print_root_statistics (root);
-  detach_solvers (root);
-  delete_solvers (root);
+  detach_and_delete_solvers (root);
   delete_root (root);
 #ifndef NDEBUG
   RELEASE (original);
