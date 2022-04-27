@@ -7,18 +7,19 @@ static const char * usage =
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
-"-a             use ASCII format for proof output\n"
-"-f             force reading and writing\n"
-"-h             print this command line option summary\n"
-#ifdef LOGGING
-"-l             enable very verbose internal logging\n"
+"-a|--ascii       use ASCII format for proof output\n"
+"-f|--force       force reading and writing\n"
+"-h|--help        print this command line option summary\n"
+#ifdef LOGGING   
+"-l|--log[ging]   enable very verbose internal logging\n"
 #endif
-"-n             do not print satisfying assignments\n"
-"-v             increase verbosity\n"
-"--version      print version\n"
+"-n|--no-witness  do not print satisfying assignments\n"
+"-v|--verbose     increase verbosity\n"
+"--version        print version\n"
 "\n"
-"-c <conflicts> set conflict limit\n"
-"-s <seconds>   set time limit\n"
+"--conflicts=<conflicts>  set conflict limit (default unlimited)\n"
+"--threads=<number>       set number of threads (default one)\n"
+"--time=<seconds>         set time limit (default unlimited)\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof output file in 'DRAT' format (no proof if missing).\n"
@@ -86,6 +87,9 @@ static const char * usage =
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
 #define WATCHES(LIT) (solver->watchtab[LIT])
+
+#define MAX_THREADS \
+  ((size_t) 1 << 8*sizeof ((struct clause *) 0)->shared)
 
 /*------------------------------------------------------------------------*/
 
@@ -208,9 +212,10 @@ do { \
   ++AVG
 
 #define all_solvers(SOLVER) \
-  struct solver * SOLVER = root->solvers.first; \
-  SOLVER; \
-  SOLVER = SOLVER->next
+  struct solver ** P_ ## SOLVER = root->solvers.begin, \
+                ** END_ ## SOLVER = root->solvers.end, * SOLVER; \
+  (P_ ## SOLVER != END_ ## SOLVER) && ((SOLVER) = *P_ ## SOLVER, true); \
+  ++P_ ## SOLVER
 
 /*------------------------------------------------------------------------*/
 
@@ -421,16 +426,15 @@ struct binaries
 
 struct solvers
 {
-  unsigned count;
   pthread_mutex_t lock;
-  struct solver *first, *last;
+  struct solver ** begin, ** end, **allocated;
 };
 
 struct root
 {
   volatile bool terminate;
-  volatile struct solver *winner;
   struct solvers solvers;
+  volatile struct solver *winner;
   struct unsigneds binaries;
   unsigned *watches;
   unsigned size;
@@ -438,14 +442,13 @@ struct root
 
 struct solver
 {
+  unsigned id;
   struct root *root;
-  struct solver *prev, *next;
   pthread_t thread;
   volatile int status;
   bool inconsistent;
   bool iterating;
   bool stable;
-  unsigned id;
   unsigned size;
   unsigned context;
   unsigned active;
@@ -583,27 +586,29 @@ export_literal (unsigned unsigned_lit)
 static pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void
-lock_message_mutex (void)
+message_lock_failure (const char * str)
 {
-  if (pthread_mutex_lock (&message_mutex))
-    {
-      fprintf (stderr,
-	       "gimsatul: locking error: failed to lock message mutex\n");
-      fflush (stderr);
-      abort ();
-    }
+  char buffer[128];
+  sprintf (buffer, "gimsatul: fatal message locking error: %s\n", str);
+  size_t len = strlen (buffer);
+  assert (len < sizeof buffer);
+  if (write (1, buffer, len) != len)
+    abort ();
+  abort ();
 }
 
 static void
-unlock_message_mutex (void)
+acquire_message_lock (void)
+{
+  if (pthread_mutex_lock (&message_mutex))
+    message_lock_failure ("failed to acquire message lock");
+}
+
+static void
+release_message_lock (void)
 {
   if (pthread_mutex_unlock (&message_mutex))
-    {
-      fprintf (stderr,
-	       "gimsatul: locking error: failed to unlock message mutex\n");
-      fflush (stderr);
-      abort ();
-    }
+    message_lock_failure ("failed to release message lock");
 }
 
 static void die (const char *, ...) __attribute__((format (printf, 1, 2)));
@@ -611,7 +616,7 @@ static void die (const char *, ...) __attribute__((format (printf, 1, 2)));
 static void
 die (const char *fmt, ...)
 {
-  lock_message_mutex ();
+  acquire_message_lock ();
   fputs ("gimsatul: error: ", stderr);
   va_list ap;
   va_start (ap, fmt);
@@ -619,7 +624,7 @@ die (const char *fmt, ...)
   va_end (ap);
   fputc ('\n', stderr);
   fflush (stderr);
-  unlock_message_mutex ();
+  release_message_lock ();
   exit (1);
 }
 
@@ -629,7 +634,7 @@ static void fatal_error (const char *, ...)
 static void
 fatal_error (const char *fmt, ...)
 {
-  lock_message_mutex ();
+  acquire_message_lock ();
   fputs ("gimsatul: fatal error: ", stderr);
   va_list ap;
   va_start (ap, fmt);
@@ -637,7 +642,7 @@ fatal_error (const char *fmt, ...)
   va_end (ap);
   fputc ('\n', stderr);
   fflush (stderr);
-  unlock_message_mutex ();
+  release_message_lock ();
   abort ();
 }
 
@@ -649,7 +654,7 @@ static void message (struct solver *solver, const char *, ...)
 static void
 message (struct solver *solver, const char *fmt, ...)
 {
-  lock_message_mutex ();
+  acquire_message_lock ();
   printf (PFX, solver->id);
   va_list ap;
   va_start (ap, fmt);
@@ -657,7 +662,7 @@ message (struct solver *solver, const char *fmt, ...)
   va_end (ap);
   fputc ('\n', stdout);
   fflush (stdout);
-  unlock_message_mutex ();
+  release_message_lock ();
 }
 
 static int verbosity;
@@ -744,14 +749,14 @@ logvar (struct solver *solver, unsigned idx)
 #define LOGPREFIX(...) \
   if (!logging) \
     break; \
-  lock_message_mutex (); \
+  acquire_message_lock (); \
   printf (PFX "LOG %u ", solver->id, solver->level); \
   printf (__VA_ARGS__)
 
 #define LOGSUFFIX(...) \
   fputc ('\n', stdout); \
   fflush (stdout); \
-  unlock_message_mutex ()
+  release_message_lock ()
 
 #define LOG(...) \
 do { \
@@ -1196,62 +1201,41 @@ new_root (size_t size)
 static void
 delete_root (struct root *root)
 {
-  assert (!root->solvers.count);
-  assert (!root->solvers.first);
-  assert (!root->solvers.last);
+#ifndef NDEBUG
+  for (all_solvers (solver))
+    assert (!solver);
+#endif
+  RELEASE (root->solvers);
   RELEASE (root->binaries);
   free (root->watches);
   free (root);
 }
 
 static void
-enqueue_solver (struct root *root, struct solver *solver)
+push_solver (struct root *root, struct solver *solver)
 {
   if (pthread_mutex_lock (&root->solvers.lock))
-    fatal_error ("could not lock root lock during solver enqueue");
-  solver->id = root->solvers.count++;
+    fatal_error ("failed to acquire root lock while pushing solver");
+  size_t id = SIZE (root->solvers); 
+  assert (id < MAX_THREADS);
+  solver->id = id;
+  PUSH (root->solvers, solver);
   solver->random = solver->id;
   solver->root = root;
-  if (root->solvers.last)
-    root->solvers.last->next = solver;
-  else
-    root->solvers.first = solver;
-  solver->prev = root->solvers.last;
-  root->solvers.last = solver;
   if (pthread_mutex_unlock (&root->solvers.lock))
-    fatal_error ("could not unlock root lock during solver enqueue");
+    fatal_error ("failed to release root lock while pushing solver");
 }
 
 static void
-dequeue_solver (struct root *root, struct solver *solver)
+detach_solver (struct root *root, struct solver *solver)
 {
   if (pthread_mutex_lock (&root->solvers.lock))
-    fatal_error ("could not lock root lock during solver dequeue");
-  assert (root->solvers.count);
-  assert (solver->root == root);
-  root->solvers.count--;
-  if (solver->prev)
-    {
-      assert (solver->prev->next == solver);
-      solver->prev->next = solver->next;
-    }
-  else
-    {
-      assert (root->solvers.first == solver);
-      root->solvers.first = solver->next;
-    }
-  if (solver->next)
-    {
-      assert (solver->next->prev == solver);
-      solver->next->prev = solver->prev;
-    }
-  else
-    {
-      assert (root->solvers.last == solver);
-      root->solvers.last = solver->prev;
-    }
+    fatal_error ("failed to acquire root lock while detaching solver");
+  assert (solver->id < SIZE (root->solvers));
+  assert (root->solvers.begin[solver->id] == solver);
+  root->solvers.begin[solver->id] = 0;
   if (pthread_mutex_unlock (&root->solvers.lock))
-    fatal_error ("could not unlock root lock during solver dequeue");
+    fatal_error ("failed to release root lock while detaching solver");
 }
 
 /*------------------------------------------------------------------------*/
@@ -1262,7 +1246,7 @@ new_solver (struct root *root)
   unsigned size = root->size;
   assert (size < (1u << 30));
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
-  enqueue_solver (root, solver);
+  push_solver (root, solver);
   solver->size = size;
   verbose (solver, "new solver[%u] of size %u", solver->id, size);
   solver->values = allocate_and_clear_array (1, 2 * size);
@@ -1300,7 +1284,7 @@ release_watches (struct solver *solver)
     {
       assert (!tagged_watch (watch));
       struct clause *clause = watch->clause;
-      if (atomic_fetch_sub (&clause->shared, 1) == 1)
+      if (!atomic_fetch_sub (&clause->shared, 1))
 	free (clause);
       free (watch);
     }
@@ -1322,7 +1306,6 @@ delete_solver (struct solver *solver)
   free (solver->variables);
   free (solver->values);
   free (solver->used);
-  dequeue_solver (solver->root, solver);
   free (solver);
 }
 
@@ -1579,7 +1562,7 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
   inc_clauses (solver, redundant);
   clause->glue = glue;
   clause->redundant = redundant;
-  clause->shared = 1;
+  clause->shared = 0;
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
   LOGCLAUSE (clause, "new");
@@ -1597,10 +1580,17 @@ delete_clause (struct solver *solver, struct clause *clause)
 
 /*------------------------------------------------------------------------*/
 
-static void
-init_root_watches (struct solver *solver)
+static struct solver *
+first_solver (struct root * root)
 {
-  struct root *root = solver->root;
+  assert (!EMPTY (root->solvers));
+  return root->solvers.begin[0];
+}
+
+static void
+init_root_watches (struct root *root)
+{
+  struct solver * solver = first_solver (root);
   long *counts = allocate_and_clear_array (2 * root->size, sizeof *counts);
   struct unsigneds *binaries = &root->binaries;
   unsigned *begin = binaries->begin;
@@ -1799,6 +1789,7 @@ share_clauses (struct solver *dst, struct solver *src)
       units++;
     }
   very_verbose (solver, "copied %u units", units);
+
   struct watches *src_watchtab = src->watchtab;
   struct watches *dst_watchtab = dst->watchtab;
   size_t copied_binary_watch_lists = 0;
@@ -1820,16 +1811,20 @@ share_clauses (struct solver *dst, struct solver *src)
     }
   very_verbose (solver, "shared %zu global binary watch lists",
 		copied_binary_watch_lists);
+
+  size_t shared = 0;
   for (all_watches (src_watch, src->watchlist))
     {
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
-      unsigned shared = atomic_fetch_add (&clause->shared, 1);
-      assert (shared);
-      (void) shared;
+      unsigned tmp = atomic_fetch_add (&clause->shared, 1);
+      assert (tmp);
+      (void) tmp;
       inc_clauses (solver, false);
       new_watch (solver, clause, false, 0);
+      shared++;
     }
+  very_verbose (solver, "shared %zu large clauses", shared);
 }
 
 struct solver *
@@ -2475,7 +2470,7 @@ report (struct solver *solver, char type)
   struct statistics *s = &solver->statistics;
   struct averages *a = solver->averages + solver->stable;
 
-  lock_message_mutex ();
+  acquire_message_lock ();
 
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
@@ -2494,7 +2489,7 @@ report (struct solver *solver, char type)
 
   fflush (stdout);
 
-  unlock_message_mutex ();
+  release_message_lock ();
 }
 
 static bool
@@ -3774,6 +3769,7 @@ struct options
 {
   long long conflicts;
   unsigned seconds;
+  unsigned threads;
 };
 
 static void
@@ -3783,28 +3779,28 @@ parse_options (int argc, char **argv, struct options *options)
   options->seconds = 0;
   for (int i = 1; i != argc; i++)
     {
-      const char *arg = argv[i];
-      if (!strcmp (arg, "-a"))
+      const char *opt = argv[i];
+      if (!strcmp (opt, "-a") || !strcmp (opt, "--ascii"))
 	binary_proof_format = false;
-      else if (!strcmp (arg, "-c"))
+      else if (!strcmp (opt, "-c"))
 	{
 	  if (++i == argc)
 	    die ("argument to '-c' missing (try '-h')");
 	  if (options->conflicts >= 0)
-	    die ("multiple '-c %lld' and '-c %s'", options->conflicts, arg);
-	  arg = argv[i];
-	  if (sscanf (arg, "%lld", &options->conflicts) != 1
+	    die ("multiple '-c %lld' and '-c %s'", options->conflicts, opt);
+	  opt = argv[i];
+	  if (sscanf (opt, "%lld", &options->conflicts) != 1
 	      || options->conflicts < 0)
-	    die ("invalid argument in '-c %s'", arg);
+	    die ("invalid argument in '-c %s'", opt);
 	}
-      else if (!strcmp (arg, "-f"))
+      else if (!strcmp (opt, "-f"))
 	force = true;
-      else if (!strcmp (arg, "-h"))
+      else if (!strcmp (opt, "-h"))
 	{
 	  fputs (usage, stdout);
 	  exit (0);
 	}
-      else if (!strcmp (arg, "-l"))
+      else if (!strcmp (opt, "-l"))
 #ifdef LOGGING
 	{
 	  logging = true;
@@ -3813,80 +3809,80 @@ parse_options (int argc, char **argv, struct options *options)
 #else
 	die ("invalid option '-l' (compiled without logging support)");
 #endif
-      else if (!strcmp (arg, "-n"))
+      else if (!strcmp (opt, "-n"))
 	witness = false;
-      else if (!strcmp (arg, "-s"))
+      else if (!strcmp (opt, "-s"))
 	{
 	  if (++i == argc)
 	    die ("argument to '-s' missing (try '-h')");
 	  if (options->seconds)
-	    die ("multiple '-s %u' and '-s %s'", options->seconds, arg);
-	  arg = argv[i];
-	  if (sscanf (arg, "%u", &options->seconds) != 1 || !options->seconds)
-	    die ("invalid argument in '-s %s'", arg);
+	    die ("multiple '-s %u' and '-s %s'", options->seconds, opt);
+	  opt = argv[i];
+	  if (sscanf (opt, "%u", &options->seconds) != 1 || !options->seconds)
+	    die ("invalid argument in '-s %s'", opt);
 	}
-      else if (!strcmp (arg, "-v"))
+      else if (!strcmp (opt, "-v"))
 	{
 	  if (verbosity < MAX_VERBOSITY)
 	    verbosity++;
 	}
-      else if (!strcmp (arg, "--version"))
+      else if (!strcmp (opt, "--version"))
 	{
 	  printf ("%s\n", VERSION);
 	  exit (0);
 	}
-      else if (arg[0] == '-' && arg[1])
-	die ("invalid option '%s' (try '-h')", arg);
+      else if (opt[0] == '-' && opt[1])
+	die ("invalid option '%s' (try '-h')", opt);
       else if (proof.file)
 	die ("too many arguments");
       else if (dimacs.file)
 	{
-	  if (!strcmp (arg, "-"))
+	  if (!strcmp (opt, "-"))
 	    {
 	      proof.path = "<stdout>";
 	      proof.file = stdout;
 	      binary_proof_format = false;
 	    }
-	  else if (!force && looks_like_dimacs (arg))
-	    die ("proof file '%s' looks like a DIMACS file (use '-f')", arg);
-	  else if (!(proof.file = fopen (arg, "w")))
-	    die ("can not open and write to '%s'", arg);
+	  else if (!force && looks_like_dimacs (opt))
+	    die ("proof file '%s' looks like a DIMACS file (use '-f')", opt);
+	  else if (!(proof.file = fopen (opt, "w")))
+	    die ("can not open and write to '%s'", opt);
 	  else
 	    {
-	      proof.path = arg;
+	      proof.path = opt;
 	      proof.close = true;
 	    }
 	}
       else
 	{
-	  if (!strcmp (arg, "-"))
+	  if (!strcmp (opt, "-"))
 	    {
 	      dimacs.path = "<stdin>";
 	      dimacs.file = stdin;
 	    }
-	  else if (has_suffix (arg, ".bz2"))
+	  else if (has_suffix (opt, ".bz2"))
 	    {
-	      dimacs.file = open_and_read_from_pipe (arg, "bzip2 -c -d %s");
+	      dimacs.file = open_and_read_from_pipe (opt, "bzip2 -c -d %s");
 	      dimacs.close = 2;
 	    }
-	  else if (has_suffix (arg, ".gz"))
+	  else if (has_suffix (opt, ".gz"))
 	    {
-	      dimacs.file = open_and_read_from_pipe (arg, "gzip -c -d %s");
+	      dimacs.file = open_and_read_from_pipe (opt, "gzip -c -d %s");
 	      dimacs.close = 2;
 	    }
-	  else if (has_suffix (arg, ".xz"))
+	  else if (has_suffix (opt, ".xz"))
 	    {
-	      dimacs.file = open_and_read_from_pipe (arg, "xz -c -d %s");
+	      dimacs.file = open_and_read_from_pipe (opt, "xz -c -d %s");
 	      dimacs.close = 2;
 	    }
 	  else
 	    {
-	      dimacs.file = fopen (arg, "r");
+	      dimacs.file = fopen (opt, "r");
 	      dimacs.close = 1;
 	    }
 	  if (!dimacs.file)
-	    die ("can not open and read from '%s'", arg);
-	  dimacs.path = arg;
+	    die ("can not open and read from '%s'", opt);
+	  dimacs.path = opt;
 	}
     }
 
@@ -3924,14 +3920,14 @@ set_limits (struct solver *solver, long long conflicts)
 static void
 print_banner (void)
 {
-  lock_message_mutex ();
+  acquire_message_lock ();
   printf ("c GimSATul SAT Solver\n");
   printf ("c Copyright (c) 2022 Armin Biere University of Freiburg\n");
   fputs ("c\n", stdout);
   printf ("c Version %s%s\n", VERSION, GITID ? " " GITID : "");
   printf ("c %s\n", COMPILER);
   printf ("c %s\n", BUILD);
-  unlock_message_mutex ();
+  release_message_lock ();
 }
 
 #define CHECK_SIZE_OF_TYPE(TYPE,EXPECTED) \
@@ -4206,6 +4202,64 @@ print_witness (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
+static void
+clone_solvers (struct root * root, unsigned threads)
+{
+  struct solver * solver = first_solver (root);
+  while (SIZE (root->solvers) < threads)
+    {
+      struct solver * clone = clone_solver (solver);
+      push_solver (root, clone);
+    }
+}
+
+static void
+set_limits_of_all_solvers (struct root * root, long long conflicts)
+{
+  for (all_solvers (solver))
+    set_limits (solver, conflicts);
+}
+
+static void
+start_running_solver (struct solver *solver)
+{
+  if (pthread_create (&solver->thread, 0, solve_routine, solver))
+    fatal_error ("failed to create solving thread");
+}
+
+static void
+stop_running_solver (struct solver *solver)
+{
+  if (pthread_join (solver->thread, 0))
+    fatal_error ("failed to join solving thread");
+}
+
+static void
+run_solvers (struct root * root)
+{
+  for (all_solvers (solver))
+    start_running_solver (solver);
+
+  for (all_solvers (solver))
+    stop_running_solver (solver);
+}
+
+static void
+detach_solvers (struct root * root)
+{
+  for (all_solvers (solver))
+      detach_solver (root, solver);
+}
+
+static void
+delete_solvers (struct root * root)
+{
+  for (all_solvers (solver))
+    delete_solver (solver);
+}
+
+/*------------------------------------------------------------------------*/
+
 static volatile int caught_signal;
 static volatile bool catching_signals;
 static volatile bool catching_alarm;
@@ -4343,12 +4397,12 @@ check_witness (struct solver *solver)
       clauses++;
       if (satisfied)
 	continue;
-      lock_message_mutex ();
+      acquire_message_lock ();
       fprintf (stderr, "gimsatul: error: unsatisfied clause[%zu]", clauses);
       for (unsigned *q = c; q != p; q++)
 	fprintf (stderr, " %d", export_literal (*q));
       fputs (" 0\n", stderr);
-      unlock_message_mutex ();
+      release_message_lock ();
       abort ();
     }
 }
@@ -4505,20 +4559,6 @@ check_types (void)
 
 /*------------------------------------------------------------------------*/
 
-static void
-start_running_solve (struct solver *solver)
-{
-  if (pthread_create (&solver->thread, 0, solve_routine, solver))
-    fatal_error ("failed to create solving thread");
-}
-
-static void
-stop_running_solve (struct solver *solver)
-{
-  if (pthread_join (solver->thread, 0))
-    fatal_error ("failed to join solving thread");
-}
-
 int
 main (int argc, char **argv)
 {
@@ -4534,17 +4574,12 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   root = parse_dimacs_file ();
-  struct solver *solver = root->solvers.first;
-  init_root_watches (solver);
-  struct solver *clone = clone_solver (solver);
-  set_limits (solver, options.conflicts);
-  set_limits (clone, options.conflicts);
+  init_root_watches (root);
+  clone_solvers (root, options.threads);
+  set_limits_of_all_solvers (root, options.conflicts);
   set_signal_handlers (options.seconds);
-  start_running_solve (solver);
-  start_running_solve (clone);
-  stop_running_solve (solver);
-  stop_running_solve (clone);
-  struct solver *winner = (struct solver *) root->winner;
+  run_solvers (root);
+  struct solver *winner = (struct solver*) root->winner;
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();
   close_proof ();
@@ -4564,8 +4599,8 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   print_root_statistics (root);
-  delete_solver (solver);
-  delete_solver (clone);
+  detach_solvers (root);
+  delete_solvers (root);
   delete_root (root);
 #ifndef NDEBUG
   RELEASE (original);
