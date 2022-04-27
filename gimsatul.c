@@ -242,7 +242,7 @@ struct trail
   unsigned *begin, *end, *propagate;
 };
 
-#define GLUEMAX 255
+#define MAX_GLUE 255
 
 struct clause
 {
@@ -1477,8 +1477,6 @@ new_watch (struct solver *solver, struct clause *clause,
     watch->used = 1;
   else
     watch->used = 0;
-  if (glue > GLUEMAX)
-    glue = GLUEMAX;
   watch->glue = glue;
 #ifdef MIDDLE
   watch->middle = 2;
@@ -1560,6 +1558,8 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
   clause->id = ++solver->statistics.ids;
 #endif
   inc_clauses (solver, redundant);
+  if (glue > MAX_GLUE)
+    glue = MAX_GLUE;
   clause->glue = glue;
   clause->redundant = redundant;
   clause->shared = 0;
@@ -1827,12 +1827,11 @@ share_clauses (struct solver *dst, struct solver *src)
   very_verbose (solver, "shared %zu large clauses", shared);
 }
 
-struct solver *
+static void
 clone_solver (struct solver *src)
 {
   struct solver *solver = new_solver (src->root);
   share_clauses (solver, src);
-  return solver;
 }
 
 /*------------------------------------------------------------------------*/
@@ -2664,10 +2663,10 @@ sort_reduce_candidates (struct watches *candidates)
   size_t size_candidates = SIZE (*candidates);
   if (size_candidates < 2)
     return;
-  size_t size_count = GLUEMAX + 1, count[size_count];
+  size_t size_count = MAX_GLUE + 1, count[size_count];
   memset (count, 0, sizeof count);
   for (all_watches (watch, *candidates))
-    assert (watch->glue <= GLUEMAX), count[watch->glue]++;
+    assert (watch->glue <= MAX_GLUE), count[watch->glue]++;
   size_t pos = 0, *c = count + size_count, size;
   while (c-- != count)
     size = *c, *c = pos, pos += size;
@@ -3771,7 +3770,7 @@ struct options
 };
 
 static const char *
-long_option (const char * arg, const char * match)
+parse_long_option (const char * arg, const char * match)
 {
   if (arg[0] != '-')
     return 0;
@@ -3790,7 +3789,7 @@ long_option (const char * arg, const char * match)
   if (!isdigit (ch))
     return 0;
   while ((ch = *p++) && isdigit (ch))
-    p++;
+    ;
   return ch ? 0 : res;
 }
 
@@ -3833,7 +3832,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  printf ("%s\n", VERSION);
 	  exit (0);
 	}
-      else if ((arg = long_option (opt, "conflicts")))
+      else if ((arg = parse_long_option (opt, "conflicts")))
 	{
 	  if (opts->conflicts >= 0)
 	    die ("multiple '--conflicts=%lld' and '%s'", opts->conflicts, opt);
@@ -3842,7 +3841,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (opts->conflicts < 0)
 	    die ("invalid negative argument in '%s'", opt);
 	}
-      else if ((arg = long_option (opt, "threads")))
+      else if ((arg = parse_long_option (opt, "threads")))
 	{
 	  if (opts->threads)
 	    die ("multiple '--threads=%u' and '%s'", opts->seconds, opt);
@@ -3853,7 +3852,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (opts->threads > MAX_THREADS)
 	    die ("invalid argument in '%s' (maximum %zu)", opt, MAX_THREADS);
 	}
-      else if ((arg = long_option (opt, "time")))
+      else if ((arg = parse_long_option (opt, "time")))
 	{
 	  if (opts->seconds)
 	    die ("multiple '--time=%u' and '%s'", opts->seconds, opt);
@@ -4240,14 +4239,12 @@ clone_solvers (struct root * root, unsigned threads)
   if (threads == 1)
     return;
   assert (threads - 1);
-  printf ("c cloning %u solvers\n", threads - 1);
+  printf ("c trying to clone %u solvers to support %u solver threads\n",
+          threads - 1, threads);
   fflush (stdout);
   struct solver * solver = first_solver (root);
   while (SIZE (root->solvers) < threads)
-    {
-      struct solver * clone = clone_solver (solver);
-      push_solver (root, clone);
-    }
+    (void) clone_solver (solver);
 }
 
 static void
