@@ -618,11 +618,13 @@ fatal_error (const char *fmt, ...)
 static void message (struct solver *solver, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
+#define PFX "c%-2u "
+
 static void
 message (struct solver *solver, const char *fmt, ...)
 {
   lock_message_mutex ();
-  printf ("c%-2u ", solver->id);
+  printf (PFX, solver->id);
   va_list ap;
   va_start (ap, fmt);
   vprintf (fmt, ap);
@@ -717,7 +719,7 @@ logvar (struct solver * solver, unsigned idx)
   if (!logging) \
     break; \
   lock_message_mutex (); \
-  printf ("c LOG %u ", solver->level); \
+  printf (PFX "LOG %u ", solver->id, solver->level); \
   printf (__VA_ARGS__)
 
 #define LOGSUFFIX(...) \
@@ -1589,21 +1591,22 @@ init_root_watches (struct solver *solver)
 	assert (!lit_watches->binaries);
     }
   free (counts);
-#if 1
+
+#ifdef LOGGING
   for (all_literals (lit))
     {
       unsigned * binaries = WATCHES (lit).binaries;
-      printf ("c global binary watches of %s:", LOGLIT (lit));
+      LOGPREFIX ("global binary watches of %s:", LOGLIT (lit));
       if (binaries)
 	{
 	  for (unsigned * p = binaries, other;
 	       (other = *p) != INVALID;
 	       p++)
 	    printf (" %s", LOGLIT (other));
-	  printf ("\n");
 	}
       else
-	printf (" none\n");
+	printf (" none");
+      LOGSUFFIX ();
     }
 #endif
   printf ("c need %zu global binary clause watches\n", size);
@@ -2247,7 +2250,7 @@ report (struct solver *solver, char type)
     printf ("c\nc       seconds MB level reductions restarts "
 	    "conflicts redundant trail glue irredundant variables\nc\n");
 
-  printf ("c%-2u %c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
+  printf (PFX "%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
 	  " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n", solver->id, type, t, m,
 	  a->level.value, s->reductions, s->restarts, conflicts,
 	  s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
@@ -3689,7 +3692,7 @@ static void
 print_banner (void)
 {
   lock_message_mutex ();
-  printf ("c Gimsatul SAT Solver\n");
+  printf ("c GimSATul SAT Solver\n");
   printf ("c Copyright (c) 2022 Armin Biere University of Freiburg\n");
   fputs ("c\n", stdout);
   printf ("c Version %s%s\n", VERSION, GITID ? " " GITID : "");
@@ -4135,12 +4138,12 @@ print_profiles (struct solver *solver)
 	  next = tmp;
       if (!next)
 	break;
-      printf ("c%-2u %10.2f seconds  %5.1f %%  %s\n", solver->id,
+      printf (PFX "%10.2f seconds  %5.1f %%  %s\n", solver->id,
 	      next->time, percent (next->time, total), next->name);
       prev = next;
     }
-  printf ("c%-2u ---------------------------------------\n", solver->id);
-  printf ("c%-2u %10.2f seconds  100.0 %%  total\n", solver->id, total);
+  printf (PFX "---------------------------------------\n", solver->id);
+  printf (PFX "%10.2f seconds  100.0 %%  total\n", solver->id, total);
   fputs ("c\n", stdout);
   fflush (stdout);
 }
@@ -4156,32 +4159,32 @@ print_solver_statistics (struct solver *solver)
   uint64_t decisions = s->contexts[SEARCH].decisions;
   uint64_t propagations = s->contexts[SEARCH].propagations;
   unsigned id = solver->id;
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f per second\n", id, "conflicts:",
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "conflicts:",
 	  conflicts, average (conflicts, search));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f per second\n", id, "decisions:",
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "decisions:",
 	  decisions, average (decisions, search));
-  printf ("c%-2u %-19s %13u %13.2f %% variables\n", id, "fixed-variables:",
+  printf (PFX "%-19s %13u %13.2f %% variables\n", id, "fixed-variables:",
 	  s->fixed, percent (s->fixed, solver->size));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f thousands per second\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f thousands per second\n", id,
 	  "flips:", s->flips, average (s->flips, 1e3 * walk));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f per learned clause\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f per learned clause\n", id,
 	  "learned-literals:", s->learned.literals,
 	  average (s->learned.literals, s->learned.clauses));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f %% per deduced literals\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f %% per deduced literals\n", id,
 	  "minimized-literals:", s->minimized, percent (s->minimized,
 							s->deduced));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f millions per second\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f millions per second\n", id,
 	  "propagations:", propagations, average (propagations,
 						  1e6 * search));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
 	  "reductions:", s->reductions, average (conflicts, s->reductions));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
 	  "rephased:", s->rephased, average (conflicts, s->rephased));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
 	  "restarts:", s->restarts, average (conflicts, s->restarts));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
 	  "switched:", s->switched, average (conflicts, s->switched));
-  printf ("c%-2u %-19s %13" PRIu64 " %13.2f flips per walkinterval\n", id,
+  printf (PFX "%-19s %13" PRIu64 " %13.2f flips per walkinterval\n", id,
 	  "walked:", s->walked, average (s->flips, s->walked));
   fflush (stdout);
 }
