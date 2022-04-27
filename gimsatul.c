@@ -1712,6 +1712,16 @@ set_inconsistent (struct solver * solver, const char * msg)
   set_winner (solver);
 }
 
+static void
+set_satisfied (struct solver * solver)
+{
+  assert (!solver->inconsistent);
+  assert (!solver->unassigned);
+  assert (solver->trail.propagate == solver->trail.begin + solver->size);
+  solver->status = 10;
+  set_winner (solver);
+}
+
 /*------------------------------------------------------------------------*/
 
 static void
@@ -3587,7 +3597,7 @@ solve (struct solver *solver)
 	    res = 20;
 	}
       else if (!solver->unassigned)
-	set_winner (solver), res = 10;
+	set_satisfied (solver), res = 10;
       else if (solver->iterating)
 	iterate (solver);
       else if (solver->root->terminate)
