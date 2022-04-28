@@ -2479,7 +2479,7 @@ decide (struct solver *solver)
   uint64_t decisions = context->decisions++;
 
   unsigned idx;
-  if (decisions < RANDOM_DECISIONS)
+  if (solver->id && decisions < RANDOM_DECISIONS)
     idx = random_decision (solver);
   else
     idx = best_score_decision (solver);
