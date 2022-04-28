@@ -413,12 +413,13 @@ struct statistics
 
   struct
   {
+    uint64_t binary;
+    uint64_t clauses;
     uint64_t glue1;
+    uint64_t literals;
     uint64_t tier1;
     uint64_t tier2;
     uint64_t tier3;
-    uint64_t clauses;
-    uint64_t literals;
   } learned;
 };
 
@@ -449,6 +450,7 @@ struct solver
   unsigned id;
   struct root *root;
   pthread_t thread;
+  volatile struct clause * shared;
   volatile int status;
   bool inconsistent;
   bool iterating;
@@ -1587,14 +1589,6 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
   clause->redundant = redundant;
   clause->shared = 0;
   clause->size = size;
-  if (glue == 1)
-    solver->statistics.learned.glue1++;
-  if (glue <= TIER1_GLUE_LIMIT)
-    solver->statistics.learned.tier1++;
-  else if (glue <= TIER2_GLUE_LIMIT)
-    solver->statistics.learned.tier2++;
-  else
-    solver->statistics.learned.tier3++;
   memcpy (clause->literals, literals, bytes);
   LOGCLAUSE (clause, "new");
   return new_watch (solver, clause, redundant, glue);
@@ -2149,7 +2143,7 @@ minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
 }
 
 static void
-minimize_clause (struct solver *solver)
+minimize_clause (struct solver *solver, unsigned glue)
 {
   struct unsigneds *clause = &solver->clause;
   unsigned *begin = clause->begin, *q = begin + 1;
@@ -2168,7 +2162,19 @@ minimize_clause (struct solver *solver)
   clause->end = q;
   size_t learned = SIZE (*clause);
   assert (learned + minimized == deduced);
+
   solver->statistics.learned.clauses++;
+  if (learned == 2)
+    solver->statistics.learned.binary++;
+  if (glue == 1)
+    solver->statistics.learned.glue1++;
+  if (glue <= TIER1_GLUE_LIMIT)
+    solver->statistics.learned.tier1++;
+  else if (glue <= TIER2_GLUE_LIMIT)
+    solver->statistics.learned.tier2++;
+  else
+    solver->statistics.learned.tier3++;
+
   solver->statistics.learned.literals += learned;
   solver->statistics.minimized += minimized;
   solver->statistics.deduced += deduced;
@@ -2334,7 +2340,7 @@ analyze (struct solver *solver, struct watch *reason, unsigned failed)
   const unsigned not_uip = NOT (uip);
   literals[0] = not_uip;
   LOGTMP ("first UIP %s", LOGLIT (uip));
-  minimize_clause (solver);
+  minimize_clause (solver, glue);
   bump_reason_side_literals (solver);
   bump_score_increment (solver);
   backtrack (solver, level - 1);
@@ -4590,18 +4596,21 @@ print_solver_statistics (struct solver *solver)
   PRINT ("%-19s %13" PRIu64 " %13.2f per second",
 	  "learned-clauses:", s->learned.clauses,
 	  average (s->learned.clauses, search));
-  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  binary-clauses:", s->learned.binary,
+	  percent (s->learned.binary, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  glue1-clauses:", s->learned.glue1,
-	  average (s->learned.glue1, search));
-  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
+	  percent (s->learned.glue1, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  tier1-clauses:", s->learned.tier1,
-	  average (s->learned.tier1, search));
-  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
+	  percent (s->learned.tier1, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  tier2-clauses:", s->learned.tier2,
-	  average (s->learned.tier2, search));
-  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
+	  percent (s->learned.tier2, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  tier3-clauses:", s->learned.tier3,
-	  average (s->learned.tier3, search));
+	  percent (s->learned.tier3, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% per deduced literals",
 	  "minimized-literals:", s->minimized, percent (s->minimized,
 							s->deduced));
