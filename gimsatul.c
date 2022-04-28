@@ -650,16 +650,34 @@ fatal_error (const char *fmt, ...)
   abort ();
 }
 
-static void message (struct solver *solver, const char *, ...)
+static void
+print_without_acquiring_lock (struct solver *, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
-#define PFX "c%-2u "
+static const char * prefix_format = "c%-2u ";
+
+static void
+print_without_acquiring_lock (struct solver * solver, const char * fmt, ...)
+{
+  va_list ap;
+  printf (prefix_format, solver->id);
+  va_start (ap, fmt);
+  vfprintf (stdout, fmt, ap);
+  va_end (ap);
+  fputc ('\n', stdout);
+}
+
+#define PRINT(...) \
+  print_without_acquiring_lock (solver, __VA_ARGS__)
+
+static void message (struct solver *solver, const char *, ...)
+  __attribute__((format (printf, 2, 3)));
 
 static void
 message (struct solver *solver, const char *fmt, ...)
 {
   acquire_message_lock ();
-  printf (PFX, solver->id);
+  printf (prefix_format, solver->id);
   va_list ap;
   va_start (ap, fmt);
   vprintf (fmt, ap);
@@ -754,7 +772,8 @@ logvar (struct solver *solver, unsigned idx)
   if (!logging) \
     break; \
   acquire_message_lock (); \
-  printf (PFX "LOG %u ", solver->id, solver->level); \
+  printf (prefix_format, solver->id); \
+  printf (" LOG %u ", solver->level); \
   printf (__VA_ARGS__)
 
 #define LOGSUFFIX(...) \
@@ -2492,11 +2511,11 @@ report (struct solver *solver, char type)
     printf ("c\nc       seconds MB level reductions restarts "
 	    "conflicts redundant trail glue irredundant variables\nc\n");
 
-  printf (PFX "%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
-	  " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%\n", solver->id, type, t, m,
-	  a->level.value, s->reductions, s->restarts, conflicts,
-	  s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
-	  solver->active, percent (solver->active, solver->size));
+  PRINT ("%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
+	 " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
+	 a->level.value, s->reductions, s->restarts, conflicts,
+	 s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
+	 solver->active, percent (solver->active, solver->size));
 
   fflush (stdout);
 
@@ -3936,6 +3955,17 @@ parse_options (int argc, char **argv, struct options *opts)
 
   if (!opts->threads)
     opts->threads = 1;
+
+  if (opts->threads <= 10)
+    prefix_format = "c%-1u ";
+  else if (opts->threads <= 100)
+    prefix_format = "c%-2u ";
+  else if (opts->threads <= 1000)
+    prefix_format = "c%-3u ";
+  else if (opts->threads <= 10000)
+    prefix_format = "c%-4u ";
+  else
+    prefix_format = "c%-5u ";
 }
 
 static void
@@ -4526,12 +4556,12 @@ print_profiles (struct solver *solver)
 	  next = tmp;
       if (!next)
 	break;
-      printf (PFX "%10.2f seconds  %5.1f %%  %s\n", solver->id,
-	      next->time, percent (next->time, total), next->name);
+      PRINT ("%10.2f seconds  %5.1f %%  %s",
+	     next->time, percent (next->time, total), next->name);
       prev = next;
     }
-  printf (PFX "---------------------------------------\n", solver->id);
-  printf (PFX "%10.2f seconds  100.0 %%  total\n", solver->id, total);
+  PRINT ("---------------------------------------");
+  PRINT ("%10.2f seconds  100.0 %%  total", total);
   fputs ("c\n", stdout);
   fflush (stdout);
 }
@@ -4546,48 +4576,47 @@ print_solver_statistics (struct solver *solver)
   uint64_t conflicts = s->contexts[SEARCH].conflicts;
   uint64_t decisions = s->contexts[SEARCH].decisions;
   uint64_t propagations = s->contexts[SEARCH].propagations;
-  unsigned id = solver->id;
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "conflicts:",
+  PRINT ("%-19s %13" PRIu64 " %13.2f per second", "conflicts:",
 	  conflicts, average (conflicts, search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id, "decisions:",
+  PRINT ("%-19s %13" PRIu64 " %13.2f per second", "decisions:",
 	  decisions, average (decisions, search));
-  printf (PFX "%-19s %13u %13.2f %% variables\n", id, "fixed-variables:",
+  PRINT ("%-19s %13u %13.2f %% variables", "fixed-variables:",
 	  s->fixed, percent (s->fixed, solver->size));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f thousands per second\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f thousands per second",
 	  "flips:", s->flips, average (s->flips, 1e3 * walk));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per learned clause\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f per learned clause",
 	  "learned-literals:", s->learned.literals,
 	  average (s->learned.literals, s->learned.clauses));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
 	  "learned-clauses:", s->learned.clauses,
 	  average (s->learned.clauses, search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
 	  "  glue1-clauses:", s->learned.glue1,
 	  average (s->learned.glue1, search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
 	  "  tier1-clauses:", s->learned.tier1,
 	  average (s->learned.tier1, search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
 	  "  tier2-clauses:", s->learned.tier2,
 	  average (s->learned.tier2, search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f per second\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
 	  "  tier3-clauses:", s->learned.tier3,
 	  average (s->learned.tier3, search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f %% per deduced literals\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% per deduced literals",
 	  "minimized-literals:", s->minimized, percent (s->minimized,
 							s->deduced));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f millions per second\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f millions per second",
 	  "propagations:", propagations, average (propagations,
 						  1e6 * search));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f conflict interval",
 	  "reductions:", s->reductions, average (conflicts, s->reductions));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f conflict interval",
 	  "rephased:", s->rephased, average (conflicts, s->rephased));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f conflict interval",
 	  "restarts:", s->restarts, average (conflicts, s->restarts));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f conflict interval\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f conflict interval",
 	  "switched:", s->switched, average (conflicts, s->switched));
-  printf (PFX "%-19s %13" PRIu64 " %13.2f flips per walkinterval\n", id,
+  PRINT ("%-19s %13" PRIu64 " %13.2f flips per walkinterval",
 	  "walked:", s->walked, average (s->flips, s->walked));
   fflush (stdout);
 }
