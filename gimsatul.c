@@ -63,7 +63,7 @@ static const char * usage =
 #define REDUCE_INTERVAL 1e3
 #define REPHASE_INTERVAL 1e3
 #define STABLE_RESTART_INTERVAL 500
-#define RANDOM_DECISIONS 100
+#define RANDOM_DECISIONS 1000
 
 #define FOCUSED_DECAY 0.75
 #define REDUCE_FRACTION 0.75
@@ -2479,7 +2479,7 @@ decide (struct solver *solver)
   uint64_t decisions = context->decisions++;
 
   unsigned idx;
-  if (solver->id && decisions < RANDOM_DECISIONS)
+  if (decisions < RANDOM_DECISIONS)
     idx = random_decision (solver);
   else
     idx = best_score_decision (solver);
