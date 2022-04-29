@@ -2239,7 +2239,10 @@ bump_reason_side_literals (struct solver *solver)
 	continue;
       assert (v->seen);
       if (binary_watch (reason))
-	bump_reason_side_literal (solver, lit_watch (reason));
+	{
+	  assert (NOT (lit) == lit_watch (reason));
+	  bump_reason_side_literal (solver, other_watch (reason));
+	}
       else
 	{
 	  struct clause *clause = reason->clause;
@@ -2322,7 +2325,6 @@ analyze (struct solver *solver, struct watch *reason)
 	}
       else
 	{
-	  LOGCLAUSE (reason->clause, "analyzing");
 	  bump_reason (reason);
 	  for (all_literals_in_clause (lit, reason->clause))
 	    ANALYZE (lit);
