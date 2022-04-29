@@ -51,6 +51,9 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
+#define MAX_VAR ((1u<<30) - 1)
+#define MAX_LIT NOT (LIT (MAX_VAR))
+
 #define FREE (UINT_MAX-1)
 #define INVALID UINT_MAX
 
@@ -261,10 +264,6 @@ struct clauses
   struct clause **begin, **end, **allocated;
 };
 
-#if 0
-#define MIDDLE
-#endif
-
 struct watch
 {
   unsigned short used;
@@ -272,9 +271,7 @@ struct watch
   bool garbage:1;
   bool reason:1;
   bool redundant:1;
-#ifdef MIDDLE
   unsigned middle;
-#endif
   unsigned sum;
   struct clause *clause;
 };
@@ -825,12 +822,26 @@ do { \
   LOGSUFFIX (); \
 } while (0)
 
+#define LOGWATCH(WATCH, ...) \
+do { \
+  if (binary_watch (WATCH)) \
+    { \
+      unsigned LIT = lit_watch (WATCH); \
+      unsigned OTHER = other_watch (WATCH); \
+      bool REDUNDANT = redundant_watch (WATCH); \
+      LOGBINARY (REDUNDANT, LIT, OTHER, __VA_ARGS__); \
+    } \
+  else \
+    LOGCLAUSE ((WATCH)->clause, __VA_ARGS__); \
+} while (0)
+
 #else
 
 #define LOG(...) do { } while (0)
 #define LOGTMP(...) do { } while (0)
 #define LOGBINARY(...) do { } while (0)
 #define LOGCLAUSE(...) do { } while (0)
+#define LOGWATCH(...) do { } while (0)
 
 #endif
 
@@ -1118,37 +1129,82 @@ swap_scores (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
-#define REDUNDANT 1
-#define BINARY 2
-#define TAGGED 3
-#define SHIFT (sizeof (size_t) == 8 ? 32 : 2)
+static bool
+tagged_literal (unsigned lit)
+{
+  return lit & 1;
+}
 
 static unsigned
-tagged_watch (struct watch *watch)
+untag_literal (unsigned lit)
 {
-  return TAGGED & (size_t) watch;
+  return lit >> 1;
+}
+
+static unsigned
+tag_literal (bool tag, unsigned lit)
+{
+  assert (lit < (1u << 31));
+  unsigned res = tag | (lit << 1);
+  assert (untag_literal (res) == lit);
+  assert (tagged_literal (res) == tag);
+  return res;
+}
+
+static unsigned
+lower_watch (struct watch * watch)
+{
+  return (size_t) watch;
+}
+
+static unsigned
+upper_watch (struct watch * watch)
+{
+  return (size_t) watch >> 32;
+}
+
+static bool
+binary_watch (struct watch *watch)
+{
+  unsigned lower = lower_watch (watch);
+  return tagged_literal (lower);
+}
+
+static bool
+redundant_watch (struct watch *watch)
+{
+  assert (binary_watch (watch));
+  unsigned upper = upper_watch (watch);
+  return tagged_literal (upper);
 }
 
 static unsigned
 lit_watch (struct watch *watch)
 {
-  assert (tagged_watch (watch));
-  return (size_t) watch >> SHIFT;
+  assert (binary_watch (watch));
+  unsigned lower = lower_watch  (watch);
+  return untag_literal (lower);
+}
+
+static unsigned
+other_watch (struct watch *watch)
+{
+  assert (binary_watch (watch));
+  unsigned upper = upper_watch  (watch);
+  return untag_literal (upper);
 }
 
 static struct watch *
-tag_watch (bool redundant, unsigned lit)
+tag_watch (bool redundant, unsigned lit, unsigned other)
 {
-  size_t word = lit;
-  word <<= SHIFT;
-  if (redundant)
-    word |= REDUNDANT;
-  word |= BINARY;
-  struct watch *res = (struct watch *) word;
-  assert (tagged_watch (res));
-  assert (tagged_watch (res) & BINARY);
-  assert ((tagged_watch (res) & REDUNDANT) == redundant);
+  unsigned lower = tag_literal (true, lit);
+  unsigned upper = tag_literal (redundant, other);
+  size_t word = lower | (size_t) upper << 32;
+  void * res = (void*) word;
+  assert (binary_watch (res));
   assert (lit_watch (res) == lit);
+  assert (other_watch (res) == other);
+  assert (redundant_watch (res) == redundant);
   return res;
 }
 
@@ -1309,7 +1365,7 @@ release_watches (struct solver *solver)
 
   for (all_watches (watch, solver->watchlist))
     {
-      assert (!tagged_watch (watch));
+      assert (!binary_watch (watch));
       struct clause *clause = watch->clause;
       if (!atomic_fetch_sub (&clause->shared, 1))
 	free (clause);
@@ -1474,17 +1530,7 @@ close_proof (void)
 static void
 push_watch (struct solver *solver, unsigned lit, struct watch *watch)
 {
-#ifdef LOGGING
-  unsigned tag = tagged_watch (watch);
-  if (tag)
-    {
-      unsigned other = lit_watch (watch);
-      bool redundant = tag & REDUNDANT;
-      LOGBINARY (redundant, lit, other, "watching %s in", LOGLIT (lit));
-    }
-  else
-    LOGCLAUSE (watch->clause, "watching %s in", LOGLIT (lit));
-#endif
+  LOGWATCH (watch, "watching %s in", LOGLIT (lit));
   PUSH (WATCHES (lit), watch);
 }
 
@@ -1505,9 +1551,7 @@ new_watch (struct solver *solver, struct clause *clause,
   else
     watch->used = 0;
   watch->glue = glue;
-#ifdef MIDDLE
   watch->middle = 2;
-#endif
   watch->sum = literals[0] ^ literals[1];
   watch->clause = clause;
   push_watch (solver, literals[0], watch);
@@ -1565,8 +1609,8 @@ new_local_binary_clause (struct solver *solver, bool redundant,
 			 unsigned lit, unsigned other)
 {
   inc_clauses (solver, redundant);
-  struct watch *watch_lit = tag_watch (redundant, other);
-  struct watch *watch_other = tag_watch (redundant, lit);
+  struct watch *watch_lit = tag_watch (redundant, other, lit);
+  struct watch *watch_other = tag_watch (redundant, lit, other);
   push_watch (solver, lit, watch_lit);
   push_watch (solver, other, watch_other);
   LOGBINARY (redundant, lit, other, "new local");
@@ -1687,7 +1731,7 @@ init_root_watches (struct root *root)
       LOGSUFFIX ();
     }
 #endif
-  printf ("c need %zu global binary clause watches\n", size);
+  printf ("c need %ld global binary clause watches\n", size);
   fflush (stdout);
 }
 
@@ -1724,14 +1768,7 @@ assign_with_reason (struct solver *solver, unsigned lit, struct watch *reason)
 {
   assert (reason);
   assign (solver, lit, reason);
-#ifdef LOGGING
-  unsigned tag = tagged_watch (reason);
-  if (tag)
-    LOGBINARY (tag & REDUNDANT, lit, lit_watch (reason),
-	       "assign %s with reason", LOGLIT (lit));
-  else
-    LOGCLAUSE (reason->clause, "assign %s with reason", LOGLIT (lit));
-#endif
+  LOGWATCH (reason, "assign %s with reason", LOGLIT (lit));
 }
 
 static void
@@ -1833,7 +1870,7 @@ share_clauses (struct solver *dst, struct solver *src)
 	}
 #ifndef NDEBUG
       for (all_watches (src_watch, *src_watches))
-	assert (!tagged_watch (src_watch));
+	assert (!binary_watch (src_watch));
 #endif
     }
   very_verbose (solver, "shared %zu global binary watch lists",
@@ -1864,7 +1901,7 @@ clone_solver (struct solver *src)
 /*------------------------------------------------------------------------*/
 
 static struct watch *
-propagate (struct solver *solver, bool search, unsigned *failed)
+propagate (struct solver *solver, bool search)
 {
   assert (!solver->inconsistent);
   struct trail *trail = &solver->trail;
@@ -1886,20 +1923,17 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 	  unsigned other;
 	  for (unsigned *p = binaries; (other = *p) != INVALID; p++)
 	    {
+	      struct watch *watch = tag_watch (false, other, not_lit);
 	      signed char other_value = values[other];
 	      if (other_value < 0)
 		{
-		  LOGBINARY (false, lit, other, "global conflicting");
-		  if (failed)
-		    *failed = not_lit;
-		  conflict = tag_watch (false, other);
+		  conflict = watch;
 		  if (search)
 		    break;
 		}
 	      else if (!other_value)
 		{
-		  struct watch *reason = tag_watch (false, not_lit);
-		  assign_with_reason (solver, other, reason);
+		  assign_with_reason (solver, other, watch);
 		  ticks++;
 		}
 	    }
@@ -1916,25 +1950,17 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 	  struct watch *watch = *q++ = *p++;
 	  unsigned other;
 	  signed char other_value;
-	  unsigned tag = tagged_watch (watch);
-	  if (tag)
+	  if (binary_watch (watch))
 	    {
 	      other = lit_watch (watch);
 	      other_value = values[other];
 	      if (other_value > 0)
 		continue;
-	      bool redundant = tag & REDUNDANT;
 	      if (other_value < 0)
-		{
-		  LOGBINARY (redundant, lit, other, "conflicting");
-		  if (failed)
-		    *failed = not_lit;
-		  conflict = watch;
-		}
+		conflict = watch;
 	      else
 		{
-		  struct watch *reason = tag_watch (redundant, not_lit);
-		  assign_with_reason (solver, other, reason);
+		  assign_with_reason (solver, other, watch);
 		  ticks++;
 		}
 	    }
@@ -1951,13 +1977,9 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 	      signed char replacement_value = -1;
 	      unsigned *literals = clause->literals;
 	      unsigned *end_literals = literals + clause->size;
-#ifdef MIDDLE
 	      assert (watch->middle <= clause->size);
 	      unsigned *middle_literals = literals + watch->middle;
 	      unsigned *r = middle_literals;
-#else
-	      unsigned *r = literals;
-#endif
 	      ticks++;
 	      while (r != end_literals)
 		{
@@ -1970,7 +1992,6 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 		    }
 		  r++;
 		}
-#ifdef MIDDLE
 	      if (replacement_value < 0)
 		{
 		  r = literals;
@@ -1987,7 +2008,6 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 		    }
 		}
 	      watch->middle = r - literals;
-#endif
 	      if (replacement_value >= 0)
 		{
 		  watch->sum = other ^ replacement;
@@ -1998,8 +2018,6 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 		}
 	      else if (other_value)
 		{
-		  LOGCLAUSE (watch->clause, "conflicting");
-		  assert (!failed || *failed == INVALID);
 		  assert (other_value < 0);
 		  conflict = watch;
 		}
@@ -2017,9 +2035,16 @@ propagate (struct solver *solver, bool search, unsigned *failed)
 	RELEASE (*watches);
     }
 
-  solver->statistics.contexts[solver->context].conflicts += !!conflict;
-  solver->statistics.contexts[solver->context].ticks += ticks;
-  solver->statistics.contexts[solver->context].propagations += propagations;
+  struct context * context = solver->statistics.contexts + solver->context;
+
+  if (conflict)
+    {
+      LOGWATCH (conflict, "conflicting");
+      context->conflicts++;
+    }
+
+  context->propagations += propagations;
+  context->ticks += ticks;
 
   return conflict;
 }
@@ -2124,7 +2149,7 @@ minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
   depth++;
   bool res = true;
   const unsigned not_lit = NOT (lit);
-  if (tagged_watch (reason))
+  if (binary_watch (reason))
     {
       unsigned other = lit_watch (reason);
       res = minimize_literal (solver, other, depth);
@@ -2210,7 +2235,7 @@ bump_reason_side_literals (struct solver *solver)
       if (!reason)
 	continue;
       assert (v->seen);
-      if (tagged_watch (reason))
+      if (binary_watch (reason))
 	bump_reason_side_literal (solver, lit_watch (reason));
       else
 	{
@@ -2223,8 +2248,38 @@ bump_reason_side_literals (struct solver *solver)
     }
 }
 
+#define ANALYZE(LIT) \
+do { \
+  if (LIT == uip) \
+    break; \
+  unsigned idx = IDX (LIT); \
+  struct variable *v = variables + idx; \
+  unsigned lit_level = v->level; \
+  if (!lit_level) \
+    break; \
+  if (v->seen) \
+    break; \
+  v->seen = true; \
+  PUSH (*analyzed, idx); \
+  bump_variable_score (solver, idx); \
+  if (lit_level == level) \
+    { \
+      open++; \
+      break;; \
+    } \
+  PUSH (*clause, LIT); \
+  if (!used[lit_level]) \
+    { \
+      glue++; \
+      used[lit_level] = true; \
+      PUSH (*levels, lit_level); \
+      if (lit_level > jump) \
+	jump = lit_level; \
+    } \
+} while (0)
+
 static bool
-analyze (struct solver *solver, struct watch *reason, unsigned failed)
+analyze (struct solver *solver, struct watch *reason)
 {
   assert (!solver->inconsistent);
 #if 0
@@ -2253,69 +2308,20 @@ analyze (struct solver *solver, struct watch *reason, unsigned failed)
   unsigned uip = INVALID, jump = 0, glue = 0, open = 0;
   for (;;)
     {
-      unsigned tag = tagged_watch (reason);
-      if (tag)
+      LOGWATCH (reason, "analyzing");
+      if (binary_watch (reason))
 	{
-	  LOGBINARY (tag & REDUNDANT,
-		     uip == INVALID ? failed : uip,
-		     lit_watch (reason), "analyzing");
-
-	  if (uip == INVALID)
-	    {
-	      assert (failed != INVALID);
-	      unsigned failed_idx = IDX (failed);
-	      struct variable *v = variables + failed_idx;
-	      assert (v->level == level);
-	      assert (!v->seen);
-	      v->seen = true;
-	      PUSH (*analyzed, failed_idx);
-	      bump_variable_score (solver, failed_idx);
-	      open++;
-	    }
-
-	  unsigned other = lit_watch (reason);
-	  unsigned other_idx = IDX (other);
-	  struct variable *u = variables + other_idx;
-	  assert (u->level == level);
-	  if (!u->seen)
-	    {
-	      u->seen = true;
-	      PUSH (*analyzed, other_idx);
-	      bump_variable_score (solver, other_idx);
-	      open++;
-	    }
+	  unsigned lit = lit_watch (reason);
+	  unsigned other = other_watch (reason);
+	  ANALYZE (lit);
+	  ANALYZE (other);
 	}
       else
 	{
 	  LOGCLAUSE (reason->clause, "analyzing");
 	  bump_reason (reason);
 	  for (all_literals_in_clause (lit, reason->clause))
-	    {
-	      unsigned idx = IDX (lit);
-	      struct variable *v = variables + idx;
-	      unsigned lit_level = v->level;
-	      if (!lit_level)
-		continue;
-	      if (v->seen)
-		continue;
-	      v->seen = true;
-	      PUSH (*analyzed, idx);
-	      bump_variable_score (solver, idx);
-	      if (lit_level == level)
-		{
-		  open++;
-		  continue;
-		}
-	      PUSH (*clause, lit);
-	      if (!used[lit_level])
-		{
-		  glue++;
-		  used[lit_level] = true;
-		  PUSH (*levels, lit_level);
-		  if (lit_level > jump)
-		    jump = lit_level;
-		}
-	    }
+	    ANALYZE (lit);
 	}
       do
 	{
@@ -2583,7 +2589,7 @@ mark_reasons (struct solver *solver)
       struct watch *watch = VAR (lit)->reason;
       if (!watch)
 	continue;
-      if (tagged_watch (watch))
+      if (binary_watch (watch))
 	continue;
       assert (!watch->reason);
       watch->reason = true;
@@ -2598,7 +2604,7 @@ unmark_reasons (struct solver *solver)
       struct watch *watch = VAR (lit)->reason;
       if (!watch)
 	continue;
-      if (tagged_watch (watch))
+      if (binary_watch (watch))
 	continue;
       assert (watch->reason);
       watch->reason = false;
@@ -2663,39 +2669,6 @@ gather_reduce_candidates (struct solver *solver, struct watches *candidates)
 	   percent (SIZE (*candidates), solver->statistics.redundant));
 }
 
-#if 0
-
-static int
-cmp_reduce_candidates (const void *p, const void *q)
-{
-  struct watch *u = *(struct watch **) p;
-  struct watch *v = *(struct watch **) q;
-  if (u->glue < v->glue)
-    return 1;
-  if (u->glue > v->glue)
-    return -1;
-  struct clause *c = u->clause;
-  struct clause *d = v->clause;
-  if (c->id < d->id)
-    return -1;
-  if (c->id > d->id)
-    return 1;
-  assert (c == d);
-  assert (u == v);
-  return 0;
-}
-
-static void
-sort_reduce_candidates (struct watches *candidates)
-{
-  struct watch **begin = candidates->begin;
-  size_t size = SIZE (*candidates);
-  if (size)
-    qsort (begin, size, sizeof *begin, cmp_reduce_candidates);
-}
-
-#else
-
 static void
 sort_reduce_candidates (struct watches *candidates)
 {
@@ -2716,8 +2689,6 @@ sort_reduce_candidates (struct watches *candidates)
   memcpy (candidates->begin, tmp, bytes);
   free (tmp);
 }
-
-#endif
 
 static void
 mark_reduce_candidates_as_garbage (struct solver *solver,
@@ -2758,8 +2729,7 @@ flush_watchtab (struct solver *solver, bool fixed)
       for (struct watch ** p = begin; p != end; p++)
 	{
 	  struct watch *watch = *q++ = *p;
-	  unsigned tag = tagged_watch (watch);
-	  if (tag)
+	  if (binary_watch (watch))
 	    {
 	      if (!fixed)
 		continue;
@@ -2774,7 +2744,7 @@ flush_watchtab (struct solver *solver, bool fixed)
 		{
 		  if (lit < other)
 		    {
-		      bool redundant = tag & REDUNDANT;
+		      bool redundant = redundant_watch (watch);
 		      dec_clauses (solver, redundant);
 		    }
 		  flushed++;
@@ -2807,7 +2777,7 @@ flush_watchlist (struct solver *solver)
   for (struct watch ** p = begin; p != end; p++)
     {
       struct watch *watch = *q++ = *p;
-      assert (!tagged_watch (watch));
+      assert (!binary_watch (watch));
       if (!watch->garbage)
 	continue;
       if (watch->reason)
@@ -2990,7 +2960,7 @@ count_irredundant_non_garbage_clauses (struct solver *solver,
   struct clause *last = 0;
   for (all_watches (watch, solver->watchlist))
     {
-      assert (!tagged_watch (watch));
+      assert (!binary_watch (watch));
       if (watch->garbage)
 	continue;
       if (watch->redundant)
@@ -3122,7 +3092,7 @@ warming_up_saved_phases (struct solver *solver)
     {
       decisions++;
       decide (solver);
-      if (!propagate (solver, false, 0))
+      if (!propagate (solver, false))
 	conflicts++;
     }
   if (solver->level)
@@ -3706,11 +3676,10 @@ solve (struct solver *solver)
   int res = solver->inconsistent ? 20 : 0;
   while (!res)
     {
-      unsigned failed = INVALID;
-      struct watch *conflict = propagate (solver, true, &failed);
+      struct watch *conflict = propagate (solver, true);
       if (conflict)
 	{
-	  if (!analyze (solver, conflict, failed))
+	  if (!analyze (solver, conflict))
 	    res = 20;
 	}
       else if (!solver->unassigned)
@@ -4011,15 +3980,6 @@ print_banner (void)
   printf ("c %s\n", BUILD);
 }
 
-#define CHECK_SIZE_OF_TYPE(TYPE,EXPECTED) \
-do { \
-  size_t ACTUAL = sizeof (TYPE); \
-  if (ACTUAL == (EXPECTED)) \
-    break; \
-  fatal_error ("'sizeof (%s)' is %zu bytes in size but expected %zu", \
-               # TYPE, (size_t) ACTUAL, (size_t) (EXPECTED)); \
-} while (0)
-
 /*------------------------------------------------------------------------*/
 
 static int
@@ -4115,8 +4075,8 @@ parse_dimacs_file ()
       ch != ' ' || !parse_int (&expected, EOF, &ch) || expected < 0)
   INVALID_HEADER:
     parse_error ("invalid 'p cnf ...' header line");
-  if (sizeof (size_t) < 8 && variables > (1 << 29))
-    parse_error ("too many variables in 32-bit compilation");
+  if (variables > MAX_VAR)
+    parse_error ("too many variables (maximum %u)", MAX_VAR);
   while (ch == ' ' || ch == '\t')
     ch = next_char ();
   if (ch != '\n')
@@ -4657,8 +4617,9 @@ print_root_statistics (struct root *root)
 #define CHECK_TYPE(TYPE,BYTES) \
 do { \
   if (sizeof (TYPE) != (BYTES)) \
-    fatal_error ("unsupported platform: " \
-                 "'sizeof (" #TYPE ") == %zu' but expected '%zu'", \
+    fatal_error ("unsupported platform:\n" \
+                 "'sizeof (" #TYPE ") == %zu' " \
+		 "but expected 'sizeof (" #TYPE ") == %zu'", \
 	         sizeof (TYPE), (size_t) (BYTES)); \
 } while (0)
 
@@ -4671,12 +4632,10 @@ check_types (void)
   CHECK_TYPE (atomic_ushort, 2);
   CHECK_TYPE (unsigned, 4);
   CHECK_TYPE (int, 4);
+  CHECK_TYPE (size_t, 8);
+  CHECK_TYPE (void*, 8);
 
-  if (sizeof (size_t) != sizeof (void *))
-    fatal_error ("unsupported platform: 'sizeof (size_t) = %zu' "
-		 "different from 'sizeof (void*) = %zu'",
-		 sizeof (size_t), sizeof (void *));
-#if 0
+#if 1
   printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
   printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
 #endif
