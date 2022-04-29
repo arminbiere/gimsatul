@@ -261,7 +261,9 @@ struct clauses
   struct clause **begin, **end, **allocated;
 };
 
+#if 0
 #define MIDDLE
+#endif
 
 struct watch
 {
