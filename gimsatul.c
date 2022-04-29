@@ -4646,8 +4646,7 @@ check_types (void)
   CHECK_TYPE (int, 4);
   CHECK_TYPE (size_t, 8);
   CHECK_TYPE (void*, 8);
-
-#if 1
+#if 0
   printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
   printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
 #endif
