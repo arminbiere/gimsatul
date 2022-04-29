@@ -1946,8 +1946,7 @@ propagate (struct solver *solver, bool search)
       ticks++;
       while (p != end)
 	{
-	  if (search && conflict)
-	    break;
+	  assert (!search || !conflict);
 	  struct watch *watch = *q++ = *p++;
 	  unsigned other;
 	  signed char other_value;
@@ -1961,6 +1960,8 @@ propagate (struct solver *solver, bool search)
 	      if (other_value < 0)
 		{
 		  conflict = watch;
+		  if (search)
+		    break;
 		}
 	      else
 		{
@@ -2025,6 +2026,8 @@ propagate (struct solver *solver, bool search)
 		{
 		  assert (other_value < 0);
 		  conflict = watch;
+		  if (search)
+		    break;
 		}
 	      else
 		{
