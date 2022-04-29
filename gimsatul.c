@@ -774,7 +774,7 @@ logvar (struct solver *solver, unsigned idx)
     break; \
   acquire_message_lock (); \
   printf (prefix_format, solver->id); \
-  printf (" LOG %u ", solver->level); \
+  printf ("LOG %u ", solver->level); \
   printf (__VA_ARGS__)
 
 #define LOGSUFFIX(...) \
@@ -1609,8 +1609,8 @@ new_local_binary_clause (struct solver *solver, bool redundant,
 			 unsigned lit, unsigned other)
 {
   inc_clauses (solver, redundant);
-  struct watch *watch_lit = tag_watch (redundant, other, lit);
-  struct watch *watch_other = tag_watch (redundant, lit, other);
+  struct watch *watch_lit = tag_watch (redundant, lit, other);
+  struct watch *watch_other = tag_watch (redundant, other, lit);
   push_watch (solver, lit, watch_lit);
   push_watch (solver, other, watch_other);
   LOGBINARY (redundant, lit, other, "new local");
@@ -1933,7 +1933,8 @@ propagate (struct solver *solver, bool search)
 		}
 	      else if (!other_value)
 		{
-		  assign_with_reason (solver, other, watch);
+		  struct watch * reason = tag_watch (false, other, not_lit);
+		  assign_with_reason (solver, other, reason);
 		  ticks++;
 		}
 	    }
@@ -1960,7 +1961,8 @@ propagate (struct solver *solver, bool search)
 		conflict = watch;
 	      else
 		{
-		  assign_with_reason (solver, other, watch);
+		  struct watch * reason = tag_watch (false, other, not_lit);
+		  assign_with_reason (solver, other, reason);
 		  ticks++;
 		}
 	    }
@@ -2151,7 +2153,8 @@ minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
   const unsigned not_lit = NOT (lit);
   if (binary_watch (reason))
     {
-      unsigned other = lit_watch (reason);
+      assert (lit_watch (reason) == not_lit);
+      unsigned other = other_watch (reason);
       res = minimize_literal (solver, other, depth);
     }
   else
@@ -2252,6 +2255,7 @@ bump_reason_side_literals (struct solver *solver)
 do { \
   if (LIT == uip) \
     break; \
+  assert (solver->values[LIT] < 0); \
   unsigned idx = IDX (LIT); \
   struct variable *v = variables + idx; \
   unsigned lit_level = v->level; \
