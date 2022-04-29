@@ -1953,12 +1953,15 @@ propagate (struct solver *solver, bool search)
 	  signed char other_value;
 	  if (binary_watch (watch))
 	    {
-	      other = lit_watch (watch);
+	      assert (lit_watch (watch) == not_lit);
+	      other = other_watch (watch);
 	      other_value = values[other];
 	      if (other_value > 0)
 		continue;
 	      if (other_value < 0)
-		conflict = watch;
+		{
+		  conflict = watch;
+		}
 	      else
 		{
 		  struct watch * reason = tag_watch (false, other, not_lit);
