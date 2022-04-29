@@ -174,6 +174,12 @@ do { \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
+#define all_counters(ELEM,COUNTERS) \
+  struct counter ** P_ ## ELEM = (COUNTERS).begin, \
+               ** END_ ## ELEM = (COUNTERS).end, * ELEM; \
+  (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
+  ++P_ ## ELEM
+
 #define all_variables(VAR) \
   struct variable * VAR = solver->variables, \
                   * END_ ## VAR = VAR + solver->size; \
@@ -283,7 +289,7 @@ struct watchlist
 
 struct watches
 {
-  struct watch **begin, **end, **allocated;
+  struct watch ** begin, **end, **allocated;
   unsigned *binaries;
 };
 
@@ -824,11 +830,11 @@ do { \
 
 #define LOGWATCH(WATCH, ...) \
 do { \
-  if (binary_watch (WATCH)) \
+  if (binary_pointer (WATCH)) \
     { \
-      unsigned LIT = lit_watch (WATCH); \
-      unsigned OTHER = other_watch (WATCH); \
-      bool REDUNDANT = redundant_watch (WATCH); \
+      unsigned LIT = lit_pointer (WATCH); \
+      unsigned OTHER = other_pointer (WATCH); \
+      bool REDUNDANT = redundant_pointer (WATCH); \
       LOGBINARY (REDUNDANT, LIT, OTHER, __VA_ARGS__); \
     } \
   else \
@@ -1151,60 +1157,62 @@ tag_literal (bool tag, unsigned lit)
   return res;
 }
 
+/*------------------------------------------------------------------------*/
+
 static unsigned
-lower_watch (struct watch * watch)
+lower_pointer (void * watch)
 {
   return (size_t) watch;
 }
 
 static unsigned
-upper_watch (struct watch * watch)
+upper_pointer (void * watch)
 {
   return (size_t) watch >> 32;
 }
 
 static bool
-binary_watch (struct watch *watch)
+binary_pointer (void *watch)
 {
-  unsigned lower = lower_watch (watch);
+  unsigned lower = lower_pointer (watch);
   return tagged_literal (lower);
 }
 
 static bool
-redundant_watch (struct watch *watch)
+redundant_pointer (void *watch)
 {
-  assert (binary_watch (watch));
-  unsigned upper = upper_watch (watch);
+  assert (binary_pointer (watch));
+  unsigned upper = upper_pointer (watch);
   return tagged_literal (upper);
 }
 
 static unsigned
-lit_watch (struct watch *watch)
+lit_pointer (void *watch)
 {
-  assert (binary_watch (watch));
-  unsigned lower = lower_watch  (watch);
+  assert (binary_pointer (watch));
+  unsigned lower = lower_pointer  (watch);
   return untag_literal (lower);
 }
 
 static unsigned
-other_watch (struct watch *watch)
+other_pointer (void *watch)
 {
-  assert (binary_watch (watch));
-  unsigned upper = upper_watch  (watch);
+  assert (binary_pointer (watch));
+  unsigned upper = upper_pointer  (watch);
   return untag_literal (upper);
 }
 
-static struct watch *
-tag_watch (bool redundant, unsigned lit, unsigned other)
+static void *
+tag_pointer (bool redundant, unsigned lit, unsigned other)
 {
   unsigned lower = tag_literal (true, lit);
   unsigned upper = tag_literal (redundant, other);
   size_t word = lower | (size_t) upper << 32;
   void * res = (void*) word;
-  assert (binary_watch (res));
-  assert (lit_watch (res) == lit);
-  assert (other_watch (res) == other);
-  assert (redundant_watch (res) == redundant);
+  assert (binary_pointer (res));
+  assert (lit_pointer (res) == lit);
+  assert (other_pointer (res) == other);
+  assert (redundant_pointer (res) == redundant);
   return res;
 }
 
@@ -1365,7 +1373,7 @@ release_watches (struct solver *solver)
 
   for (all_watches (watch, solver->watchlist))
     {
-      assert (!binary_watch (watch));
+      assert (!binary_pointer (watch));
       struct clause *clause = watch->clause;
       if (!atomic_fetch_sub (&clause->shared, 1))
 	free (clause);
@@ -1609,8 +1617,8 @@ new_local_binary_clause (struct solver *solver, bool redundant,
 			 unsigned lit, unsigned other)
 {
   inc_clauses (solver, redundant);
-  struct watch *watch_lit = tag_watch (redundant, lit, other);
-  struct watch *watch_other = tag_watch (redundant, other, lit);
+  struct watch *watch_lit = tag_pointer (redundant, lit, other);
+  struct watch *watch_other = tag_pointer (redundant, other, lit);
   push_watch (solver, lit, watch_lit);
   push_watch (solver, other, watch_other);
   LOGBINARY (redundant, lit, other, "new local");
@@ -1870,7 +1878,7 @@ share_clauses (struct solver *dst, struct solver *src)
 	}
 #ifndef NDEBUG
       for (all_watches (src_watch, *src_watches))
-	assert (!binary_watch (src_watch));
+	assert (!binary_pointer (src_watch));
 #endif
     }
   very_verbose (solver, "shared %zu global binary watch lists",
@@ -1923,7 +1931,7 @@ propagate (struct solver *solver, bool search)
 	  unsigned other;
 	  for (unsigned *p = binaries; (other = *p) != INVALID; p++)
 	    {
-	      struct watch *watch = tag_watch (false, other, not_lit);
+	      struct watch *watch = tag_pointer (false, other, not_lit);
 	      signed char other_value = values[other];
 	      if (other_value < 0)
 		{
@@ -1933,7 +1941,7 @@ propagate (struct solver *solver, bool search)
 		}
 	      else if (!other_value)
 		{
-		  struct watch * reason = tag_watch (false, other, not_lit);
+		  struct watch * reason = tag_pointer (false, other, not_lit);
 		  assign_with_reason (solver, other, reason);
 		  ticks++;
 		}
@@ -1950,10 +1958,10 @@ propagate (struct solver *solver, bool search)
 	  struct watch *watch = *q++ = *p++;
 	  unsigned other;
 	  signed char other_value;
-	  if (binary_watch (watch))
+	  if (binary_pointer (watch))
 	    {
-	      assert (lit_watch (watch) == not_lit);
-	      other = other_watch (watch);
+	      assert (lit_pointer (watch) == not_lit);
+	      other = other_pointer (watch);
 	      other_value = values[other];
 	      if (other_value > 0)
 		continue;
@@ -1965,7 +1973,7 @@ propagate (struct solver *solver, bool search)
 		}
 	      else
 		{
-		  struct watch * reason = tag_watch (false, other, not_lit);
+		  struct watch * reason = tag_pointer (false, other, not_lit);
 		  assign_with_reason (solver, other, reason);
 		  ticks++;
 		}
@@ -2157,10 +2165,10 @@ minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
   depth++;
   bool res = true;
   const unsigned not_lit = NOT (lit);
-  if (binary_watch (reason))
+  if (binary_pointer (reason))
     {
-      assert (lit_watch (reason) == not_lit);
-      unsigned other = other_watch (reason);
+      assert (lit_pointer (reason) == not_lit);
+      unsigned other = other_pointer (reason);
       res = minimize_literal (solver, other, depth);
     }
   else
@@ -2244,10 +2252,10 @@ bump_reason_side_literals (struct solver *solver)
       if (!reason)
 	continue;
       assert (v->seen);
-      if (binary_watch (reason))
+      if (binary_pointer (reason))
 	{
-	  assert (NOT (lit) == lit_watch (reason));
-	  bump_reason_side_literal (solver, other_watch (reason));
+	  assert (NOT (lit) == lit_pointer (reason));
+	  bump_reason_side_literal (solver, other_pointer (reason));
 	}
       else
 	{
@@ -2322,10 +2330,10 @@ analyze (struct solver *solver, struct watch *reason)
   for (;;)
     {
       LOGWATCH (reason, "analyzing");
-      if (binary_watch (reason))
+      if (binary_pointer (reason))
 	{
-	  unsigned lit = lit_watch (reason);
-	  unsigned other = other_watch (reason);
+	  unsigned lit = lit_pointer (reason);
+	  unsigned other = other_pointer (reason);
 	  ANALYZE (lit);
 	  ANALYZE (other);
 	}
@@ -2601,7 +2609,7 @@ mark_reasons (struct solver *solver)
       struct watch *watch = VAR (lit)->reason;
       if (!watch)
 	continue;
-      if (binary_watch (watch))
+      if (binary_pointer (watch))
 	continue;
       assert (!watch->reason);
       watch->reason = true;
@@ -2616,7 +2624,7 @@ unmark_reasons (struct solver *solver)
       struct watch *watch = VAR (lit)->reason;
       if (!watch)
 	continue;
-      if (binary_watch (watch))
+      if (binary_pointer (watch))
 	continue;
       assert (watch->reason);
       watch->reason = false;
@@ -2741,11 +2749,11 @@ flush_watchtab (struct solver *solver, bool fixed)
       for (struct watch ** p = begin; p != end; p++)
 	{
 	  struct watch *watch = *q++ = *p;
-	  if (binary_watch (watch))
+	  if (binary_pointer (watch))
 	    {
 	      if (!fixed)
 		continue;
-	      unsigned other = lit_watch (watch);
+	      unsigned other = lit_pointer (watch);
 	      signed char other_value = values[other];
 	      if (other_value > 0)
 		{
@@ -2756,7 +2764,7 @@ flush_watchtab (struct solver *solver, bool fixed)
 		{
 		  if (lit < other)
 		    {
-		      bool redundant = redundant_watch (watch);
+		      bool redundant = redundant_pointer (watch);
 		      dec_clauses (solver, redundant);
 		    }
 		  flushed++;
@@ -2789,7 +2797,7 @@ flush_watchlist (struct solver *solver)
   for (struct watch ** p = begin; p != end; p++)
     {
       struct watch *watch = *q++ = *p;
-      assert (!binary_watch (watch));
+      assert (!binary_pointer (watch));
       if (!watch->garbage)
 	continue;
       if (watch->reason)
@@ -2923,10 +2931,16 @@ struct counter
   struct clause *clause;
 };
 
+struct counters
+{
+  struct counter ** begin, ** end, ** allocated;
+  unsigned *binaries;
+};
+
 struct walker
 {
   struct solver *solver;
-  struct unsigneds *occs;
+  struct counters *occs;
   struct counter *counters;
   struct unsigneds unsatisfied;
   struct unsigneds literals;
@@ -2972,7 +2986,7 @@ count_irredundant_non_garbage_clauses (struct solver *solver,
   struct clause *last = 0;
   for (all_watches (watch, solver->watchlist))
     {
-      assert (!binary_watch (watch));
+      assert (!binary_pointer (watch));
       if (watch->garbage)
 	continue;
       if (watch->redundant)
@@ -3066,7 +3080,7 @@ connect_counters (struct walker *walker, struct clause *last)
 	  if (!value)
 	    continue;
 	  count += (value > 0);
-	  PUSH (walker->occs[lit], clauses);
+	  PUSH (walker->occs[lit], p);
 	  ticks++;
 	  length++;
 	}
@@ -3085,6 +3099,9 @@ connect_counters (struct walker *walker, struct clause *last)
       p++;
       if (clause == last)
 	break;
+    }
+  for (all_literals (lit))
+    {
     }
   double average_length = average (sum_lengths, clauses);
   verbose (solver, "average clause length %.2f", average_length);
@@ -3182,6 +3199,37 @@ set_walking_limits (struct walker *walker)
 		extra, (double) WALK_EFFORT, search, last->walk);
 }
 
+static void
+disconnect_watches (struct solver * solver)
+{
+  for (all_literals (lit))
+    {
+      struct watches * watches = &WATCHES (lit);
+      struct watch **begin = watches->begin, **q = begin;
+      struct watch **end = watches->end, **p = begin;
+      while (p != end)
+	{
+	  struct watch * watch = *p++;
+	  if (binary_pointer (watch))
+	    *q++ = watch;
+	}
+      watches->end = q;
+    }
+}
+
+static void
+connect_watches (struct solver * solver)
+{
+  for (all_watches (watch, solver->watchlist))
+    {
+      assert (!binary_pointer (watch));
+      unsigned * literals = watch->clause->literals;
+      watch->sum = literals[0] ^ literals[1];
+      push_watch (solver, literals[0], watch);
+      push_watch (solver, literals[1], watch);
+    }
+}
+
 static bool
 init_walker (struct solver *solver, struct walker *walker)
 {
@@ -3195,12 +3243,13 @@ init_walker (struct solver *solver, struct walker *walker)
 
   verbose (solver, "local search over %zu clauses %.0f%%", clauses,
 	   percent (clauses, solver->statistics.irredundant));
+  
+  disconnect_watches (solver);
 
   walker->solver = solver;
   walker->counters =
     allocate_and_clear_array (clauses, sizeof *walker->counters);
-  walker->occs =
-    allocate_and_clear_array (2 * solver->size, sizeof *walker->occs);
+  walker->occs = (struct counters *) solver->watchtab;
   INIT (walker->unsatisfied);
   INIT (walker->literals);
   INIT (walker->trail);
@@ -3228,23 +3277,37 @@ release_walker (struct walker *walker)
   free (walker->counters);
   for (all_literals (lit))
     RELEASE (walker->occs[lit]);
-  free (walker->occs);
   RELEASE (walker->unsatisfied);
   RELEASE (walker->literals);
   RELEASE (walker->trail);
   RELEASE (walker->scores);
   RELEASE (walker->breaks);
+  connect_watches (solver);
 }
 
 static unsigned
 break_count (struct walker *walker, unsigned lit)
 {
+  struct solver * solver = walker->solver;
+  signed char * values = solver->values;
   unsigned not_lit = NOT (lit);
-  assert (walker->solver->values[not_lit] > 0);
+  assert (values[not_lit] > 0);
   unsigned res = 0;
-  struct counter *counters = walker->counters;
-  for (all_elements_on_stack (unsigned, cidx, walker->occs[not_lit]))
-    if (counters[cidx].count == 1)
+  struct counters * counters = walker->occs + not_lit;
+  unsigned * binaries = counters->binaries;
+  if (binaries)
+    for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+	if (values[other] <= 0)
+	  res++;
+  for (all_counters (counter, *counters))
+    if (binary_pointer (counter))
+      {
+	assert (lit_pointer (counter) == not_lit);
+	unsigned other = other_pointer (counter);
+	if (values[other] <= 0)
+	  res++;
+      }
+    else if (counter->count == 1)
       res++;
   return res;
 }
