@@ -3412,13 +3412,6 @@ import_decisions (struct walker *walker)
 	}
       else
 	{
-#if 0
-#if 0
-	  phase = random_bool (solver) ? -1 : 1;
-#else
-	  phase = 1;
-#endif
-#endif
 	  pos += (phase > 0);
 	  neg += (phase < 0);
 	  v->level = INVALID;
@@ -4059,7 +4052,7 @@ solve (struct solver *solver)
 	iterate (solver);
       else if (solver->root->terminate)
 	break;
-#if 1
+#if 0
       else if (!solver->statistics.walked)
 	local_search (solver);
 #endif
@@ -5009,9 +5002,10 @@ check_types (void)
   CHECK_TYPE (int, 4);
   CHECK_TYPE (size_t, 8);
   CHECK_TYPE (void*, 8);
-#if 0
+#if 1
   printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
   printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
+  printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
 #endif
 }
 
