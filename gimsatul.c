@@ -2955,8 +2955,6 @@ static size_t
 hash_pointer_to_delta (void * ptr)
 {
   size_t res = 2222222243u * (size_t) ptr;
-  if (!(res & 1))
-    res++;
   return res;
 }
 
@@ -2987,6 +2985,12 @@ reduce_hash (size_t hash, size_t allocated)
   return res;
 }
 
+static size_t
+reduce_delta (size_t hash, size_t allocated)
+{
+  return reduce_hash (hash, allocated) | 1;
+}
+
 #define DELETED ((void*) ~(size_t) 0)
 
 #ifndef NDEBUG
@@ -3009,7 +3013,7 @@ set_contains (struct set * set, void * ptr)
   if (tmp == ptr)
     return true;
   hash = hash_pointer_to_delta (ptr);
-  size_t delta = reduce_hash (hash, allocated);
+  size_t delta = reduce_delta (hash, allocated);
   size_t pos = start;
   assert (allocated < 2 || (delta & 1));
   for (;;)
@@ -3051,7 +3055,7 @@ set_insert (struct set * set, void * ptr)
     {
       assert (tmp != ptr);
       hash = hash_pointer_to_delta (ptr);
-      size_t delta = reduce_hash (hash, allocated);
+      size_t delta = reduce_delta (hash, allocated);
       assert (delta & 1);
       do
 	{
@@ -3094,7 +3098,7 @@ set_remove (struct set * set, void * ptr)
     {
       assert (tmp);
       hash = hash_pointer_to_delta (ptr);
-      size_t delta = reduce_hash (hash, allocated);
+      size_t delta = reduce_delta (hash, allocated);
       assert (delta & 1);
       do 
 	{
