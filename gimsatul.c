@@ -919,11 +919,15 @@ random32 (struct solver *solver)
   return random64 (solver) >> 32;
 }
 
+#if 0
+
 static bool
 random_bool (struct solver * solver)
 {
   return (random64 (solver) >> 33) & 1;
 }
+
+#endif
 
 static size_t
 random_modulo (struct solver *solver, size_t mod)
@@ -3046,7 +3050,6 @@ static void shrink_set (struct set * set);
 static void
 set_insert (struct set * set, void * ptr)
 {
-  assert (!set_contains (set, ptr));
   assert (ptr);
   assert (ptr != DELETED);
   if (set->size + set->deleted >= set->allocated/2)
@@ -3059,7 +3062,6 @@ set_insert (struct set * set, void * ptr)
   void * tmp = table[pos];
   if (tmp && tmp != DELETED)
     {
-      assert (tmp != ptr);
       hash = hash_pointer_to_delta (ptr);
       size_t delta = reduce_delta (hash, allocated);
       assert (delta & 1);
@@ -3071,7 +3073,6 @@ set_insert (struct set * set, void * ptr)
 	  assert (pos < allocated);
 	  assert (pos != start);
 	  tmp = table[pos];
-	  assert (tmp != ptr);
 	}
       while (tmp && tmp != DELETED);
     }
@@ -3121,7 +3122,6 @@ set_remove (struct set * set, void * ptr)
   table[pos] = DELETED;
   set->deleted++;
   set->size--;
-  assert (!set_contains (set, ptr));
 }
 
 static void
@@ -4058,7 +4058,7 @@ solve (struct solver *solver)
 	iterate (solver);
       else if (solver->root->terminate)
 	break;
-#if 0
+#if 1
       else if (!solver->statistics.walked)
 	local_search (solver);
 #endif
