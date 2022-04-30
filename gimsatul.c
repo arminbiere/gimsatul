@@ -423,14 +423,12 @@ struct statistics
     uint64_t units;
     uint64_t binary;
     uint64_t clauses;
-    uint64_t exported;
-    uint64_t imported;
     uint64_t glue1;
     uint64_t literals;
     uint64_t tier1;
     uint64_t tier2;
     uint64_t tier3;
-  } learned;
+  } learned, exported, imported;
 };
 
 struct binaries
@@ -2174,6 +2172,7 @@ export_unit (struct solver * solver, unsigned unit)
   signed char value = values[unit];
   if (!value)
     {
+      solver->statistics.exported.units++;
       unsigned not_unit = NOT (unit);
       assert (!values[not_unit]);
       *root->units.end++ = unit;
@@ -2199,7 +2198,7 @@ export_clause (struct solver * solver, struct watch * watch)
   struct root * root = solver->root;
   if (SIZE (root->solvers) == 1)
     return;
-  solver->statistics.learned.exported++;
+  solver->statistics.exported.binary++;
   COMPILER_BARRIER ();
   solver->share = watch;
 }
@@ -2224,7 +2223,7 @@ import_clause (struct solver * solver)
   struct watch * watch = (struct watch*) atomic_exchange (&src->share, 0);
   if (!watch)
     return false;
-  solver->statistics.learned.imported++;
+  solver->statistics.learned.binary++;
   return true;
 }
 
@@ -5029,14 +5028,17 @@ print_solver_statistics (struct solver *solver)
 	  "  binary-clauses:", s->learned.binary,
 	  percent (s->learned.binary, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  exported-clauses:", s->learned.exported,
-	  percent (s->learned.exported, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  imported-clauses:", s->learned.imported,
-	  percent (s->learned.imported, s->learned.clauses));
+	  "  exported-binary:", s->exported.binary,
+	  percent (s->exported.binary, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  glue1-clauses:", s->learned.glue1,
 	  percent (s->learned.glue1, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  imported-units:", s->imported.units,
+	  percent (s->imported.units, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  imported-binary:", s->imported.binary,
+	  percent (s->imported.binary, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  tier1-clauses:", s->learned.tier1,
 	  percent (s->learned.tier1, s->learned.clauses));
