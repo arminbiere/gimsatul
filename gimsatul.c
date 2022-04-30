@@ -919,14 +919,12 @@ random32 (struct solver *solver)
   return random64 (solver) >> 32;
 }
 
-static unsigned
-random_modulo (struct solver *solver, unsigned mod)
+static size_t
+random_modulo (struct solver *solver, size_t mod)
 {
   assert (mod);
-  const unsigned tmp = random32 (solver);
-  const double fraction = tmp / 4294967296.0;
-  assert (0 <= fraction), assert (fraction < 1);
-  const unsigned res = mod * fraction;
+  size_t tmp = random64 (solver);
+  size_t res = tmp % mod;
   assert (res < mod);
   return res;
 }
@@ -3033,6 +3031,7 @@ set_contains (struct set * set, void * ptr)
 #endif
 
 static void enlarge_set (struct set * set);
+static void shrink_set (struct set * set);
 
 static void
 set_insert (struct set * set, void * ptr)
@@ -3077,33 +3076,14 @@ set_insert (struct set * set, void * ptr)
 }
 
 static void
-enlarge_set (struct set * set)
-{
-  size_t old_allocated = set->allocated;
-  size_t new_allocated = old_allocated ? 2*old_allocated : 2;
-  void ** old_table = set->table;
-  set->allocated = new_allocated;
-#ifndef NDEBUG
-  size_t old_size = set->size;
-#endif
-  set->size = set->deleted = 0;
-  set->table = allocate_and_clear_array (new_allocated, sizeof *set->table);
-  void ** end = old_table + old_allocated;
-  for (void ** p = old_table, * ptr; p != end; p++)
-    if ((ptr = *p) && ptr != DELETED)
-      set_insert (set, ptr);
-  assert (set->size == old_size);
-  assert (set->allocated == new_allocated);
-  free (old_table);
-}
-
-static void
 set_remove (struct set * set, void * ptr)
 {
   assert (ptr);
   assert (ptr != DELETED);
   assert (set_contains (set, ptr));
   assert (set->size);
+  if (set->allocated > 16 && set->size <= set->allocated/8)
+    shrink_set (set);
   size_t hash = hash_pointer_to_position (ptr);
   size_t allocated = set->allocated;
   size_t start = reduce_hash (hash, allocated);
@@ -3136,6 +3116,61 @@ set_remove (struct set * set, void * ptr)
   assert (!set_contains (set, ptr));
 }
 
+static void
+resize_set (struct set * set, size_t new_allocated)
+{
+  assert (new_allocated != set->allocated);
+  void ** old_table = set->table;
+  unsigned old_allocated = set->allocated;
+  set->allocated = new_allocated;
+#ifndef NDEBUG
+  size_t old_size = set->size;
+#endif
+  assert (old_size < new_allocated);
+  set->size = set->deleted = 0;
+  set->table = allocate_and_clear_array (new_allocated, sizeof *set->table);
+  void ** end = old_table + old_allocated;
+  for (void ** p = old_table, * ptr; p != end; p++)
+    if ((ptr = *p) && ptr != DELETED)
+      set_insert (set, ptr);
+  assert (set->size == old_size);
+  assert (set->allocated == new_allocated);
+  free (old_table);
+}
+
+static void
+enlarge_set (struct set * set)
+{
+  size_t old_allocated = set->allocated;
+  size_t new_allocated = old_allocated ? 2*old_allocated : 2;
+  resize_set (set, new_allocated);
+}
+
+static void
+shrink_set (struct set * set)
+{
+  size_t old_allocated = set->allocated;
+  size_t new_allocated = old_allocated / 2;
+  resize_set (set, new_allocated);
+}
+
+static void *
+random_set (struct solver * solver, struct set * set)
+{
+  assert (set->size);
+  size_t allocated = set->allocated;
+  size_t pos = random_modulo (solver, allocated);
+  void ** table = set->table;
+  void * res = table[pos];
+  while (!res || res == DELETED)
+    {
+      if (++pos == allocated)
+	pos = 0;
+      res = table[pos];
+    }
+  return res;
+}
+
 struct walker
 {
   struct solver *solver;
@@ -3164,16 +3199,9 @@ do { \
   LOG (__VA_ARGS__); \
 } while (0)
 
-#define WOGCLAUSE(...) \
-do { \
-  struct solver * solver = walker->solver; \
-  LOGCLAUSE (__VA_ARGS__); \
-} while (0)
-
 #else
 
 #define WOG(...) do { } while (0)
-#define WOGCLAUSE(...) do { } while (0)
 
 #endif
 
@@ -3482,7 +3510,7 @@ new_walker (struct solver *solver)
 }
 
 static void
-release_walker (struct walker *walker)
+delete_walker (struct walker *walker)
 {
   struct solver *solver = walker->solver;
   free (walker->counters);
@@ -3493,6 +3521,7 @@ release_walker (struct walker *walker)
   RELEASE (walker->scores);
   RELEASE (walker->breaks);
   reconnect_watches (solver);
+  free (walker);
 }
 
 static unsigned
@@ -3662,18 +3691,21 @@ make_literal (struct walker *walker, unsigned lit)
       if (counter->count++)
 	continue;
       LOGCLAUSE (counter->clause, "literal %s makes", LOGLIT (lit));
-      set_insert (&walker->unsatisfied, counter);
+      set_remove (&walker->unsatisfied, counter);
       ticks++;
     }
   unsigned * binaries = counters->binaries;
   if (binaries)
-    for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
-      if (values[other] < 0)
-	{
-	  LOGBINARY (false, lit, other, "literal %s mades", LOGLIT (lit));
-	  void * ptr = min_max_tag_pointer (false, lit, other);
-	  set_remove (&walker->unsatisfied, ptr);
-	}
+    {
+      ticks++;
+      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+	if (values[other] < 0)
+	  {
+	    LOGBINARY (false, lit, other, "literal %s mades", LOGLIT (lit));
+	    void * ptr = min_max_tag_pointer (false, lit, other);
+	    set_remove (&walker->unsatisfied, ptr);
+	  }
+    }
   solver->statistics.contexts[WALK].ticks += ticks;
 }
 
@@ -3681,19 +3713,32 @@ static void
 break_literal (struct walker *walker, unsigned lit)
 {
   struct solver *solver = walker->solver;
-  assert (solver->values[lit] < 0);
-  struct counter *counters = walker->counters;
+  signed char * values = solver->values;
+  assert (values[lit] < 0);
   uint64_t ticks = 1;
-  for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
+  struct counters *counters = &OCCURRENCES (lit);
+  for (all_counters (counter, *counters))
     {
       ticks++;
-      struct counter *counter = counters + cidx;
+      assert (!binary_pointer (counter));
       assert (counter->count);
       if (--counter->count)
 	continue;
+      LOGCLAUSE (counter->clause, "literal %s breaks", LOGLIT (lit));
+      set_remove (&walker->unsatisfied, counter);
       ticks++;
-      WOGCLAUSE (counter->clause, "literal %s breaks", LOGLIT (lit));
-      break_clause (walker, counter, cidx);
+    }
+  unsigned * binaries = counters->binaries;
+  if (binaries)
+    {
+      ticks++;
+      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+	if (values[other] < 0)
+	  {
+	    LOGBINARY (false, lit, other, "literal %s breaks", LOGLIT (lit));
+	    void * ptr = min_max_tag_pointer (false, lit, other);
+	    set_insert (&walker->unsatisfied, ptr);
+	  }
     }
   solver->statistics.contexts[WALK].ticks += ticks;
 }
@@ -3713,7 +3758,8 @@ flip_literal (struct walker *walker, unsigned lit)
 }
 
 static unsigned
-pick_literal_to_flip (struct walker *walker, struct clause *clause)
+pick_literal_to_flip (struct walker *walker,
+                      size_t size, unsigned * literals)
 {
   assert (EMPTY (walker->literals));
   assert (EMPTY (walker->scores));
@@ -3721,13 +3767,14 @@ pick_literal_to_flip (struct walker *walker, struct clause *clause)
   struct solver *solver = walker->solver;
   signed char *values = solver->values;
 
-  LOGCLAUSE (clause, "flipping literal in");
-
   unsigned res = INVALID;
   double total = 0, score = -1;
 
-  for (all_literals_in_clause (lit, clause))
+  unsigned * end = literals + size;
+
+  for (unsigned * p = literals; p != end; p++)
     {
+      unsigned lit = *p;
       if (!values[lit])
 	continue;
       PUSH (walker->literals, lit);
@@ -3743,8 +3790,9 @@ pick_literal_to_flip (struct walker *walker, struct clause *clause)
 
   double sum = 0, *scores = walker->scores.begin;
 
-  for (all_literals_in_clause (other, clause))
+  for (unsigned * p = literals; p != end; p++)
     {
+      unsigned other = *p;
       if (!values[other])
 	continue;
       double tmp = *scores++;
@@ -3770,13 +3818,26 @@ pick_literal_to_flip (struct walker *walker, struct clause *clause)
 static void
 walking_step (struct walker *walker)
 {
-  struct unsigneds *unsatisfied = &walker->unsatisfied;
-  size_t size = SIZE (*unsatisfied);
-  size_t pos = random_modulo (walker->solver, size);
-  WOG ("picked clause %zu from %zu broken clauses", pos, size);
-  unsigned cidx = unsatisfied->begin[pos];
-  struct clause *clause = walker->counters[cidx].clause;
-  unsigned lit = pick_literal_to_flip (walker, clause);
+  struct set *unsatisfied = &walker->unsatisfied;
+  struct solver * solver = walker->solver;
+  struct counter * counter = random_set (solver, unsatisfied);
+  unsigned lit;
+  if (binary_pointer (counter))
+    {
+      unsigned lit = lit_pointer (counter);
+      unsigned other = other_pointer (counter);
+      assert (!redundant_pointer (counter));
+      unsigned literals[2] = { lit, other };
+      LOGBINARY (false, lit, other, "picked broken");
+      lit = pick_literal_to_flip (walker, 2, literals);
+    }
+  else
+    {
+      assert (!counter->count);
+      struct clause * clause = counter->clause;
+      LOGCLAUSE (clause, "picked broken");
+      lit = pick_literal_to_flip (walker, clause->size, clause->literals);
+    }
   flip_literal (walker, lit);
   push_flipped (walker, lit);
   update_minimum (walker, lit);
@@ -3804,11 +3865,11 @@ local_search (struct solver *solver)
   if (solver->last.fixed != solver->statistics.fixed)
     mark_satisfied_clauses_as_garbage (solver);
   struct walker * walker = new_walker (solver);
-  walking_loop (alker);
+  walking_loop (walker);
   save_final_minimum (walker);
-  verbose (solver, "local search flipped %" PRIu64 " literals", walker.flips);
-  fix_values_after_local_search (walker);
+  verbose (solver, "walker flipped %" PRIu64 " literals", walker->flips);
   delete_walker (walker);
+  fix_values_after_local_search (solver);
   solver->last.walk = solver->statistics.contexts[SEARCH].ticks;
   assert (solver->context == WALK);
   solver->context = SEARCH;
