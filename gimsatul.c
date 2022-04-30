@@ -89,7 +89,7 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
-#define WATCHES(LIT) (solver->references[LIT])
+#define REFERENCES(LIT) (solver->references[LIT])
 
 #define MAX_THREADS \
   ((size_t) 1 << 8*sizeof ((struct clause *) 0)->shared)
@@ -285,6 +285,11 @@ struct watch
 struct watches
 {
   struct watch ** begin, **end, **allocated;
+};
+
+struct references
+{
+  struct watch ** begin, **end, **allocated;
   unsigned *binaries;
 };
 
@@ -466,7 +471,7 @@ struct solver
   signed char *values;
   struct variable *variables;
   struct watches watches;
-  struct watches *references;
+  struct references *references;
   struct unsigneds levels;
   struct queue queue;
   struct unsigneds clause;
@@ -1363,7 +1368,7 @@ static void
 release_watches (struct solver *solver)
 {
   for (all_literals (lit))
-    free (WATCHES (lit).begin);
+    free (REFERENCES (lit).begin);
   free (solver->references);
 
   for (all_watches (watch, solver->watches))
@@ -1534,7 +1539,7 @@ static void
 push_watch (struct solver *solver, unsigned lit, struct watch *watch)
 {
   LOGWATCH (watch, "watching %s in", LOGLIT (lit));
-  PUSH (WATCHES (lit), watch);
+  PUSH (REFERENCES (lit), watch);
 }
 
 static struct watch *
@@ -1708,7 +1713,7 @@ init_root_watches (struct root *root)
   for (all_literals (lit))
     {
       long count = counts[lit];
-      struct watches *lit_watches = &WATCHES (lit);
+      struct references *lit_watches = &REFERENCES (lit);
       if (count >= 0)
 	{
 	  lit_watches->binaries = global_watches + count;
@@ -1722,7 +1727,7 @@ init_root_watches (struct root *root)
 #ifdef LOGGING
   for (all_literals (lit))
     {
-      unsigned *binaries = WATCHES (lit).binaries;
+      unsigned *binaries = REFERENCES (lit).binaries;
       LOGPREFIX ("global binary watches of %s:", LOGLIT (lit));
       if (binaries)
 	{
@@ -1857,13 +1862,13 @@ share_clauses (struct solver *dst, struct solver *src)
     }
   very_verbose (solver, "copied %u units", units);
 
-  struct watches *src_references = src->references;
-  struct watches *dst_references = dst->references;
+  struct references *src_references = src->references;
+  struct references *dst_references = dst->references;
   size_t copied_binary_watch_lists = 0;
   for (all_literals (lit))
     {
-      struct watches *src_watches = src_references + lit;
-      struct watches *dst_watches = dst_references + lit;
+      struct references *src_watches = src_references + lit;
+      struct references *dst_watches = dst_references + lit;
       assert (EMPTY (*dst_watches));
       unsigned *src_binaries = src_watches->binaries;
       if (src_binaries)
@@ -1919,7 +1924,7 @@ propagate (struct solver *solver, bool search)
       LOG ("propagating %s", LOGLIT (lit));
       propagations++;
       unsigned not_lit = NOT (lit);
-      struct watches *watches = &WATCHES (not_lit);
+      struct references *watches = &REFERENCES (not_lit);
       unsigned *binaries = watches->binaries;
       if (binaries)
 	{
@@ -2738,7 +2743,7 @@ flush_watchtab (struct solver *solver, bool fixed)
 	  if (variables[IDX (lit)].level)
 	    lit_value = 0;
 	}
-      struct watches *watches = &WATCHES (lit);
+      struct references *watches = &REFERENCES (lit);
       struct watch **begin = watches->begin, **q = begin;
       struct watch **end = watches->end;
       for (struct watch ** p = begin; p != end; p++)
@@ -3199,7 +3204,7 @@ disconnect_watches (struct solver * solver)
 {
   for (all_literals (lit))
     {
-      struct watches * watches = &WATCHES (lit);
+      struct references * watches = &REFERENCES (lit);
       struct watch **begin = watches->begin, **q = begin;
       struct watch **end = watches->end, **p = begin;
       while (p != end)
@@ -3215,7 +3220,7 @@ disconnect_watches (struct solver * solver)
 static void
 connect_watches (struct solver * solver)
 {
-  for (all_watches (watch, solver->watchlist))
+  for (all_watches (watch, solver->watches))
     {
       assert (!binary_pointer (watch));
       unsigned * literals = watch->clause->literals;
@@ -3244,7 +3249,7 @@ init_walker (struct solver *solver, struct walker *walker)
   walker->solver = solver;
   walker->counters =
     allocate_and_clear_array (clauses, sizeof *walker->counters);
-  walker->occs = (struct counters *) solver->watchtab;
+  walker->occs = (struct counters *) solver->references;
   INIT (walker->unsatisfied);
   INIT (walker->literals);
   INIT (walker->trail);
@@ -3270,8 +3275,7 @@ release_walker (struct walker *walker)
 {
   struct solver *solver = walker->solver;
   free (walker->counters);
-  for (all_literals (lit))
-    RELEASE (walker->occs[lit]);
+  disconnect_watches (solver);
   RELEASE (walker->unsatisfied);
   RELEASE (walker->literals);
   RELEASE (walker->trail);
