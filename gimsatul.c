@@ -2223,7 +2223,7 @@ import_clause (struct solver * solver)
   struct watch * watch = (struct watch*) atomic_exchange (&src->share, 0);
   if (!watch)
     return false;
-  solver->statistics.learned.binary++;
+  solver->statistics.imported.binary++;
   return true;
 }
 
@@ -5027,6 +5027,9 @@ print_solver_statistics (struct solver *solver)
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  binary-clauses:", s->learned.binary,
 	  percent (s->learned.binary, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  exported-units:", s->exported.units,
+	  percent (s->exported.units, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  exported-binary:", s->exported.binary,
 	  percent (s->exported.binary, s->learned.clauses));
