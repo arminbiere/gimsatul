@@ -1342,7 +1342,7 @@ new_solver (struct root *root)
   verbose (solver, "new solver[%u] of size %u", solver->id, size);
   solver->values = allocate_and_clear_array (1, 2 * size);
   solver->references =
-    allocate_and_clear_array (sizeof (struct watches), 2 * size);
+    allocate_and_clear_array (sizeof (struct references), 2 * size);
   solver->used = allocate_and_clear_block (size);
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
@@ -2730,7 +2730,7 @@ mark_reduce_candidates_as_garbage (struct solver *solver,
 }
 
 static void
-flush_watchtab (struct solver *solver, bool fixed)
+flush_references (struct solver *solver, bool fixed)
 {
   size_t flushed = 0;
   signed char *values = solver->values;
@@ -2844,7 +2844,7 @@ reduce (struct solver *solver)
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (solver, &candidates);
   RELEASE (candidates);
-  flush_watchtab (solver, fixed);
+  flush_references (solver, fixed);
   flush_watches (solver);
   unmark_reasons (solver);
   limits->reduce = SEARCH_CONFLICTS;
