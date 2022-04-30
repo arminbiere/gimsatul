@@ -3726,7 +3726,7 @@ break_literal (struct walker *walker, unsigned lit)
       if (--counter->count)
 	continue;
       LOGCLAUSE (counter->clause, "literal %s breaks", LOGLIT (lit));
-      set_remove (&walker->unsatisfied, counter);
+      set_insert (&walker->unsatisfied, counter);
       ticks++;
     }
   unsigned * binaries = counters->binaries;
