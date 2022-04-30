@@ -919,6 +919,12 @@ random32 (struct solver *solver)
   return random64 (solver) >> 32;
 }
 
+static bool
+random_bool (struct solver * solver)
+{
+  return (random64 (solver) >> 33) & 1;
+}
+
 static size_t
 random_modulo (struct solver *solver, size_t mod)
 {
@@ -3406,6 +3412,13 @@ import_decisions (struct walker *walker)
 	}
       else
 	{
+#if 0
+#if 0
+	  phase = random_bool (solver) ? -1 : 1;
+#else
+	  phase = 1;
+#endif
+#endif
 	  pos += (phase > 0);
 	  neg += (phase < 0);
 	  v->level = INVALID;
@@ -4045,8 +4058,10 @@ solve (struct solver *solver)
 	iterate (solver);
       else if (solver->root->terminate)
 	break;
-      else if (! solver->statistics.walked)
+#if 0
+      else if (!solver->statistics.walked)
 	local_search (solver);
+#endif
       else if (conflict_limit_hit (solver))
 	break;
       else if (reducing (solver))
