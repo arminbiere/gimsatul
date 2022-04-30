@@ -3181,6 +3181,7 @@ struct walker
   struct set unsatisfied;
   struct unsigneds literals;
   struct unsigneds trail;
+  struct watches saved;
   struct doubles scores;
   struct doubles breaks;
   unsigned maxbreak;
@@ -3450,25 +3451,35 @@ set_walking_limits (struct walker *walker)
 }
 
 static void
-disconnect_non_binary_references (struct solver * solver)
+disconnect_references (struct solver * solver, struct watches * saved)
 {
   size_t disconnected = 0;
   for (all_literals (lit))
     {
       struct references * watches = &REFERENCES (lit);
-      struct watch ** q = watches->begin;
       for (all_watches (watch, *watches))
 	if (binary_pointer (watch))
-	  *q++ = watch;
-	else
-	  disconnected++;
-      watches->end = q;
+	  {
+	    assert (!redundant_pointer (watch));
+	    assert (lit_pointer (watch) == lit);
+	    unsigned other = other_pointer (watch);
+	    if (other < lit)
+	      PUSH (*saved, watch);
+	  }
+      disconnected += SIZE (*watches);
+      RELEASE (*watches);
     }
-  very_verbose (solver, "disconnected %zu references", disconnected);
 }
 
 static void
-reconnect_watches (struct solver * solver)
+release_references (struct solver * solver)
+{
+  for (all_literals (lit))
+    RELEASE (REFERENCES (lit));
+}
+
+static void
+reconnect_watches (struct solver * solver, struct watches * saved)
 {
   size_t reconnected = 0;
   for (all_watches (watch, solver->watches))
@@ -3479,6 +3490,16 @@ reconnect_watches (struct solver * solver)
       push_watch (solver, literals[0], watch);
       push_watch (solver, literals[1], watch);
       reconnected++;
+    }
+  for (all_watches (lit_watch, *saved))
+    {
+      assert (binary_pointer (lit_watch));
+      assert (redundant_pointer (lit_watch));
+      unsigned lit = lit_pointer (lit_watch);
+      unsigned other = other_pointer (lit_watch);
+      struct watch * other_watch = tag_pointer (false, other, lit);
+      push_watch (solver, lit, lit_watch);
+      push_watch (solver, other, other_watch);
     }
   very_verbose (solver, "reconnected %zu clauses", reconnected);
 }
@@ -3494,7 +3515,7 @@ new_walker (struct solver *solver)
 
   struct walker * walker = allocate_and_clear_block (sizeof *walker);
   
-  disconnect_non_binary_references (solver);
+  disconnect_references (solver, &walker->saved);
 
   walker->solver = solver;
   walker->counters =
@@ -3517,13 +3538,14 @@ delete_walker (struct walker *walker)
 {
   struct solver *solver = walker->solver;
   free (walker->counters);
-  disconnect_non_binary_references (solver);
   free (walker->unsatisfied.table);
   RELEASE (walker->literals);
   RELEASE (walker->trail);
   RELEASE (walker->scores);
   RELEASE (walker->breaks);
-  reconnect_watches (solver);
+  release_references (solver);
+  reconnect_watches (solver, &walker->saved);
+  RELEASE (walker->saved);
   free (walker);
 }
 
