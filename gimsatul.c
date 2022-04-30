@@ -4020,6 +4020,8 @@ solve (struct solver *solver)
 	iterate (solver);
       else if (solver->root->terminate)
 	break;
+      else if (! solver->statistics.walked)
+	local_search (solver);
       else if (conflict_limit_hit (solver))
 	break;
       else if (reducing (solver))
