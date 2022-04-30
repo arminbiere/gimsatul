@@ -3515,6 +3515,7 @@ reconnect_watches (struct solver * solver, struct watches * saved)
       push_watch (solver, other, other_watch);
     }
   very_verbose (solver, "reconnected %zu clauses", reconnected);
+  solver->trail.propagate = solver->trail.begin;
 }
 
 static struct walker *
