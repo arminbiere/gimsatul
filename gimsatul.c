@@ -89,7 +89,9 @@ static const char * usage =
 #define SGN(LIT) ((LIT) & 1)
 
 #define VAR(LIT) (solver->variables + IDX (LIT))
+
 #define REFERENCES(LIT) (solver->references[LIT])
+#define OCCS(LIT) (walker->occs[LIT])
 
 #define MAX_THREADS \
   ((size_t) 1 << 8*sizeof ((struct clause *) 0)->shared)
@@ -3137,7 +3139,7 @@ set_remove (struct set * set, void * ptr)
 struct walker
 {
   struct solver *solver;
-  struct counters *occs;
+  struct counters *occurrences;
   struct counter *counters;
   struct set unsatisfied;
   struct unsigneds literals;
@@ -3174,6 +3176,8 @@ do { \
 #define WOGCLAUSE(...) do { } while (0)
 
 #endif
+
+#define OCCURRENCES(LIT) (walker->occurrences[LIT])
 
 static size_t
 count_irredundant_non_garbage_clauses (struct solver *solver,
@@ -3252,6 +3256,15 @@ initialize_break_table (struct walker *walker, double length)
   WOG ("epsilon score %g of %u break count and more", epsilon, maxbreak);
 }
 
+static void *
+min_max_tag_pointer (bool redundant, unsigned first, unsigned second)
+{
+  assert (first != second);
+  unsigned min = first < second ? first : second;
+  unsigned max = first < second ? second : first;
+  return tag_pointer (redundant, min, max);
+}
+
 static double
 connect_counters (struct walker *walker, struct clause *last)
 {
@@ -3277,7 +3290,7 @@ connect_counters (struct walker *walker, struct clause *last)
 	  if (!value)
 	    continue;
 	  count += (value > 0);
-	  PUSH (walker->occs[lit], p);
+	  PUSH (walker->occurrences[lit], p);
 	  ticks++;
 	  length++;
 	}
@@ -3296,6 +3309,19 @@ connect_counters (struct walker *walker, struct clause *last)
     }
   for (all_literals (lit))
     {
+      if (values[lit] >= 0)
+	continue;
+      struct counters * counters = &OCCURRENCES (lit);
+      unsigned * binaries = counters->binaries;
+      if (!binaries)
+	continue;
+      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+	if (values[other] < 0)
+	  {
+	    LOGBINARY (false, lit, other, "initially broken");
+	    void * ptr = min_max_tag_pointer (false, lit, other);
+	    set_insert (&walker->unsatisfied, ptr);
+	  }
     }
   double average_length = average (sum_lengths, clauses);
   verbose (solver, "average clause length %.2f", average_length);
@@ -3442,7 +3468,7 @@ new_walker (struct solver *solver)
   walker->solver = solver;
   walker->counters =
     allocate_and_clear_array (clauses, sizeof *walker->counters);
-  walker->occs = (struct counters *) solver->references;
+  walker->occurrences = (struct counters *) solver->references;
 
   import_decisions (walker);
   double length = connect_counters (walker, last);
@@ -3477,7 +3503,7 @@ break_count (struct walker *walker, unsigned lit)
   unsigned not_lit = NOT (lit);
   assert (values[not_lit] > 0);
   unsigned res = 0;
-  struct counters * counters = walker->occs + not_lit;
+  struct counters * counters = &OCCURRENCES (not_lit);
   unsigned * binaries = counters->binaries;
   if (binaries)
     for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
@@ -3625,19 +3651,29 @@ static void
 make_literal (struct walker *walker, unsigned lit)
 {
   struct solver *solver = walker->solver;
-  assert (solver->values[lit] > 0);
-  struct counter *counters = walker->counters;
+  signed char * values = solver->values;
+  assert (values[lit] > 0);
   uint64_t ticks = 1;
-  for (all_counters (counter, walker->occs[lit]))
+  struct counters * counters = &OCCURRENCES (lit);
+  for (all_counters (counter, *counters))
     {
       ticks++;
-      struct counter *counter = counters + cidx;
+      assert (!binary_pointer (counter));
       if (counter->count++)
 	continue;
       LOGCLAUSE (counter->clause, "literal %s makes", LOGLIT (lit));
-      make_clause (walker, counter, cidx);
+      set_insert (&walker->unsatisfied, counter);
       ticks++;
     }
+  unsigned * binaries = counters->binaries;
+  if (binaries)
+    for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+      if (values[other] < 0)
+	{
+	  LOGBINARY (false, lit, other, "literal %s mades", LOGLIT (lit));
+	  void * ptr = min_max_tag_pointer (false, lit, other);
+	  set_remove (&walker->unsatisfied, ptr);
+	}
   solver->statistics.contexts[WALK].ticks += ticks;
 }
 
