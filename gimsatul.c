@@ -3093,7 +3093,6 @@ set_remove (struct set * set, void * ptr)
   if (tmp != ptr)
     {
       assert (tmp);
-      assert (tmp != DELETED);
       hash = hash_pointer_to_delta (ptr);
       size_t delta = reduce_hash (hash, allocated);
       assert (delta & 1);
@@ -3106,7 +3105,6 @@ set_remove (struct set * set, void * ptr)
 	  assert (pos != start);
 	  tmp = table[pos];
 	  assert (tmp);
-	  assert (tmp != DELETED);
 	} 
       while (tmp != ptr);
     }
