@@ -2939,24 +2939,200 @@ struct counters
 
 struct set
 {
-  size_t count;
   size_t size;
-  struct void ** table;
+  size_t count;
+  size_t deleted;
+  void ** table;
 };
 
 static size_t
 hash_pointer_to_position (void * ptr)
 {
+  size_t res = 1111111121u * (size_t) ptr;
+  return res;
 }
 
 static size_t
 hash_pointer_to_delta (void * ptr)
 {
+  size_t res = 2222222243u * (size_t) ptr;
+  if (!(res & 1))
+    res++;
+  return res;
 }
 
+#ifndef NDEBUG
+
 static bool
-set_contains (struct sow * sow, void * ptr)
+is_power_of_two (size_t n)
 {
+  return n && !(n & (n-1));
+}
+
+#endif
+
+static size_t
+reduce_hash (size_t hash, size_t size)
+{
+  assert (size);
+  assert (is_power_of_two (size));
+  size_t res = hash;
+  if (size >= (size_t)1 << 32)
+    res ^= res >> 32;
+  if (size >= (size_t)1 << 16)
+    res ^= res >> 16;
+  if (size >= (size_t)1 << 8)
+    res ^= res >> 8;
+  res &= size - 1;
+  assert (res < size);
+  return res;
+}
+
+#define DELETED ((void*) ~(size_t) 0)
+
+#ifndef NDEBUG
+
+static bool
+set_contains (struct set * set, void * ptr)
+{
+  assert (ptr);
+  assert (ptr != DELETED);
+  size_t count = set->count;
+  if (!count)
+    return false;
+  size_t hash = hash_pointer_to_position (ptr);
+  size_t size = set->size;
+  size_t start = reduce_hash (hash, size);
+  void ** table = set->table;
+  void * tmp = table[start];
+  if (!tmp)
+    return false;
+  if (tmp == ptr)
+    return true;
+  hash = hash_pointer_to_delta (ptr);
+  size_t delta = reduce_hash (hash, size);
+  size_t pos = start;
+  assert (size < 2 || (delta & 1));
+  for (;;)
+    {
+      pos += delta;
+      if (pos >= size)
+	pos -= size;
+      assert (pos < size);
+      if (pos == start)
+	return false;
+      tmp = table[pos];
+      if (!tmp)
+	return false;
+      if (tmp == ptr)
+	return true;
+    } 
+}
+
+#endif
+
+static void enlarge_set (struct set * set);
+
+static void
+set_insert (struct set * set, void * ptr)
+{
+  assert (!set_contains (set, ptr));
+  assert (ptr);
+  assert (ptr != DELETED);
+  if (set->count + set->deleted >= set->size/2)
+    enlarge_set (set);
+  size_t hash = hash_pointer_to_position (ptr);
+  size_t size = set->size;
+  size_t start = reduce_hash (hash, size);
+  void ** table = set->table;
+  size_t pos = start;
+  void * tmp = table[pos];
+  if (tmp && tmp != DELETED)
+    {
+      assert (tmp != ptr);
+      hash = hash_pointer_to_delta (ptr);
+      size_t delta = reduce_hash (hash, size);
+      assert (delta & 1);
+      do
+	{
+	  pos += delta;
+	  if (pos >= size)
+	    pos -= size;
+	  assert (pos < size);
+	  assert (pos != start);
+	  tmp = table[pos];
+	  assert (tmp != ptr);
+	}
+      while (tmp && tmp != DELETED);
+    }
+  if (tmp == DELETED)
+    {
+      assert (set->deleted);
+      set->deleted--;
+    }
+  set->count++;
+  table[pos] = ptr;
+  assert (set_contains (set, ptr));
+}
+
+static void
+enlarge_set (struct set * set)
+{
+  size_t old_size = set->size;
+  size_t new_size = old_size ? 2*old_size : 2;
+  void ** old_table = set->table;
+  set->size = new_size;
+#ifndef NDEBUG
+  size_t old_count = set->count;
+#endif
+  set->count = set->deleted = 0;
+  set->table = allocate_and_clear_array (new_size, sizeof *set->table);
+  void ** end = old_table + old_size;
+  for (void ** p = old_table, * ptr; p != end; p++)
+    if ((ptr = *p) && ptr != DELETED)
+      set_insert (set, ptr);
+  assert (set->count == old_count);
+  assert (set->size == new_size);
+  free (old_table);
+}
+
+static void
+set_remove (struct set * set, void * ptr)
+{
+  assert (ptr);
+  assert (ptr != DELETED);
+  assert (set_contains (set, ptr));
+  assert (set->count);
+  size_t hash = hash_pointer_to_position (ptr);
+  size_t size = set->size;
+  size_t start = reduce_hash (hash, size);
+  void ** table = set->table;
+  size_t pos = start;
+  void * tmp = table[pos];
+  if (tmp != ptr)
+    {
+      assert (tmp);
+      assert (tmp != DELETED);
+      hash = hash_pointer_to_delta (ptr);
+      size_t delta = reduce_hash (hash, size);
+      assert (delta & 1);
+      do 
+	{
+	  pos += delta;
+	  if (pos >= size)
+	    pos -= size;
+	  assert (pos < size);
+	  assert (pos != start);
+	  tmp = table[pos];
+	  assert (tmp);
+	  assert (tmp != DELETED);
+	} 
+      while (tmp != ptr);
+    }
+  table[pos] = DELETED;
+  set->deleted++;
+  set->count--;
+  assert (!set_contains (set, ptr));
 }
 
 struct walker
