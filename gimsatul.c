@@ -2927,7 +2927,6 @@ struct doubles
 struct counter
 {
   unsigned count;
-  unsigned pos;
   struct clause *clause;
 };
 
@@ -2940,8 +2939,8 @@ struct counters
 struct set
 {
   size_t size;
-  size_t count;
   size_t deleted;
+  size_t allocated;
   void ** table;
 };
 
@@ -2972,19 +2971,19 @@ is_power_of_two (size_t n)
 #endif
 
 static size_t
-reduce_hash (size_t hash, size_t size)
+reduce_hash (size_t hash, size_t allocated)
 {
-  assert (size);
-  assert (is_power_of_two (size));
+  assert (allocated);
+  assert (is_power_of_two (allocated));
   size_t res = hash;
-  if (size >= (size_t)1 << 32)
+  if (allocated >= (size_t)1 << 32)
     res ^= res >> 32;
-  if (size >= (size_t)1 << 16)
+  if (allocated >= (size_t)1 << 16)
     res ^= res >> 16;
-  if (size >= (size_t)1 << 8)
+  if (allocated >= (size_t)1 << 8)
     res ^= res >> 8;
-  res &= size - 1;
-  assert (res < size);
+  res &= allocated - 1;
+  assert (res < allocated);
   return res;
 }
 
@@ -2997,12 +2996,12 @@ set_contains (struct set * set, void * ptr)
 {
   assert (ptr);
   assert (ptr != DELETED);
-  size_t count = set->count;
-  if (!count)
+  size_t size = set->size;
+  if (!size)
     return false;
   size_t hash = hash_pointer_to_position (ptr);
-  size_t size = set->size;
-  size_t start = reduce_hash (hash, size);
+  size_t allocated = set->allocated;
+  size_t start = reduce_hash (hash, allocated);
   void ** table = set->table;
   void * tmp = table[start];
   if (!tmp)
@@ -3010,15 +3009,15 @@ set_contains (struct set * set, void * ptr)
   if (tmp == ptr)
     return true;
   hash = hash_pointer_to_delta (ptr);
-  size_t delta = reduce_hash (hash, size);
+  size_t delta = reduce_hash (hash, allocated);
   size_t pos = start;
-  assert (size < 2 || (delta & 1));
+  assert (allocated < 2 || (delta & 1));
   for (;;)
     {
       pos += delta;
-      if (pos >= size)
-	pos -= size;
-      assert (pos < size);
+      if (pos >= allocated)
+	pos -= allocated;
+      assert (pos < allocated);
       if (pos == start)
 	return false;
       tmp = table[pos];
@@ -3039,11 +3038,11 @@ set_insert (struct set * set, void * ptr)
   assert (!set_contains (set, ptr));
   assert (ptr);
   assert (ptr != DELETED);
-  if (set->count + set->deleted >= set->size/2)
+  if (set->size + set->deleted >= set->allocated/2)
     enlarge_set (set);
   size_t hash = hash_pointer_to_position (ptr);
-  size_t size = set->size;
-  size_t start = reduce_hash (hash, size);
+  size_t allocated = set->allocated;
+  size_t start = reduce_hash (hash, allocated);
   void ** table = set->table;
   size_t pos = start;
   void * tmp = table[pos];
@@ -3051,14 +3050,14 @@ set_insert (struct set * set, void * ptr)
     {
       assert (tmp != ptr);
       hash = hash_pointer_to_delta (ptr);
-      size_t delta = reduce_hash (hash, size);
+      size_t delta = reduce_hash (hash, allocated);
       assert (delta & 1);
       do
 	{
 	  pos += delta;
-	  if (pos >= size)
-	    pos -= size;
-	  assert (pos < size);
+	  if (pos >= allocated)
+	    pos -= allocated;
+	  assert (pos < allocated);
 	  assert (pos != start);
 	  tmp = table[pos];
 	  assert (tmp != ptr);
@@ -3070,7 +3069,7 @@ set_insert (struct set * set, void * ptr)
       assert (set->deleted);
       set->deleted--;
     }
-  set->count++;
+  set->size++;
   table[pos] = ptr;
   assert (set_contains (set, ptr));
 }
@@ -3078,21 +3077,21 @@ set_insert (struct set * set, void * ptr)
 static void
 enlarge_set (struct set * set)
 {
-  size_t old_size = set->size;
-  size_t new_size = old_size ? 2*old_size : 2;
+  size_t old_allocated = set->allocated;
+  size_t new_allocated = old_allocated ? 2*old_allocated : 2;
   void ** old_table = set->table;
-  set->size = new_size;
+  set->allocated = new_allocated;
 #ifndef NDEBUG
-  size_t old_count = set->count;
+  size_t old_size = set->size;
 #endif
-  set->count = set->deleted = 0;
-  set->table = allocate_and_clear_array (new_size, sizeof *set->table);
-  void ** end = old_table + old_size;
+  set->size = set->deleted = 0;
+  set->table = allocate_and_clear_array (new_allocated, sizeof *set->table);
+  void ** end = old_table + old_allocated;
   for (void ** p = old_table, * ptr; p != end; p++)
     if ((ptr = *p) && ptr != DELETED)
       set_insert (set, ptr);
-  assert (set->count == old_count);
-  assert (set->size == new_size);
+  assert (set->size == old_size);
+  assert (set->allocated == new_allocated);
   free (old_table);
 }
 
@@ -3102,10 +3101,10 @@ set_remove (struct set * set, void * ptr)
   assert (ptr);
   assert (ptr != DELETED);
   assert (set_contains (set, ptr));
-  assert (set->count);
+  assert (set->size);
   size_t hash = hash_pointer_to_position (ptr);
-  size_t size = set->size;
-  size_t start = reduce_hash (hash, size);
+  size_t allocated = set->allocated;
+  size_t start = reduce_hash (hash, allocated);
   void ** table = set->table;
   size_t pos = start;
   void * tmp = table[pos];
@@ -3114,14 +3113,14 @@ set_remove (struct set * set, void * ptr)
       assert (tmp);
       assert (tmp != DELETED);
       hash = hash_pointer_to_delta (ptr);
-      size_t delta = reduce_hash (hash, size);
+      size_t delta = reduce_hash (hash, allocated);
       assert (delta & 1);
       do 
 	{
 	  pos += delta;
-	  if (pos >= size)
-	    pos -= size;
-	  assert (pos < size);
+	  if (pos >= allocated)
+	    pos -= allocated;
+	  assert (pos < allocated);
 	  assert (pos != start);
 	  tmp = table[pos];
 	  assert (tmp);
@@ -3131,7 +3130,7 @@ set_remove (struct set * set, void * ptr)
     }
   table[pos] = DELETED;
   set->deleted++;
-  set->count--;
+  set->size--;
   assert (!set_contains (set, ptr));
 }
 
@@ -3140,7 +3139,7 @@ struct walker
   struct solver *solver;
   struct counters *occs;
   struct counter *counters;
-  struct unsigneds unsatisfied;
+  struct set unsatisfied;
   struct unsigneds literals;
   struct unsigneds trail;
   struct doubles scores;
@@ -3260,7 +3259,7 @@ connect_counters (struct walker *walker, struct clause *last)
   signed char *values = solver->values;
   struct counter *p = walker->counters;
   double sum_lengths = 0;
-  unsigned clauses = 0;
+  size_t clauses = 0;
   uint64_t ticks = 1;
   for (all_watches (watch, solver->watches))
     {
@@ -3287,12 +3286,9 @@ connect_counters (struct walker *walker, struct clause *last)
       p->clause = clause;
       if (!count)
 	{
-	  p->pos = SIZE (walker->unsatisfied);
-	  PUSH (walker->unsatisfied, clauses);
+	  set_insert (&walker->unsatisfied, p);
 	  LOGCLAUSE (clause, "initially broken");
 	}
-      else
-	p->pos = INVALID;
       clauses++;
       p++;
       if (clause == last)
@@ -3365,9 +3361,8 @@ import_decisions (struct walker *walker)
 }
 
 static void
-fix_values_after_local_search (struct walker *walker)
+fix_values_after_local_search (struct solver *solver)
 {
-  struct solver *solver = walker->solver;
   signed char *values = solver->values;
   memset (values, 0, 2 * solver->size);
   for (all_elements_on_stack (unsigned, lit, solver->trail))
@@ -3431,19 +3426,16 @@ reconnect_watches (struct solver * solver)
   very_verbose (solver, "reconnected %zu clauses", reconnected);
 }
 
-static bool
-init_walker (struct solver *solver, struct walker *walker)
+static struct walker *
+new_walker (struct solver *solver)
 {
   struct clause *last = 0;
   size_t clauses = count_irredundant_non_garbage_clauses (solver, &last);
-  if (clauses > UINT_MAX)
-    {
-      verbose (solver, "too many clauses %zu for local search", clauses);
-      return false;
-    }
 
   verbose (solver, "local search over %zu clauses %.0f%%", clauses,
 	   percent (clauses, solver->statistics.irredundant));
+
+  struct walker * walker = allocate_and_clear_block (sizeof *walker);
   
   disconnect_non_binary_references (solver);
 
@@ -3451,24 +3443,16 @@ init_walker (struct solver *solver, struct walker *walker)
   walker->counters =
     allocate_and_clear_array (clauses, sizeof *walker->counters);
   walker->occs = (struct counters *) solver->references;
-  INIT (walker->unsatisfied);
-  INIT (walker->literals);
-  INIT (walker->trail);
-  INIT (walker->scores);
-  INIT (walker->breaks);
-  walker->best = 0;
-  walker->flips = 0;
-  walker->extra = 0;
 
   import_decisions (walker);
   double length = connect_counters (walker, last);
   set_walking_limits (walker);
   initialize_break_table (walker, length);
 
-  walker->initial = walker->minimum = SIZE (walker->unsatisfied);
+  walker->initial = walker->minimum = walker->unsatisfied.size;
   verbose (solver, "initially %zu clauses unsatisfied", walker->minimum);
 
-  return true;
+  return walker;
 }
 
 static void
@@ -3477,7 +3461,7 @@ release_walker (struct walker *walker)
   struct solver *solver = walker->solver;
   free (walker->counters);
   disconnect_non_binary_references (solver);
-  RELEASE (walker->unsatisfied);
+  free (walker->unsatisfied.table);
   RELEASE (walker->literals);
   RELEASE (walker->trail);
   RELEASE (walker->scores);
@@ -3524,27 +3508,6 @@ break_score (struct walker *walker, unsigned lit)
     res = walker->breaks.begin[count];
   WOG ("break count of %s is %u and score %g", LOGLIT (lit), count, res);
   return res;
-}
-
-static void
-make_clause (struct walker *walker, struct counter *counter, unsigned cidx)
-{
-  assert (walker->counters + cidx == counter);
-  unsigned pos = counter->pos;
-  assert (pos < SIZE (walker->unsatisfied));
-  assert (walker->unsatisfied.begin[pos] == cidx);
-  unsigned other_cidx = *--walker->unsatisfied.end;
-  walker->unsatisfied.begin[pos] = other_cidx;
-  walker->counters[other_cidx].pos = pos;
-  counter->pos = INVALID;
-}
-
-static void
-break_clause (struct walker *walker, struct counter *counter, unsigned cidx)
-{
-  assert (walker->counters + cidx == counter);
-  counter->pos = SIZE (walker->unsatisfied);
-  PUSH (walker->unsatisfied, cidx);
 }
 
 static void
@@ -3650,7 +3613,7 @@ update_minimum (struct walker *walker, unsigned lit)
 {
   (void) lit;
 
-  unsigned unsatisfied = SIZE (walker->unsatisfied);
+  unsigned unsatisfied = walker->unsatisfied.size;
   WOG ("making literal %s gives %u unsatisfied clauses",
        LOGLIT (lit), unsatisfied);
 
@@ -3665,7 +3628,7 @@ make_literal (struct walker *walker, unsigned lit)
   assert (solver->values[lit] > 0);
   struct counter *counters = walker->counters;
   uint64_t ticks = 1;
-  for (all_elements_on_stack (unsigned, cidx, walker->occs[lit]))
+  for (all_counters (counter, walker->occs[lit]))
     {
       ticks++;
       struct counter *counter = counters + cidx;
@@ -3804,15 +3767,12 @@ local_search (struct solver *solver)
     backtrack (solver, 0);
   if (solver->last.fixed != solver->statistics.fixed)
     mark_satisfied_clauses_as_garbage (solver);
-  struct walker walker;
-  if (!init_walker (solver, &walker))
-    goto DONE;
-  walking_loop (&walker);
-  save_final_minimum (&walker);
+  struct walker * walker = new_walker (solver);
+  walking_loop (alker);
+  save_final_minimum (walker);
   verbose (solver, "local search flipped %" PRIu64 " literals", walker.flips);
-  release_walker (&walker);
-  fix_values_after_local_search (&walker);
-DONE:
+  fix_values_after_local_search (walker);
+  delete_walker (walker);
   solver->last.walk = solver->statistics.contexts[SEARCH].ticks;
   assert (solver->context == WALK);
   solver->context = SEARCH;
