@@ -2937,6 +2937,28 @@ struct counters
   unsigned *binaries;
 };
 
+struct set
+{
+  size_t count;
+  size_t size;
+  struct void ** table;
+};
+
+static size_t
+hash_pointer_to_position (void * ptr)
+{
+}
+
+static size_t
+hash_pointer_to_delta (void * ptr)
+{
+}
+
+static bool
+set_contains (struct sow * sow, void * ptr)
+{
+}
+
 struct walker
 {
   struct solver *solver;
@@ -3200,26 +3222,27 @@ set_walking_limits (struct walker *walker)
 }
 
 static void
-disconnect_watches (struct solver * solver)
+disconnect_non_binary_references (struct solver * solver)
 {
+  size_t disconnected = 0;
   for (all_literals (lit))
     {
       struct references * watches = &REFERENCES (lit);
-      struct watch **begin = watches->begin, **q = begin;
-      struct watch **end = watches->end, **p = begin;
-      while (p != end)
-	{
-	  struct watch * watch = *p++;
-	  if (binary_pointer (watch))
-	    *q++ = watch;
-	}
+      struct watch ** q = watches->begin;
+      for (all_watches (watch, *watches))
+	if (binary_pointer (watch))
+	  *q++ = watch;
+	else
+	  disconnected++;
       watches->end = q;
     }
+  very_verbose (solver, "disconnected %zu references", disconnected);
 }
 
 static void
-connect_watches (struct solver * solver)
+reconnect_watches (struct solver * solver)
 {
+  size_t reconnected = 0;
   for (all_watches (watch, solver->watches))
     {
       assert (!binary_pointer (watch));
@@ -3227,7 +3250,9 @@ connect_watches (struct solver * solver)
       watch->sum = literals[0] ^ literals[1];
       push_watch (solver, literals[0], watch);
       push_watch (solver, literals[1], watch);
+      reconnected++;
     }
+  very_verbose (solver, "reconnected %zu clauses", reconnected);
 }
 
 static bool
@@ -3244,7 +3269,7 @@ init_walker (struct solver *solver, struct walker *walker)
   verbose (solver, "local search over %zu clauses %.0f%%", clauses,
 	   percent (clauses, solver->statistics.irredundant));
   
-  disconnect_watches (solver);
+  disconnect_non_binary_references (solver);
 
   walker->solver = solver;
   walker->counters =
@@ -3275,13 +3300,13 @@ release_walker (struct walker *walker)
 {
   struct solver *solver = walker->solver;
   free (walker->counters);
-  disconnect_watches (solver);
+  disconnect_non_binary_references (solver);
   RELEASE (walker->unsatisfied);
   RELEASE (walker->literals);
   RELEASE (walker->trail);
   RELEASE (walker->scores);
   RELEASE (walker->breaks);
-  connect_watches (solver);
+  reconnect_watches (solver);
 }
 
 static unsigned
