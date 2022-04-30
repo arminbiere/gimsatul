@@ -3460,7 +3460,7 @@ disconnect_references (struct solver * solver, struct watches * saved)
       for (all_watches (watch, *watches))
 	if (binary_pointer (watch))
 	  {
-	    assert (!redundant_pointer (watch));
+	    assert (redundant_pointer (watch));
 	    assert (lit_pointer (watch) == lit);
 	    unsigned other = other_pointer (watch);
 	    if (other < lit)
@@ -3497,7 +3497,7 @@ reconnect_watches (struct solver * solver, struct watches * saved)
       assert (redundant_pointer (lit_watch));
       unsigned lit = lit_pointer (lit_watch);
       unsigned other = other_pointer (lit_watch);
-      struct watch * other_watch = tag_pointer (false, other, lit);
+      struct watch * other_watch = tag_pointer (true, other, lit);
       push_watch (solver, lit, lit_watch);
       push_watch (solver, other, other_watch);
     }
