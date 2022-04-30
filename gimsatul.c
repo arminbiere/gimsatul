@@ -420,8 +420,11 @@ struct statistics
 
   struct
   {
+    uint64_t units;
     uint64_t binary;
     uint64_t clauses;
+    uint64_t exported;
+    uint64_t imported;
     uint64_t glue1;
     uint64_t literals;
     uint64_t tier1;
@@ -442,14 +445,23 @@ struct solvers
   struct solver ** begin, ** end, **allocated;
 };
 
+struct units
+{
+  pthread_mutex_t lock;
+  unsigned * begin;
+  volatile unsigned * end;
+};
+
 struct root
 {
+  unsigned size;
   volatile bool terminate;
   struct solvers solvers;
   volatile struct solver *winner;
+  volatile signed char * values;
   struct unsigneds binaries;
+  struct units units;
   unsigned *watches;
-  unsigned size;
 };
 
 struct solver
@@ -457,7 +469,7 @@ struct solver
   unsigned id;
   struct root *root;
   pthread_t thread;
-  volatile struct clause * shared;
+  volatile struct watch * share;
   volatile int status;
   bool inconsistent;
   bool iterating;
@@ -480,6 +492,7 @@ struct solver
   struct unsigneds analyzed;
   struct buffer buffer;
   struct trail trail;
+  unsigned * units;
   struct last last;
   struct limits limits;
   struct intervals intervals;
@@ -1296,6 +1309,10 @@ new_root (size_t size)
   struct root *root = allocate_and_clear_block (sizeof *root);
   pthread_mutex_init (&root->solvers.lock, 0);
   root->size = size;
+  root->values = allocate_and_clear_block (2*size);
+  root->units.begin = allocate_array (size, sizeof (unsigned));
+  root->units.end = root->units.begin;
+  pthread_mutex_init (&root->units.lock, 0);
   return root;
 }
 
@@ -1323,6 +1340,7 @@ push_solver (struct root *root, struct solver *solver)
   PUSH (root->solvers, solver);
   solver->random = solver->id;
   solver->root = root;
+  solver->units = root->units.begin;
   if (pthread_mutex_unlock (&root->solvers.lock))
     fatal_error ("failed to release root lock while pushing solver");
 }
@@ -2075,6 +2093,8 @@ propagate (struct solver *solver, bool search)
   return conflict;
 }
 
+/*------------------------------------------------------------------------*/
+
 static void
 backtrack (struct solver *solver, unsigned level)
 {
@@ -2137,6 +2157,78 @@ update_best_and_target_phases (struct solver *solver)
 	}
     }
 }
+
+/*------------------------------------------------------------------------*/
+
+#define COMPILER_BARRIER() __asm__ __volatile__("": : :"memory")
+
+static void
+export_unit (struct solver * solver, unsigned unit)
+{
+  struct root * root = solver->root;
+  volatile signed char * values = root->values;
+  if (values[unit])
+    return;
+  if (pthread_mutex_lock (&root->units.lock))
+    message_lock_failure ("failed to acquire unit lock");
+  signed char value = values[unit];
+  if (!value)
+    {
+      unsigned not_unit = NOT (unit);
+      assert (!values[not_unit]);
+      *root->units.end++ = unit;
+      values[unit] = 1;
+      values[not_unit] = -1;
+      LOG ("exporting root unit %s", LOGLIT (unit));
+    }
+  if (pthread_mutex_unlock (&root->units.lock))
+    message_lock_failure ("failed to release unit lock");
+}
+
+static bool
+import_unit (struct solver * solver)
+{
+  return false;
+}
+
+static void
+export_clause (struct solver * solver, struct watch * watch)
+{
+  if (!binary_pointer (watch))
+    return;
+  struct root * root = solver->root;
+  if (SIZE (root->solvers) == 1)
+    return;
+  solver->statistics.learned.exported++;
+  COMPILER_BARRIER ();
+  solver->share = watch;
+}
+
+static bool
+import_clause (struct solver * solver)
+{
+  struct root * root = solver->root;
+  size_t solvers = SIZE (root->solvers);
+  assert (solvers <= UINT_MAX);
+  assert (solvers > 0);
+  if (solvers == 1)
+    return false;
+  unsigned id = random_modulo (solver, solvers-1) + solver->id + 1;
+  if (id >= solvers)
+    id -= solvers;
+  assert (id < solvers);
+  assert (id != solver->id);
+  struct solver * src = root->solvers.begin[id];
+  if (!src->share)
+    return false;
+  struct watch * watch = (struct watch*) atomic_exchange (&src->share, 0);
+  if (!watch)
+    return false;
+  solver->statistics.learned.imported++;
+  return true;
+}
+
+/*------------------------------------------------------------------------*/
 
 static void
 bump_reason (struct watch *watch)
@@ -2218,6 +2310,8 @@ minimize_clause (struct solver *solver, unsigned glue)
   assert (learned + minimized == deduced);
 
   solver->statistics.learned.clauses++;
+  if (learned == 1)
+    solver->statistics.learned.units++;
   if (learned == 2)
     solver->statistics.learned.binary++;
   if (glue == 1)
@@ -2390,6 +2484,7 @@ analyze (struct solver *solver, struct watch *reason)
   if (size == 1)
     {
       assign_unit (solver, not_uip);
+      export_unit (solver, not_uip);
       solver->iterating = true;
     }
   else
@@ -2415,6 +2510,7 @@ analyze (struct solver *solver, struct watch *reason)
 	  learned = new_large_clause (solver, size, literals, true, glue);
 	}
       assign_with_reason (solver, not_uip, learned);
+      export_clause (solver, learned);
     }
   TRACE_ADDED ();
   CLEAR (*clause);
@@ -4066,7 +4162,7 @@ solve (struct solver *solver)
 	switch_mode (solver);
       else if (rephasing (solver))
 	rephase (solver);
-      else
+      else if (!import_unit (solver) && !import_clause (solver))
 	decide (solver);
     }
   stop_search (solver, res);
@@ -4927,8 +5023,17 @@ print_solver_statistics (struct solver *solver)
 	  "learned-clauses:", s->learned.clauses,
 	  average (s->learned.clauses, search));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  unit-clauses:", s->learned.units,
+	  percent (s->learned.units, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  binary-clauses:", s->learned.binary,
 	  percent (s->learned.binary, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  exported-clauses:", s->learned.exported,
+	  percent (s->learned.exported, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  imported-clauses:", s->learned.imported,
+	  percent (s->learned.imported, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  glue1-clauses:", s->learned.glue1,
 	  percent (s->learned.glue1, s->learned.clauses));
