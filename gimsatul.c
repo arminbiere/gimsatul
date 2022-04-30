@@ -3344,10 +3344,11 @@ connect_counters (struct walker *walker, struct clause *last)
       if (!binaries)
 	continue;
       for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
-	if (values[other] < 0)
+	if (lit < other && values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "initially broken");
-	    void * ptr = min_max_tag_pointer (false, lit, other);
+	    void * ptr = tag_pointer (false, lit, other);
+	    assert (ptr == min_max_tag_pointer (false, lit, other));
 	    set_insert (&walker->unsatisfied, ptr);
 	  }
     }
@@ -3701,7 +3702,7 @@ make_literal (struct walker *walker, unsigned lit)
       for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
 	if (values[other] < 0)
 	  {
-	    LOGBINARY (false, lit, other, "literal %s mades", LOGLIT (lit));
+	    LOGBINARY (false, lit, other, "literal %s makes", LOGLIT (lit));
 	    void * ptr = min_max_tag_pointer (false, lit, other);
 	    set_remove (&walker->unsatisfied, ptr);
 	  }
@@ -3824,11 +3825,11 @@ walking_step (struct walker *walker)
   unsigned lit;
   if (binary_pointer (counter))
     {
-      unsigned lit = lit_pointer (counter);
-      unsigned other = other_pointer (counter);
+      unsigned first = lit_pointer (counter);
+      unsigned second = other_pointer (counter);
       assert (!redundant_pointer (counter));
-      unsigned literals[2] = { lit, other };
-      LOGBINARY (false, lit, other, "picked broken");
+      unsigned literals[2] = { first, second };
+      LOGBINARY (false, first, second, "picked broken");
       lit = pick_literal_to_flip (walker, 2, literals);
     }
   else
