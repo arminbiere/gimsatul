@@ -428,7 +428,12 @@ struct statistics
     uint64_t tier1;
     uint64_t tier2;
     uint64_t tier3;
-  } learned, exported, imported;
+  } learned;
+  struct {
+    uint64_t units;
+    uint64_t binary;
+    uint64_t clauses;
+  } exported, imported;
 };
 
 struct binaries
@@ -439,22 +444,32 @@ struct binaries
 
 struct solvers
 {
-  pthread_mutex_t lock;
   struct solver ** begin, ** end, **allocated;
 };
 
 struct units
 {
-  pthread_mutex_t lock;
   unsigned * begin;
   volatile unsigned * end;
+};
+
+struct locks
+{
+  pthread_mutex_t solvers;
+  pthread_mutex_t units;
+#ifdef NFASTPATH
+  pthread_mutex_t terminate;
+  pthread_mutex_t winner;
+#endif
 };
 
 struct root
 {
   unsigned size;
   volatile bool terminate;
+  struct locks locks;
   struct solvers solvers;
+  pthread_t * threads;
   volatile struct solver *winner;
   volatile signed char * values;
   struct unsigneds binaries;
@@ -466,12 +481,12 @@ struct solver
 {
   unsigned id;
   struct root *root;
-  pthread_t thread;
   volatile struct watch * share;
   volatile int status;
   bool inconsistent;
   bool iterating;
   bool stable;
+  bool parallel;
   unsigned size;
   unsigned context;
   unsigned active;
@@ -1305,12 +1320,16 @@ static struct root *
 new_root (size_t size)
 {
   struct root *root = allocate_and_clear_block (sizeof *root);
-  pthread_mutex_init (&root->solvers.lock, 0);
+  pthread_mutex_init (&root->locks.units, 0);
+  pthread_mutex_init (&root->locks.solvers, 0);
+#ifdef NFASTPATH
+  pthread_mutex_init (&root->locks.terminate, 0);
+  pthread_mutex_init (&root->locks.winner, 0);
+#endif
   root->size = size;
   root->values = allocate_and_clear_block (2*size);
   root->units.begin = allocate_array (size, sizeof (unsigned));
   root->units.end = root->units.begin;
-  pthread_mutex_init (&root->units.lock, 0);
   return root;
 }
 
@@ -1323,6 +1342,9 @@ delete_root (struct root *root)
 #endif
   RELEASE (root->solvers);
   RELEASE (root->binaries);
+  free ((void*) root->values);
+  free (root->units.begin);
+  free (root->threads);
   free (root->watches);
   free (root);
 }
@@ -1330,8 +1352,8 @@ delete_root (struct root *root)
 static void
 push_solver (struct root *root, struct solver *solver)
 {
-  if (pthread_mutex_lock (&root->solvers.lock))
-    fatal_error ("failed to acquire root lock while pushing solver");
+  if (pthread_mutex_lock (&root->locks.solvers))
+    fatal_error ("failed to acquire solvers lock while pushing solver");
   size_t id = SIZE (root->solvers); 
   assert (id < MAX_THREADS);
   solver->id = id;
@@ -1339,20 +1361,21 @@ push_solver (struct root *root, struct solver *solver)
   solver->random = solver->id;
   solver->root = root;
   solver->units = root->units.begin;
-  if (pthread_mutex_unlock (&root->solvers.lock))
-    fatal_error ("failed to release root lock while pushing solver");
+  if (pthread_mutex_unlock (&root->locks.solvers))
+    fatal_error ("failed to release solvers lock while pushing solver");
 }
 
 static void
-detach_solver (struct root *root, struct solver *solver)
+detach_solver (struct solver *solver)
 {
-  if (pthread_mutex_lock (&root->solvers.lock))
-    fatal_error ("failed to acquire root lock while detaching solver");
+  struct root * root = solver->root;
+  if (pthread_mutex_lock (&root->locks.solvers))
+    fatal_error ("failed to acquire solvers lock while detaching solver");
   assert (solver->id < SIZE (root->solvers));
   assert (root->solvers.begin[solver->id] == solver);
   root->solvers.begin[solver->id] = 0;
-  if (pthread_mutex_unlock (&root->solvers.lock))
-    fatal_error ("failed to release root lock while detaching solver");
+  if (pthread_mutex_unlock (&root->locks.solvers))
+    fatal_error ("failed to release solverfs lock while detaching solver");
 }
 
 /*------------------------------------------------------------------------*/
@@ -1827,17 +1850,37 @@ assign_decision (struct solver *solver, unsigned decision)
 static void
 set_winner (struct solver *solver)
 {
-  struct solver *winner = 0;
+  volatile struct solver *winner;
   struct root *root = solver->root;
-  bool winning =
-    atomic_compare_exchange_strong (&root->winner, &winner, solver);
+  bool winning;
+#ifndef NFASTPATH
+  winner = 0;
+  winning = atomic_compare_exchange_strong (&root->winner, &winner, solver);
+#else
+  if (pthread_mutex_lock (&root->locks.winner))
+    fatal_error ("failed to acquire winner lock");
+  winner = root->winner;
+  winning = !winner;
+  if (winning)
+    root->winner = solver;
+  if (pthread_mutex_unlock (&root->locks.winner))
+    fatal_error ("failed to release winner lock");
+#endif
   if (!winning)
     {
       assert (winner);
       assert (winner->status == solver->status);
       return;
     }
-  atomic_store (&root->terminate, true);
+#ifdef NFASTPATH
+  if (pthread_mutex_lock (&root->locks.terminate))
+    fatal_error ("failed to acquire terminate lock");
+#endif
+  root->terminate = true;
+#ifdef NFASTPATH
+  if (pthread_mutex_unlock (&root->locks.terminate))
+    fatal_error ("failed to release terminate lock");
+#endif
   verbose (solver, "winning solver[%u] with status %d",
 	   solver->id, solver->status);
 }
@@ -1866,27 +1909,27 @@ set_satisfied (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static void
-share_clauses (struct solver *dst, struct solver *src)
+cloning_clauses (struct solver *dst, struct solver *src)
 {
   struct solver *solver = dst;
-  verbose (solver, "copying clauses from solver[%u] to solver[%u]",
+  verbose (solver, "cloning clauses from solver[%u] to solver[%u]",
 	   src->id, dst->id);
   assert (!src->level);
   assert (src->trail.propagate == src->trail.begin);
   if (src->inconsistent)
     {
-      set_inconsistent (solver, "copying inconsistent empty clause");
+      set_inconsistent (solver, "cloning inconsistent empty clause");
       TRACE_EMPTY ();
       return;
     }
   unsigned units = 0;
   for (all_elements_on_stack (unsigned, lit, src->trail))
     {
-      LOG ("copying unit %s", LOGLIT (lit));
+      LOG ("cloning unit %s", LOGLIT (lit));
       assign_unit (solver, lit);
       units++;
     }
-  very_verbose (solver, "copied %u units", units);
+  very_verbose (solver, "cloned %u units", units);
 
   struct references *src_references = src->references;
   struct references *dst_references = dst->references;
@@ -1907,7 +1950,7 @@ share_clauses (struct solver *dst, struct solver *src)
 	assert (!binary_pointer (src_watch));
 #endif
     }
-  very_verbose (solver, "shared %zu global binary watch lists",
+  very_verbose (solver, "cloned %zu global binary watch lists",
 		copied_binary_watch_lists);
 
   size_t shared = 0;
@@ -1922,14 +1965,17 @@ share_clauses (struct solver *dst, struct solver *src)
       new_watch (solver, clause, false, 0);
       shared++;
     }
-  very_verbose (solver, "shared %zu large clauses", shared);
+  very_verbose (solver, "cloned %zu large clauses", shared);
 }
 
-static void
-clone_solver (struct solver *src)
+static void *
+clone_solver (void * ptr)
 {
+  struct solver * src = ptr;
   struct solver *solver = new_solver (src->root);
-  share_clauses (solver, src);
+  cloning_clauses (solver, src);
+  solver->parallel = src->parallel = true;
+  return solver;
 }
 
 /*------------------------------------------------------------------------*/
@@ -2163,16 +2209,19 @@ update_best_and_target_phases (struct solver *solver)
 static void
 export_unit (struct solver * solver, unsigned unit)
 {
+  if (!solver->parallel)
+    return;
   struct root * root = solver->root;
   volatile signed char * values = root->values;
+#ifndef NFASTPATH
   if (values[unit])
     return;
-  if (pthread_mutex_lock (&root->units.lock))
-    message_lock_failure ("failed to acquire unit lock");
+#endif
+  if (pthread_mutex_lock (&root->locks.units))
+    fatal_error ("failed to acquire unit lock");
   signed char value = values[unit];
   if (!value)
     {
-      solver->statistics.exported.units++;
       unsigned not_unit = NOT (unit);
       assert (!values[not_unit]);
       *root->units.end++ = unit;
@@ -2180,14 +2229,58 @@ export_unit (struct solver * solver, unsigned unit)
       values[not_unit] = -1;
       LOG ("exporting root unit %s", LOGLIT (unit));
     }
-  if (pthread_mutex_unlock (&root->units.lock))
-    message_lock_failure ("failed to release unit lock");
+  if (pthread_mutex_unlock (&root->locks.units))
+    fatal_error ("failed to release unit lock");
+  solver->statistics.exported.clauses++;
+  solver->statistics.exported.units++;
 }
 
 static bool
 import_unit (struct solver * solver)
 {
-  return false;
+  if (!solver->parallel)
+    return false;
+  struct root * root = solver->root;
+  unsigned imported = 0;
+  signed char * values = solver->values;
+  struct variable * variables = solver->variables;
+  unsigned level = solver->level;
+#ifdef NFASTPATH
+  if (pthread_mutex_lock (&root->locks.units))
+    fatal_error ("failed to acquire unit lock");
+#endif
+  while (solver->units != root->units.end)
+    {
+      unsigned unit = *solver->units++;
+      LOG ("importing unit %s", LOGLIT (unit));
+      signed char value = values[unit];
+      if (level && value)
+	{
+	  unsigned idx = IDX (unit);
+	  if (variables[idx].level)
+	    value = 0;
+	}
+      if (value > 0)
+	continue;
+      solver->statistics.imported.units++;
+      imported++;
+      if (value < 0)
+	{
+	  set_inconsistent (solver, "imported falsified unit");
+	  break;
+	}
+      if (level)
+	{
+	  backtrack (solver, 0);
+	  level = 0;
+	}
+      assign_unit (solver, unit);
+    }
+#ifdef NFASTPATH
+  if (pthread_mutex_unlock (&root->locks.units))
+    fatal_error ("failed to release unit lock");
+#endif
+  return imported;
 }
 
 static void
@@ -2195,31 +2288,36 @@ export_clause (struct solver * solver, struct watch * watch)
 {
   if (!binary_pointer (watch))
     return;
-  struct root * root = solver->root;
-  if (SIZE (root->solvers) == 1)
+  if (!solver->parallel)
     return;
-  solver->statistics.exported.binary++;
-  COMPILER_BARRIER ();
-  solver->share = watch;
+  struct watch * previous =
+    (struct watch*) atomic_exchange (&solver->share, watch);
+  if (!previous)
+    {
+      solver->statistics.exported.binary++;
+      solver->statistics.exported.clauses++;
+    }
 }
 
 static bool
 import_clause (struct solver * solver)
 {
+  if (!solver->parallel)
+    return false;
   struct root * root = solver->root;
   size_t solvers = SIZE (root->solvers);
   assert (solvers <= UINT_MAX);
-  assert (solvers > 0);
-  if (solvers == 1)
-    return false;
+  assert (solvers > 1);
   unsigned id = random_modulo (solver, solvers-1) + solver->id + 1;
   if (id >= solvers)
     id -= solvers;
   assert (id < solvers);
   assert (id != solver->id);
   struct solver * src = root->solvers.begin[id];
+#ifndef NFASTPATH
   if (!src->share)
     return false;
+#endif
   struct watch * watch = (struct watch*) atomic_exchange (&src->share, 0);
   if (!watch)
     return false;
@@ -4128,6 +4226,22 @@ conflict_limit_hit (struct solver *solver)
   return true;
 }
 
+static bool
+terminate_solver (struct solver * solver)
+{
+  struct root * root = solver->root;
+#ifdef NFASTPATH
+  if (pthread_mutex_lock (&root->locks.terminate))
+    fatal_error ("failed to acquire terminate lock");
+#endif
+  bool res = root->terminate;
+#ifdef NFASTPATH
+  if (pthread_mutex_unlock (&root->locks.terminate))
+    fatal_error ("failed to release terminate lock");
+#endif
+  return res;
+}
+
 static int
 solve (struct solver *solver)
 {
@@ -4145,7 +4259,7 @@ solve (struct solver *solver)
 	set_satisfied (solver), res = 10;
       else if (solver->iterating)
 	iterate (solver);
-      else if (solver->root->terminate)
+      else if (terminate_solver (solver))
 	break;
 #if 0
       else if (!solver->statistics.walked)
@@ -4707,17 +4821,40 @@ print_witness (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static void
+start_cloning_solver (struct solver *first, unsigned clone)
+{
+  struct root * root = first->root;
+  assert (root->threads);
+  pthread_t * thread = root->threads + clone;
+  if (pthread_create (thread, 0, clone_solver, first))
+    fatal_error ("failed to create cloning thread %u", clone);
+}
+
+static void
+stop_cloning_solver (struct solver *first, unsigned clone)
+{
+  struct root * root = first->root;
+  pthread_t * thread = root->threads + clone;
+  if (pthread_join (*thread, 0))
+    fatal_error ("failed to join cloning thread %u", clone);
+}
+
+static void
 clone_solvers (struct root * root, unsigned threads)
 {
+  assert (threads);
   if (threads == 1)
     return;
-  assert (threads - 1);
-  printf ("c trying to clone %u solvers to support %u solver threads\n",
+  root->threads = allocate_array (threads, sizeof *root->threads);
+  printf ("c cloning %u solvers to support %u solver threads\n",
           threads - 1, threads);
   fflush (stdout);
-  struct solver * solver = first_solver (root);
-  while (SIZE (root->solvers) < threads)
-    (void) clone_solver (solver);
+  struct solver * first = first_solver (root);
+  for (unsigned i = 1; i != threads; i++)
+    start_cloning_solver (first, i);
+  for (unsigned i = 1; i != threads; i++)
+    stop_cloning_solver (first, i);
+  assert (SIZE (root->solvers) == threads);
 }
 
 static void
@@ -4730,15 +4867,21 @@ set_limits_of_all_solvers (struct root * root, long long conflicts)
 static void
 start_running_solver (struct solver *solver)
 {
-  if (pthread_create (&solver->thread, 0, solve_routine, solver))
-    fatal_error ("failed to create solving thread");
+  struct root * root = solver->root;
+  assert (root->threads);
+  pthread_t * thread = root->threads + solver->id;
+  if (pthread_create (thread, 0, solve_routine, solver))
+    fatal_error ("failed to create solving thread %u", solver->id);
 }
 
 static void
 stop_running_solver (struct solver *solver)
 {
-  if (pthread_join (solver->thread, 0))
-    fatal_error ("failed to join solving thread");
+  struct root * root = solver->root;
+  assert (root->threads);
+  pthread_t * thread = root->threads + solver->id;
+  if (pthread_join (*thread, 0))
+    fatal_error ("failed to join solving thread %u", solver->id);
 }
 
 static void
@@ -4749,6 +4892,7 @@ run_solvers (struct root * root)
     {
       printf ("c starting and running %zu solver threads\n", threads);
       fflush (stdout);
+
       for (all_solvers (solver))
 	start_running_solver (solver);
 
@@ -4764,13 +4908,63 @@ run_solvers (struct root * root)
     }
 }
 
+static void *
+detach_and_delete_solver (void * ptr)
+{
+  struct solver * solver = ptr;
+  detach_solver (solver);
+  delete_solver (solver);
+  return solver;
+}
+
+static void
+start_detaching_and_deleting_solver (struct solver *solver)
+{
+  struct root * root = solver->root;
+  assert (root->threads);
+  pthread_t * thread = root->threads + solver->id;
+  if (pthread_create (thread, 0, detach_and_delete_solver, solver))
+    fatal_error ("failed to create deletion thread %u", solver->id);
+}
+
+static void
+stop_detaching_and_deleting_solver (struct solver *solver)
+{
+  struct root * root = solver->root;
+  assert (root->threads);
+  pthread_t * thread = root->threads + solver->id;
+  if (pthread_join (*thread, 0))
+    fatal_error ("failed to join deletion thread %u", solver->id);
+}
+
 static void
 detach_and_delete_solvers (struct root * root)
 {
-  for (all_solvers (solver))
+  size_t threads = SIZE (root->solvers);
+  if (threads > 1)
     {
-      detach_solver (root, solver);
-      delete_solver (solver);
+      if (verbosity)
+	{
+	  printf ("c deleting %zu solvers in parallel\n", threads);
+	  fflush (stdout);
+	}
+
+      for (all_solvers (solver))
+	start_detaching_and_deleting_solver (solver);
+
+      for (all_solvers (solver))
+	stop_detaching_and_deleting_solver (solver);
+    }
+  else
+    {
+      if (verbosity)
+	{
+	  printf ("c deleting single solver in main thread");
+	  fflush (stdout);
+	}
+
+      struct solver * solver = first_solver (root);
+      detach_and_delete_solver (solver);
     }
 }
 
@@ -4858,7 +5052,7 @@ static void
 catch_alarm (int sig)
 {
   assert (sig == SIGALRM);
-  if (!atomic_load (&catching_alarm))
+  if (!catching_alarm)
     catch_signal (sig);
   if (atomic_exchange (&caught_signal, sig))
     return;
@@ -4866,31 +5060,31 @@ catch_alarm (int sig)
     caught_message (sig);
   reset_alarm_handler ();
   assert (root);
-  atomic_store (&root->terminate, true);
-  atomic_store (&caught_signal, 0);
+  root->terminate = true;
+  caught_signal = 0;
 }
 
 static void
 set_alarm_handler (unsigned seconds)
 {
   assert (seconds);
-  assert (!atomic_load (&catching_alarm));
+  assert (!catching_alarm);
   saved_SIGALRM_handler = signal (SIGALRM, catch_alarm);
   alarm (seconds);
-  atomic_store (&catching_alarm, true);
+  catching_alarm = true;
 }
 
 static void
 set_signal_handlers (unsigned seconds)
 {
-  assert (!atomic_load (&catching_signals));
+  assert (!catching_signals);
   // *INDENT-OFF*
 #define SIGNAL(SIG) \
   saved_ ## SIG ##_handler = signal (SIG, catch_signal);
   SIGNALS
 #undef SIGNAL
   // *INDENT-ON*
-  atomic_store (&catching_signals, true);
+  catching_signals = true;
   if (seconds)
     set_alarm_handler (seconds);
 }
@@ -5028,12 +5222,6 @@ print_solver_statistics (struct solver *solver)
 	  "  binary-clauses:", s->learned.binary,
 	  percent (s->learned.binary, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  exported-units:", s->exported.units,
-	  percent (s->exported.units, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  exported-binary:", s->exported.binary,
-	  percent (s->exported.binary, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  glue1-clauses:", s->learned.glue1,
 	  percent (s->learned.glue1, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
@@ -5042,6 +5230,12 @@ print_solver_statistics (struct solver *solver)
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  imported-binary:", s->imported.binary,
 	  percent (s->imported.binary, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  exported-units:", s->exported.units,
+	  percent (s->exported.units, s->learned.clauses));
+  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
+	  "  exported-binary:", s->exported.binary,
+	  percent (s->exported.binary, s->learned.clauses));
   PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
 	  "  tier1-clauses:", s->learned.tier1,
 	  percent (s->learned.tier1, s->learned.clauses));

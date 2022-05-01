@@ -11,8 +11,9 @@ where '<option>' is one of the following:
 -l     include logging code even without '-g'
 -s     add symbol table even without '-g'
 
--f...         passed to compiler (for instance '-fsanitize=address,undefined')
--m32          enforce 32-bit compilation (also implies '-mpc64')
+-f...           passed to compiler (for instance '-fsanitize=address,undefined')
+-m32            enforce 32-bit compilation (also implies '-mpc64')
+--no-fast-path  no lock-less fast path for synchronization
 EOF
 exit 1
 }
@@ -20,6 +21,7 @@ compact=yes
 debug=no
 symbols=no
 logging=no
+fastpath=yes
 check=no
 options=""
 die () {
@@ -30,12 +32,14 @@ while [ $# -gt 0 ]
 do
   case "$1" in
     -c) check=yes;;
+    -fsanitize=*thread*) options="$options $1"; fastpath=no;;
     -f*) options="$options $1";;
     -m32) options="$options $1 -mpc64";;
     -g) debug=yes;;
     -h) usage; exit 0;;
     -l) logging=yes;;
     -s) symbols=yes;;
+    --no-fast-path) fastpath=no;;
     *)  die "invalid option '$1' (try '-h')";;
   esac
   shift
@@ -49,6 +53,7 @@ CFLAGS="-Wall$options"
 [ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
+[ $fastpath = no ] && CFLAGS="$CFLAGS -DNFASTPATH"
 echo "configure: $CC $CFLAGS"
 rm -f makefile
 sed -e "s#@CC@#$CC#;s#@CFLAGS@#$CFLAGS#" makefile.in > makefile
