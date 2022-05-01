@@ -471,7 +471,7 @@ struct root
   struct solvers solvers;
   pthread_t * threads;
   volatile struct solver *winner;
-  signed char * volatile values;
+  volatile signed char * values;
   struct unsigneds binaries;
   struct units units;
   unsigned *watches;
