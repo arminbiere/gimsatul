@@ -2252,6 +2252,7 @@ import_unit (struct solver * solver)
       unsigned unit = *solver->units++;
       LOG ("importing unit %s", LOGLIT (unit));
       signed char value = values[unit];
+      assert (root->values[unit] > 0);
       if (level && value)
 	{
 	  unsigned idx = IDX (unit);
@@ -2274,7 +2275,9 @@ import_unit (struct solver * solver)
 	  backtrack (solver, 0);
 	  level = 0;
 	}
+      assert (!solver->level);
       assign_unit (solver, unit);
+      solver->iterating = true;
     }
 #ifdef NFASTPATH
   if (pthread_mutex_unlock (&root->locks.units))
@@ -2582,8 +2585,8 @@ analyze (struct solver *solver, struct watch *reason)
   if (size == 1)
     {
       assign_unit (solver, not_uip);
-      export_unit (solver, not_uip);
       solver->iterating = true;
+      export_unit (solver, not_uip);
     }
   else
     {
