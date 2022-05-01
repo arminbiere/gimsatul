@@ -2268,6 +2268,7 @@ import_unit (struct solver * solver)
       if (value < 0)
 	{
 	  set_inconsistent (solver, "imported falsified unit");
+	  TRACE_EMPTY ();
 	  break;
 	}
       if (level)
