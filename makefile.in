@@ -9,6 +9,6 @@ test: all
 	cnf/test.sh
 gimsatul: gimsatul.c config.h
 	$(CC) $(CFLAGS) -o $@ $< -lm -pthread
-config.h: makefile
+config.h: makefile VERSION
 	./mkconfig.sh > $@
 .PHONY: all clean indent test
