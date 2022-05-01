@@ -3035,6 +3035,7 @@ flush_references (struct solver *solver, bool fixed)
 		    {
 		      bool redundant = redundant_pointer (watch);
 		      dec_clauses (solver, redundant);
+		      trace_delete_binary (solver, lit, other);
 		    }
 		  flushed++;
 		  q--;
