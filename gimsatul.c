@@ -4928,13 +4928,12 @@ start_detaching_and_deleting_solver (struct solver *solver)
 }
 
 static void
-stop_detaching_and_deleting_solver (struct solver *solver)
+stop_detaching_and_deleting_solver (struct root * root, unsigned id)
 {
-  struct root * root = solver->root;
   assert (root->threads);
-  pthread_t * thread = root->threads + solver->id;
+  pthread_t * thread = root->threads + id;
   if (pthread_join (*thread, 0))
-    fatal_error ("failed to join deletion thread %u", solver->id);
+    fatal_error ("failed to join deletion thread %u", id);
 }
 
 static void
@@ -4952,8 +4951,8 @@ detach_and_delete_solvers (struct root * root)
       for (all_solvers (solver))
 	start_detaching_and_deleting_solver (solver);
 
-      for (all_solvers (solver))
-	stop_detaching_and_deleting_solver (solver);
+      for (unsigned i = 0; i != threads; i++)
+	stop_detaching_and_deleting_solver (root, i);
     }
   else
     {
