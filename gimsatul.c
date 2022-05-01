@@ -450,7 +450,7 @@ struct solvers
 struct units
 {
   unsigned * begin;
-  volatile unsigned * end;
+  unsigned * volatile end;
 };
 
 struct locks
@@ -482,6 +482,7 @@ struct solver
   unsigned id;
   struct root *root;
   volatile struct watch * share;
+  volatile unsigned * units;
   volatile int status;
   bool inconsistent;
   bool iterating;
@@ -505,7 +506,6 @@ struct solver
   struct unsigneds analyzed;
   struct buffer buffer;
   struct trail trail;
-  unsigned * units;
   struct last last;
   struct limits limits;
   struct intervals intervals;
@@ -686,24 +686,27 @@ fatal_error (const char *fmt, ...)
 }
 
 static void
-print_without_acquiring_lock (struct solver *, const char *, ...)
+print_line_without_acquiring_lock (struct solver *, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
 static const char * prefix_format = "c%-2u ";
 
 static void
-print_without_acquiring_lock (struct solver * solver, const char * fmt, ...)
+print_line_without_acquiring_lock (struct solver * solver, const char * fmt, ...)
 {
   va_list ap;
-  printf (prefix_format, solver->id);
+  char line[256];
+  sprintf (line, prefix_format, solver->id);
   va_start (ap, fmt);
-  vfprintf (stdout, fmt, ap);
+  vsprintf (line + strlen (line), fmt, ap);
   va_end (ap);
-  fputc ('\n', stdout);
+  strcat ("\n", line);
+  assert (strlen (line) + 1 < sizeof line);
+  fputs (line, stdout);
 }
 
-#define PRINT(...) \
-  print_without_acquiring_lock (solver, __VA_ARGS__)
+#define PRINTNL(...) \
+  print_line_without_acquiring_lock (solver, __VA_ARGS__)
 
 static void message (struct solver *solver, const char *, ...)
   __attribute__((format (printf, 2, 3)));
@@ -2220,12 +2223,12 @@ export_unit (struct solver * solver, unsigned unit)
   signed char value = values[unit];
   if (!value)
     {
+      very_verbose (solver, "exporting unit %d", export_literal (unit));
       unsigned not_unit = NOT (unit);
       assert (!values[not_unit]);
       *root->units.end++ = unit;
-      values[unit] = 1;
       values[not_unit] = -1;
-      LOG ("exporting root unit %s", LOGLIT (unit));
+      values[unit] = 1;
     }
   if (pthread_mutex_unlock (&root->locks.units))
     fatal_error ("failed to release unit lock");
@@ -2250,9 +2253,8 @@ import_unit (struct solver * solver)
   while (solver->units != root->units.end)
     {
       unsigned unit = *solver->units++;
-      LOG ("importing unit %s", LOGLIT (unit));
+      LOG ("trying to import unit %s", LOGLIT (unit));
       signed char value = values[unit];
-      assert (root->values[unit] > 0);
       if (level && value)
 	{
 	  unsigned idx = IDX (unit);
@@ -2261,6 +2263,7 @@ import_unit (struct solver * solver)
 	}
       if (value > 0)
 	continue;
+      very_verbose (solver, "importing unit %d", export_literal (unit));
       solver->statistics.imported.units++;
       solver->statistics.imported.clauses++;
       imported++;
@@ -2747,12 +2750,12 @@ report (struct solver *solver, char type)
   double m = current_resident_set_size () / (double) (1 << 20);
   uint64_t conflicts = s->contexts[SEARCH].conflicts;
 
-  static uint64_t reported;
-  if (!(reported++ % 20))
+  static volatile uint64_t reported;
+  if (!(atomic_fetch_add (&reported, 1) % 20))
     printf ("c\nc       seconds MB level reductions restarts "
 	    "conflicts redundant trail glue irredundant variables\nc\n");
 
-  PRINT ("%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
+  PRINTNL ("%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
 	 " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
 	 a->level.value, s->reductions, s->restarts, conflicts,
 	 s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
@@ -5190,12 +5193,12 @@ print_profiles (struct solver *solver)
 	  next = tmp;
       if (!next)
 	break;
-      PRINT ("%10.2f seconds  %5.1f %%  %s",
+      PRINTNL ("%10.2f seconds  %5.1f %%  %s",
 	     next->time, percent (next->time, total), next->name);
       prev = next;
     }
-  PRINT ("---------------------------------------");
-  PRINT ("%10.2f seconds  100.0 %%  total", total);
+  PRINTNL ("---------------------------------------");
+  PRINTNL ("%10.2f seconds  100.0 %%  total", total);
   fputs ("c\n", stdout);
   fflush (stdout);
 }
@@ -5210,79 +5213,79 @@ print_solver_statistics (struct solver *solver)
   uint64_t conflicts = s->contexts[SEARCH].conflicts;
   uint64_t decisions = s->contexts[SEARCH].decisions;
   uint64_t propagations = s->contexts[SEARCH].propagations;
-  PRINT ("%-21s %17" PRIu64 " %13.2f per second", "conflicts:",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f per second", "conflicts:",
 	  conflicts, average (conflicts, search));
-  PRINT ("%-21s %17" PRIu64 " %13.2f per second", "decisions:",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f per second", "decisions:",
 	  decisions, average (decisions, search));
-  PRINT ("%-21s %17u %13.2f %% variables", "fixed-variables:",
+  PRINTNL ("%-21s %17u %13.2f %% variables", "fixed-variables:",
 	  s->fixed, percent (s->fixed, solver->size));
-  PRINT ("%-21s %17" PRIu64 " %13.2f thousands per second",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	  "flips:", s->flips, average (s->flips, 1e3 * walk));
 
-  PRINT ("%-21s %17" PRIu64 " %13.2f per learned clause",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f per learned clause",
 	  "learned-literals:", s->learned.literals,
 	  average (s->learned.literals, s->learned.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f times learned literals",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f times learned literals",
 	  "  deduced-literals:", s->deduced,
 	  average (s->deduced, s->learned.literals));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% per deduced literal",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% per deduced literal",
 	  "  minimized-literals:", s->minimized,
 	  percent (s->minimized, s->deduced));
 
-  PRINT ("%-21s %17" PRIu64 " %13.2f per second",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f per second",
 	  "learned-clauses:", s->learned.clauses,
 	  average (s->learned.clauses, search));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% learned",
 	  "  learned-units:", s->learned.units,
 	  percent (s->learned.units, s->learned.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% learned",
 	  "  learned-binary:", s->learned.binary,
 	  percent (s->learned.binary, s->learned.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% learned",
 	  "  learned-glue1:", s->learned.glue1,
 	  percent (s->learned.glue1, s->learned.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% learned",
 	  "  learned-tier1:", s->learned.tier1,
 	  percent (s->learned.tier1, s->learned.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% learned",
 	  "  learned-tier2:", s->learned.tier2,
 	  percent (s->learned.tier2, s->learned.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% learned",
 	  "  learned-tier3:", s->learned.tier3,
 	  percent (s->learned.tier3, s->learned.clauses));
 
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% learned",
 	  "imported-clauses:", s->imported.clauses,
 	  percent (s->imported.clauses, s->learned.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% imported",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% imported",
 	  "  imported-units:", s->imported.units,
 	  percent (s->imported.units, s->imported.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% imported",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% imported",
 	  "  imported-binary:", s->imported.binary,
 	  percent (s->imported.binary, s->imported.clauses));
 
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% learned",
 	  "exported-clauses:", s->exported.clauses,
 	  percent (s->exported.clauses, s->learned.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% exported",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% exported",
 	  "  exported-units:", s->exported.units,
 	  percent (s->exported.units, s->exported.clauses));
-  PRINT ("%-21s %17" PRIu64 " %13.2f %% exported",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f %% exported",
 	  "  exported-binary:", s->exported.binary,
 	  percent (s->exported.binary, s->exported.clauses));
 
-  PRINT ("%-21s %17" PRIu64 " %13.2f millions per second",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f millions per second",
 	  "propagations:", propagations, average (propagations,
 						  1e6 * search));
-  PRINT ("%-21s %17" PRIu64 " %13.2f conflict interval",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	  "reductions:", s->reductions, average (conflicts, s->reductions));
-  PRINT ("%-21s %17" PRIu64 " %13.2f conflict interval",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	  "rephased:", s->rephased, average (conflicts, s->rephased));
-  PRINT ("%-21s %17" PRIu64 " %13.2f conflict interval",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	  "restarts:", s->restarts, average (conflicts, s->restarts));
-  PRINT ("%-21s %17" PRIu64 " %13.2f conflict interval",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	  "switched:", s->switched, average (conflicts, s->switched));
-  PRINT ("%-21s %17" PRIu64 " %13.2f flips per walkinterval",
+  PRINTNL ("%-21s %17" PRIu64 " %13.2f flips per walkinterval",
 	  "walked:", s->walked, average (s->flips, s->walked));
   fflush (stdout);
 }
