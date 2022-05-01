@@ -471,7 +471,7 @@ struct root
   struct solvers solvers;
   pthread_t * threads;
   volatile struct solver *winner;
-  volatile signed char * values;
+  signed char * volatile values;
   struct unsigneds binaries;
   struct units units;
   unsigned *watches;
@@ -4851,6 +4851,7 @@ clone_solvers (struct root * root, unsigned threads)
   assert (threads);
   if (threads == 1)
     return;
+  double before = current_resident_set_size () / (double) (1 << 20);
   root->threads = allocate_array (threads, sizeof *root->threads);
   printf ("c cloning %u solvers to support %u solver threads\n",
           threads - 1, threads);
@@ -4861,6 +4862,9 @@ clone_solvers (struct root * root, unsigned threads)
   for (unsigned i = 1; i != threads; i++)
     stop_cloning_solver (first, i);
   assert (SIZE (root->solvers) == threads);
+  double after = current_resident_set_size () / (double) (1 << 20);
+  printf ("c memory increased by %.2f from %.2f MB to %.2f MB\n",
+          average (after, before), before, after);
 }
 
 static void
