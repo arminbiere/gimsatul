@@ -1875,12 +1875,12 @@ set_winner (struct solver *solver)
       assert (winner->status == solver->status);
       return;
     }
-#ifdef NFASTPATH
+#ifndef NFASTPATH
+  (void) atomic_exchange (&root->terminate, true);
+#else
   if (pthread_mutex_lock (&root->locks.terminate))
     fatal_error ("failed to acquire terminate lock");
-#endif
   root->terminate = true;
-#ifdef NFASTPATH
   if (pthread_mutex_unlock (&root->locks.terminate))
     fatal_error ("failed to release terminate lock");
 #endif
@@ -1977,7 +1977,7 @@ clone_solver (void * ptr)
   struct solver * src = ptr;
   struct solver *solver = new_solver (src->root);
   cloning_clauses (solver, src);
-  solver->parallel = src->parallel = true;
+  solver->parallel = true;
   return solver;
 }
 
@@ -2241,15 +2241,17 @@ import_unit (struct solver * solver)
 {
   if (!solver->parallel)
     return false;
-  unsigned imported = 0;
   struct root * root = solver->root;
-  signed char * values = solver->values;
+#ifndef NFASTPATH
+  if (solver->units == root->units.end)
+    return false;
+#endif
   struct variable * variables = solver->variables;
+  signed char * values = solver->values;
   unsigned level = solver->level;
-#ifdef NFASTPATH
+  unsigned imported = 0;
   if (pthread_mutex_lock (&root->locks.units))
     fatal_error ("failed to acquire unit lock");
-#endif
   while (solver->units != root->units.end)
     {
       unsigned unit = *solver->units++;
@@ -2282,10 +2284,8 @@ import_unit (struct solver * solver)
       assign_unit (solver, unit);
       solver->iterating = true;
     }
-#ifdef NFASTPATH
   if (pthread_mutex_unlock (&root->locks.units))
     fatal_error ("failed to release unit lock");
-#endif
   return imported;
 }
 
@@ -4861,6 +4861,7 @@ clone_solvers (struct root * root, unsigned threads)
           threads - 1, threads);
   fflush (stdout);
   struct solver * first = first_solver (root);
+  first->parallel = true;
   for (unsigned i = 1; i != threads; i++)
     start_cloning_solver (first, i);
   for (unsigned i = 1; i != threads; i++)
