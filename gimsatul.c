@@ -1473,26 +1473,6 @@ inc_proof_lines (void)
 }
 
 static void
-trace_empty (struct solver *solver)
-{
-  assert (proof.file);
-  struct buffer *buffer = &solver->buffer;
-  assert (EMPTY (*buffer));
-  if (binary_proof_format)
-    {
-      PUSH (*buffer, 'a');
-      PUSH (*buffer, 0);
-    }
-  else
-    {
-      PUSH (*buffer, '0');
-      PUSH (*buffer, '\n');
-    }
-  write_buffer (buffer, proof.file);
-  inc_proof_lines ();
-}
-
-static void
 binary_proof_line (struct buffer *buffer, size_t size, unsigned *literals)
 {
   const unsigned *end = literals + size;
@@ -1527,49 +1507,102 @@ ascii_proof_line (struct buffer *buffer, size_t size, unsigned *literals)
 }
 
 static inline void
-trace_added (struct solver *solver)
+trace_add_literals (struct solver *solver, size_t size, unsigned * literals)
 {
   assert (proof.file);
   struct buffer *buffer = &solver->buffer;
   assert (EMPTY (*buffer));
-  struct unsigneds *clause = &solver->clause;
   if (binary_proof_format)
     {
       PUSH (*buffer, 'a');
-      binary_proof_line (buffer, SIZE (*clause), clause->begin);
+      binary_proof_line (buffer, size, literals);
     }
   else
-    ascii_proof_line (buffer, SIZE (*clause), clause->begin);
+    ascii_proof_line (buffer, size, literals);
   write_buffer (buffer, proof.file);
   inc_proof_lines ();
 }
 
 static inline void
-trace_deleted (struct solver *solver, struct clause *clause)
+trace_add_empty (struct solver * solver)
 {
-  assert (proof.file);
+  if (proof.file)
+    trace_add_literals (solver, 0, 0);
+}
+
+static inline void
+trace_add_unit (struct solver * solver, unsigned unit)
+{
+  if (proof.file)
+    trace_add_literals (solver, 1, &unit);
+}
+
+static inline void
+trace_add_binary (struct solver * solver, unsigned lit, unsigned other)
+{
+  if (!proof.file)
+    return;
+  unsigned literals[2] = { lit, other };
+  trace_add_literals (solver, 2, literals);
+}
+
+static inline void
+trace_add_clause (struct solver * solver, struct clause * clause)
+{
+  if (proof.file)
+    trace_add_literals (solver, clause->size, clause->literals);
+}
+
+#if 0
+
+static inline void
+trace_add_temporary (struct solver * solver)
+{
+  if (!proof.file)
+    return;
+  struct unsigneds * clause = &solver->clause;
+  unsigned * literals = clause->begin;
+  size_t size = SIZE (*clause);
+  trace_add_literals (solver, size, literals);
+}
+
+#endif
+
+static inline void
+trace_delete_literals (struct solver *solver,
+                       size_t size, unsigned * literals)
+{
+  if (!proof.file)
+    return;
   struct buffer *buffer = &solver->buffer;
   assert (EMPTY (*buffer));
   PUSH (*buffer, 'd');
   if (binary_proof_format)
-    binary_proof_line (buffer, clause->size, clause->literals);
+    binary_proof_line (buffer, size, literals);
   else
     {
       PUSH (*buffer, ' ');
-      ascii_proof_line (buffer, clause->size, clause->literals);
+      ascii_proof_line (buffer, size, literals);
     }
   write_buffer (buffer, proof.file);
   inc_proof_lines ();
 }
 
-#define TRACE_EMPTY() \
-do { if (proof.file) trace_empty (solver); } while (0)
+static inline void
+trace_delete_binary (struct solver * solver, unsigned lit, unsigned other)
+{
+  if (!proof.file)
+    return;
+  unsigned literals[2] = { lit, other };
+  trace_delete_literals (solver, 2, literals);
+}
 
-#define TRACE_ADDED() \
-do { if (proof.file) trace_added (solver); } while (0)
-
-#define TRACE_DELETED(CLAUSE) \
-do { if (proof.file) trace_deleted (solver, (CLAUSE)); } while (0)
+static inline void
+trace_delete_clause (struct solver * solver, struct clause * clause)
+{
+  if (proof.file)
+    trace_delete_literals (solver, clause->size, clause->literals);
+}
 
 static void
 close_proof (void)
@@ -1704,7 +1737,7 @@ delete_clause (struct solver *solver, struct clause *clause)
 {
   LOGCLAUSE (clause, "delete");
   dec_clauses (solver, clause->redundant);
-  TRACE_DELETED (clause);
+  trace_delete_clause (solver, clause);
   free (clause);
 }
 
@@ -1921,7 +1954,6 @@ cloning_clauses (struct solver *dst, struct solver *src)
   if (src->inconsistent)
     {
       set_inconsistent (solver, "cloning inconsistent empty clause");
-      TRACE_EMPTY ();
       return;
     }
   unsigned units = 0;
@@ -2271,7 +2303,7 @@ import_unit (struct solver * solver)
       if (value < 0)
 	{
 	  set_inconsistent (solver, "imported falsified unit");
-	  TRACE_EMPTY ();
+	  trace_add_empty (solver);
 	  break;
 	}
       if (level)
@@ -2289,10 +2321,9 @@ import_unit (struct solver * solver)
 }
 
 static void
-export_clause (struct solver * solver, struct watch * watch)
+export_binary (struct solver * solver, struct watch * watch)
 {
-  if (!binary_pointer (watch))
-    return;
+  assert (binary_pointer (watch));
   if (!solver->parallel)
     return;
   struct watch * previous =
@@ -2305,7 +2336,7 @@ export_clause (struct solver * solver, struct watch * watch)
 }
 
 static bool
-import_clause (struct solver * solver)
+import_binary (struct solver * solver)
 {
   if (!solver->parallel)
     return false;
@@ -2326,8 +2357,34 @@ import_clause (struct solver * solver)
   struct watch * watch = (struct watch*) atomic_exchange (&src->share, 0);
   if (!watch)
     return false;
+  assert (binary_pointer (watch));
+  assert (redundant_pointer (watch));
+  signed char * values = solver->values;
+  unsigned lit = lit_pointer (watch);
+  signed char lit_value = values[lit];
+  unsigned lit_level = INVALID;
+  if (lit_value > 0)
+    {
+      lit_level = VAR (lit)->level;
+      if (!lit_level)
+        return false;
+    }
+  unsigned other = other_pointer (watch);
+  signed char other_value = values[lit];
+  unsigned other_level = INVALID;
+  if (other_value > 0)
+    {
+      other_level = VAR (other)->level;
+      if (!other_level)
+        return false;
+    }
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
+  unsigned min_level = lit_level < other_level ? lit_level : other_level;
+  if (lit_value > 0 && other_value > 0)
+    {
+      new_local_binary_clause (solver, true, lit, other);
+    }
   return true;
 }
 
@@ -2518,7 +2575,7 @@ analyze (struct solver *solver, struct watch *reason)
     {
       set_inconsistent (solver,
 			"conflict on root-level produces empty clause");
-      TRACE_EMPTY ();
+      trace_add_empty (solver);
       return false;
     }
   struct unsigneds *clause = &solver->clause;
@@ -2588,7 +2645,7 @@ analyze (struct solver *solver, struct watch *reason)
     {
       assign_unit (solver, not_uip);
       solver->iterating = true;
-      TRACE_ADDED ();
+      trace_add_unit (solver, not_uip);
       export_unit (solver, not_uip);
     }
   else
@@ -2599,6 +2656,8 @@ analyze (struct solver *solver, struct watch *reason)
 	{
 	  assert (VAR (other)->level == jump);
 	  learned = new_local_binary_clause (solver, true, not_uip, other);
+          trace_add_binary (solver, not_uip, other);
+	  export_binary (solver, learned);
 	}
       else
 	{
@@ -2612,10 +2671,10 @@ analyze (struct solver *solver, struct watch *reason)
 	      *p = other;
 	    }
 	  learned = new_large_clause (solver, size, literals, true, glue);
+	  assert (!binary_pointer (learned));
+	  trace_add_clause (solver, learned->clause);
 	}
       assign_with_reason (solver, not_uip, learned);
-      TRACE_ADDED ();
-      export_clause (solver, learned);
     }
   CLEAR (*clause);
   for (all_elements_on_stack (unsigned, idx, *analyzed))
@@ -4282,7 +4341,7 @@ solve (struct solver *solver)
 	switch_mode (solver);
       else if (rephasing (solver))
 	rephase (solver);
-      else if (!import_unit (solver) && !import_clause (solver))
+      else if (!import_unit (solver) && !import_binary (solver))
 	decide (solver);
       else if (solver->inconsistent)
 	res = 20;
@@ -4747,7 +4806,7 @@ parse_dimacs_file ()
 		  if (value < 0)
 		    {
 		      set_inconsistent (solver, "found inconsistent unit");
-		      TRACE_EMPTY ();
+		      trace_add_empty (solver);
 		    }
 		  else if (!value)
 		    assign_unit (solver, unit);
