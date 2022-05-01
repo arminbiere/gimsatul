@@ -2263,6 +2263,7 @@ import_unit (struct solver * solver)
       if (value > 0)
 	continue;
       solver->statistics.imported.units++;
+      solver->statistics.imported.clauses++;
       imported++;
       if (value < 0)
 	{
@@ -2322,6 +2323,7 @@ import_clause (struct solver * solver)
   if (!watch)
     return false;
   solver->statistics.imported.binary++;
+  solver->statistics.imported.clauses++;
   return true;
 }
 
@@ -5205,65 +5207,79 @@ print_solver_statistics (struct solver *solver)
   uint64_t conflicts = s->contexts[SEARCH].conflicts;
   uint64_t decisions = s->contexts[SEARCH].decisions;
   uint64_t propagations = s->contexts[SEARCH].propagations;
-  PRINT ("%-19s %13" PRIu64 " %13.2f per second", "conflicts:",
+  PRINT ("%-21s %17" PRIu64 " %13.2f per second", "conflicts:",
 	  conflicts, average (conflicts, search));
-  PRINT ("%-19s %13" PRIu64 " %13.2f per second", "decisions:",
+  PRINT ("%-21s %17" PRIu64 " %13.2f per second", "decisions:",
 	  decisions, average (decisions, search));
-  PRINT ("%-19s %13u %13.2f %% variables", "fixed-variables:",
+  PRINT ("%-21s %17u %13.2f %% variables", "fixed-variables:",
 	  s->fixed, percent (s->fixed, solver->size));
-  PRINT ("%-19s %13" PRIu64 " %13.2f thousands per second",
+  PRINT ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	  "flips:", s->flips, average (s->flips, 1e3 * walk));
-  PRINT ("%-19s %13" PRIu64 " %13.2f per learned clause",
+
+  PRINT ("%-21s %17" PRIu64 " %13.2f per learned clause",
 	  "learned-literals:", s->learned.literals,
 	  average (s->learned.literals, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f per second",
+  PRINT ("%-21s %17" PRIu64 " %13.2f times learned literals",
+	  "  deduced-literals:", s->deduced,
+	  average (s->deduced, s->learned.literals));
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% per deduced literal",
+	  "  minimized-literals:", s->minimized,
+	  percent (s->minimized, s->deduced));
+
+  PRINT ("%-21s %17" PRIu64 " %13.2f per second",
 	  "learned-clauses:", s->learned.clauses,
 	  average (s->learned.clauses, search));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  unit-clauses:", s->learned.units,
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+	  "  learned-units:", s->learned.units,
 	  percent (s->learned.units, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  binary-clauses:", s->learned.binary,
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+	  "  learned-binary:", s->learned.binary,
 	  percent (s->learned.binary, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  glue1-clauses:", s->learned.glue1,
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+	  "  learned-glue1:", s->learned.glue1,
 	  percent (s->learned.glue1, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  imported-units:", s->imported.units,
-	  percent (s->imported.units, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  imported-binary:", s->imported.binary,
-	  percent (s->imported.binary, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  exported-units:", s->exported.units,
-	  percent (s->exported.units, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  exported-binary:", s->exported.binary,
-	  percent (s->exported.binary, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  tier1-clauses:", s->learned.tier1,
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+	  "  learned-tier1:", s->learned.tier1,
 	  percent (s->learned.tier1, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  tier2-clauses:", s->learned.tier2,
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+	  "  learned-tier2:", s->learned.tier2,
 	  percent (s->learned.tier2, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% learned",
-	  "  tier3-clauses:", s->learned.tier3,
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+	  "  learned-tier3:", s->learned.tier3,
 	  percent (s->learned.tier3, s->learned.clauses));
-  PRINT ("%-19s %13" PRIu64 " %13.2f %% per deduced literals",
-	  "minimized-literals:", s->minimized, percent (s->minimized,
-							s->deduced));
-  PRINT ("%-19s %13" PRIu64 " %13.2f millions per second",
+
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+	  "imported-clauses:", s->imported.clauses,
+	  percent (s->imported.clauses, s->learned.clauses));
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% imported",
+	  "  imported-units:", s->imported.units,
+	  percent (s->imported.units, s->imported.clauses));
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% imported",
+	  "  imported-binary:", s->imported.binary,
+	  percent (s->imported.binary, s->imported.clauses));
+
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% learned",
+	  "exported-clauses:", s->exported.clauses,
+	  percent (s->exported.clauses, s->learned.clauses));
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% exported",
+	  "  exported-units:", s->exported.units,
+	  percent (s->exported.units, s->exported.clauses));
+  PRINT ("%-21s %17" PRIu64 " %13.2f %% exported",
+	  "  exported-binary:", s->exported.binary,
+	  percent (s->exported.binary, s->exported.clauses));
+
+  PRINT ("%-21s %17" PRIu64 " %13.2f millions per second",
 	  "propagations:", propagations, average (propagations,
 						  1e6 * search));
-  PRINT ("%-19s %13" PRIu64 " %13.2f conflict interval",
+  PRINT ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	  "reductions:", s->reductions, average (conflicts, s->reductions));
-  PRINT ("%-19s %13" PRIu64 " %13.2f conflict interval",
+  PRINT ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	  "rephased:", s->rephased, average (conflicts, s->rephased));
-  PRINT ("%-19s %13" PRIu64 " %13.2f conflict interval",
+  PRINT ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	  "restarts:", s->restarts, average (conflicts, s->restarts));
-  PRINT ("%-19s %13" PRIu64 " %13.2f conflict interval",
+  PRINT ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	  "switched:", s->switched, average (conflicts, s->switched));
-  PRINT ("%-19s %13" PRIu64 " %13.2f flips per walkinterval",
+  PRINT ("%-21s %17" PRIu64 " %13.2f flips per walkinterval",
 	  "walked:", s->walked, average (s->flips, s->walked));
   fflush (stdout);
 }
@@ -5281,9 +5297,9 @@ print_root_statistics (struct root *root)
   double total = current_time () - start_time;
   double memory = maximum_resident_set_size () / (double) (1 << 20);
 
-  printf ("c %-30s %16.2f sec\n", "process-time:", process);
-  printf ("c %-30s %16.2f sec\n", "wall-clock-time:", total);
-  printf ("c %-30s %16.2f MB\n", "maximum-resident-set-size:", memory);
+  printf ("c %-30s %23.2f sec\n", "process-time:", process);
+  printf ("c %-30s %23.2f sec\n", "wall-clock-time:", total);
+  printf ("c %-30s %23.2f MB\n", "maximum-resident-set-size:", memory);
 
   fflush (stdout);
 }
