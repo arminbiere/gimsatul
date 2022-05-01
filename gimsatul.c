@@ -358,10 +358,9 @@ struct averages
 
 struct profile
 {
-  double time;
   const char *name;
-  double start;
-  int level;
+  volatile double start;
+  volatile double time;
 };
 
 struct profiles
@@ -470,7 +469,7 @@ struct root
   struct locks locks;
   struct solvers solvers;
   pthread_t * threads;
-  volatile struct solver *winner;
+  struct solver * volatile winner;
   volatile signed char * values;
   struct unsigneds binaries;
   struct units units;
@@ -481,9 +480,9 @@ struct solver
 {
   unsigned id;
   struct root *root;
-  volatile struct watch * share;
-  volatile unsigned * units;
+  struct watch * volatile share;
   volatile int status;
+  unsigned * units;
   bool inconsistent;
   bool iterating;
   bool stable;
