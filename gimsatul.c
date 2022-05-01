@@ -2357,7 +2357,7 @@ import_binary (struct solver * solver)
   struct watch * watch = (struct watch*) atomic_exchange (&src->share, 0);
   if (!watch)
     return false;
-#if 1
+#if 0
   logging = true;
   verbosity = INT_MAX;
 #endif
@@ -2374,7 +2374,7 @@ import_binary (struct solver * solver)
         return false;
     }
   unsigned other = other_pointer (watch);
-  signed char other_value = values[lit];
+  signed char other_value = values[other];
   unsigned other_level = INVALID;
   if (other_value)
     {
@@ -2384,15 +2384,16 @@ import_binary (struct solver * solver)
     }
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
-  LOGBINARY (true, lit, other, "importing");
   if (lit_value > 0 || other_value > 0 || (!lit_value && !other_value))
     {
+      LOGBINARY (true, lit, other, "importing (1st case)");
       new_local_binary_clause (solver, true, lit, other);
       trace_add_binary (solver, lit, other);
     }
   else if (lit_value < 0 &&
            (!other_value || (other_value < 0 && lit_level < other_level)))
     {
+      LOGBINARY (true, lit, other, "importing (2nd case)");
       if (solver->level > lit_level)
 	backtrack (solver, lit_level);
       struct watch * other_reason =
@@ -2404,6 +2405,7 @@ import_binary (struct solver * solver)
   else if (other_value < 0 &&
            (!lit_value || (lit_value < 0 && other_level < lit_level)))
     {
+      LOGBINARY (true, lit, other, "importing (3rd case)");
       if (solver->level > other_level)
 	backtrack (solver, other_level);
       struct watch * lit_reason =
@@ -2419,6 +2421,7 @@ import_binary (struct solver * solver)
       assert (lit_level != INVALID);
       if (lit_level)
 	{
+	  LOGBINARY (true, lit, other, "importing (4th case)");
 	  assert (solver->level >= lit_level);
 	  backtrack (solver, lit_level - 1);
 	  new_local_binary_clause (solver, true, lit, other);
@@ -2426,11 +2429,12 @@ import_binary (struct solver * solver)
 	}
       else
 	{
+	  LOGBINARY (true, lit, other, "importing (5th case)");
 	  set_inconsistent (solver, "imported inconsistent binary clause");
 	  trace_add_empty (solver);
 	}
     }
-#if 1
+#if 0
   logging = false;
   verbosity = 0;
 #endif
