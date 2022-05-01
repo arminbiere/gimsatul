@@ -2357,34 +2357,83 @@ import_binary (struct solver * solver)
   struct watch * watch = (struct watch*) atomic_exchange (&src->share, 0);
   if (!watch)
     return false;
+#if 1
+  logging = true;
+  verbosity = INT_MAX;
+#endif
   assert (binary_pointer (watch));
   assert (redundant_pointer (watch));
   signed char * values = solver->values;
   unsigned lit = lit_pointer (watch);
   signed char lit_value = values[lit];
   unsigned lit_level = INVALID;
-  if (lit_value > 0)
+  if (lit_value)
     {
       lit_level = VAR (lit)->level;
-      if (!lit_level)
+      if (lit_value > 0 && !lit_level)
         return false;
     }
   unsigned other = other_pointer (watch);
   signed char other_value = values[lit];
   unsigned other_level = INVALID;
-  if (other_value > 0)
+  if (other_value)
     {
       other_level = VAR (other)->level;
-      if (!other_level)
+      if (other_value > 0 && !other_level)
         return false;
     }
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
-  unsigned min_level = lit_level < other_level ? lit_level : other_level;
-  if (lit_value > 0 && other_value > 0)
+  LOGBINARY (true, lit, other, "importing");
+  if (lit_value > 0 || other_value > 0 || (!lit_value && !other_value))
     {
       new_local_binary_clause (solver, true, lit, other);
+      trace_add_binary (solver, lit, other);
     }
+  else if (lit_value < 0 &&
+           (!other_value || (other_value < 0 && lit_level < other_level)))
+    {
+      if (solver->level > lit_level)
+	backtrack (solver, lit_level);
+      struct watch * other_reason =
+        new_local_binary_clause (solver, true, other, lit);
+      trace_add_binary (solver, lit, other);
+      assert (lit_pointer (other_reason) == other);
+      assign_with_reason (solver, other, other_reason); 
+    }
+  else if (other_value < 0 &&
+           (!lit_value || (lit_value < 0 && other_level < lit_level)))
+    {
+      if (solver->level > other_level)
+	backtrack (solver, other_level);
+      struct watch * lit_reason =
+        new_local_binary_clause (solver, true, lit, other);
+      trace_add_binary (solver, lit, other);
+      assert (lit_pointer (lit_reason) == lit);
+      assign_with_reason (solver, lit, lit_reason); 
+    }
+  else
+    {
+      assert (lit_value < 0), assert (other_value < 0);
+      assert (lit_level == other_level);
+      assert (lit_level != INVALID);
+      if (lit_level)
+	{
+	  assert (solver->level >= lit_level);
+	  backtrack (solver, lit_level - 1);
+	  new_local_binary_clause (solver, true, lit, other);
+	  trace_add_binary (solver, lit, other);
+	}
+      else
+	{
+	  set_inconsistent (solver, "imported inconsistent binary clause");
+	  trace_add_empty (solver);
+	}
+    }
+#if 1
+  logging = false;
+  verbosity = 0;
+#endif
   return true;
 }
 
