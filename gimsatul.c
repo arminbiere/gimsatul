@@ -4279,13 +4279,10 @@ solve (struct solver *solver)
 	switch_mode (solver);
       else if (rephasing (solver))
 	rephase (solver);
-      else if (import_unit (solver) || import_clause (solver))
-	{
-	  if (solver->inconsistent)
-	    res = 20;
-	}
-      else
+      else if (!import_unit (solver) && !import_clause (solver))
 	decide (solver);
+      else if (solver->inconsistent)
+	res = 20;
     }
   stop_search (solver, res);
   return res;
