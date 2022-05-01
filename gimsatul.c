@@ -2204,8 +2204,6 @@ update_best_and_target_phases (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
-#define COMPILER_BARRIER() __asm__ __volatile__("": : :"memory")
-
 static void
 export_unit (struct solver * solver, unsigned unit)
 {
@@ -2240,8 +2238,8 @@ import_unit (struct solver * solver)
 {
   if (!solver->parallel)
     return false;
-  struct root * root = solver->root;
   unsigned imported = 0;
+  struct root * root = solver->root;
   signed char * values = solver->values;
   struct variable * variables = solver->variables;
   unsigned level = solver->level;
