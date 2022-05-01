@@ -4275,7 +4275,12 @@ solve (struct solver *solver)
 	switch_mode (solver);
       else if (rephasing (solver))
 	rephase (solver);
-      else if (!import_unit (solver) && !import_clause (solver))
+      else if (import_unit (solver) || import_clause (solver))
+	{
+	  if (solver->inconsistent)
+	    res = 20;
+	}
+      else
 	decide (solver);
     }
   stop_search (solver, res);
