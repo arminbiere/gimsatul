@@ -443,12 +443,7 @@ struct statistics
     uint64_t tier1;
     uint64_t tier2;
     uint64_t tier3;
-  } learned;
-  struct {
-    uint64_t units;
-    uint64_t binary;
-    uint64_t clauses;
-  } exported, imported;
+  } learned, exported, imported;
 };
 
 struct binaries
@@ -502,7 +497,7 @@ struct solver
 {
   unsigned id;
   struct root *root;
-  struct watch * volatile share[SIZE_SHARED];
+  struct clause * volatile share[SIZE_SHARED];
   volatile int status;
   unsigned * units;
   bool inconsistent;
@@ -873,8 +868,8 @@ do { \
     printf (" redundant glue %u", (CLAUSE)->glue); \
   else \
     printf (" irredundant"); \
-  printf (" size %u clause[%" PRIu64 "]", \
-          (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
+  printf (" size %u clause[%" PRIu64 "]@%p", \
+          (CLAUSE)->size, (uint64_t) (CLAUSE)->id, (void*) (CLAUSE)); \
   for (all_literals_in_clause (LIT, (CLAUSE))) \
     printf (" %s", LOGLIT (LIT)); \
   LOGSUFFIX (); \
@@ -1457,9 +1452,25 @@ release_watches (struct solver *solver)
 }
 
 static void
+release_shared (struct solver * solver)
+{
+  for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
+    {
+      struct clause * clause = solver->share[i];
+      if (!clause)
+	continue;
+      if (binary_pointer (clause))
+	continue;
+      if (!atomic_fetch_sub (&clause->shared, 1))
+	free (clause);
+    }
+}
+
+static void
 delete_solver (struct solver *solver)
 {
   verbose (solver, "delete solver[%u]", solver->id);
+  release_shared (solver);
   RELEASE (solver->clause);
   RELEASE (solver->analyzed);
   free (solver->trail.begin);
@@ -1765,6 +1776,22 @@ delete_clause (struct solver *solver, struct clause *clause)
   free (clause);
 }
 
+static void
+reference_clause (struct solver * solver, struct clause * clause)
+{
+  LOGCLAUSE (clause, "reference shared %u", clause->shared);
+  unsigned tmp = atomic_fetch_add (&clause->shared, 1);
+  assert (tmp < MAX_THREADS - 1), (void) tmp;
+}
+
+static void
+dereference_clause (struct solver * solver, struct clause * clause)
+{
+  LOGCLAUSE (clause, "dereference shared %u", (unsigned) clause->shared);
+  if (!atomic_fetch_sub (&clause->shared, 1))
+    delete_clause (solver, clause);
+}
+
 /*------------------------------------------------------------------------*/
 
 static struct solver *
@@ -2022,9 +2049,7 @@ cloning_clauses (struct solver *dst, struct solver *src)
     {
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
-      unsigned tmp = atomic_fetch_add (&clause->shared, 1);
-      assert (tmp < MAX_THREADS - 1);
-      (void) tmp;
+      reference_clause (solver, clause);
       inc_clauses (solver, false);
       new_watch (solver, clause, false, 0);
       shared++;
@@ -2313,8 +2338,7 @@ export_unit (struct solver * solver, unsigned unit)
 static bool
 import_unit (struct solver * solver)
 {
-  if (!solver->parallel)
-    return false;
+  assert (solver->parallel);
   struct root * root = solver->root;
 #ifndef NFASTPATH
   if (solver->units == root->units.end)
@@ -2370,22 +2394,41 @@ export_binary (struct solver * solver, struct watch * watch)
   if (!solver->parallel)
     return;
   LOGWATCH (watch, "exporting");
-  struct watch * previous =
-    (struct watch*) atomic_exchange (&solver->share[BINARY_SHARED], watch);
-  if (!previous)
+  struct clause * clause = (struct clause*) watch;
+  struct clause * previous =
+     atomic_exchange (&solver->share[BINARY_SHARED], clause);
+  if (previous)
+    return;
+  solver->statistics.exported.binary++;
+  solver->statistics.exported.clauses++;
+}
+
+static void
+export_glue1_clause (struct solver * solver, struct clause * clause)
+{
+  assert (!binary_pointer (clause));
+  if (!solver->parallel)
+    return;
+  LOGCLAUSE (clause, "exporting");
+  reference_clause (solver, clause);
+  struct clause * previous =
+    (struct clause*) atomic_exchange (&solver->share[GLUE1_SHARED], clause);
+  if (previous)
+    dereference_clause (solver, previous);
+  else
     {
-      solver->statistics.exported.binary++;
+      solver->statistics.exported.glue1++;
       solver->statistics.exported.clauses++;
     }
 }
 
 static bool
-import_binary (struct solver * solver, struct watch * watch)
+import_binary (struct solver * solver, struct clause * clause)
 {
-  assert (binary_pointer (watch));
-  assert (redundant_pointer (watch));
+  assert (binary_pointer (clause));
+  assert (redundant_pointer (clause));
   signed char * values = solver->values;
-  unsigned lit = lit_pointer (watch);
+  unsigned lit = lit_pointer (clause);
   signed char lit_value = values[lit];
   unsigned lit_level = INVALID;
   if (lit_value)
@@ -2394,7 +2437,7 @@ import_binary (struct solver * solver, struct watch * watch)
       if (lit_value > 0 && !lit_level)
         return false;
     }
-  unsigned other = other_pointer (watch);
+  unsigned other = other_pointer (clause);
   signed char other_value = values[other];
   unsigned other_level = INVALID;
   if (other_value)
@@ -2466,9 +2509,29 @@ import_binary (struct solver * solver, struct watch * watch)
 }
 
 static bool
-import_clause (struct solver * solver)
+import_large_clause (struct solver * solver, struct clause * clause)
+{
+  signed char * values = solver->values;
+  struct variable * variables = solver->variables;
+  // unsigned max_level = 0, jump_level = 0;
+  for (all_literals_in_clause (lit, clause))
+    {
+      unsigned idx = IDX (lit);
+      struct variable * v = variables + idx;
+      unsigned lit_level = v->level;
+      signed value = values[lit];
+      if (!lit_level && value > 0)
+	return false;
+    }
+  return false;
+}
+
+static bool
+import_shared (struct solver * solver)
 {
   if (!solver->parallel)
+    return false;
+  if (import_unit (solver))
     return false;
   struct root * root = solver->root;
   size_t solvers = SIZE (root->solvers);
@@ -2480,17 +2543,21 @@ import_clause (struct solver * solver)
   assert (id < solvers);
   assert (id != solver->id);
   struct solver * src = root->solvers.begin[id];
-  struct watch * volatile * end = src->share + SIZE_SHARED;
-  struct watch * watch = 0;
-  for (struct watch * volatile * p = src->share; !watch && p != end; p++)
+  struct clause * volatile * end = src->share + SIZE_SHARED;
+  struct clause * clause = 0;
+  for (struct clause * volatile * p = src->share; !clause && p != end; p++)
 #ifndef NFASTPATH
       if (*p)
 #endif
-	watch = atomic_exchange (p, 0);
-  if (!watch)
+	clause = atomic_exchange (p, 0);
+  if (!clause)
     return false;
-  assert (binary_pointer (watch));
-  return import_binary (solver, watch);
+  if (binary_pointer (clause))
+    return import_binary (solver, clause);
+  if (import_large_clause (solver, clause))
+    return true;
+  dereference_clause (solver, clause);
+  return false;
 }
 
 /*------------------------------------------------------------------------*/
@@ -2698,11 +2765,11 @@ shrink_or_minimize_clause (struct solver *solver, unsigned glue)
   solver->statistics.learned.clauses++;
   if (learned == 1)
     solver->statistics.learned.units++;
-  if (learned == 2)
+  else if (learned == 2)
     solver->statistics.learned.binary++;
-  if (glue == 1)
+  else if (glue == 1)
     solver->statistics.learned.glue1++;
-  if (glue <= TIER1_GLUE_LIMIT)
+  else if (glue <= TIER1_GLUE_LIMIT)
     solver->statistics.learned.tier1++;
   else if (glue <= TIER2_GLUE_LIMIT)
     solver->statistics.learned.tier2++;
@@ -2901,7 +2968,10 @@ analyze (struct solver *solver, struct watch *reason)
 	    }
 	  learned = new_large_clause (solver, size, literals, true, glue);
 	  assert (!binary_pointer (learned));
-	  trace_add_clause (solver, learned->clause);
+	  struct clause * clause = learned->clause;
+	  trace_add_clause (solver, clause);
+	  if (glue == 1)
+	    export_glue1_clause (solver, clause);
 	}
       assign_with_reason (solver, not_uip, learned);
     }
@@ -3306,12 +3376,7 @@ flush_watches (struct solver *solver)
 
       struct clause *clause = watch->clause;
       delete_watch (solver, watch);
-
-      if (atomic_fetch_sub (&clause->shared, 1))
-	continue;
-
-      delete_clause (solver, clause);
-      deleted++;
+      dereference_clause (solver, clause);
     }
   watches->end = q;
   verbose (solver,
@@ -4570,7 +4635,7 @@ solve (struct solver *solver)
 	switch_mode (solver);
       else if (rephasing (solver))
 	rephase (solver);
-      else if (!import_unit (solver) && !import_clause (solver))
+      else if (!import_shared (solver))
 	decide (solver);
       else if (solver->inconsistent)
 	res = 20;
@@ -5567,6 +5632,9 @@ print_solver_statistics (struct solver *solver)
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
 	      "  exported-binary:", s->exported.binary,
 	      percent (s->exported.binary, s->exported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
+	      "  exported-glue1:", s->exported.glue1,
+	      percent (s->exported.glue1, s->exported.clauses));
     }
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f millions per second",
