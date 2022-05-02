@@ -165,6 +165,15 @@ do { \
 
 /*------------------------------------------------------------------------*/
 
+#define SWAP(A,B) \
+do { \
+  typeof(A) TMP = (A); \
+  (A) = (B); \
+  (B) = TMP; \
+} while (0)
+
+/*------------------------------------------------------------------------*/
+
 #define all_elements_on_stack(TYPE,ELEM,STACK) \
   TYPE * P_ ## ELEM = (STACK).begin, * END_ ## ELEM = (STACK).end, ELEM; \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
@@ -2238,6 +2247,19 @@ update_best_and_target_phases (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
+static bool
+subsumed_binary (struct solver * solver, unsigned lit, unsigned other)
+{
+  if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
+    SWAP (lit, other);
+  for (all_watches (watch, REFERENCES (lit)))
+    if (binary_pointer (watch) && other_pointer (watch) == other)
+      return true;
+  return false;
+}
+
+/*------------------------------------------------------------------------*/
+
 static void
 export_unit (struct solver * solver, unsigned unit)
 {
@@ -2382,6 +2404,8 @@ import_binary (struct solver * solver)
       if (other_value > 0 && !other_level)
         return false;
     }
+  if (subsumed_binary (solver, lit, other))
+    return false;
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
   if (lit_value > 0 || other_value > 0 || (!lit_value && !other_value))
