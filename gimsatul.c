@@ -2592,7 +2592,6 @@ shrink_clause (struct solver * solver)
   unsigned max_pos = 0, open = 0;
   unsigned level = INVALID;
 
-  size_t deduced = begin - end;
   size_t shrunken = 0;
 
   for (unsigned *p = begin + 1; p != end; p++)
@@ -2635,7 +2634,6 @@ shrink_clause (struct solver * solver)
 	{
 	  unsigned other = other_pointer (reason);
 	  SHRINK_LITERAL (other);
-	  assert (!failed);
 	}
       else if (reason)
 	{
@@ -2648,9 +2646,10 @@ shrink_clause (struct solver * solver)
     }
 
   assert (uip != INVALID);
-  LOGTMP ("shrinking succeeded with first UIP %s of glue 1", LOGLIT (uip));
+  LOGTMP ("shrinking succeeded with first UIP %s1 of", LOGLIT (uip));
   unsigned not_uip = NOT (uip);
   clause->begin[1] = not_uip;
+  size_t deduced = end - begin;
   clause->end = clause->begin + 2;
   shrunken = deduced - 2;
   assert (shrunken);
