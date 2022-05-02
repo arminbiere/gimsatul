@@ -2071,6 +2071,17 @@ clone_solver (void * ptr)
 
 /*------------------------------------------------------------------------*/
 
+static size_t
+cache_lines (void * p, void * q)
+{
+  if (p == q)
+    return 0;
+  assert (p >= q);
+  size_t bytes = (char*) p - (char *) q;
+  size_t res = (bytes + 127) >> 7;
+  return res;
+}
+
 static struct watch *
 propagate (struct solver *solver, bool search)
 {
@@ -2091,8 +2102,8 @@ propagate (struct solver *solver, bool search)
       unsigned *binaries = watches->binaries;
       if (binaries)
 	{
-	  unsigned other;
-	  for (unsigned *p = binaries; (other = *p) != INVALID; p++)
+	  unsigned other, * p;
+	  for (p = binaries; (other = *p) != INVALID; p++)
 	    {
 	      struct watch *watch = tag_pointer (false, other, not_lit);
 	      signed char other_value = values[other];
@@ -2109,6 +2120,7 @@ propagate (struct solver *solver, bool search)
 		  ticks++;
 		}
 	    }
+	  ticks += cache_lines (p, binaries);
 	  if (search && conflict)
 	    break;
 	}
@@ -2209,6 +2221,7 @@ propagate (struct solver *solver, bool search)
 	}
       while (p != end)
 	*q++ = *p++;
+      ticks += cache_lines (p, begin);
       watches->end = q;
       if (q == watches->begin)
 	RELEASE (*watches);
@@ -3955,14 +3968,15 @@ connect_counters (struct walker *walker, struct clause *last)
   uint64_t ticks = 1;
   for (all_watches (watch, solver->watches))
     {
+      ticks++;
       if (watch->garbage)
 	continue;
       if (watch->redundant)
 	continue;
-      ticks++;
       struct clause *clause = watch->clause;
       unsigned count = 0;
       unsigned length = 0;
+      ticks++;
       for (all_literals_in_clause (lit, clause))
 	{
 	  signed char value = values[lit];
@@ -3980,6 +3994,7 @@ connect_counters (struct walker *walker, struct clause *last)
 	{
 	  set_insert (&walker->unsatisfied, p);
 	  LOGCLAUSE (clause, "initially broken");
+	  ticks++;
 	}
       clauses++;
       p++;
@@ -3991,17 +4006,21 @@ connect_counters (struct walker *walker, struct clause *last)
       if (values[lit] >= 0)
 	continue;
       struct counters * counters = &OCCURRENCES (lit);
+      ticks++;
       unsigned * binaries = counters->binaries;
       if (!binaries)
 	continue;
-      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+      unsigned * p, other;
+      for (p = binaries; (other = *p) != INVALID; p++)
 	if (lit < other && values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "initially broken");
 	    void * ptr = tag_pointer (false, lit, other);
 	    assert (ptr == min_max_tag_pointer (false, lit, other));
 	    set_insert (&walker->unsatisfied, ptr);
+	    ticks++;
 	  }
+      ticks += cache_lines (p, binaries);
     }
   double average_length = average (sum_lengths, clauses);
   verbose (solver, "average clause length %.2f", average_length);
@@ -4210,9 +4229,13 @@ break_count (struct walker *walker, unsigned lit)
   unsigned * binaries = counters->binaries;
   uint64_t ticks = 1;
   if (binaries)
-    for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
-	if (values[other] <= 0)
-	  res++;
+    {
+      unsigned * p, other;
+      for (p = binaries; (other = *p) != INVALID; p++)
+	  if (values[other] <= 0)
+	    res++;
+      ticks += cache_lines (p, binaries);
+    }
   for (all_counters (counter, *counters))
     {
       ticks++;
@@ -4370,14 +4393,16 @@ make_literal (struct walker *walker, unsigned lit)
   unsigned * binaries = counters->binaries;
   if (binaries)
     {
-      ticks++;
-      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+      unsigned * p, other;
+      for (p = binaries; (other = *p) != INVALID; p++)
 	if (values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "literal %s makes", LOGLIT (lit));
 	    void * ptr = min_max_tag_pointer (false, lit, other);
 	    set_remove (&walker->unsatisfied, ptr);
+	    ticks++;
 	  }
+      ticks += cache_lines (p, binaries);
     }
   solver->statistics.contexts[WALK].ticks += ticks;
 }
@@ -4405,13 +4430,16 @@ break_literal (struct walker *walker, unsigned lit)
   if (binaries)
     {
       ticks++;
-      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+      unsigned * p, other;
+      for (p = binaries; (other = *p) != INVALID; p++)
 	if (values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "literal %s breaks", LOGLIT (lit));
 	    void * ptr = min_max_tag_pointer (false, lit, other);
 	    set_insert (&walker->unsatisfied, ptr);
+	    ticks++;
 	  }
+      ticks += cache_lines (p, binaries);
     }
   solver->statistics.contexts[WALK].ticks += ticks;
 }
