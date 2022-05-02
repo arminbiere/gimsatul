@@ -487,11 +487,17 @@ struct root
   unsigned *watches;
 };
 
+#define BINARY_SHARED 0
+#define GLUE1_SHARED 1
+#define TIER1_SHARED 2
+#define TIER2_SHARED 3
+#define SIZE_SHARED 4
+
 struct solver
 {
   unsigned id;
   struct root *root;
-  struct watch * volatile share[4];
+  struct watch * volatile share[SIZE_SHARED];
   volatile int status;
   unsigned * units;
   bool inconsistent;
@@ -2350,8 +2356,9 @@ export_binary (struct solver * solver, struct watch * watch)
   assert (binary_pointer (watch));
   if (!solver->parallel)
     return;
+  LOGWATCH (watch, "exporting");
   struct watch * previous =
-    (struct watch*) atomic_exchange (&solver->share[0], watch);
+    (struct watch*) atomic_exchange (&solver->share[BINARY_SHARED], watch);
   if (!previous)
     {
       solver->statistics.exported.binary++;
@@ -2360,28 +2367,8 @@ export_binary (struct solver * solver, struct watch * watch)
 }
 
 static bool
-import_binary (struct solver * solver)
+import_binary (struct solver * solver, struct watch * watch)
 {
-  if (!solver->parallel)
-    return false;
-  struct root * root = solver->root;
-  size_t solvers = SIZE (root->solvers);
-  assert (solvers <= UINT_MAX);
-  assert (solvers > 1);
-  unsigned id = random_modulo (solver, solvers-1) + solver->id + 1;
-  if (id >= solvers)
-    id -= solvers;
-  assert (id < solvers);
-  assert (id != solver->id);
-  struct solver * src = root->solvers.begin[id];
-#ifndef NFASTPATH
-  if (!src->share)
-    return false;
-#endif
-  struct watch * watch =
-    (struct watch*) atomic_exchange (&src->share[0], 0);
-  if (!watch)
-    return false;
 #if 0
   logging = true;
   verbosity = INT_MAX;
@@ -2411,11 +2398,13 @@ import_binary (struct solver * solver)
     return false;
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
+  bool res = true;
   if (lit_value > 0 || other_value > 0 || (!lit_value && !other_value))
     {
       LOGBINARY (true, lit, other, "importing (1st case)");
       new_local_binary_clause (solver, true, lit, other);
       trace_add_binary (solver, lit, other);
+      res = false;
     }
   else if (lit_value < 0 &&
            (!other_value || (other_value < 0 && lit_level < other_level)))
@@ -2465,7 +2454,35 @@ import_binary (struct solver * solver)
   logging = false;
   verbosity = 0;
 #endif
-  return true;
+  return res;
+}
+
+static bool
+import_clause (struct solver * solver)
+{
+  if (!solver->parallel)
+    return false;
+  struct root * root = solver->root;
+  size_t solvers = SIZE (root->solvers);
+  assert (solvers <= UINT_MAX);
+  assert (solvers > 1);
+  unsigned id = random_modulo (solver, solvers-1) + solver->id + 1;
+  if (id >= solvers)
+    id -= solvers;
+  assert (id < solvers);
+  assert (id != solver->id);
+  struct solver * src = root->solvers.begin[id];
+  struct watch * volatile * end = src->share + SIZE_SHARED;
+  struct watch * watch = 0;
+  for (struct watch * volatile * p = src->share; !watch && p != end; p++)
+#ifndef NFASTPATH
+      if (*p)
+#endif
+	watch = atomic_exchange (p, 0);
+  if (!watch)
+    return false;
+  assert (binary_pointer (watch));
+  return import_binary (solver, watch);
 }
 
 /*------------------------------------------------------------------------*/
@@ -4422,7 +4439,7 @@ solve (struct solver *solver)
 	switch_mode (solver);
       else if (rephasing (solver))
 	rephase (solver);
-      else if (!import_unit (solver) && !import_binary (solver))
+      else if (!import_unit (solver) && !import_clause (solver))
 	decide (solver);
       else if (solver->inconsistent)
 	res = 20;
@@ -5395,25 +5412,28 @@ print_solver_statistics (struct solver *solver)
 	  "  learned-tier3:", s->learned.tier3,
 	  percent (s->learned.tier3, s->learned.clauses));
 
-  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	  "imported-clauses:", s->imported.clauses,
-	  percent (s->imported.clauses, s->learned.clauses));
-  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
-	  "  imported-units:", s->imported.units,
-	  percent (s->imported.units, s->imported.clauses));
-  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
-	  "  imported-binary:", s->imported.binary,
-	  percent (s->imported.binary, s->imported.clauses));
+  if (solver->parallel)
+    {
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
+	      "imported-clauses:", s->imported.clauses,
+	      percent (s->imported.clauses, s->learned.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
+	      "  imported-units:", s->imported.units,
+	      percent (s->imported.units, s->imported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
+	      "  imported-binary:", s->imported.binary,
+	      percent (s->imported.binary, s->imported.clauses));
 
-  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	  "exported-clauses:", s->exported.clauses,
-	  percent (s->exported.clauses, s->learned.clauses));
-  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
-	  "  exported-units:", s->exported.units,
-	  percent (s->exported.units, s->exported.clauses));
-  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
-	  "  exported-binary:", s->exported.binary,
-	  percent (s->exported.binary, s->exported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
+	      "exported-clauses:", s->exported.clauses,
+	      percent (s->exported.clauses, s->learned.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
+	      "  exported-units:", s->exported.units,
+	      percent (s->exported.units, s->exported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
+	      "  exported-binary:", s->exported.binary,
+	      percent (s->exported.binary, s->exported.clauses));
+    }
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f millions per second",
 	  "propagations:", propagations, average (propagations,
