@@ -513,6 +513,7 @@ struct solver
   unsigned best;
   bool *used;
   signed char *values;
+  signed char *marks;
   struct variable *variables;
   struct watches watches;
   struct references *references;
@@ -1408,7 +1409,8 @@ new_solver (struct root *root)
   push_solver (root, solver);
   solver->size = size;
   verbose (solver, "new solver[%u] of size %u", solver->id, size);
-  solver->values = allocate_and_clear_array (1, 2 * size);
+  solver->values = allocate_and_clear_block (2 * size);
+  solver->marks = allocate_and_clear_block (2 * size);
   solver->references =
     allocate_and_clear_array (sizeof (struct references), 2 * size);
   solver->used = allocate_and_clear_block (size);
@@ -1482,6 +1484,7 @@ delete_solver (struct solver *solver)
   free (solver->queue.scores);
   free (solver->variables);
   free (solver->values);
+  free (solver->marks);
   free (solver->used);
   free (solver);
 }
@@ -1661,11 +1664,36 @@ push_watch (struct solver *solver, unsigned lit, struct watch *watch)
   PUSH (REFERENCES (lit), watch);
 }
 
+static void
+dec_clauses (struct solver *solver, bool redundant)
+{
+  if (redundant)
+    {
+      assert (solver->statistics.redundant > 0);
+      solver->statistics.redundant--;
+    }
+  else
+    {
+      assert (solver->statistics.irredundant > 0);
+      solver->statistics.irredundant--;
+    }
+}
+
+static void
+inc_clauses (struct solver *solver, bool redundant)
+{
+  if (redundant)
+    solver->statistics.redundant++;
+  else
+    solver->statistics.irredundant++;
+}
+
 static struct watch *
-new_watch (struct solver *solver, struct clause *clause,
-	   bool redundant, unsigned glue)
+new_watch (struct solver *solver, struct clause *clause)
 {
   assert (clause->size > 2);
+  bool redundant = clause->redundant;
+  unsigned glue = clause->glue;
   unsigned *literals = clause->literals;
   struct watch *watch = allocate_block (sizeof *watch);
   watch->garbage = false;
@@ -1684,40 +1712,8 @@ new_watch (struct solver *solver, struct clause *clause,
   push_watch (solver, literals[0], watch);
   push_watch (solver, literals[1], watch);
   PUSH (solver->watches, watch);
-  assert (watch->glue == clause->glue);
-  assert (watch->redundant == clause->redundant);
+  inc_clauses (solver, redundant);
   return watch;
-}
-
-static void
-delete_watch (struct solver *solver, struct watch *watch)
-{
-  (void) solver;
-  free (watch);
-}
-
-static void
-inc_clauses (struct solver *solver, bool redundant)
-{
-  if (redundant)
-    solver->statistics.redundant++;
-  else
-    solver->statistics.irredundant++;
-}
-
-static void
-dec_clauses (struct solver *solver, bool redundant)
-{
-  if (redundant)
-    {
-      assert (solver->statistics.redundant > 0);
-      solver->statistics.redundant--;
-    }
-  else
-    {
-      assert (solver->statistics.irredundant > 0);
-      solver->statistics.irredundant--;
-    }
 }
 
 static void
@@ -1755,7 +1751,6 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
 #ifdef LOGGING
   clause->id = ++solver->statistics.ids;
 #endif
-  inc_clauses (solver, redundant);
   if (glue > MAX_GLUE)
     glue = MAX_GLUE;
   clause->glue = glue;
@@ -1764,14 +1759,13 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
   LOGCLAUSE (clause, "new");
-  return new_watch (solver, clause, redundant, glue);
+  return new_watch (solver, clause);
 }
 
 static void
-delete_clause (struct solver *solver, struct clause *clause)
+really_delete_clause (struct solver *solver, struct clause *clause)
 {
   LOGCLAUSE (clause, "delete");
-  dec_clauses (solver, clause->redundant);
   trace_delete_clause (solver, clause);
   free (clause);
 }
@@ -1789,7 +1783,16 @@ dereference_clause (struct solver * solver, struct clause * clause)
 {
   LOGCLAUSE (clause, "dereference shared %u", (unsigned) clause->shared);
   if (!atomic_fetch_sub (&clause->shared, 1))
-    delete_clause (solver, clause);
+    really_delete_clause (solver, clause);
+}
+
+static void
+delete_watch (struct solver *solver, struct watch *watch)
+{
+  struct clause *clause = watch->clause;
+  dec_clauses (solver, clause->redundant);
+  dereference_clause (solver, clause);
+  free (watch);
 }
 
 /*------------------------------------------------------------------------*/
@@ -2050,8 +2053,7 @@ cloning_clauses (struct solver *dst, struct solver *src)
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
       reference_clause (solver, clause);
-      inc_clauses (solver, false);
-      new_watch (solver, clause, false, 0);
+      new_watch (solver, clause);
       shared++;
     }
   very_verbose (solver, "cloned %zu large clauses", shared);
@@ -2509,6 +2511,90 @@ import_binary (struct solver * solver, struct clause * clause)
 }
 
 static bool
+subsumed_large_clause (struct solver * solver, struct clause * clause)
+{
+  signed char * values = solver->values;
+  struct variable * variables = solver->variables;
+  signed char * marks = solver->marks;
+  uint64_t min_watched = UINT64_MAX;
+  unsigned best = INVALID;
+  for (all_literals_in_clause (lit, clause))
+    {
+      signed char value = values[lit];
+      unsigned idx = IDX (lit);
+      struct variable * v = variables + idx;
+      if (value < 0 && !v->level)
+	continue;
+      assert (!value || v->level);
+      marks[lit] = 1;
+      size_t watched = SIZE (REFERENCES (lit));
+      if (watched >= min_watched)
+	continue;
+      min_watched = watched;
+      best = lit;
+    }
+  assert (best != INVALID);
+  bool res = false;
+  struct references * watches = &REFERENCES (best);
+  for (all_watches (watch, *watches))
+    {
+      if (binary_pointer (watch))
+	continue;
+      if (!watch->redundant)
+	continue;
+      res = true;
+      struct clause * other_clause = watch->clause;
+      for (all_literals_in_clause (other, other_clause))
+	{
+	  if (other == best)
+	    continue;
+	  signed char value = values[other];
+	  unsigned idx = IDX (other);
+	  struct variable * v = variables + idx;
+	  if (value < 0 && !v->level)
+	    continue;
+	  signed char mark = marks[other];
+	  if (mark)
+	    continue;
+	  res = false;
+	  break;
+	}
+      if (!res)
+	continue;
+      LOGCLAUSE (other_clause, "subsuming");
+      break;
+    }
+  for (all_literals_in_clause (lit, clause))
+    marks[lit] = 0;
+  if (res)
+    LOGCLAUSE (clause, "subsumed imported");
+  return res;;
+}
+
+static struct watch *
+really_import_clause (struct solver * solver, struct clause * clause)
+{
+  if (subsumed_large_clause (solver, clause))
+    return 0;
+  struct watch * watch = new_watch (solver, clause);
+  assert (watch);
+  unsigned glue = clause->glue;
+  assert (clause->redundant);
+  struct statistics * statistics = &solver->statistics;
+  statistics->redundant++;
+  if (glue == 1)
+    statistics->imported.glue1++;
+  else if (glue <= TIER1_GLUE_LIMIT)
+    statistics->imported.tier1++;
+  else if (glue <= TIER2_GLUE_LIMIT)
+    statistics->imported.tier2++;
+  else
+    statistics->imported.tier3++;
+  statistics->imported.clauses++;
+  return watch;
+}
+
+static bool
 import_large_clause (struct solver * solver, struct clause * clause)
 {
   signed char * values = solver->values;
@@ -2522,6 +2608,11 @@ import_large_clause (struct solver * solver, struct clause * clause)
       signed value = values[lit];
       if (!lit_level && value > 0)
 	return false;
+      if (value > 0)
+	{
+	  LOGCLAUSE (clause, "importing (1st case)");
+	  return really_import_clause (solver, clause);
+	}
     }
   return false;
 }
@@ -3371,12 +3462,9 @@ flush_watches (struct solver *solver)
 	continue;
       if (watch->reason)
 	continue;
+      delete_watch (solver, watch);
       flushed++;
       q--;
-
-      struct clause *clause = watch->clause;
-      delete_watch (solver, watch);
-      dereference_clause (solver, clause);
     }
   watches->end = q;
   verbose (solver,
@@ -5024,7 +5112,7 @@ parse_dimacs_file ()
   fflush (stdout);
   struct root *root = new_root (variables);
   struct solver *solver = new_solver (root);
-  signed char *marked = allocate_and_clear_block (variables);
+  signed char *marked = solver->marks;
   int signed_lit = 0, parsed = 0;
   bool trivial = false;
   struct unsigneds *clause = &solver->clause;
@@ -5120,7 +5208,6 @@ parse_dimacs_file ()
       if (ch == 'c')
 	goto SKIP_BODY_COMMENT;
     }
-  free (marked);
   assert (parsed == expected);
   printf ("c parsed 'p cnf %d %d' DIMACS file '%s'\n",
 	  variables, parsed, dimacs.path);
@@ -5622,6 +5709,9 @@ print_solver_statistics (struct solver *solver)
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
 	      "  imported-binary:", s->imported.binary,
 	      percent (s->imported.binary, s->imported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
+	      "  imported-glue1:", s->imported.glue1,
+	      percent (s->imported.glue1, s->imported.clauses));
 
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	      "exported-clauses:", s->exported.clauses,
