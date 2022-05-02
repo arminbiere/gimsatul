@@ -2652,7 +2652,8 @@ minimize_clause (struct solver *solver, unsigned glue)
       if (!failed)
 	{
 	  assert (uip != INVALID);
-	  LOGTMP ("shrinking succeeded with first UIP %s of glue 1", LOGLIT (uip));
+	  LOGTMP ("shrinking succeeded with first UIP %s of glue 1",
+	          LOGLIT (uip));
 	  unsigned not_uip = NOT (uip);
 	  clause->begin[1] = not_uip;
 	  clause->end = clause->begin + 2;
@@ -2661,7 +2662,7 @@ minimize_clause (struct solver *solver, unsigned glue)
 	}
     }
 
-  if (glue && !shrunken)
+  if (glue && !shrunken && deduced > 2)
     {
       LOG ("trying to minimize glue %u clause of size %zu", glue, deduced);
       for (unsigned *p = q; p != end; p++)
