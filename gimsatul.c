@@ -2369,10 +2369,6 @@ export_binary (struct solver * solver, struct watch * watch)
 static bool
 import_binary (struct solver * solver, struct watch * watch)
 {
-#if 0
-  logging = true;
-  verbosity = INT_MAX;
-#endif
   assert (binary_pointer (watch));
   assert (redundant_pointer (watch));
   signed char * values = solver->values;
@@ -2395,7 +2391,10 @@ import_binary (struct solver * solver, struct watch * watch)
         return false;
     }
   if (subsumed_binary (solver, lit, other))
-    return false;
+    {
+      LOGBINARY (true, lit, other, "subsumed imported");
+      return false;
+    }
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
   bool res = true;
@@ -2450,10 +2449,6 @@ import_binary (struct solver * solver, struct watch * watch)
 	  trace_add_empty (solver);
 	}
     }
-#if 0
-  logging = false;
-  verbosity = 0;
-#endif
   return res;
 }
 
