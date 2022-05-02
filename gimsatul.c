@@ -4039,20 +4039,19 @@ break_count (struct walker *walker, unsigned lit)
   unsigned res = 0;
   struct counters * counters = &OCCURRENCES (not_lit);
   unsigned * binaries = counters->binaries;
+  uint64_t ticks = 1;
   if (binaries)
     for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
 	if (values[other] <= 0)
 	  res++;
   for (all_counters (counter, *counters))
-    if (binary_pointer (counter))
-      {
-	assert (lit_pointer (counter) == not_lit);
-	unsigned other = other_pointer (counter);
-	if (values[other] <= 0)
-	  res++;
-      }
-    else if (counter->count == 1)
-      res++;
+    {
+      ticks++;
+      assert (!binary_pointer (counter));
+      if (counter->count == 1)
+	res++;
+    }
+  solver->statistics.contexts[WALK].ticks += ticks;
   return res;
 }
 
