@@ -137,7 +137,7 @@ do { \
   *(STACK).end++ = (ELEM); \
 } while (0)
 
-#define SHRINK(STACK) \
+#define SHRINK_STACK(STACK) \
 do { \
   size_t OLD_SIZE = SIZE (STACK); \
   if (!OLD_SIZE) \
@@ -261,7 +261,7 @@ struct buffer
 
 struct trail
 {
-  unsigned *begin, *end, *propagate;
+  unsigned *begin, *end, *propagate, * pos;
 };
 
 #define SHARE
@@ -315,6 +315,7 @@ struct variable
   bool minimize:1;
   bool poison:1;
   bool seen:1;
+  bool shrinkable:1;
   struct watch *reason;
 };
 
@@ -417,8 +418,13 @@ struct statistics
 
   struct context contexts[CONTEXTS];
 
-  uint64_t deduced;
-  uint64_t minimized;
+  struct {
+    uint64_t learned;
+    uint64_t deduced;
+    uint64_t minimized;
+    uint64_t shrunken;
+  } literals;
+
 #ifdef LOGGING
   uint64_t ids;
 #endif
@@ -434,7 +440,6 @@ struct statistics
     uint64_t binary;
     uint64_t clauses;
     uint64_t glue1;
-    uint64_t literals;
     uint64_t tier1;
     uint64_t tier2;
     uint64_t tier3;
@@ -1417,6 +1422,7 @@ new_solver (struct root *root)
   struct trail *trail = &solver->trail;
   trail->begin = allocate_array (size, sizeof *trail->begin);
   trail->end = trail->propagate = trail->begin;
+  trail->pos = allocate_array (size, sizeof *trail->pos);
   struct queue *queue = &solver->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
   queue->scores = allocate_and_clear_array (size, sizeof *queue->scores);
@@ -1457,6 +1463,7 @@ delete_solver (struct solver *solver)
   RELEASE (solver->clause);
   RELEASE (solver->analyzed);
   free (solver->trail.begin);
+  free (solver->trail.pos);
   RELEASE (solver->levels);
   RELEASE (solver->buffer);
   release_watches (solver);
@@ -1850,14 +1857,20 @@ static void
 assign (struct solver *solver, unsigned lit, struct watch *reason)
 {
   const unsigned not_lit = NOT (lit);
+  unsigned idx = IDX (lit);
+  assert (idx < solver->size);
   assert (!solver->values[lit]);
   assert (!solver->values[not_lit]);
   assert (solver->unassigned);
   solver->unassigned--;
   solver->values[lit] = 1;
   solver->values[not_lit] = -1;
-  *solver->trail.end++ = lit;
-  struct variable *v = VAR (lit);
+  struct trail * trail = &solver->trail;
+  size_t pos = trail->end - trail->begin;
+  assert (pos < solver->size);
+  trail->pos[idx] = pos;
+  *trail->end++ = lit;
+  struct variable *v = solver->variables + idx;
   v->saved = SGN (lit) ? -1 : 1;
   unsigned level = solver->level;
   v->level = level;
@@ -2540,24 +2553,126 @@ minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
   return res;
 }
 
+#define SHRINK_LITERAL(OTHER) \
+do { \
+  if (failed) \
+    break; \
+  if (OTHER == uip) \
+    break; \
+  assert (solver->values[OTHER] < 0); \
+  unsigned OTHER_IDX = IDX (OTHER); \
+  struct variable *V = variables + OTHER_IDX; \
+  unsigned OTHER_LEVEL = V->level; \
+  assert (OTHER_LEVEL <= level); \
+  if (!OTHER_LEVEL) \
+    break; \
+  if (OTHER_LEVEL != level) \
+    { \
+      LOG ("shrinking failed due to %s", LOGLIT (OTHER)); \
+      failed = true; \
+      break; \
+    } \
+  if (V->seen) \
+    break; \
+  if (V->shrinkable) \
+    break; \
+  V->shrinkable = true; \
+  PUSH (*analyzed, OTHER_IDX); \
+  open++; \
+} while (0)
+
 static void
 minimize_clause (struct solver *solver, unsigned glue)
 {
   struct unsigneds *clause = &solver->clause;
   unsigned *begin = clause->begin, *q = begin + 1;
   unsigned *end = clause->end;
+  size_t deduced = end - begin;
   size_t minimized = 0;
-  for (unsigned *p = q; p != end; p++)
+  size_t shrunken = 0;
+
+  if (glue == 1 && deduced > 2)
     {
-      unsigned lit = *q++ = *p;
-      if (!minimize_literal (solver, lit, 0))
-	continue;
-      LOG ("minimized literal %s\n", LOGLIT (lit));
-      minimized++;
-      q--;
+      LOGTMP ("trying to shrink glue 1");
+
+      struct variable * variables = solver->variables;
+      struct unsigneds * analyzed = &solver->analyzed;
+      struct trail * trail = &solver->trail;
+
+      unsigned max_pos = 0, open = 0;
+      unsigned level = INVALID;
+
+      for (unsigned *p = q; p != end; p++)
+	{
+	  unsigned lit = *p;
+	  unsigned idx = IDX (lit);
+	  struct variable * v = variables + idx;
+	  assert (v->level < solver->level);
+	  if (!v->level)
+	    continue;
+	  if (level == INVALID)
+	    level = v->level;
+	  else
+	    assert (v->level == level);
+	  v->shrinkable = true;
+	  PUSH (*analyzed, idx);
+	  unsigned pos = trail->pos[idx];
+	  if (pos > max_pos)
+	    max_pos = pos;
+	  open++;
+	}
+      LOG ("maximum trail position %u of level %u block of size %u",
+           max_pos, level, open);
+      assert (max_pos > 0), assert (open > 1);
+      assert (level), assert (level != INVALID);
+      unsigned * t = trail->begin + max_pos, uip;
+      bool failed = false;
+      while (!failed && open)
+	{
+	  uip = *t--;
+	  unsigned idx = IDX (uip);
+	  struct variable * v = variables + idx;
+	  assert (v->level == level);
+	  if (!v->shrinkable)
+	    continue;
+	  struct watch * reason = v->reason;
+	  if (binary_pointer (reason))
+	    {
+	      unsigned other = other_pointer (reason);
+	      SHRINK_LITERAL (other);
+	      assert (!failed);
+	    }
+	  else if (reason)
+	    {
+	      struct clause * clause = reason->clause;
+	      for (all_literals_in_clause (other, clause))
+		SHRINK_LITERAL (other);
+	    }
+	  assert (open);
+	  open--;
+	}
+      if (!failed)
+	{
+	  assert (uip != INVALID);
+	  LOGTMP ("shrinking succeeded with first UIP %s of glue 1", LOGLIT (uip));
+	}
     }
-  size_t deduced = SIZE (*clause);
-  clause->end = q;
+
+  if (glue && !shrunken)
+    {
+      LOG ("trying to minimize glue %u clause of size %zu", glue, deduced);
+      for (unsigned *p = q; p != end; p++)
+	{
+	  unsigned lit = *q++ = *p;
+	  if (!minimize_literal (solver, lit, 0))
+	    continue;
+	  LOG ("minimized literal %s", LOGLIT (lit));
+	  minimized++;
+	  q--;
+	}
+      clause->end = q;
+    }
+
   size_t learned = SIZE (*clause);
   assert (learned + minimized == deduced);
 
@@ -2575,10 +2690,13 @@ minimize_clause (struct solver *solver, unsigned glue)
   else
     solver->statistics.learned.tier3++;
 
-  solver->statistics.learned.literals += learned;
-  solver->statistics.minimized += minimized;
-  solver->statistics.deduced += deduced;
+  solver->statistics.literals.learned += learned;
+  solver->statistics.literals.minimized += minimized;
+  solver->statistics.literals.shrunken += shrunken;
+  solver->statistics.literals.deduced += deduced;
+
   LOG ("minimized %zu literals out of %zu", minimized, deduced);
+  LOG ("shrunken %zu literals out of %zu", shrunken, deduced);
 }
 
 static void
@@ -2624,34 +2742,34 @@ bump_reason_side_literals (struct solver *solver)
     }
 }
 
-#define ANALYZE(LIT) \
+#define ANALYZE_LITERAL(OTHER) \
 do { \
-  if (LIT == uip) \
+  if (OTHER == uip) \
     break; \
-  assert (solver->values[LIT] < 0); \
-  unsigned idx = IDX (LIT); \
-  struct variable *v = variables + idx; \
-  unsigned lit_level = v->level; \
-  if (!lit_level) \
+  assert (solver->values[OTHER] < 0); \
+  unsigned OTHER_IDX = IDX (OTHER); \
+  struct variable *V = variables + OTHER_IDX; \
+  unsigned OTHER_LEVEL = V->level; \
+  if (!OTHER_LEVEL) \
     break; \
-  if (v->seen) \
+  if (V->seen) \
     break; \
-  v->seen = true; \
-  PUSH (*analyzed, idx); \
-  bump_variable_score (solver, idx); \
-  if (lit_level == level) \
+  V->seen = true; \
+  PUSH (*analyzed, OTHER_IDX); \
+  bump_variable_score (solver, OTHER_IDX); \
+  if (OTHER_LEVEL == level) \
     { \
       open++; \
       break;; \
     } \
-  PUSH (*clause, LIT); \
-  if (!used[lit_level]) \
+  PUSH (*clause, OTHER); \
+  if (!used[OTHER_LEVEL]) \
     { \
       glue++; \
-      used[lit_level] = true; \
-      PUSH (*levels, lit_level); \
-      if (lit_level > jump) \
-	jump = lit_level; \
+      used[OTHER_LEVEL] = true; \
+      PUSH (*levels, OTHER_LEVEL); \
+      if (OTHER_LEVEL > jump) \
+	jump = OTHER_LEVEL; \
     } \
 } while (0)
 
@@ -2690,14 +2808,14 @@ analyze (struct solver *solver, struct watch *reason)
 	{
 	  unsigned lit = lit_pointer (reason);
 	  unsigned other = other_pointer (reason);
-	  ANALYZE (lit);
-	  ANALYZE (other);
+	  ANALYZE_LITERAL (lit);
+	  ANALYZE_LITERAL (other);
 	}
       else
 	{
 	  bump_reason (reason);
 	  for (all_literals_in_clause (lit, reason->clause))
-	    ANALYZE (lit);
+	    ANALYZE_LITERAL (lit);
 	}
       do
 	{
@@ -2772,7 +2890,7 @@ analyze (struct solver *solver, struct watch *reason)
   for (all_elements_on_stack (unsigned, idx, *analyzed))
     {
       struct variable *v = variables + idx;
-      v->seen = v->poison = v->minimize = false;
+      v->seen = v->poison = v->minimize = v->shrinkable = false;
     }
   CLEAR (*analyzed);
   for (all_elements_on_stack (unsigned, used_level, *levels))
@@ -3144,7 +3262,7 @@ flush_references (struct solver *solver, bool fixed)
 	    }
 	}
       watches->end = q;
-      SHRINK (*watches);
+      SHRINK_STACK (*watches);
     }
   verbose (solver, "flushed %zu garbage watches from watch lists", flushed);
 }
@@ -5376,14 +5494,17 @@ print_solver_statistics (struct solver *solver)
 	  "flips:", s->flips, average (s->flips, 1e3 * walk));
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per learned clause",
-	  "learned-literals:", s->learned.literals,
-	  average (s->learned.literals, s->learned.clauses));
+	  "learned-literals:", s->literals.learned,
+	  average (s->literals.learned, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f times learned literals",
-	  "  deduced-literals:", s->deduced,
-	  average (s->deduced, s->learned.literals));
+	  "  deduced-literals:", s->literals.deduced,
+	  average (s->literals.deduced, s->literals.learned));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per deduced literal",
-	  "  minimized-literals:", s->minimized,
-	  percent (s->minimized, s->deduced));
+	  "  minimized-literals:", s->literals.minimized,
+	  percent (s->literals.minimized, s->literals.deduced));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per deduced literal",
+	  "  shrunken-literals:", s->literals.shrunken,
+	  percent (s->literals.shrunken, s->literals.deduced));
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second",
 	  "learned-clauses:", s->learned.clauses,
