@@ -2572,8 +2572,6 @@ do { \
       failed = true; \
       break; \
     } \
-  if (V->seen) \
-    break; \
   if (V->shrinkable) \
     break; \
   V->shrinkable = true; \
@@ -2625,7 +2623,7 @@ minimize_clause (struct solver *solver, unsigned glue)
            max_pos, level, open);
       assert (max_pos > 0), assert (open > 1);
       assert (level), assert (level != INVALID);
-      unsigned * t = trail->begin + max_pos, uip;
+      unsigned * t = trail->begin + max_pos, uip = INVALID;
       bool failed = false;
       while (!failed && open)
 	{
@@ -2655,6 +2653,11 @@ minimize_clause (struct solver *solver, unsigned glue)
 	{
 	  assert (uip != INVALID);
 	  LOGTMP ("shrinking succeeded with first UIP %s of glue 1", LOGLIT (uip));
+	  unsigned not_uip = NOT (uip);
+	  clause->begin[1] = not_uip;
+	  clause->end = clause->begin + 2;
+	  shrunken = deduced - 2;
+	  assert (shrunken);
 	}
     }
 
@@ -2674,7 +2677,7 @@ minimize_clause (struct solver *solver, unsigned glue)
     }
 
   size_t learned = SIZE (*clause);
-  assert (learned + minimized == deduced);
+  assert (learned + minimized + shrunken == deduced);
 
   solver->statistics.learned.clauses++;
   if (learned == 1)
