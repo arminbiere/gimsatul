@@ -5245,7 +5245,7 @@ detach_and_delete_solvers (struct root * root)
     {
       if (verbosity)
 	{
-	  printf ("c deleting single solver in main thread");
+	  printf ("c deleting single solver in main thread\n");
 	  fflush (stdout);
 	}
 
