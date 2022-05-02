@@ -2555,8 +2555,6 @@ minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
 
 #define SHRINK_LITERAL(OTHER) \
 do { \
-  if (failed) \
-    break; \
   if (OTHER == uip) \
     break; \
   assert (solver->values[OTHER] < 0); \
@@ -2569,8 +2567,7 @@ do { \
   if (OTHER_LEVEL != level) \
     { \
       LOG ("shrinking failed due to %s", LOGLIT (OTHER)); \
-      failed = true; \
-      break; \
+      return 0; \
     } \
   if (V->shrinkable) \
     break; \
@@ -2579,105 +2576,124 @@ do { \
   open++; \
 } while (0)
 
-static void
-minimize_clause (struct solver *solver, unsigned glue)
+static size_t
+shrink_clause (struct solver * solver)
 {
+  LOGTMP ("trying to shrink");
+
+  struct variable * variables = solver->variables;
+  struct unsigneds * analyzed = &solver->analyzed;
+  struct trail * trail = &solver->trail;
+
+  struct unsigneds *clause = &solver->clause;
+  unsigned *begin = clause->begin;
+  unsigned *end = clause->end;
+
+  unsigned max_pos = 0, open = 0;
+  unsigned level = INVALID;
+
+  size_t deduced = begin - end;
+  size_t shrunken = 0;
+
+  for (unsigned *p = begin + 1; p != end; p++)
+    {
+      unsigned lit = *p;
+      unsigned idx = IDX (lit);
+      struct variable * v = variables + idx;
+      assert (v->level < solver->level);
+      if (!v->level)
+	continue;
+      if (level == INVALID)
+	level = v->level;
+      else
+	assert (v->level == level);
+      v->shrinkable = true;
+      PUSH (*analyzed, idx);
+      unsigned pos = trail->pos[idx];
+      if (pos > max_pos)
+	max_pos = pos;
+      open++;
+    }
+  LOG ("maximum trail position %u of level %u block of size %u",
+       max_pos, level, open);
+
+  assert (max_pos > 0), assert (open > 1);
+  assert (level), assert (level != INVALID);
+
+  unsigned * t = trail->begin + max_pos, uip = INVALID;
+
+  while (open)
+    {
+      uip = *t--;
+      unsigned idx = IDX (uip);
+      struct variable * v = variables + idx;
+      assert (v->level == level);
+      if (!v->shrinkable)
+	continue;
+      struct watch * reason = v->reason;
+      if (binary_pointer (reason))
+	{
+	  unsigned other = other_pointer (reason);
+	  SHRINK_LITERAL (other);
+	  assert (!failed);
+	}
+      else if (reason)
+	{
+	  struct clause * clause = reason->clause;
+	  for (all_literals_in_clause (other, clause))
+	    SHRINK_LITERAL (other);
+	}
+      assert (open);
+      open--;
+    }
+
+  assert (uip != INVALID);
+  LOGTMP ("shrinking succeeded with first UIP %s of glue 1", LOGLIT (uip));
+  unsigned not_uip = NOT (uip);
+  clause->begin[1] = not_uip;
+  clause->end = clause->begin + 2;
+  shrunken = deduced - 2;
+  assert (shrunken);
+
+  return shrunken;
+}
+
+static size_t
+minimize_clause (struct solver * solver)
+{
+  LOGTMP ("trying to minimize clause");
   struct unsigneds *clause = &solver->clause;
   unsigned *begin = clause->begin, *q = begin + 1;
   unsigned *end = clause->end;
-  size_t deduced = end - begin;
+  size_t minimized = 0;
+  for (unsigned *p = q; p != end; p++)
+    {
+      unsigned lit = *q++ = *p;
+      if (!minimize_literal (solver, lit, 0))
+	continue;
+      LOG ("minimized literal %s", LOGLIT (lit));
+      minimized++;
+      q--;
+    }
+  clause->end = q;
+  return minimized;
+}
+
+static void
+shrink_or_minimize_clause (struct solver *solver, unsigned glue)
+{
+  size_t deduced = SIZE (solver->clause);
+
   size_t minimized = 0;
   size_t shrunken = 0;
 
   if (glue == 1 && deduced > 2)
-    {
-      LOGTMP ("trying to shrink glue 1");
-
-      struct variable * variables = solver->variables;
-      struct unsigneds * analyzed = &solver->analyzed;
-      struct trail * trail = &solver->trail;
-
-      unsigned max_pos = 0, open = 0;
-      unsigned level = INVALID;
-
-      for (unsigned *p = q; p != end; p++)
-	{
-	  unsigned lit = *p;
-	  unsigned idx = IDX (lit);
-	  struct variable * v = variables + idx;
-	  assert (v->level < solver->level);
-	  if (!v->level)
-	    continue;
-	  if (level == INVALID)
-	    level = v->level;
-	  else
-	    assert (v->level == level);
-	  v->shrinkable = true;
-	  PUSH (*analyzed, idx);
-	  unsigned pos = trail->pos[idx];
-	  if (pos > max_pos)
-	    max_pos = pos;
-	  open++;
-	}
-      LOG ("maximum trail position %u of level %u block of size %u",
-           max_pos, level, open);
-      assert (max_pos > 0), assert (open > 1);
-      assert (level), assert (level != INVALID);
-      unsigned * t = trail->begin + max_pos, uip = INVALID;
-      bool failed = false;
-      while (!failed && open)
-	{
-	  uip = *t--;
-	  unsigned idx = IDX (uip);
-	  struct variable * v = variables + idx;
-	  assert (v->level == level);
-	  if (!v->shrinkable)
-	    continue;
-	  struct watch * reason = v->reason;
-	  if (binary_pointer (reason))
-	    {
-	      unsigned other = other_pointer (reason);
-	      SHRINK_LITERAL (other);
-	      assert (!failed);
-	    }
-	  else if (reason)
-	    {
-	      struct clause * clause = reason->clause;
-	      for (all_literals_in_clause (other, clause))
-		SHRINK_LITERAL (other);
-	    }
-	  assert (open);
-	  open--;
-	}
-      if (!failed)
-	{
-	  assert (uip != INVALID);
-	  LOGTMP ("shrinking succeeded with first UIP %s of glue 1",
-	          LOGLIT (uip));
-	  unsigned not_uip = NOT (uip);
-	  clause->begin[1] = not_uip;
-	  clause->end = clause->begin + 2;
-	  shrunken = deduced - 2;
-	  assert (shrunken);
-	}
-    }
+    shrunken = shrink_clause (solver);
 
   if (glue && !shrunken && deduced > 2)
-    {
-      LOG ("trying to minimize glue %u clause of size %zu", glue, deduced);
-      for (unsigned *p = q; p != end; p++)
-	{
-	  unsigned lit = *q++ = *p;
-	  if (!minimize_literal (solver, lit, 0))
-	    continue;
-	  LOG ("minimized literal %s", LOGLIT (lit));
-	  minimized++;
-	  q--;
-	}
-      clause->end = q;
-    }
+    minimized = minimize_clause (solver);
 
-  size_t learned = SIZE (*clause);
+  size_t learned = SIZE (solver->clause);
   assert (learned + minimized + shrunken == deduced);
 
   solver->statistics.learned.clauses++;
@@ -2846,7 +2862,7 @@ analyze (struct solver *solver, struct watch *reason)
   const unsigned not_uip = NOT (uip);
   literals[0] = not_uip;
   LOGTMP ("first UIP %s", LOGLIT (uip));
-  minimize_clause (solver, glue);
+  shrink_or_minimize_clause (solver, glue);
   bump_reason_side_literals (solver);
   bump_score_increment (solver);
   backtrack (solver, level - 1);
