@@ -54,6 +54,8 @@ static const char * usage =
 #define MAX_VAR ((1u<<30) - 1)
 #define MAX_LIT NOT (LIT (MAX_VAR))
 
+#define MAX_GLUE 255
+
 #define FREE (UINT_MAX-1)
 #define INVALID UINT_MAX
 
@@ -262,7 +264,7 @@ struct trail
   unsigned *begin, *end, *propagate;
 };
 
-#define MAX_GLUE 255
+#define SHARE
 
 struct clause
 {
@@ -489,7 +491,7 @@ struct solver
 {
   unsigned id;
   struct root *root;
-  struct watch * volatile share;
+  struct watch * volatile share[4];
   volatile int status;
   unsigned * units;
   bool inconsistent;
@@ -2349,7 +2351,7 @@ export_binary (struct solver * solver, struct watch * watch)
   if (!solver->parallel)
     return;
   struct watch * previous =
-    (struct watch*) atomic_exchange (&solver->share, watch);
+    (struct watch*) atomic_exchange (&solver->share[0], watch);
   if (!previous)
     {
       solver->statistics.exported.binary++;
@@ -2376,7 +2378,8 @@ import_binary (struct solver * solver)
   if (!src->share)
     return false;
 #endif
-  struct watch * watch = (struct watch*) atomic_exchange (&src->share, 0);
+  struct watch * watch =
+    (struct watch*) atomic_exchange (&src->share[0], 0);
   if (!watch)
     return false;
 #if 0
@@ -5470,11 +5473,27 @@ check_types (void)
   CHECK_TYPE (int, 4);
   CHECK_TYPE (size_t, 8);
   CHECK_TYPE (void*, 8);
-#if 1
-  printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
-  printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
-  printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
-#endif
+
+  {
+    size_t glue_in_clause_bytes = sizeof ((struct clause*)0)->glue;
+    if (glue_in_clause_bytes << 8 <= MAX_GLUE)
+      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (clause.glue) = %zu'",
+		   MAX_GLUE, glue_in_clause_bytes);
+  }
+
+  {
+    size_t glue_in_watch_bytes = sizeof ((struct watch*)0)->glue;
+    if (glue_in_watch_bytes << 8 <= MAX_GLUE)
+      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (watch.glue) = %zu'",
+		   MAX_GLUE, glue_in_watch_bytes);
+  }
+
+  if (verbosity)
+    {
+      printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
+      printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
+      printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
+    }
 }
 
 /*------------------------------------------------------------------------*/
