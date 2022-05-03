@@ -1658,7 +1658,7 @@ close_proof (void)
 /*------------------------------------------------------------------------*/
 
 static void
-push_watch (struct solver *solver, unsigned lit, struct watch *watch)
+watch_literal (struct solver *solver, unsigned lit, struct watch *watch)
 {
   LOGWATCH (watch, "watching %s in", LOGLIT (lit));
   PUSH (REFERENCES (lit), watch);
@@ -1689,12 +1689,11 @@ inc_clauses (struct solver *solver, bool redundant)
 }
 
 static struct watch *
-new_watch (struct solver *solver, struct clause *clause)
+new_large_clause_watch (struct solver *solver, struct clause *clause)
 {
   assert (clause->size > 2);
   bool redundant = clause->redundant;
   unsigned glue = clause->glue;
-  unsigned *literals = clause->literals;
   struct watch *watch = allocate_block (sizeof *watch);
   watch->garbage = false;
   watch->reason = false;
@@ -1707,12 +1706,21 @@ new_watch (struct solver *solver, struct clause *clause)
     watch->used = 0;
   watch->glue = glue;
   watch->middle = 2;
-  watch->sum = literals[0] ^ literals[1];
   watch->clause = clause;
-  push_watch (solver, literals[0], watch);
-  push_watch (solver, literals[1], watch);
   PUSH (solver->watches, watch);
   inc_clauses (solver, redundant);
+  return watch;
+}
+
+static struct watch *
+watch_first_two_literals_in_large_clause (struct solver * solver,
+                                          struct clause * clause)
+{
+  struct watch * watch = new_large_clause_watch (solver, clause);
+  unsigned *literals = clause->literals;
+  watch->sum = literals[0] ^ literals[1];
+  watch_literal (solver, literals[0], watch);
+  watch_literal (solver, literals[1], watch);
   return watch;
 }
 
@@ -1734,8 +1742,8 @@ new_local_binary_clause (struct solver *solver, bool redundant,
   inc_clauses (solver, redundant);
   struct watch *watch_lit = tag_pointer (redundant, lit, other);
   struct watch *watch_other = tag_pointer (redundant, other, lit);
-  push_watch (solver, lit, watch_lit);
-  push_watch (solver, other, watch_other);
+  watch_literal (solver, lit, watch_lit);
+  watch_literal (solver, other, watch_other);
   LOGBINARY (redundant, lit, other, "new local");
   return watch_lit;
 }
@@ -1759,7 +1767,7 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
   LOGCLAUSE (clause, "new");
-  return new_watch (solver, clause);
+  return watch_first_two_literals_in_large_clause (solver, clause);
 }
 
 static void
@@ -2053,7 +2061,7 @@ cloning_clauses (struct solver *dst, struct solver *src)
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
       reference_clause (solver, clause);
-      new_watch (solver, clause);
+      watch_first_two_literals_in_large_clause (solver, clause);
       shared++;
     }
   very_verbose (solver, "cloned %zu large clauses", shared);
@@ -2201,7 +2209,7 @@ propagate (struct solver *solver, bool search)
 		{
 		  watch->sum = other ^ replacement;
 		  LOGCLAUSE (watch->clause, "unwatching %s in", LOGLIT (lit));
-		  push_watch (solver, replacement, watch);
+		  watch_literal (solver, replacement, watch);
 		  ticks++;
 		  q--;
 		}
@@ -2589,7 +2597,7 @@ really_import_clause (struct solver * solver, struct clause * clause)
 {
   if (subsumed_large_clause (solver, clause))
     return 0;
-  struct watch * watch = new_watch (solver, clause);
+  struct watch * watch = watch_first_two_literals_in_large_clause (solver, clause);
   assert (watch);
   unsigned glue = clause->glue;
   assert (clause->redundant);
@@ -2612,20 +2620,25 @@ import_large_clause (struct solver * solver, struct clause * clause)
 {
   signed char * values = solver->values;
   struct variable * variables = solver->variables;
-  // unsigned max_level = 0, jump_level = 0;
+#if 0
+  unsigned max_level = 0, jump_level = 0;
+  unsigned first = INVALID, second = INVALID;
+#endif
   for (all_literals_in_clause (lit, clause))
     {
       unsigned idx = IDX (lit);
       struct variable * v = variables + idx;
       unsigned lit_level = v->level;
       signed value = values[lit];
-      if (!lit_level && value > 0)
-	return false;
       if (value > 0)
 	{
+          if (!lit_level)
+	    return false;
 	  LOGCLAUSE (clause, "importing (1st case)");
 	  return really_import_clause (solver, clause);
 	}
+      if (!lit_level && value < 0)
+	continue;
     }
   return false;
 }
@@ -4154,8 +4167,8 @@ reconnect_watches (struct solver * solver, struct watches * saved)
       assert (!binary_pointer (watch));
       unsigned * literals = watch->clause->literals;
       watch->sum = literals[0] ^ literals[1];
-      push_watch (solver, literals[0], watch);
-      push_watch (solver, literals[1], watch);
+      watch_literal (solver, literals[0], watch);
+      watch_literal (solver, literals[1], watch);
       reconnected++;
     }
   for (all_watches (lit_watch, *saved))
@@ -4165,8 +4178,8 @@ reconnect_watches (struct solver * solver, struct watches * saved)
       unsigned lit = lit_pointer (lit_watch);
       unsigned other = other_pointer (lit_watch);
       struct watch * other_watch = tag_pointer (true, other, lit);
-      push_watch (solver, lit, lit_watch);
-      push_watch (solver, other, other_watch);
+      watch_literal (solver, lit, lit_watch);
+      watch_literal (solver, other, other_watch);
     }
   very_verbose (solver, "reconnected %zu clauses", reconnected);
   solver->trail.propagate = solver->trail.begin;
