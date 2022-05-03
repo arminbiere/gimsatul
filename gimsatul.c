@@ -2614,36 +2614,38 @@ subsumed_large_clause (struct solver * solver, struct clause * clause)
       min_watched = watched;
       best = lit;
     }
-  assert (best != INVALID);
   bool res = false;
-  struct references * watches = &REFERENCES (best);
-  for (all_watches (watch, *watches))
+  if (best != INVALID)
     {
-      if (binary_pointer (watch))
-	continue;
-      if (!watch->redundant)
-	continue;
-      res = true;
-      struct clause * other_clause = watch->clause;
-      for (all_literals_in_clause (other, other_clause))
+      struct references * watches = &REFERENCES (best);
+      for (all_watches (watch, *watches))
 	{
-	  if (other == best)
+	  if (binary_pointer (watch))
 	    continue;
-	  signed char value = values[other];
-	  unsigned idx = IDX (other);
-	  struct variable * v = variables + idx;
-	  if (value < 0 && !v->level)
+	  if (!watch->redundant)
 	    continue;
-	  signed char mark = marks[other];
-	  if (mark)
+	  res = true;
+	  struct clause * other_clause = watch->clause;
+	  for (all_literals_in_clause (other, other_clause))
+	    {
+	      if (other == best)
+		continue;
+	      signed char value = values[other];
+	      unsigned idx = IDX (other);
+	      struct variable * v = variables + idx;
+	      if (value < 0 && !v->level)
+		continue;
+	      signed char mark = marks[other];
+	      if (mark)
+		continue;
+	      res = false;
+	      break;
+	    }
+	  if (!res)
 	    continue;
-	  res = false;
+	  LOGCLAUSE (other_clause, "subsuming");
 	  break;
 	}
-      if (!res)
-	continue;
-      LOGCLAUSE (other_clause, "subsuming");
-      break;
     }
   for (all_literals_in_clause (lit, clause))
     marks[lit] = 0;
