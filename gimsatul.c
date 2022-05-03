@@ -2470,7 +2470,7 @@ export_glue1_clause (struct solver * solver, struct clause * clause)
 static bool
 import_binary (struct solver * solver, struct clause * clause)
 {
-#if 1
+#if 0
   return false;
 #endif
   assert (binary_pointer (clause));
