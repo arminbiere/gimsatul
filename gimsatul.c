@@ -2603,10 +2603,10 @@ do { \
       return true;
     }
 
+#if 0
   return false;
-
   COVER ("hit");
-
+#endif
   assert (lit_value < 0);
   assert (other_value < 0);
   assert (lit_level == other_level);
