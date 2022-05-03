@@ -421,10 +421,6 @@ struct statistics
     uint64_t shrunken;
   } literals;
 
-#ifdef LOGGING
-  uint64_t ids;
-#endif
-
   unsigned fixed;
 
   size_t irredundant;
@@ -487,6 +483,10 @@ struct root
   struct unsigneds binaries;
   struct units units;
   unsigned *watches;
+#ifdef LOGGING
+  volatile uint64_t ids;
+#endif
+
 };
 
 #define BINARY_SHARED 0
@@ -871,8 +871,8 @@ do { \
     printf (" redundant glue %u", (CLAUSE)->glue); \
   else \
     printf (" irredundant"); \
-  printf (" size %u clause[%" PRIu64 "]@%p", \
-          (CLAUSE)->size, (uint64_t) (CLAUSE)->id, (void*) (CLAUSE)); \
+  printf (" size %u clause[%" PRIu64 "] %p", \
+          (CLAUSE)->size, (uint64_t) (CLAUSE)->id, (void*) CLAUSE); \
   for (all_literals_in_clause (LIT, (CLAUSE))) \
     printf (" %s", LOGLIT (LIT)); \
   LOGSUFFIX (); \
@@ -1448,8 +1448,14 @@ release_watches (struct solver *solver)
     {
       assert (!binary_pointer (watch));
       struct clause *clause = watch->clause;
-      if (!atomic_fetch_sub (&clause->shared, 1))
-	free (clause);
+      LOGCLAUSE (clause, "trying to final delete");
+      unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+      assert (shared + 1);
+      if (!shared)
+	{
+	  LOGCLAUSE (clause, "final deleting shared %u", shared);
+	  free (clause);
+	}
       free (watch);
     }
   RELEASE (solver->watches);
@@ -1465,8 +1471,13 @@ release_shared (struct solver * solver)
 	continue;
       if (binary_pointer (clause))
 	continue;
-      if (!atomic_fetch_sub (&clause->shared, 1))
-	free (clause);
+      unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+      assert (shared + 1);
+      if (!shared)
+	{
+	  LOGCLAUSE (clause, "final deleting shared %u", shared);
+	  free (clause);
+	}
     }
 }
 
@@ -1778,7 +1789,7 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
   size_t bytes = size * sizeof (unsigned);
   struct clause *clause = allocate_block (sizeof *clause + bytes);
 #ifdef LOGGING
-  clause->id = ++solver->statistics.ids;
+  clause->id = atomic_fetch_add (&solver->root->ids, 1);
 #endif
   if (glue > MAX_GLUE)
     glue = MAX_GLUE;
@@ -1802,16 +1813,18 @@ really_delete_clause (struct solver *solver, struct clause *clause)
 static void
 reference_clause (struct solver * solver, struct clause * clause)
 {
-  LOGCLAUSE (clause, "reference shared %u", clause->shared);
-  unsigned tmp = atomic_fetch_add (&clause->shared, 1);
-  assert (tmp < MAX_THREADS - 1), (void) tmp;
+  unsigned shared = atomic_fetch_add (&clause->shared, 1);
+  LOGCLAUSE (clause, "reference shared %u", shared);
+  assert (shared < MAX_THREADS - 1), (void) shared;
 }
 
 static void
 dereference_clause (struct solver * solver, struct clause * clause)
 {
-  LOGCLAUSE (clause, "dereference shared %u", (unsigned) clause->shared);
-  if (!atomic_fetch_sub (&clause->shared, 1))
+  unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+  assert (shared + 1);
+  LOGCLAUSE (clause, "dereference shared %u", shared);
+  if (!shared)
     really_delete_clause (solver, clause);
 }
 
@@ -2702,7 +2715,7 @@ import_large_clause (struct solver * solver, struct clause * clause)
 	{
 	  LOGCLAUSE (clause, "not importing root-level %s satisfied",
 	             LOGLIT (lit));
-	  return false;
+	  return DELETE_IMPORTED_THEN_DECIDE;
 	}
       if (!value || level)
 	number_not_root_falsified++;
@@ -2712,7 +2725,7 @@ import_large_clause (struct solver * solver, struct clause * clause)
       LOGCLAUSE (clause, "importing (inconsistent case)");
       set_inconsistent (solver, "imported inconsistent large clause");
       trace_add_empty (solver);
-      return true;
+      return DELETE_IMPORTED_THEN_PROPAGATE;
     }
 
   signed char first_value = 0;
@@ -2730,7 +2743,7 @@ import_large_clause (struct solver * solver, struct clause * clause)
     {
       LOGCLAUSE (clause, "importing (1st case)");
       (void) really_import_clause (solver, clause, first, second);
-      return false;
+      return true;
     }
 
   return false;
@@ -2765,7 +2778,7 @@ import_shared (struct solver * solver)
   if (binary_pointer (clause))
     return import_binary (solver, clause);
   if (import_large_clause (solver, clause))
-    return true;
+    return !solver->inconsistent;
   dereference_clause (solver, clause);
   return false;
 }
@@ -5546,12 +5559,16 @@ detach_and_delete_solvers (struct root * root)
 	  printf ("c deleting %zu solvers in parallel\n", threads);
 	  fflush (stdout);
 	}
-
+#if 0
       for (all_solvers (solver))
 	start_detaching_and_deleting_solver (solver);
 
       for (unsigned i = 0; i != threads; i++)
 	stop_detaching_and_deleting_solver (root, i);
+#else
+      for (all_solvers (solver))
+      detach_and_delete_solver (solver);
+#endif
     }
   else
     {
