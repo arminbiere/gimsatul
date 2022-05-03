@@ -2473,6 +2473,7 @@ static void
 export_glue1_clause (struct solver * solver, struct clause * clause)
 {
   assert (!binary_pointer (clause));
+  assert (clause->glue == 1);
   if (!solver->parallel)
     return;
   LOGCLAUSE (clause, "exporting");
@@ -2492,6 +2493,7 @@ static void
 export_tier1_clause (struct solver * solver, struct clause * clause)
 {
   assert (!binary_pointer (clause));
+  assert (clause->glue != 1 && clause->glue <= TIER1_GLUE_LIMIT);
   if (!solver->parallel)
     return;
   LOGCLAUSE (clause, "exporting");
@@ -2503,6 +2505,26 @@ export_tier1_clause (struct solver * solver, struct clause * clause)
   else
     {
       solver->statistics.exported.tier1++;
+      solver->statistics.exported.clauses++;
+    }
+}
+
+static void
+export_tier2_clause (struct solver * solver, struct clause * clause)
+{
+  assert (!binary_pointer (clause));
+  assert (TIER1_GLUE_LIMIT < clause->glue && clause->glue <= TIER2_GLUE_LIMIT);
+  if (!solver->parallel)
+    return;
+  LOGCLAUSE (clause, "exporting");
+  reference_clause (solver, clause);
+  struct clause * previous =
+    (struct clause*) atomic_exchange (&solver->share[TIER2_SHARED], clause);
+  if (previous)
+    dereference_clause (solver, previous);
+  else
+    {
+      solver->statistics.exported.tier2++;
       solver->statistics.exported.clauses++;
     }
 }
@@ -3258,6 +3280,8 @@ analyze (struct solver *solver, struct watch *reason)
 	    export_glue1_clause (solver, clause);
 	  else if (glue <= TIER1_GLUE_LIMIT)
 	    export_tier1_clause (solver, clause);
+	  else if (glue <= TIER2_GLUE_LIMIT)
+	    export_tier2_clause (solver, clause);
 	}
       assign_with_reason (solver, not_uip, learned);
     }
@@ -5933,6 +5957,9 @@ print_solver_statistics (struct solver *solver)
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
 	      "  imported-tier1:", s->imported.tier1,
 	      percent (s->imported.tier1, s->imported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
+	      "  imported-tier2:", s->imported.tier2,
+	      percent (s->imported.tier2, s->imported.clauses));
 
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	      "exported-clauses:", s->exported.clauses,
@@ -5949,6 +5976,9 @@ print_solver_statistics (struct solver *solver)
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
 	      "  exported-tier1:", s->exported.tier1,
 	      percent (s->exported.tier1, s->exported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
+	      "  exported-tier2:", s->exported.tier2,
+	      percent (s->exported.tier2, s->exported.clauses));
     }
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f millions per second",
