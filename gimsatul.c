@@ -2286,32 +2286,40 @@ propagate (struct solver *solver, bool search)
 /*------------------------------------------------------------------------*/
 
 static void
-backtrack (struct solver *solver, unsigned level)
+unassign (struct solver * solver, unsigned lit)
 {
-  assert (solver->level > level);
-  struct trail *trail = &solver->trail;
-  struct variable *variables = solver->variables;
+#ifdef LOGGING
+  solver->level = VAR (lit)->level;
+  LOG ("unassign %s", LOGLIT (lit));
+#endif
+  unsigned not_lit = NOT (lit);
   signed char *values = solver->values;
+  values[lit] = values[not_lit] = 0;
+  assert (solver->unassigned < solver->size);
+  solver->unassigned++;
   struct queue *queue = &solver->queue;
-  struct node *nodes = queue->nodes;
+  struct node *node = queue->nodes + IDX (lit);
+  if (!queue_contains (queue, node))
+    push_queue (queue, node);
+}
+
+static void
+backtrack (struct solver *solver, unsigned new_level)
+{
+  assert (solver->level > new_level);
+  struct trail *trail = &solver->trail;
   unsigned *t = trail->end;
   while (t != trail->begin)
     {
-      unsigned lit = t[-1], idx = IDX (lit);
-      if (variables[idx].level == level)
+      unsigned lit = t[-1];
+      unsigned lit_level = VAR (lit)->level;
+      if (lit_level == new_level)
 	break;
-      LOG ("unassign %s", LOGLIT (lit));
-      unsigned not_lit = NOT (lit);
-      values[lit] = values[not_lit] = 0;
-      assert (solver->unassigned < solver->size);
-      solver->unassigned++;
-      struct node *node = nodes + idx;
-      if (!queue_contains (queue, node))
-	push_queue (queue, node);
+      unassign (solver, lit);
       t--;
     }
   trail->end = trail->propagate = t;
-  solver->level = level;
+  solver->level = new_level;
 }
 
 static void
@@ -2480,6 +2488,39 @@ export_glue1_clause (struct solver * solver, struct clause * clause)
     }
 }
 
+static struct watch *
+really_import_binary_clause (struct solver * solver,
+                             unsigned lit, unsigned other)
+{
+  struct watch * res = new_local_binary_clause (solver, true, lit, other);
+  trace_add_binary (solver, lit, other);
+  solver->statistics.imported.binary++;
+  solver->statistics.imported.clauses++;
+  return res;
+}
+
+static void
+force_to_repropagate (struct solver * solver, unsigned lit)
+{
+  LOG ("forcing to repropagate %s", LOGLIT (lit));
+  assert (solver->values[lit]);
+  unsigned idx = IDX (lit);
+  struct variable * v = solver->variables + idx;
+  if (solver->level > v->level)
+    backtrack (solver, v->level);
+  size_t pos = solver->trail.pos[idx];
+  assert (pos < SIZE (solver->trail));
+  LOG ("setting end of trail to %zu", pos);
+  unsigned * propagate = solver->trail.begin + pos;
+  assert (propagate < solver->trail.end);
+  assert (*propagate == NOT (lit));
+  unsigned * t = solver->trail.end - 1;
+  while (t != propagate)
+    unassign (solver, *t--);
+  solver->trail.propagate = propagate;
+  solver->trail.end = propagate + 1;
+}
+
 static bool
 import_binary (struct solver * solver, struct clause * clause)
 {
@@ -2507,49 +2548,61 @@ import_binary (struct solver * solver, struct clause * clause)
       if (other_value > 0 && !other_level)
         return false;
     }
-  if (subsumed_binary (solver, lit, other))
+
+#define SUBSUME_BINARY(LIT, OTHER) \
+do { \
+  if (subsumed_binary (solver, LIT, OTHER)) \
+    { \
+      LOGBINARY (true, LIT, OTHER, "subsumed imported"); \
+      return false; \
+    } \
+} while (0);
+
+  if ((lit_value >= 0 && other_value >= 0) ||
+      (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
+      (other_value > 0 && lit_value < 0 && other_level <= lit_level))
     {
-      LOGBINARY (true, lit, other, "subsumed imported");
+      SUBSUME_BINARY (lit, other);
+      LOGBINARY (true, lit, other, "importing (no propagation)");
+      (void) really_import_binary_clause (solver, lit, other);
       return false;
     }
-  solver->statistics.imported.binary++;
-  solver->statistics.imported.clauses++;
 
-  if (lit_value > 0 || other_value > 0 || (!lit_value && !other_value))
-    {
-      LOGBINARY (true, lit, other, "importing (1st case)");
-      new_local_binary_clause (solver, true, lit, other);
-      trace_add_binary (solver, lit, other);
-      return false;
-    }
-
-  if (lit_value < 0 &&
-      (!other_value || (other_value < 0 && lit_level < other_level)))
-    {
-      LOGBINARY (true, lit, other, "importing (2nd case)");
-      if (solver->level > lit_level)
-	backtrack (solver, lit_level);
-      struct watch * other_reason =
-        new_local_binary_clause (solver, true, other, lit);
-      trace_add_binary (solver, lit, other);
-      assert (lit_pointer (other_reason) == other);
-      assign_with_reason (solver, other, other_reason); 
-      return true;
-    }
+  unsigned lit_pos = solver->trail.pos[IDX (lit)];
+  unsigned other_pos = solver->trail.pos[IDX (other)];
 
   if (other_value < 0 &&
-      (!lit_value || (lit_value < 0 && other_level < lit_level)))
+      (lit_value >= 0 ||
+       other_level < lit_value ||
+       (other_level == lit_value && other_pos < lit_pos)))
     {
-      LOGBINARY (true, lit, other, "importing (3rd case)");
-      if (solver->level > other_level)
-	backtrack (solver, other_level);
-      struct watch * lit_reason =
-        new_local_binary_clause (solver, true, lit, other);
-      trace_add_binary (solver, lit, other);
-      assert (lit_pointer (lit_reason) == lit);
-      assign_with_reason (solver, lit, lit_reason); 
+      SUBSUME_BINARY (lit, other);
+      LOGBINARY (true, lit, other,
+                 "importing (repropagate second literal %s))",
+		 LOGLIT (other));
+      force_to_repropagate (solver, other);
+      (void) really_import_binary_clause (solver, lit, other);
       return true;
     }
+
+  if (lit_value < 0 ||
+      (other_value >= 0 ||
+       lit_level < other_level ||
+       (lit_level == other_level && lit_pos < other_pos)))
+    {
+      assert (!other_value || (other_value > 0 && other_level > lit_level));
+      SUBSUME_BINARY (lit, other);
+      LOGBINARY (true, lit, other,
+                 "importing (repropagate first literal %s)",
+		 LOGLIT (lit));
+      force_to_repropagate (solver, lit);
+      (void) really_import_binary_clause (solver, lit, other);
+      return true;
+    }
+
+  return false;
+
+  COVER ("hit");
 
   assert (lit_value < 0);
   assert (other_value < 0);
@@ -2558,17 +2611,18 @@ import_binary (struct solver * solver, struct clause * clause)
 
   if (lit_level)
     {
+      SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (4th case)");
       assert (solver->level >= lit_level);
       backtrack (solver, lit_level - 1);
-      new_local_binary_clause (solver, true, lit, other);
-      trace_add_binary (solver, lit, other);
+      (void) really_import_binary_clause (solver, lit, other);
       return true;
     }
 
   LOGBINARY (true, lit, other, "importing (inconsistent case)");
   set_inconsistent (solver, "imported inconsistent binary clause");
   trace_add_empty (solver);
+
   return true;
 }
 
@@ -2741,13 +2795,23 @@ import_large_clause (struct solver * solver, struct clause * clause)
 
   if ((first_value >= 0 && second_value >= 0) ||
       (first_value > 0 && second_value < 0 && first_level <= second_level) ||
-      (second_value > 0 && first < 0 && second_level <= first_level))
+      (second_value > 0 && first_value < 0 && second_level <= first_level))
     {
-      LOGCLAUSE (clause, "importing (1st case)");
       if (really_import_clause (solver, clause, first, second))
-	return true;
-      dereference_clause (solver, clause);
-      return false;
+	{
+	  LOGCLAUSE (clause, "importing (1st case)");
+	  return true;
+	}
+      else
+	{
+	  dereference_clause (solver, clause);
+	  return false;
+	}
+    }
+
+  if (first_value >= 0 && second_value < 0 && !second_level)
+    {
+      assert (!first_value || first_level > second_level);
     }
 
   dereference_clause (solver, clause);
