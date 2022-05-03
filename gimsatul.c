@@ -80,7 +80,7 @@ static const char * usage =
 #define SLOW_ALPHA 1e-5
 #define RESTART_MARGIN 1.1
 
-#define WALK_EFFORT 0.01
+#define WALK_EFFORT 0.02
 #define INITIAL_PHASE 1
 
 /*------------------------------------------------------------------------*/
