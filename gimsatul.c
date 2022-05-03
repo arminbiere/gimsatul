@@ -2759,6 +2759,9 @@ find_literal_to_watch (struct solver * solver,  struct clause * clause,
 static bool
 import_large_clause (struct solver * solver, struct clause * clause)
 {
+  dereference_clause (solver, clause);
+  return false;
+
   signed char * values = solver->values;
   size_t number_not_root_falsified = 0;
   for (all_literals_in_clause (lit, clause))
