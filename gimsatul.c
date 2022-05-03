@@ -2488,15 +2488,14 @@ export_glue1_clause (struct solver * solver, struct clause * clause)
     }
 }
 
-static struct watch *
+static void
 really_import_binary_clause (struct solver * solver,
                              unsigned lit, unsigned other)
 {
-  struct watch * res = new_local_binary_clause (solver, true, lit, other);
+  (void) new_local_binary_clause (solver, true, lit, other);
   trace_add_binary (solver, lit, other);
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
-  return res;
 }
 
 static void
@@ -2514,22 +2513,12 @@ force_to_repropagate (struct solver * solver, unsigned lit)
   unsigned * propagate = solver->trail.begin + pos;
   assert (propagate < solver->trail.end);
   assert (*propagate == NOT (lit));
-#if 0
-  unsigned * t = solver->trail.end - 1;
-  while (t != propagate)
-    unassign (solver, *t--);
-  assert (solver->values[lit] < 0);
-  solver->trail.end = propagate + 1;
-#endif
   solver->trail.propagate = propagate;
 }
 
 static bool
 import_binary (struct solver * solver, struct clause * clause)
 {
-#if 0
-  return false;
-#endif
   assert (binary_pointer (clause));
   assert (redundant_pointer (clause));
   signed char * values = solver->values;
@@ -2561,71 +2550,44 @@ do { \
     } \
 } while (0);
 
-  if ((lit_value >= 0 && other_value >= 0) ||
-      (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
+  if ((lit_value >= 0 && other_value >= 0) || \
+      (lit_value > 0 && other_value < 0 && lit_level <= other_level) || \
       (other_value > 0 && lit_value < 0 && other_level <= lit_level))
     {
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
-      (void) really_import_binary_clause (solver, lit, other);
+      really_import_binary_clause (solver, lit, other);
       return false;
     }
 
   unsigned lit_pos = solver->trail.pos[IDX (lit)];
   unsigned other_pos = solver->trail.pos[IDX (other)];
 
-  if (other_value < 0 &&
-      (lit_value >= 0 ||
-       other_level < lit_value ||
-       (other_level == lit_value && other_pos < lit_pos)))
-    {
-      SUBSUME_BINARY (lit, other);
-      LOGBINARY (true, lit, other,
-                 "importing (repropagate second literal %s))",
-		 LOGLIT (other));
-      force_to_repropagate (solver, other);
-      (void) really_import_binary_clause (solver, lit, other);
-      return true;
-    }
-
-  if (lit_value < 0 ||
-      (other_value >= 0 ||
-       lit_level < other_level ||
+  if (lit_value < 0 && \
+      (other_value >= 0 || \
+       lit_level < other_level || \
        (lit_level == other_level && lit_pos < other_pos)))
     {
-      assert (!other_value || (other_value > 0 && other_level > lit_level));
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other,
                  "importing (repropagate first literal %s)",
 		 LOGLIT (lit));
       force_to_repropagate (solver, lit);
-      (void) really_import_binary_clause (solver, lit, other);
+      really_import_binary_clause (solver, lit, other);
       return true;
     }
 
-#if 0
-  return false;
-  COVER ("hit");
-#endif
-  assert (lit_value < 0);
-  assert (other_value < 0);
-  assert (lit_level == other_level);
-  assert (lit_level != INVALID);
+  assert (other_value < 0 && \
+          (lit_value >= 0 || \
+           other_level < lit_level || \
+           (other_level == lit_level && other_pos < lit_pos)));
 
-  if (lit_level)
-    {
-      SUBSUME_BINARY (lit, other);
-      LOGBINARY (true, lit, other, "importing (4th case)");
-      assert (solver->level >= lit_level);
-      backtrack (solver, lit_level - 1);
-      (void) really_import_binary_clause (solver, lit, other);
-      return true;
-    }
-
-  LOGBINARY (true, lit, other, "importing (inconsistent case)");
-  set_inconsistent (solver, "imported inconsistent binary clause");
-  trace_add_empty (solver);
-
+  SUBSUME_BINARY (lit, other);
+  LOGBINARY (true, lit, other,
+	     "importing (repropagate second literal %s))",
+	     LOGLIT (other));
+  force_to_repropagate (solver, other);
+  really_import_binary_clause (solver, lit, other);
   return true;
 }
 
@@ -2690,15 +2652,11 @@ subsumed_large_clause (struct solver * solver, struct clause * clause)
   return res;
 }
 
-static struct watch *
-really_import_clause (struct solver * solver, struct clause * clause,
-                      unsigned first, unsigned second)
+static void
+really_import_large_clause (struct solver * solver, struct clause * clause,
+                            unsigned first, unsigned second)
 {
-  if (subsumed_large_clause (solver, clause))
-    return 0;
-  struct watch * watch =
-    watch_literals_in_large_clause (solver, clause, first, second);
-  assert (watch);
+  (void) watch_literals_in_large_clause (solver, clause, first, second);
   unsigned glue = clause->glue;
   assert (clause->redundant);
   struct statistics * statistics = &solver->statistics;
@@ -2712,7 +2670,6 @@ really_import_clause (struct solver * solver, struct clause * clause,
   else
     statistics->imported.tier3++;
   statistics->imported.clauses++;
-  return watch;
 }
 
 static unsigned
@@ -2767,62 +2724,71 @@ import_large_clause (struct solver * solver, struct clause * clause)
   return false;
 #endif
   signed char * values = solver->values;
-  size_t number_not_root_falsified = 0;
   for (all_literals_in_clause (lit, clause))
     {
-      signed value = values[lit];
-      unsigned level = VAR (lit)->level;
-      if (value > 0 && !level)
-	{
-	  LOGCLAUSE (clause, "not importing root-level %s satisfied",
-	             LOGLIT (lit));
-	  dereference_clause (solver, clause);
-	  return false;
-	}
-      if (!value || level)
-	number_not_root_falsified++;
-    }
-  if (!number_not_root_falsified)
-    {
-      LOGCLAUSE (clause, "importing (inconsistent case)");
-      set_inconsistent (solver, "imported inconsistent large clause");
-      trace_add_empty (solver);
+      if (values[lit] <= 0)
+	continue;
+      if (VAR (lit)->level)
+	continue;
+      LOGCLAUSE (clause, "not importing %s satisfied", LOGLIT (lit));
       dereference_clause (solver, clause);
+      return false;
+    }
+
+  unsigned lit_level = 0;
+  signed char lit_value = 0;
+  unsigned lit = find_literal_to_watch (solver, clause, INVALID,
+                                          &lit_value, &lit_level);
+  unsigned other_level = 0;
+  signed char other_value = 0;
+  unsigned other = find_literal_to_watch (solver, clause, lit,
+                                           &other_value, &other_level);
+#define SUBSUME_LARGE_CLAUSE(CLAUSE) \
+do { \
+  if (subsumed_large_clause (solver, clause)) \
+    { \
+      dereference_clause (solver, clause); \
+      return false; \
+    } \
+} while (0)
+
+  if ((lit_value >= 0 && other_value >= 0) ||
+      (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
+      (other_value > 0 && lit_value < 0 && other_level <= lit_level))
+    {
+      SUBSUME_LARGE_CLAUSE (clause);
+      LOGCLAUSE (clause, "importing (no propagation)");
+      really_import_large_clause (solver, clause, lit, other);
+      return false;
+    }
+
+  unsigned lit_pos = solver->trail.pos[IDX (lit)];
+  unsigned other_pos = solver->trail.pos[IDX (other)];
+
+  if (lit_value < 0 && \
+      (other_value >= 0 || \
+       lit_level < other_level || \
+       (lit_level == other_level && lit_pos < other_pos)))
+    {
+      SUBSUME_LARGE_CLAUSE (clause);
+      LOGCLAUSE (clause, "importing (repropagate first watch %s)",
+		 LOGLIT (lit));
+      force_to_repropagate (solver, lit);
+      really_import_large_clause (solver, clause, lit, other);
       return true;
     }
 
-  signed char first_value = 0;
-  unsigned first_level = 0;
-  unsigned first = find_literal_to_watch (solver, clause, INVALID,
-                                          &first_value, &first_level);
-  signed char second_value = 0;
-  unsigned second_level = 0;
-  unsigned second = find_literal_to_watch (solver, clause, first,
-                                           &second_value, &second_level);
+  assert (other_value < 0 && \
+          (lit_value >= 0 || \
+           other_level < lit_level || \
+           (other_level == lit_level && other_pos < lit_pos)));
 
-  if ((first_value >= 0 && second_value >= 0) ||
-      (first_value > 0 && second_value < 0 && first_level <= second_level) ||
-      (second_value > 0 && first_value < 0 && second_level <= first_level))
-    {
-      if (really_import_clause (solver, clause, first, second))
-	{
-	  LOGCLAUSE (clause, "importing (1st case)");
-	  return true;
-	}
-      else
-	{
-	  dereference_clause (solver, clause);
-	  return false;
-	}
-    }
-
-  if (first_value >= 0 && second_value < 0 && !second_level)
-    {
-      assert (!first_value || first_level > second_level);
-    }
-
-  dereference_clause (solver, clause);
-  return false;
+  SUBSUME_LARGE_CLAUSE (clause);
+  LOGCLAUSE (clause, "importing (repropagate second watch %s)",
+	     LOGLIT (other));
+  force_to_repropagate (solver, other);
+  really_import_large_clause (solver, clause, lit, other);
+  return true;
 }
 
 static bool
