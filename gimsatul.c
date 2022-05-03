@@ -2924,10 +2924,12 @@ shrink_clause (struct solver * solver)
 
   assert (uip != INVALID);
   LOGTMP ("shrinking succeeded with first UIP %s1 of", LOGLIT (uip));
+#if 0
   unsigned idx = IDX (uip);
   struct variable * v = variables + idx;
   if (!v->seen)
     bump_variable_score (solver, idx);
+#endif
   unsigned not_uip = NOT (uip);
   clause->begin[1] = not_uip;
   size_t deduced = end - begin;
