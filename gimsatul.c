@@ -2503,7 +2503,7 @@ static void
 force_to_repropagate (struct solver * solver, unsigned lit)
 {
   LOG ("forcing to repropagate %s", LOGLIT (lit));
-  assert (solver->values[lit]);
+  assert (solver->values[lit] < 0);
   unsigned idx = IDX (lit);
   struct variable * v = solver->variables + idx;
   if (solver->level > v->level)
@@ -2514,11 +2514,14 @@ force_to_repropagate (struct solver * solver, unsigned lit)
   unsigned * propagate = solver->trail.begin + pos;
   assert (propagate < solver->trail.end);
   assert (*propagate == NOT (lit));
+#if 0
   unsigned * t = solver->trail.end - 1;
   while (t != propagate)
     unassign (solver, *t--);
-  solver->trail.propagate = propagate;
+  assert (solver->values[lit] < 0);
   solver->trail.end = propagate + 1;
+#endif
+  solver->trail.propagate = propagate;
 }
 
 static bool
@@ -2759,9 +2762,10 @@ find_literal_to_watch (struct solver * solver,  struct clause * clause,
 static bool
 import_large_clause (struct solver * solver, struct clause * clause)
 {
+#if 1
   dereference_clause (solver, clause);
   return false;
-
+#endif
   signed char * values = solver->values;
   size_t number_not_root_falsified = 0;
   for (all_literals_in_clause (lit, clause))
