@@ -2647,8 +2647,6 @@ subsumed_large_clause (struct solver * solver, struct clause * clause)
     }
   for (all_literals_in_clause (lit, clause))
     marks[lit] = 0;
-  if (res)
-    LOGCLAUSE (clause, "subsumed imported");
   return res;
 }
 
@@ -2719,10 +2717,6 @@ find_literal_to_watch (struct solver * solver,  struct clause * clause,
 static bool
 import_large_clause (struct solver * solver, struct clause * clause)
 {
-#if 1
-  dereference_clause (solver, clause);
-  return false;
-#endif
   signed char * values = solver->values;
   for (all_literals_in_clause (lit, clause))
     {
