@@ -391,14 +391,6 @@ struct last
   uint64_t walk;
 };
 
-#define SEARCH 0
-#define WALK 1
-#define CONTEXTS 2
-
-#define SEARCH_CONFLICTS solver->statistics.contexts[SEARCH].conflicts
-#define SEARCH_PROPAGATIONS solver->statistics.contexts[SEARCH].propagations
-#define SEARCH_TICKS solver->statistics.contexts[SEARCH].ticks
-
 struct context
 {
   uint64_t conflicts;
@@ -406,6 +398,10 @@ struct context
   uint64_t propagations;
   uint64_t ticks;
 };
+
+#define SEARCH_CONTEXT 0
+#define WALK_CONTEXT 1
+#define SIZE_CONTEXTS 2
 
 struct statistics
 {
@@ -416,7 +412,7 @@ struct statistics
   uint64_t switched;
   uint64_t walked;
 
-  struct context contexts[CONTEXTS];
+  struct context contexts[SIZE_CONTEXTS];
 
   struct {
     uint64_t learned;
@@ -445,6 +441,12 @@ struct statistics
     uint64_t tier3;
   } learned, exported, imported;
 };
+
+#define SEARCH_CONFLICTS \
+  solver->statistics.contexts[SEARCH_CONTEXT].conflicts
+
+#define SEARCH_TICKS \
+  solver->statistics.contexts[SEARCH_CONTEXT].ticks
 
 struct binaries
 {
@@ -1713,15 +1715,34 @@ new_large_clause_watch (struct solver *solver, struct clause *clause)
 }
 
 static struct watch *
+watch_literals_in_large_clause (struct solver * solver,
+                                struct clause * clause,
+				unsigned first, unsigned second)
+{
+#ifndef NDEBUG
+  assert (first != second);
+  bool found_first = false;
+  for (all_literals_in_clause (lit, clause))
+    found_first |= (lit == first);
+  assert (found_first);
+  bool found_second = false;
+  for (all_literals_in_clause (lit, clause))
+    found_second |= (lit == second);
+  assert (found_second);
+#endif
+  struct watch * watch = new_large_clause_watch (solver, clause);
+  watch->sum = first ^ second;
+  watch_literal (solver, first, watch);
+  watch_literal (solver, second, watch);
+  return watch;
+}
+
+static struct watch *
 watch_first_two_literals_in_large_clause (struct solver * solver,
                                           struct clause * clause)
 {
-  struct watch * watch = new_large_clause_watch (solver, clause);
-  unsigned *literals = clause->literals;
-  watch->sum = literals[0] ^ literals[1];
-  watch_literal (solver, literals[0], watch);
-  watch_literal (solver, literals[1], watch);
-  return watch;
+  unsigned *lits = clause->literals;
+  return watch_literals_in_large_clause (solver, clause, lits[0], lits[1]);
 }
 
 static void
@@ -2394,6 +2415,7 @@ import_unit (struct solver * solver)
 	{
 	  set_inconsistent (solver, "imported falsified unit");
 	  trace_add_empty (solver);
+	  imported = INVALID;
 	  break;
 	}
       if (level)
@@ -2448,6 +2470,9 @@ export_glue1_clause (struct solver * solver, struct clause * clause)
 static bool
 import_binary (struct solver * solver, struct clause * clause)
 {
+#if 1
+  return false;
+#endif
   assert (binary_pointer (clause));
   assert (redundant_pointer (clause));
   signed char * values = solver->values;
@@ -2476,16 +2501,17 @@ import_binary (struct solver * solver, struct clause * clause)
     }
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
-  bool res = true;
+
   if (lit_value > 0 || other_value > 0 || (!lit_value && !other_value))
     {
       LOGBINARY (true, lit, other, "importing (1st case)");
       new_local_binary_clause (solver, true, lit, other);
       trace_add_binary (solver, lit, other);
-      res = false;
+      return false;
     }
-  else if (lit_value < 0 &&
-           (!other_value || (other_value < 0 && lit_level < other_level)))
+
+  if (lit_value < 0 &&
+      (!other_value || (other_value < 0 && lit_level < other_level)))
     {
       LOGBINARY (true, lit, other, "importing (2nd case)");
       if (solver->level > lit_level)
@@ -2495,9 +2521,11 @@ import_binary (struct solver * solver, struct clause * clause)
       trace_add_binary (solver, lit, other);
       assert (lit_pointer (other_reason) == other);
       assign_with_reason (solver, other, other_reason); 
+      return true;
     }
-  else if (other_value < 0 &&
-           (!lit_value || (lit_value < 0 && other_level < lit_level)))
+
+  if (other_value < 0 &&
+      (!lit_value || (lit_value < 0 && other_level < lit_level)))
     {
       LOGBINARY (true, lit, other, "importing (3rd case)");
       if (solver->level > other_level)
@@ -2507,28 +2535,28 @@ import_binary (struct solver * solver, struct clause * clause)
       trace_add_binary (solver, lit, other);
       assert (lit_pointer (lit_reason) == lit);
       assign_with_reason (solver, lit, lit_reason); 
+      return true;
     }
-  else
+
+  assert (lit_value < 0);
+  assert (other_value < 0);
+  assert (lit_level == other_level);
+  assert (lit_level != INVALID);
+
+  if (lit_level)
     {
-      assert (lit_value < 0), assert (other_value < 0);
-      assert (lit_level == other_level);
-      assert (lit_level != INVALID);
-      if (lit_level)
-	{
-	  LOGBINARY (true, lit, other, "importing (4th case)");
-	  assert (solver->level >= lit_level);
-	  backtrack (solver, lit_level - 1);
-	  new_local_binary_clause (solver, true, lit, other);
-	  trace_add_binary (solver, lit, other);
-	}
-      else
-	{
-	  LOGBINARY (true, lit, other, "importing (5th case)");
-	  set_inconsistent (solver, "imported inconsistent binary clause");
-	  trace_add_empty (solver);
-	}
+      LOGBINARY (true, lit, other, "importing (4th case)");
+      assert (solver->level >= lit_level);
+      backtrack (solver, lit_level - 1);
+      new_local_binary_clause (solver, true, lit, other);
+      trace_add_binary (solver, lit, other);
+      return true;
     }
-  return res;
+
+  LOGBINARY (true, lit, other, "importing (inconsistent case)");
+  set_inconsistent (solver, "imported inconsistent binary clause");
+  trace_add_empty (solver);
+  return true;
 }
 
 static bool
@@ -2589,15 +2617,17 @@ subsumed_large_clause (struct solver * solver, struct clause * clause)
     marks[lit] = 0;
   if (res)
     LOGCLAUSE (clause, "subsumed imported");
-  return res;;
+  return res;
 }
 
 static struct watch *
-really_import_clause (struct solver * solver, struct clause * clause)
+really_import_clause (struct solver * solver, struct clause * clause,
+                      unsigned first, unsigned second)
 {
   if (subsumed_large_clause (solver, clause))
     return 0;
-  struct watch * watch = watch_first_two_literals_in_large_clause (solver, clause);
+  struct watch * watch =
+    watch_literals_in_large_clause (solver, clause, first, second);
   assert (watch);
   unsigned glue = clause->glue;
   assert (clause->redundant);
@@ -2618,28 +2648,77 @@ really_import_clause (struct solver * solver, struct clause * clause)
 static bool
 import_large_clause (struct solver * solver, struct clause * clause)
 {
+#if 1
+  return false;
+#endif
   signed char * values = solver->values;
   struct variable * variables = solver->variables;
-#if 0
-  unsigned max_level = 0, jump_level = 0;
   unsigned first = INVALID, second = INVALID;
-#endif
+  unsigned first_level = 0, second_level = 0;
+  signed char first_value = 0, second_value = 0;
+  signed char fixed = -1;
   for (all_literals_in_clause (lit, clause))
     {
       unsigned idx = IDX (lit);
       struct variable * v = variables + idx;
       unsigned lit_level = v->level;
-      signed value = values[lit];
-      if (value > 0)
+      signed lit_value = values[lit];
+      if (lit_value > 0 && !lit_level)
 	{
-          if (!lit_level)
-	    return false;
-	  LOGCLAUSE (clause, "importing (1st case)");
-	  return really_import_clause (solver, clause);
+	  LOGCLAUSE (clause,
+	             "not importing %s root level satisfied clause",
+		     LOGLIT (lit));
+	  fixed = 1;
+	  break;
 	}
-      if (!lit_level && value < 0)
+      if (lit_value < 0 && !lit_level)
 	continue;
+      if (fixed)
+	fixed = 0;
+      if (first != INVALID)
+	{
+	  if (!lit_value)
+	    {
+	      if (first_value >= 0)
+		continue;
+	    }
+	  else if (lit_value < 0)
+	    {
+	      if (first_value >= 0 || first_level >= lit_level)
+		continue;
+	    }
+	  else
+	    {
+	      assert (lit_value > 0);
+	      if (!first_value ||
+		  (first_value > 0 && first_level <= lit_level))
+		continue;
+	    }
+	  second = first;
+	  second_value = first_value;
+	  second_level = first_level;
+	}
+      first = lit;
+      first_value = lit_value;
+      first_level = lit_level;
     }
+  if (fixed > 0)
+    return false;
+  if (fixed < 0)
+    {
+      LOGCLAUSE (clause, "importing (inconsisent case)");
+      set_inconsistent (solver, "imported inconsistent large clause");
+      trace_add_empty (solver);
+      return true;
+    }
+
+  if (first_value >= 0 && second_value >= 0)
+    {
+      LOGCLAUSE (clause, "importing (1st case)");
+      (void) really_import_clause (solver, clause, first, second);
+      return false;
+    }
+
   return false;
 }
 
@@ -2649,7 +2728,7 @@ import_shared (struct solver * solver)
   if (!solver->parallel)
     return false;
   if (import_unit (solver))
-    return false;
+    return true;
   struct root * root = solver->root;
   size_t solvers = SIZE (root->solvers);
   assert (solvers <= UINT_MAX);
@@ -2831,6 +2910,10 @@ shrink_clause (struct solver * solver)
 
   assert (uip != INVALID);
   LOGTMP ("shrinking succeeded with first UIP %s1 of", LOGLIT (uip));
+  unsigned idx = IDX (uip);
+  struct variable * v = variables + idx;
+  if (!v->seen)
+    bump_variable_score (solver, idx);
   unsigned not_uip = NOT (uip);
   clause->begin[1] = not_uip;
   size_t deduced = end - begin;
@@ -2912,7 +2995,7 @@ bump_reason_side_literal (struct solver *solver, unsigned lit)
   if (v->seen)
     return;
   v->seen = true;
-  if (!v->poison && !v->minimize)
+  if (!v->poison && !v->minimize && !v->shrinkable)
     PUSH (solver->analyzed, idx);
   bump_variable_score (solver, idx);
 }
@@ -2928,7 +3011,7 @@ bump_reason_side_literals (struct solver *solver)
       struct watch *reason = v->reason;
       if (!reason)
 	continue;
-      assert (v->seen);
+      assert (v->seen || v->shrinkable);
       if (binary_pointer (reason))
 	{
 	  assert (NOT (lit) == lit_pointer (reason));
@@ -2963,7 +3046,7 @@ do { \
   if (OTHER_LEVEL == level) \
     { \
       open++; \
-      break;; \
+      break; \
     } \
   PUSH (*clause, OTHER); \
   if (!used[OTHER_LEVEL]) \
@@ -2980,9 +3063,10 @@ static bool
 analyze (struct solver *solver, struct watch *reason)
 {
   assert (!solver->inconsistent);
-#if 0
+#if 1
   for (all_variables (v))
-    assert (!v->seen), assert (!v->poison), assert (!v->minimize);
+    assert (!v->seen), assert (!v->poison), assert (!v->minimize),
+    assert (!v->shrinkable);
 #endif
   if (!solver->level)
     {
@@ -3093,15 +3177,18 @@ analyze (struct solver *solver, struct watch *reason)
       assign_with_reason (solver, not_uip, learned);
     }
   CLEAR (*clause);
+
   for (all_elements_on_stack (unsigned, idx, *analyzed))
     {
       struct variable *v = variables + idx;
       v->seen = v->poison = v->minimize = v->shrinkable = false;
     }
   CLEAR (*analyzed);
+
   for (all_elements_on_stack (unsigned, used_level, *levels))
       used[used_level] = false;
   CLEAR (*levels);
+
   return true;
 }
 
@@ -3223,7 +3310,7 @@ report (struct solver *solver, char type)
 
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
-  uint64_t conflicts = s->contexts[SEARCH].conflicts;
+  uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
 
   static volatile uint64_t reported;
   if (!(atomic_fetch_add (&reported, 1) % 20))
@@ -4067,10 +4154,10 @@ static void
 import_decisions (struct walker *walker)
 {
   struct solver *solver = walker->solver;
-  assert (solver->context == WALK);
-  uint64_t saved = solver->statistics.contexts[WALK].ticks;
+  assert (solver->context == WALK_CONTEXT);
+  uint64_t saved = solver->statistics.contexts[WALK_CONTEXT].ticks;
   warming_up_saved_phases (solver);
-  uint64_t extra = solver->statistics.contexts[WALK].ticks - saved;
+  uint64_t extra = solver->statistics.contexts[WALK_CONTEXT].ticks - saved;
   walker->extra += extra;
   very_verbose (solver, "warming up needed %" PRIu64 " extra ticks", extra);
   signed char *values = solver->values;
@@ -4117,8 +4204,8 @@ set_walking_limits (struct walker *walker)
   struct solver *solver = walker->solver;
   struct statistics *statistics = &solver->statistics;
   struct last *last = &solver->last;
-  uint64_t search = statistics->contexts[SEARCH].ticks;
-  uint64_t walk = statistics->contexts[WALK].ticks;
+  uint64_t search = statistics->contexts[SEARCH_CONTEXT].ticks;
+  uint64_t walk = statistics->contexts[WALK_CONTEXT].ticks;
   uint64_t ticks = search - last->walk;
   uint64_t extra = walker->extra;
   uint64_t effort = extra + WALK_EFFORT * ticks;
@@ -4256,7 +4343,7 @@ break_count (struct walker *walker, unsigned lit)
       if (counter->count == 1)
 	res++;
     }
-  solver->statistics.contexts[WALK].ticks += ticks;
+  solver->statistics.contexts[WALK_CONTEXT].ticks += ticks;
   return res;
 }
 
@@ -4417,7 +4504,7 @@ make_literal (struct walker *walker, unsigned lit)
 	  }
       ticks += cache_lines (p, binaries);
     }
-  solver->statistics.contexts[WALK].ticks += ticks;
+  solver->statistics.contexts[WALK_CONTEXT].ticks += ticks;
 }
 
 static void
@@ -4454,7 +4541,7 @@ break_literal (struct walker *walker, unsigned lit)
 	  }
       ticks += cache_lines (p, binaries);
     }
-  solver->statistics.contexts[WALK].ticks += ticks;
+  solver->statistics.contexts[WALK_CONTEXT].ticks += ticks;
 }
 
 static void
@@ -4561,7 +4648,7 @@ static void
 walking_loop (struct walker *walker)
 {
   struct solver *solver = walker->solver;
-  uint64_t *ticks = &solver->statistics.contexts[WALK].ticks;
+  uint64_t *ticks = &solver->statistics.contexts[WALK_CONTEXT].ticks;
   uint64_t limit = walker->limit;
   while (walker->minimum && *ticks <= limit)
     walking_step (walker);
@@ -4571,8 +4658,8 @@ static void
 local_search (struct solver *solver)
 {
   STOP_SEARCH_AND_START (walk);
-  assert (solver->context == SEARCH);
-  solver->context = WALK;
+  assert (solver->context == SEARCH_CONTEXT);
+  solver->context = WALK_CONTEXT;
   solver->statistics.walked++;
   if (solver->level)
     backtrack (solver, 0);
@@ -4584,9 +4671,9 @@ local_search (struct solver *solver)
   verbose (solver, "walker flipped %" PRIu64 " literals", walker->flips);
   delete_walker (walker);
   fix_values_after_local_search (solver);
-  solver->last.walk = solver->statistics.contexts[SEARCH].ticks;
-  assert (solver->context == WALK);
-  solver->context = SEARCH;
+  solver->last.walk = SEARCH_TICKS;
+  assert (solver->context == WALK_CONTEXT);
+  solver->context = SEARCH_CONTEXT;
   STOP_AND_START_SEARCH (walk);
 }
 
@@ -5693,9 +5780,9 @@ print_solver_statistics (struct solver *solver)
   double search = solver->profiles.search.time;
   double walk = solver->profiles.total.time;
   struct statistics *s = &solver->statistics;
-  uint64_t conflicts = s->contexts[SEARCH].conflicts;
-  uint64_t decisions = s->contexts[SEARCH].decisions;
-  uint64_t propagations = s->contexts[SEARCH].propagations;
+  uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
+  uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;
+  uint64_t propagations = s->contexts[SEARCH_CONTEXT].propagations;
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "conflicts:",
 	  conflicts, average (conflicts, search));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "decisions:",
