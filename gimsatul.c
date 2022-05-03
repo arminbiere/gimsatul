@@ -2715,7 +2715,8 @@ import_large_clause (struct solver * solver, struct clause * clause)
 	{
 	  LOGCLAUSE (clause, "not importing root-level %s satisfied",
 	             LOGLIT (lit));
-	  return DELETE_IMPORTED_THEN_DECIDE;
+	  dereference_clause (solver, clause);
+	  return false;
 	}
       if (!value || level)
 	number_not_root_falsified++;
@@ -2725,7 +2726,8 @@ import_large_clause (struct solver * solver, struct clause * clause)
       LOGCLAUSE (clause, "importing (inconsistent case)");
       set_inconsistent (solver, "imported inconsistent large clause");
       trace_add_empty (solver);
-      return DELETE_IMPORTED_THEN_PROPAGATE;
+      dereference_clause (solver, clause);
+      return true;
     }
 
   signed char first_value = 0;
@@ -2742,10 +2744,13 @@ import_large_clause (struct solver * solver, struct clause * clause)
       (second_value > 0 && first < 0 && second_level <= first_level))
     {
       LOGCLAUSE (clause, "importing (1st case)");
-      (void) really_import_clause (solver, clause, first, second);
-      return true;
+      if (really_import_clause (solver, clause, first, second))
+	return true;
+      dereference_clause (solver, clause);
+      return false;
     }
 
+  dereference_clause (solver, clause);
   return false;
 }
 
@@ -2777,10 +2782,7 @@ import_shared (struct solver * solver)
     return false;
   if (binary_pointer (clause))
     return import_binary (solver, clause);
-  if (import_large_clause (solver, clause))
-    return !solver->inconsistent;
-  dereference_clause (solver, clause);
-  return false;
+  return import_large_clause (solver, clause);
 }
 
 /*------------------------------------------------------------------------*/
@@ -5559,7 +5561,7 @@ detach_and_delete_solvers (struct root * root)
 	  printf ("c deleting %zu solvers in parallel\n", threads);
 	  fflush (stdout);
 	}
-#if 0
+#if 1
       for (all_solvers (solver))
 	start_detaching_and_deleting_solver (solver);
 
