@@ -4654,7 +4654,8 @@ static void
 iterate (struct solver *solver)
 {
   solver->iterating = false;
-  report (solver, 'i');
+  if (!solver->parallel || verbosity)
+    report (solver, 'i');
 }
 
 static void
@@ -5784,8 +5785,8 @@ print_root_statistics (struct root *root)
   double total = current_time () - start_time;
   double memory = maximum_resident_set_size () / (double) (1 << 20);
 
-  printf ("c %-30s %23.2f sec\n", "process-time:", process);
-  printf ("c %-30s %23.2f sec\n", "wall-clock-time:", total);
+  printf ("c %-30s %23.2f seconds\n", "process-time:", process);
+  printf ("c %-30s %23.2f seconds\n", "wall-clock-time:", total);
   printf ("c %-30s %23.2f MB\n", "maximum-resident-set-size:", memory);
 
   fflush (stdout);
