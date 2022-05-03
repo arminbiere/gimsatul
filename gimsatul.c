@@ -2645,74 +2645,88 @@ really_import_clause (struct solver * solver, struct clause * clause,
   return watch;
 }
 
-static bool
-import_large_clause (struct solver * solver, struct clause * clause)
+static unsigned
+find_literal_to_watch (struct solver * solver,  struct clause * clause,
+                       unsigned ignore, signed char * res_value_ptr,
+		       unsigned * res_level_ptr)
 {
-#if 1
-  return false;
-#endif
   signed char * values = solver->values;
-  struct variable * variables = solver->variables;
-  unsigned first = INVALID, second = INVALID;
-  unsigned first_level = 0, second_level = 0;
-  signed char first_value = 0, second_value = 0;
-  signed char fixed = -1;
+  unsigned res = INVALID, res_level = 0;
+  signed char res_value = 0;
   for (all_literals_in_clause (lit, clause))
     {
-      unsigned idx = IDX (lit);
-      struct variable * v = variables + idx;
-      unsigned lit_level = v->level;
-      signed lit_value = values[lit];
-      if (lit_value > 0 && !lit_level)
-	{
-	  LOGCLAUSE (clause,
-	             "not importing %s root level satisfied clause",
-		     LOGLIT (lit));
-	  fixed = 1;
-	  break;
-	}
-      if (lit_value < 0 && !lit_level)
+      if (lit == ignore)
 	continue;
-      if (fixed)
-	fixed = 0;
-      if (first != INVALID)
+      signed char lit_value = values[lit];
+      unsigned lit_level = VAR (lit)->level;
+      if (res != INVALID)
 	{
-	  if (!lit_value)
+	  if (lit_value < 0)
 	    {
-	      if (first_value >= 0)
+	      if (res_value >= 0)
+		continue;
+	      if (lit_level <= res_level)
 		continue;
 	    }
-	  else if (lit_value < 0)
+	  else if (lit_value > 0)
 	    {
-	      if (first_value >= 0 || first_level >= lit_level)
+	      if (res_value > 0 && lit_level >= res_level)
 		continue;
 	    }
 	  else
 	    {
-	      assert (lit_value > 0);
-	      if (!first_value ||
-		  (first_value > 0 && first_level <= lit_level))
+	      assert (!lit_value);
+	      if (res_value >= 0)
 		continue;
 	    }
-	  second = first;
-	  second_value = first_value;
-	  second_level = first_level;
 	}
-      first = lit;
-      first_value = lit_value;
-      first_level = lit_level;
+      res = lit;
+      res_level = lit_level;
+      res_value = lit_value;
     }
-  if (fixed > 0)
-    return false;
-  if (fixed < 0)
+  *res_value_ptr = res_value;
+  *res_level_ptr = res_level;
+  return res;
+}
+
+static bool
+import_large_clause (struct solver * solver, struct clause * clause)
+{
+  signed char * values = solver->values;
+  size_t number_not_root_falsified = 0;
+  for (all_literals_in_clause (lit, clause))
     {
-      LOGCLAUSE (clause, "importing (inconsisent case)");
+      signed value = values[lit];
+      unsigned level = VAR (lit)->level;
+      if (value > 0 && !level)
+	{
+	  LOGCLAUSE (clause, "not importing root-level %s satisfied",
+	             LOGLIT (lit));
+	  return false;
+	}
+      if (!value || level)
+	number_not_root_falsified++;
+    }
+  if (!number_not_root_falsified)
+    {
+      LOGCLAUSE (clause, "importing (inconsistent case)");
       set_inconsistent (solver, "imported inconsistent large clause");
       trace_add_empty (solver);
       return true;
     }
 
-  if (first_value >= 0 && second_value >= 0)
+  signed char first_value = 0;
+  unsigned first_level = 0;
+  unsigned first = find_literal_to_watch (solver, clause, INVALID,
+                                          &first_value, &first_level);
+  signed char second_value = 0;
+  unsigned second_level = 0;
+  unsigned second = find_literal_to_watch (solver, clause, first,
+                                           &second_value, &second_level);
+
+  if ((first_value >= 0 && second_value >= 0) ||
+      (first_value > 0 && second_value < 0 && first_level <= second_level) ||
+      (second_value > 0 && first < 0 && second_level <= first_level))
     {
       LOGCLAUSE (clause, "importing (1st case)");
       (void) really_import_clause (solver, clause, first, second);
