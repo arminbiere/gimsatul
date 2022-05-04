@@ -2719,7 +2719,6 @@ really_import_large_clause (struct solver * solver, struct clause * clause,
   unsigned glue = clause->glue;
   assert (clause->redundant);
   struct statistics * statistics = &solver->statistics;
-  statistics->redundant++;
   if (glue == 1)
     statistics->imported.glue1++;
   else if (glue <= TIER1_GLUE_LIMIT)
