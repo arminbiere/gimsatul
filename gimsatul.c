@@ -487,7 +487,8 @@ struct root
 #define GLUE1_SHARED 1
 #define TIER1_SHARED 2
 #define TIER2_SHARED 3
-#define SIZE_SHARED 4
+#define TIER3_SHARED 4
+#define SIZE_SHARED 5
 
 struct solver
 {
@@ -2524,6 +2525,26 @@ export_tier2_clause (struct solver * solver, struct clause * clause)
 }
 
 static void
+export_tier3_clause (struct solver * solver, struct clause * clause)
+{
+  assert (!binary_pointer (clause));
+  assert (TIER2_GLUE_LIMIT < clause->glue);
+  if (!solver->parallel)
+    return;
+  LOGCLAUSE (clause, "exporting");
+  reference_clause (solver, clause);
+  struct clause * previous =
+    (struct clause*) atomic_exchange (&solver->share[TIER3_SHARED], clause);
+  if (previous)
+    dereference_clause (solver, previous);
+  else
+    {
+      solver->statistics.exported.tier3++;
+      solver->statistics.exported.clauses++;
+    }
+}
+
+static void
 really_import_binary_clause (struct solver * solver,
                              unsigned lit, unsigned other)
 {
@@ -3276,6 +3297,8 @@ analyze (struct solver *solver, struct watch *reason)
 	    export_tier1_clause (solver, clause);
 	  else if (glue <= TIER2_GLUE_LIMIT)
 	    export_tier2_clause (solver, clause);
+	  else
+	    export_tier3_clause (solver, clause);
 	}
       assign_with_reason (solver, not_uip, learned);
     }
@@ -5954,6 +5977,9 @@ print_solver_statistics (struct solver *solver)
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
 	      "  imported-tier2:", s->imported.tier2,
 	      percent (s->imported.tier2, s->imported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
+	      "  imported-tier3:", s->imported.tier3,
+	      percent (s->imported.tier3, s->imported.clauses));
 
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	      "exported-clauses:", s->exported.clauses,
@@ -5973,6 +5999,9 @@ print_solver_statistics (struct solver *solver)
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
 	      "  exported-tier2:", s->exported.tier2,
 	      percent (s->exported.tier2, s->exported.clauses));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
+	      "  exported-tier3:", s->exported.tier3,
+	      percent (s->exported.tier3, s->exported.clauses));
     }
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f millions per second",
