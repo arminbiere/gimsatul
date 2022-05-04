@@ -488,7 +488,8 @@ struct root
   pthread_t * threads;
   struct solver * volatile winner;
   volatile signed char * values;
-  struct unsigneds binaries;
+  struct unsigneds binlits;
+  size_t binaries;
   struct units units;
   unsigned *watches;
 #ifdef LOGGING
@@ -1371,7 +1372,7 @@ delete_root (struct root *root)
     assert (!solver);
 #endif
   RELEASE (root->solvers);
-  RELEASE (root->binaries);
+  RELEASE (root->binlits);
   free ((void*) root->values);
   free (root->units.begin);
   free (root->threads);
@@ -1769,11 +1770,12 @@ new_global_binary_clause (struct solver *solver, bool redundant,
 			  unsigned lit, unsigned other)
 {
   struct root *root = solver->root;
-  struct unsigneds *binaries = &root->binaries;
-  PUSH (*binaries, lit);
-  PUSH (*binaries, other);
+  struct unsigneds *binlits = &root->binlits;
+  PUSH (*binlits, lit);
+  PUSH (*binlits, other);
   LOGBINARY (redundant, lit, other, "new global");
   inc_clauses (solver, false);
+  root->binaries++;
 }
 
 static struct watch *
@@ -1860,9 +1862,9 @@ init_root_watches (struct root *root)
 {
   struct solver * solver = first_solver (root);
   long *counts = allocate_and_clear_array (2 * root->size, sizeof *counts);
-  struct unsigneds *binaries = &root->binaries;
-  unsigned *begin = binaries->begin;
-  unsigned *end = binaries->end;
+  struct unsigneds *binlits = &root->binlits;
+  unsigned *begin = binlits->begin;
+  unsigned *end = binlits->end;
   for (unsigned *p = begin; p != end; p += 2)
     counts[p[0]]++, counts[p[1]]++;
   long size = 0;
@@ -1899,6 +1901,8 @@ init_root_watches (struct root *root)
 	global_watches[count_other] = lit;
       }
   }
+  assert (root->binaries == SIZE (root->binlits)/2);
+  RELEASE (root->binlits);
   for (all_literals (lit))
     {
       long count = counts[lit];
@@ -1912,7 +1916,6 @@ init_root_watches (struct root *root)
 	assert (!lit_watches->binaries);
     }
   free (counts);
-
 #ifdef LOGGING
   for (all_literals (lit))
     {
@@ -2055,7 +2058,7 @@ set_satisfied (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static void
-cloning_clauses (struct solver *dst, struct solver *src)
+clone_clauses (struct solver *dst, struct solver *src)
 {
   struct solver *solver = dst;
   verbose (solver, "cloning clauses from solver[%u] to solver[%u]",
@@ -2075,6 +2078,12 @@ cloning_clauses (struct solver *dst, struct solver *src)
       units++;
     }
   very_verbose (solver, "cloned %u units", units);
+
+  assert (src->root == dst->root);
+  assert (!dst->statistics.irredundant);
+  dst->statistics.irredundant += dst->root->binaries;
+  very_verbose (solver, "sharing %zu global binary clauses",
+                src->root->binaries);
 
   struct references *src_references = src->references;
   struct references *dst_references = dst->references;
@@ -2115,7 +2124,7 @@ clone_solver (void * ptr)
 {
   struct solver * src = ptr;
   struct solver *solver = new_solver (src->root);
-  cloning_clauses (solver, src);
+  clone_clauses (solver, src);
   solver->parallel = true;
   return solver;
 }
