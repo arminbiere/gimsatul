@@ -444,12 +444,6 @@ struct statistics
 #define SEARCH_TICKS \
   solver->statistics.contexts[SEARCH_CONTEXT].ticks
 
-struct binaries
-{
-  struct unsigneds redundant;
-  struct unsigneds irredundant;
-};
-
 struct solvers
 {
   struct solver ** begin, ** end, **allocated;
@@ -3168,7 +3162,7 @@ static bool
 analyze (struct solver *solver, struct watch *reason)
 {
   assert (!solver->inconsistent);
-#if 1
+#if 0
   for (all_variables (v))
     assert (!v->seen), assert (!v->poison), assert (!v->minimize),
     assert (!v->shrinkable);
