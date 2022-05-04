@@ -65,7 +65,11 @@ static const char * usage =
 
 #define FOCUSED_RESTART_INTERVAL 50
 #define MODE_INTERVAL 3e3
+#if 0
 #define REDUCE_INTERVAL 1e3
+#else
+#define REDUCE_INTERVAL 1
+#endif
 #define REPHASE_INTERVAL 1e3
 #define STABLE_RESTART_INTERVAL 500
 #define RANDOM_DECISIONS 100
@@ -1769,6 +1773,7 @@ new_global_binary_clause (struct solver *solver, bool redundant,
   PUSH (*binaries, lit);
   PUSH (*binaries, other);
   LOGBINARY (redundant, lit, other, "new global");
+  inc_clauses (solver, false);
 }
 
 static struct watch *
@@ -3637,9 +3642,11 @@ flush_references (struct solver *solver, bool fixed)
 	  struct watch *watch = *q++ = *p;
 	  if (binary_pointer (watch))
 	    {
+	      assert (lit == lit_pointer (watch));
 	      if (!fixed)
 		continue;
-	      unsigned other = lit_pointer (watch);
+	      unsigned other = other_pointer (watch);
+	      assert (lit != other);
 	      signed char other_value = values[other];
 	      if (other_value > 0)
 		{
@@ -3671,6 +3678,7 @@ flush_references (struct solver *solver, bool fixed)
       watches->end = q;
       SHRINK_STACK (*watches);
     }
+  assert (!(flushed  & 1));
   verbose (solver, "flushed %zu garbage watches from watch lists", flushed);
 }
 
@@ -3699,6 +3707,60 @@ flush_watches (struct solver *solver)
 	   flushed, deleted, percent (deleted, flushed));
 }
 
+#ifndef NDEBUG
+
+static void
+check_clause_statistics (struct solver * solver)
+{
+  size_t redundant = 0;
+  size_t irredundant = 0;
+
+  for (all_literals (lit))
+    {
+      struct references * watches = &REFERENCES (lit);
+      for (all_watches (watch, *watches))
+	{
+	  if (!binary_pointer (watch))
+	    continue;
+	  assert (lit == lit_pointer (watch));
+	  unsigned other = other_pointer (watch);
+	  if (lit < other)
+	    continue;
+	  assert (redundant_pointer (watch));
+	  redundant++;
+	}
+
+      unsigned * binaries = watches->binaries;
+      if (!binaries)
+	continue;
+      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+	if (lit < other)
+	  irredundant++;
+    }
+
+  for (all_watches (watch, solver->watches))
+    {
+      assert (!binary_pointer (watch));
+      struct clause * clause = watch->clause;
+      assert (clause->glue == watch->glue);
+      assert (clause->redundant == watch->redundant);
+      if (watch->redundant)
+	redundant++;
+      else
+	irredundant++;
+    }
+
+  struct statistics *statistics = &solver->statistics;
+  assert (statistics->redundant == redundant);
+  assert (statistics->irredundant == irredundant);
+}
+
+#else
+
+#define check_clause_statistics(...) do { } while (0)
+
+#endif
+
 static bool
 reducing (struct solver *solver)
 {
@@ -3708,6 +3770,7 @@ reducing (struct solver *solver)
 static void
 reduce (struct solver *solver)
 {
+  check_clause_statistics (solver);
   struct statistics *statistics = &solver->statistics;
   struct limits *limits = &solver->limits;
   statistics->reductions++;
@@ -3725,6 +3788,7 @@ reduce (struct solver *solver)
   RELEASE (candidates);
   flush_references (solver, fixed);
   flush_watches (solver);
+  check_clause_statistics (solver);
   unmark_reasons (solver);
   limits->reduce = SEARCH_CONFLICTS;
   limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
@@ -4955,6 +5019,10 @@ solve (struct solver *solver)
 #if 0
       else if (!solver->statistics.walked)
 	local_search (solver);
+#endif
+#if 1
+      else if (!solver->statistics.reductions)
+	reduce (solver);
 #endif
       else if (conflict_limit_hit (solver))
 	break;
