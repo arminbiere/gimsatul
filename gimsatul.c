@@ -5822,7 +5822,7 @@ detach_and_delete_solvers (struct root * root)
   size_t threads = SIZE (root->solvers);
   if (threads > 1)
     {
-      if (verbosity >= 0)
+      if (verbosity > 0)
 	{
 	  printf ("c deleting %zu solvers in parallel\n", threads);
 	  fflush (stdout);
@@ -5840,7 +5840,7 @@ detach_and_delete_solvers (struct root * root)
     }
   else
     {
-      if (verbosity >= 0)
+      if (verbosity > 0)
 	{
 	  printf ("c deleting single solver in main thread\n");
 	  fflush (stdout);
@@ -6203,6 +6203,8 @@ print_root_statistics (struct root *root)
   double total = current_time () - start_time;
   double memory = maximum_resident_set_size () / (double) (1 << 20);
 
+  printf ("c %-30s %23.2f %%\n", "utilization:",
+          percent (process / SIZE (root->solvers),  total));
   printf ("c %-30s %23.2f seconds\n", "process-time:", process);
   printf ("c %-30s %23.2f seconds\n", "wall-clock-time:", total);
   printf ("c %-30s %23.2f MB\n", "maximum-resident-set-size:", memory);
