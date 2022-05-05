@@ -83,6 +83,8 @@ static const char * usage =
 #define WALK_EFFORT 0.02
 #define INITIAL_PHASE 1
 
+#define CACHE_LINE_SIZE 128
+
 /*------------------------------------------------------------------------*/
 
 #define IDX(LIT) ((LIT) >> 1)
@@ -502,17 +504,25 @@ struct root
 #define TIER2_SHARED 3
 #define SIZE_SHARED 4
 
+#define ALLOCATED_SHARED \
+  (CACHE_LINE_SIZE / sizeof (struct clause *))
+
+struct pool
+{
+  struct clause * volatile share[ALLOCATED_SHARED];
+};
+
 struct solver
 {
   unsigned id;
+  unsigned threads;
   struct root *root;
-  struct clause * volatile share[SIZE_SHARED];
+  struct pool * pool;
   volatile int status;
   unsigned * units;
   bool inconsistent;
   bool iterating;
   bool stable;
-  bool parallel;
   unsigned size;
   unsigned context;
   unsigned level;
@@ -1467,30 +1477,49 @@ release_watches (struct solver *solver)
 }
 
 static void
-release_shared (struct solver * solver)
+init_pool (struct solver * solver, unsigned threads)
 {
-  for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
+  solver->threads = threads;
+  solver->pool = allocate_and_clear_array (threads, sizeof *solver->pool);
+}
+
+static void
+release_pool (struct solver * solver)
+{
+  struct pool * pool = solver->pool;
+  if (!pool)
+    return;
+  for (unsigned i = 0; i != solver->threads; i++, pool++)
     {
-      struct clause * clause = solver->share[i];
-      if (!clause)
-	continue;
-      if (binary_pointer (clause))
-	continue;
-      unsigned shared = atomic_fetch_sub (&clause->shared, 1);
-      assert (shared + 1);
-      if (!shared)
+      if (i == solver->id)
 	{
-	  LOGCLAUSE (clause, "final deleting shared %u", shared);
-	  free (clause);
+	  assert (!*pool);
+	  continue;
+	}
+      for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
+	{
+	  struct clause * clause = pool->share[i];
+	  if (!clause)
+	    continue;
+	  if (binary_pointer (clause))
+	    continue;
+	  unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+	  assert (shared + 1);
+	  if (!shared)
+	    {
+	      LOGCLAUSE (clause, "final deleting shared %u", shared);
+	      free (clause);
+	    }
 	}
     }
+  free (solver->pool);
 }
 
 static void
 delete_solver (struct solver *solver)
 {
   verbose (solver, "delete solver[%u]", solver->id);
-  release_shared (solver);
+  release_pool (solver);
   RELEASE (solver->clause);
   RELEASE (solver->analyzed);
   free (solver->trail.begin);
@@ -1818,11 +1847,14 @@ really_delete_clause (struct solver *solver, struct clause *clause)
 }
 
 static void
-reference_clause (struct solver * solver, struct clause * clause)
+reference_clause (struct solver * solver,
+                  struct clause * clause,
+		  unsigned inc)
 {
-  unsigned shared = atomic_fetch_add (&clause->shared, 1);
-  LOGCLAUSE (clause, "reference shared %u", shared);
-  assert (shared < MAX_THREADS - 1), (void) shared;
+  assert (inc);
+  unsigned shared = atomic_fetch_add (&clause->shared, inc);
+  LOGCLAUSE (clause, "reference %u times (was shared %u)", inc, shared);
+  assert (shared < MAX_THREADS - inc), (void) shared;
 }
 
 static void
@@ -1830,7 +1862,7 @@ dereference_clause (struct solver * solver, struct clause * clause)
 {
   unsigned shared = atomic_fetch_sub (&clause->shared, 1);
   assert (shared + 1);
-  LOGCLAUSE (clause, "dereference shared %u", shared);
+  LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
   if (!shared)
     really_delete_clause (solver, clause);
 }
@@ -2111,7 +2143,7 @@ clone_clauses (struct solver *dst, struct solver *src)
     {
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
-      reference_clause (solver, clause);
+      reference_clause (solver, clause, 1);
       watch_first_two_literals_in_large_clause (solver, clause);
       shared++;
     }
@@ -2124,7 +2156,7 @@ clone_solver (void * ptr)
   struct solver * src = ptr;
   struct solver *solver = new_solver (src->root);
   clone_clauses (solver, src);
-  solver->parallel = true;
+  init_pool (solver, src->threads);
   return solver;
 }
 
@@ -2137,7 +2169,7 @@ cache_lines (void * p, void * q)
     return 0;
   assert (p >= q);
   size_t bytes = (char*) p - (char *) q;
-  size_t res = (bytes + 127) >> 7;
+  size_t res = (bytes + (CACHE_LINE_SIZE - 1)) / CACHE_LINE_SIZE;
   return res;
 }
 
@@ -2393,7 +2425,7 @@ subsumed_binary (struct solver * solver, unsigned lit, unsigned other)
 static void
 export_units (struct solver * solver)
 {
-  if (!solver->parallel)
+  if (solver->threads < 2)
     return;
   assert (!solver->level);
   struct root * root = solver->root;
@@ -2490,16 +2522,49 @@ static void
 export_binary (struct solver * solver, struct watch * watch)
 {
   assert (binary_pointer (watch));
-  if (!solver->parallel)
+  unsigned threads = solver->threads;
+  if (threads < 2)
     return;
   LOGWATCH (watch, "exporting");
-  struct clause * clause = (struct clause*) watch;
-  struct clause * previous =
-     atomic_exchange (&solver->share[BINARY_SHARED], clause);
-  if (previous)
-    return;
-  solver->statistics.exported.binary++;
-  solver->statistics.exported.clauses++;
+  for (unsigned i = 0; i != threads; i++)
+    {
+      if (i == solver->id)
+	continue;
+      struct pool * pool = solver->pool + i;
+      struct clause * clause = (struct clause*) watch;
+      struct clause * volatile * share = &pool->share[BINARY_SHARED];
+      struct clause * previous = atomic_exchange (share, clause);
+      if (previous)
+	continue;
+      solver->statistics.exported.binary++;
+      solver->statistics.exported.clauses++;
+    }
+}
+
+static unsigned
+export_clause (struct solver * solver, struct clause * clause, unsigned pos)
+{
+  LOGCLAUSE (clause, "exporting");
+  unsigned threads = solver->threads;
+  unsigned inc = threads - 1;
+  assert (threads);
+  assert (inc);
+  reference_clause (solver, clause, inc);
+  struct pool * pool = solver->pool;
+  assert (pool);
+  unsigned exported = 0;
+  for (unsigned i = 0; i != threads; i++, pool++)
+    {
+      if (i == solver->id)
+	continue;
+      struct clause * volatile * share = &pool->share[pos];
+      struct clause * previous = atomic_exchange (share, clause);
+      if (previous)
+	dereference_clause (solver, previous);
+      else
+	solver->statistics.exported.clauses++, exported++;
+    }
+  return exported;
 }
 
 static void
@@ -2507,59 +2572,31 @@ export_glue1_clause (struct solver * solver, struct clause * clause)
 {
   assert (!binary_pointer (clause));
   assert (clause->glue == 1);
-  if (!solver->parallel)
-    return;
-  LOGCLAUSE (clause, "exporting");
-  reference_clause (solver, clause);
-  struct clause * previous =
-    (struct clause*) atomic_exchange (&solver->share[GLUE1_SHARED], clause);
-  if (previous)
-    dereference_clause (solver, previous);
-  else
-    {
-      solver->statistics.exported.glue1++;
-      solver->statistics.exported.clauses++;
-    }
+  if (solver->pool)
+    solver->statistics.exported.glue1 +=
+      export_clause (solver, clause, GLUE1_SHARED);
 }
 
 static void
 export_tier1_clause (struct solver * solver, struct clause * clause)
 {
   assert (!binary_pointer (clause));
-  assert (clause->glue != 1 && clause->glue <= TIER1_GLUE_LIMIT);
-  if (!solver->parallel)
-    return;
-  LOGCLAUSE (clause, "exporting");
-  reference_clause (solver, clause);
-  struct clause * previous =
-    (struct clause*) atomic_exchange (&solver->share[TIER1_SHARED], clause);
-  if (previous)
-    dereference_clause (solver, previous);
-  else
-    {
-      solver->statistics.exported.tier1++;
-      solver->statistics.exported.clauses++;
-    }
+  assert (1 < clause->glue);
+  assert (clause->glue <= TIER2_GLUE_LIMIT);
+  if (solver->pool)
+    solver->statistics.exported.tier1 +=
+      export_clause (solver, clause, TIER1_SHARED);
 }
 
 static void
 export_tier2_clause (struct solver * solver, struct clause * clause)
 {
   assert (!binary_pointer (clause));
-  assert (TIER1_GLUE_LIMIT < clause->glue && clause->glue <= TIER2_GLUE_LIMIT);
-  if (!solver->parallel)
-    return;
-  LOGCLAUSE (clause, "exporting");
-  reference_clause (solver, clause);
-  struct clause * previous =
-    (struct clause*) atomic_exchange (&solver->share[TIER2_SHARED], clause);
-  if (previous)
-    dereference_clause (solver, previous);
-  else
-    {
-      solver->statistics.exported.tier2++;
-      solver->statistics.exported.clauses++;
-    }
+  assert (TIER1_GLUE_LIMIT < clause->glue);
+  assert (clause->glue <= TIER2_GLUE_LIMIT);
+  if (solver->pool)
+    solver->statistics.exported.tier2 +=
+      export_clause (solver, clause, TIER2_SHARED);
 }
 
 static void
@@ -2865,7 +2902,7 @@ do { \
 static bool
 import_shared (struct solver * solver)
 {
-  if (!solver->parallel)
+  if (!solver->pool)
     return false;
   if (import_unit (solver))
     return true;
@@ -2879,9 +2916,11 @@ import_shared (struct solver * solver)
   assert (id < solvers);
   assert (id != solver->id);
   struct solver * src = root->solvers.begin[id];
-  struct clause * volatile * end = src->share + SIZE_SHARED;
+  assert (src->pool);
+  struct pool * pool = src->pool + solver->id;
+  struct clause * volatile * end = pool->share + SIZE_SHARED;
   struct clause * clause = 0;
-  for (struct clause * volatile * p = src->share; !clause && p != end; p++)
+  for (struct clause * volatile * p = pool->share; !clause && p != end; p++)
 #ifndef NFASTPATH
       if (*p)
 #endif
@@ -5643,7 +5682,7 @@ clone_solvers (struct root * root, unsigned threads)
           threads - 1, threads);
   fflush (stdout);
   struct solver * first = first_solver (root);
-  first->parallel = true;
+  init_pool (first, threads);
   for (unsigned i = 1; i != threads; i++)
     start_cloning_solver (first, i);
   for (unsigned i = 1; i != threads; i++)
@@ -6045,7 +6084,7 @@ print_solver_statistics (struct solver *solver)
 	  "  learned-tier3:", s->learned.tier3,
 	  percent (s->learned.tier3, s->learned.clauses));
 
-  if (solver->parallel)
+  if (solver->pool)
     {
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	      "imported-clauses:", s->imported.clauses,
