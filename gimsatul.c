@@ -1492,10 +1492,7 @@ release_pool (struct solver * solver)
   for (unsigned i = 0; i != solver->threads; i++, pool++)
     {
       if (i == solver->id)
-	{
-	  assert (!*pool);
-	  continue;
-	}
+	continue;
       for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
 	{
 	  struct clause * clause = pool->share[i];
@@ -2467,9 +2464,9 @@ export_units (struct solver * solver)
 }
 
 static bool
-import_unit (struct solver * solver)
+import_units (struct solver * solver)
 {
-  assert (solver->parallel);
+  assert (solver->pool);
   struct root * root = solver->root;
 #ifndef NFASTPATH
   if (solver->units == root->units.end)
@@ -2908,7 +2905,7 @@ import_shared (struct solver * solver)
 {
   if (!solver->pool)
     return false;
-  if (import_unit (solver))
+  if (import_units (solver))
     return true;
   struct root * root = solver->root;
   size_t solvers = SIZE (root->solvers);
