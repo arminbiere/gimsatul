@@ -65,11 +65,7 @@ static const char * usage =
 
 #define FOCUSED_RESTART_INTERVAL 50
 #define MODE_INTERVAL 3e3
-#if 0
 #define REDUCE_INTERVAL 1e3
-#else
-#define REDUCE_INTERVAL 10
-#endif
 #define REPHASE_INTERVAL 1e3
 #define STABLE_RESTART_INTERVAL 500
 #define RANDOM_DECISIONS 100
@@ -203,8 +199,8 @@ do { \
   (VAR != END_ ## VAR); \
   ++ VAR
 
-#define all_literals_on_trail(LIT) \
-  unsigned * P_ ## LIT = solver->trail.begin, \
+#define all_literals_on_trail_with_reason(LIT) \
+  unsigned * P_ ## LIT = solver->trail.iterate, \
            * END_ ## LIT = solver->trail.end, LIT; \
   P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
   ++ P_ ## LIT
@@ -1429,8 +1425,8 @@ new_solver (struct root *root)
   solver->variables =
     allocate_and_clear_array (size, sizeof *solver->variables);
   struct trail *trail = &solver->trail;
-  trail->begin = allocate_array (size, sizeof *trail->begin);
-  trail->export = trail->propagate = trail->end = trail->begin;
+  trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
+  trail->export = trail->propagate = trail->iterate = trail->begin;
   trail->pos = allocate_array (size, sizeof *trail->pos);
   struct queue *queue = &solver->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
@@ -2340,6 +2336,8 @@ backtrack (struct solver *solver, unsigned new_level)
       t--;
     }
   trail->end = trail->propagate = t;
+  assert (trail->export <= trail->propagate);
+  assert (trail->iterate <= trail->propagate);
   solver->level = new_level;
 }
 
@@ -3521,7 +3519,7 @@ restart (struct solver *solver)
 static void
 mark_reasons (struct solver *solver)
 {
-  for (all_literals_on_trail (lit))
+  for (all_literals_on_trail_with_reason (lit))
     {
       struct watch *watch = VAR (lit)->reason;
       if (!watch)
@@ -3536,7 +3534,7 @@ mark_reasons (struct solver *solver)
 static void
 unmark_reasons (struct solver *solver)
 {
-  for (all_literals_on_trail (lit))
+  for (all_literals_on_trail_with_reason (lit))
     {
       struct watch *watch = VAR (lit)->reason;
       if (!watch)
