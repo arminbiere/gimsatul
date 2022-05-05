@@ -14,6 +14,7 @@ static const char * usage =
 "-l|--log[ging]   enable very verbose internal logging\n"
 #endif
 "-n|--no-witness  do not print satisfying assignments\n"
+"-q|--quiet       disable all additional messages\n"
 "-v|--verbose     increase verbosity\n"
 "--version        print version\n"
 "\n"
@@ -60,7 +61,6 @@ static const char * usage =
 #define INVALID UINT_MAX
 
 #define MAX_SCORE 1e150
-#define MAX_VERBOSITY 3
 #define MINIMIZE_DEPTH 1000
 
 #define FOCUSED_RESTART_INTERVAL 50
@@ -740,6 +740,8 @@ print_line_without_acquiring_lock (struct solver * solver, const char * fmt, ...
   fputs (line, stdout);
 }
 
+static int verbosity;
+
 #define PRINTLN(...) \
   print_line_without_acquiring_lock (solver, __VA_ARGS__)
 
@@ -749,6 +751,8 @@ static void message (struct solver *solver, const char *, ...)
 static void
 message (struct solver *solver, const char *fmt, ...)
 {
+  if (verbosity < 0)
+    return;
   acquire_message_lock ();
   printf (prefix_format, solver->id);
   va_list ap;
@@ -759,8 +763,6 @@ message (struct solver *solver, const char *fmt, ...)
   fflush (stdout);
   release_message_lock ();
 }
-
-static int verbosity;
 
 #define verbose(...) \
 do { \
@@ -794,7 +796,6 @@ do { \
 
 #ifdef LOGGING
 
-static bool logging;
 static char loglitbuf[4][64];
 static unsigned loglitpos;
 
@@ -842,7 +843,7 @@ logvar (struct solver *solver, unsigned idx)
 #define LOGLIT(...) loglit (solver, __VA_ARGS__)
 
 #define LOGPREFIX(...) \
-  if (!logging) \
+  if (verbosity < INT_MAX) \
     break; \
   acquire_message_lock (); \
   printf (prefix_format, solver->id); \
@@ -1694,9 +1695,12 @@ close_proof (void)
   if (proof.close)
     fclose (proof.file);
 
-  printf ("c\nc closed '%s' after writing %" PRIu64 " proof lines\n",
-	  proof.path, proof.lines);
-  fflush (stdout);
+  if (verbosity >= 0)
+    {
+      printf ("c\nc closed '%s' after writing %" PRIu64 " proof lines\n",
+	      proof.path, proof.lines);
+      fflush (stdout);
+    }
 }
 
 /*------------------------------------------------------------------------*/
@@ -1956,8 +1960,11 @@ init_root_watches (struct root *root)
       LOGSUFFIX ();
     }
 #endif
-  printf ("c need %ld global binary clause watches\n", size);
-  fflush (stdout);
+  if (verbosity >= 0)
+    {
+      printf ("c need %ld global binary clause watches\n", size);
+      fflush (stdout);
+    }
 }
 
 /*------------------------------------------------------------------------*/
@@ -3485,6 +3492,9 @@ decide (struct solver *solver)
 static void
 report (struct solver *solver, char type)
 {
+  if (verbosity < 0)
+    return;
+
   struct statistics *s = &solver->statistics;
   struct averages *a = solver->averages + solver->stable;
 
@@ -5217,6 +5227,8 @@ parse_options (int argc, char **argv, struct options *opts)
   opts->conflicts = -1;
   opts->seconds = 0;
   opts->threads = 0;
+  const char * quiet_opt = 0;
+  const char * verbose_opt = 0;
   for (int i = 1; i != argc; i++)
     {
       const char *opt = argv[i], * arg;
@@ -5231,18 +5243,27 @@ parse_options (int argc, char **argv, struct options *opts)
 	}
       else if (!strcmp (opt, "-l") || !strcmp (opt, "--log") || !strcmp (opt, "logging"))
 #ifdef LOGGING
-	{
-	  logging = true;
-	  verbosity = MAX_VERBOSITY;
-	}
+	verbosity = INT_MAX;
 #else
 	die ("invalid option '%s' (compiled without logging support)", opt);
 #endif
       else if (!strcmp (opt, "-n") || !strcmp (opt, "--no-witness"))
 	witness = false;
-      else if (!strcmp (opt, "-v"))
+      else if (!strcmp (opt, "-q") || !strcmp (opt, "--quiet"))
 	{
-	  if (verbosity < MAX_VERBOSITY)
+	  if (quiet_opt)
+	    die ("two quiet options '%s' and '%s'", quiet_opt, opt);
+	  if (verbose_opt)
+	    die ("quiet option '%s' follows verbose '%s'", opt, verbose_opt);
+	  quiet_opt = opt;
+	  verbosity = -1;
+	}
+      else if (!strcmp (opt, "-v") || !strcmp (opt, "--verbose"))
+	{
+	  if (quiet_opt)
+	    die ("verbose option '%s' follows quiet '%s'", opt, quiet_opt);
+	  verbose_opt = opt;
+	  if (verbosity < INT_MAX)
 	    verbosity++;
 	}
       else if (!strcmp (opt, "--version"))
@@ -5382,6 +5403,8 @@ set_limits (struct solver *solver, long long conflicts)
 static void
 print_banner (void)
 {
+  if (verbosity < 0)
+    return;
   printf ("c GimSATul SAT Solver\n");
   printf ("c Copyright (c) 2022 Armin Biere University of Freiburg\n");
   fputs ("c\n", stdout);
@@ -5491,8 +5514,11 @@ parse_dimacs_file ()
     ch = next_char ();
   if (ch != '\n')
     goto INVALID_HEADER;
-  printf ("c\nc parsed header with %d variables\n", variables);
-  fflush (stdout);
+  if (verbosity >= 0)
+    {
+      printf ("c\nc parsed header with %d variables\n", variables);
+      fflush (stdout);
+    }
   struct root *root = new_root (variables);
   struct solver *solver = new_solver (root);
   signed char *marked = solver->marks;
@@ -5592,9 +5618,12 @@ parse_dimacs_file ()
 	goto SKIP_BODY_COMMENT;
     }
   assert (parsed == expected);
-  printf ("c parsed 'p cnf %d %d' DIMACS file '%s'\n",
-	  variables, parsed, dimacs.path);
-  fflush (stdout);
+  if (verbosity >= 0)
+    {
+      printf ("c parsed 'p cnf %d %d' DIMACS file '%s'\n",
+	      variables, parsed, dimacs.path);
+      fflush (stdout);
+    }
   assert (dimacs.file);
   if (dimacs.close == 1)
     fclose (dimacs.file);
@@ -5677,11 +5706,15 @@ clone_solvers (struct root * root, unsigned threads)
   assert (threads);
   if (threads == 1)
     return;
-  double before = current_resident_set_size () / (double) (1 << 20);
+  double before = 0;
+  if (verbosity >= 0)
+    {
+      before = current_resident_set_size () / (double) (1 << 20);
+      printf ("c cloning %u solvers to support %u solver threads\n",
+	      threads - 1, threads);
+      fflush (stdout);
+    }
   root->threads = allocate_array (threads, sizeof *root->threads);
-  printf ("c cloning %u solvers to support %u solver threads\n",
-          threads - 1, threads);
-  fflush (stdout);
   struct solver * first = first_solver (root);
   init_pool (first, threads);
   for (unsigned i = 1; i != threads; i++)
@@ -5689,9 +5722,13 @@ clone_solvers (struct root * root, unsigned threads)
   for (unsigned i = 1; i != threads; i++)
     stop_cloning_solver (first, i);
   assert (SIZE (root->solvers) == threads);
-  double after = current_resident_set_size () / (double) (1 << 20);
-  printf ("c memory increased by %.2f from %.2f MB to %.2f MB\n",
-          average (after, before), before, after);
+  if (verbosity >= 0)
+    {
+      double after = current_resident_set_size () / (double) (1 << 20);
+      printf ("c memory increased by %.2f from %.2f MB to %.2f MB\n",
+	      average (after, before), before, after);
+      fflush (stdout);
+    }
 }
 
 static void
@@ -5727,8 +5764,11 @@ run_solvers (struct root * root)
   size_t threads = SIZE (root->solvers);
   if (threads > 1)
     {
-      printf ("c starting and running %zu solver threads\n", threads);
-      fflush (stdout);
+      if (verbosity >= 0)
+	{
+	  printf ("c starting and running %zu solver threads\n", threads);
+	  fflush (stdout);
+	}
 
       for (all_solvers (solver))
 	start_running_solver (solver);
@@ -5738,8 +5778,11 @@ run_solvers (struct root * root)
     }
   else
     {
-      printf ("c running single solver in main thread\n");
-      fflush (stdout);
+      if (verbosity >= 0)
+	{
+	  printf ("c running single solver in main thread\n");
+	  fflush (stdout);
+	}
       struct solver * solver = first_solver (root);
       solve_routine (solver);
     }
@@ -5779,7 +5822,7 @@ detach_and_delete_solvers (struct root * root)
   size_t threads = SIZE (root->solvers);
   if (threads > 1)
     {
-      if (verbosity)
+      if (verbosity >= 0)
 	{
 	  printf ("c deleting %zu solvers in parallel\n", threads);
 	  fflush (stdout);
@@ -5797,7 +5840,7 @@ detach_and_delete_solvers (struct root * root)
     }
   else
     {
-      if (verbosity)
+      if (verbosity >= 0)
 	{
 	  printf ("c deleting single solver in main thread\n");
 	  fflush (stdout);
@@ -5863,6 +5906,8 @@ static void print_root_statistics (struct root *);
 static void
 caught_message (int sig)
 {
+  if (verbosity < 0)
+    return;
   const char *name = "SIGNUNKNOWN";
 #define SIGNAL(SIG) \
   if (sig == SIG) name = #SIG;
@@ -5896,7 +5941,7 @@ catch_alarm (int sig)
     catch_signal (sig);
   if (atomic_exchange (&caught_signal, sig))
     return;
-  if (verbosity)
+  if (verbosity > 0)
     caught_message (sig);
   reset_alarm_handler ();
   assert (root);
@@ -6145,6 +6190,9 @@ print_solver_statistics (struct solver *solver)
 static void
 print_root_statistics (struct root *root)
 {
+  if (verbosity < 0)
+    return;
+
   for (all_solvers (solver))
     {
       print_solver_statistics (solver);
@@ -6199,7 +6247,7 @@ check_types (void)
 		   MAX_GLUE, glue_in_watch_bytes);
   }
 
-  if (verbosity)
+  if (verbosity > 0)
     {
       printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
       printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
@@ -6217,7 +6265,7 @@ main (int argc, char **argv)
   parse_options (argc, argv, &options);
   print_banner ();
   check_types ();
-  if (proof.file)
+  if (verbosity >= 0 && proof.file)
     {
       printf ("c\nc writing %s proof trace to '%s'\n",
 	      binary_proof_format ? "binary" : "ASCII", proof.path);
@@ -6235,7 +6283,9 @@ main (int argc, char **argv)
   close_proof ();
   if (res == 20)
     {
-      printf ("c\ns UNSATISFIABLE\n");
+      if (verbosity >= 0)
+        printf ("c\n");
+      printf ("s UNSATISFIABLE\n");
       fflush (stdout);
     }
   else if (res == 10)
@@ -6243,7 +6293,9 @@ main (int argc, char **argv)
 #ifndef NDEBUG
       check_witness (winner);
 #endif
-      printf ("c\ns SATISFIABLE\n");
+      if (verbosity >= 0)
+        printf ("c\n");
+      printf ("s SATISFIABLE\n");
       if (witness)
 	print_witness (winner);
       fflush (stdout);
@@ -6254,7 +6306,10 @@ main (int argc, char **argv)
 #ifndef NDEBUG
   RELEASE (original);
 #endif
-  printf ("c\nc exit %d\n", res);
-  fflush (stdout);
+  if (verbosity >= 0)
+    {
+      printf ("c\nc exit %d\n", res);
+      fflush (stdout);
+    }
   return res;
 }
