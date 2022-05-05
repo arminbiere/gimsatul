@@ -68,7 +68,7 @@ static const char * usage =
 #if 0
 #define REDUCE_INTERVAL 1e3
 #else
-#define REDUCE_INTERVAL 1
+#define REDUCE_INTERVAL 10
 #endif
 #define REPHASE_INTERVAL 1e3
 #define STABLE_RESTART_INTERVAL 500
@@ -265,7 +265,9 @@ struct buffer
 
 struct trail
 {
-  unsigned *begin, *end, *propagate, * pos;
+  unsigned *begin, *end, * pos;
+  unsigned * propagate, * iterate;
+  unsigned * export;
 };
 
 #define SHARE
@@ -517,7 +519,6 @@ struct solver
   bool parallel;
   unsigned size;
   unsigned context;
-  unsigned active;
   unsigned level;
   unsigned unassigned;
   unsigned target;
@@ -1429,7 +1430,7 @@ new_solver (struct root *root)
     allocate_and_clear_array (size, sizeof *solver->variables);
   struct trail *trail = &solver->trail;
   trail->begin = allocate_array (size, sizeof *trail->begin);
-  trail->end = trail->propagate = trail->begin;
+  trail->export = trail->propagate = trail->end = trail->begin;
   trail->pos = allocate_array (size, sizeof *trail->pos);
   struct queue *queue = &solver->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
@@ -1438,7 +1439,6 @@ new_solver (struct root *root)
   for (all_nodes (node))
     push_queue (queue, node);
   solver->unassigned = size;
-  solver->active = size;
   init_profiles (solver);
   for (all_averages (a))
     a->exp = 1.0;
@@ -1942,31 +1942,34 @@ assign (struct solver *solver, unsigned lit, struct watch *reason)
 {
   const unsigned not_lit = NOT (lit);
   unsigned idx = IDX (lit);
+
   assert (idx < solver->size);
   assert (!solver->values[lit]);
   assert (!solver->values[not_lit]);
+
   assert (solver->unassigned);
   solver->unassigned--;
+
   solver->values[lit] = 1;
   solver->values[not_lit] = -1;
+
+  unsigned level = solver->level;
+  struct variable *v = solver->variables + idx;
+  v->saved = SGN (lit) ? -1 : 1;
+  v->level = level;
+  if (!level)
+    {
+      v->reason = 0;
+      solver->statistics.fixed++;
+    }
+  else
+      v->reason = reason;
+
   struct trail * trail = &solver->trail;
   size_t pos = trail->end - trail->begin;
   assert (pos < solver->size);
   trail->pos[idx] = pos;
   *trail->end++ = lit;
-  struct variable *v = solver->variables + idx;
-  v->saved = SGN (lit) ? -1 : 1;
-  unsigned level = solver->level;
-  v->level = level;
-  if (level)
-    v->reason = reason;
-  else
-    {
-      v->reason = 0;
-      solver->statistics.fixed++;
-      assert (solver->active);
-      solver->active--;
-    }
 }
 
 static void
@@ -2050,7 +2053,7 @@ set_satisfied (struct solver *solver)
 {
   assert (!solver->inconsistent);
   assert (!solver->unassigned);
-  assert (solver->trail.propagate == solver->trail.begin + solver->size);
+  assert (solver->trail.propagate == solver->trail.end);
   solver->status = 10;
   set_winner (solver);
 }
@@ -2390,32 +2393,47 @@ subsumed_binary (struct solver * solver, unsigned lit, unsigned other)
 /*------------------------------------------------------------------------*/
 
 static void
-export_unit (struct solver * solver, unsigned unit)
+export_units (struct solver * solver)
 {
   if (!solver->parallel)
     return;
+  assert (!solver->level);
   struct root * root = solver->root;
+  struct trail * trail = &solver->trail;
   volatile signed char * values = root->values;
-#ifndef NFASTPATH
-  if (values[unit])
-    return;
-#endif
-  if (pthread_mutex_lock (&root->locks.units))
-    fatal_error ("failed to acquire unit lock");
-  signed char value = values[unit];
-  if (!value)
+  unsigned * end = trail->end;
+  bool locked = false;
+  while (trail->export != end)
     {
+      unsigned unit = *trail->export++;
+#ifndef NFASTPATH
+      if (values[unit])
+	continue;
+#endif
+      if (!locked)
+	{
+	  if (pthread_mutex_lock (&root->locks.units))
+	    fatal_error ("failed to acquire unit lock");
+	  locked = true;
+	}
+
+      signed char value = values[unit];
+      if (value)
+	continue;
+
       very_verbose (solver, "exporting unit %d", export_literal (unit));
       unsigned not_unit = NOT (unit);
       assert (!values[not_unit]);
       *root->units.end++ = unit;
       values[not_unit] = -1;
       values[unit] = 1;
+
+      solver->statistics.exported.clauses++;
+      solver->statistics.exported.units++;
     }
-  if (pthread_mutex_unlock (&root->locks.units))
+
+  if (locked && pthread_mutex_unlock (&root->locks.units))
     fatal_error ("failed to release unit lock");
-  solver->statistics.exported.clauses++;
-  solver->statistics.exported.units++;
 }
 
 static bool
@@ -2464,7 +2482,6 @@ import_unit (struct solver * solver)
 	}
       assert (!solver->level);
       assign_unit (solver, unit);
-      solver->iterating = true;
     }
   if (pthread_mutex_unlock (&root->locks.units))
     fatal_error ("failed to release unit lock");
@@ -2619,8 +2636,9 @@ do { \
       return false;
     }
 
-  unsigned lit_pos = solver->trail.pos[IDX (lit)];
-  unsigned other_pos = solver->trail.pos[IDX (other)];
+  unsigned * pos = solver->trail.pos;
+  unsigned lit_pos = pos[IDX (lit)];
+  unsigned other_pos = pos[IDX (other)];
 
   if (lit_value < 0 && \
       (other_value >= 0 || \
@@ -3266,7 +3284,6 @@ analyze (struct solver *solver, struct watch *reason)
       assign_unit (solver, not_uip);
       solver->iterating = true;
       trace_add_unit (solver, not_uip);
-      export_unit (solver, not_uip);
     }
   else
     {
@@ -3438,6 +3455,7 @@ report (struct solver *solver, char type)
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
+  unsigned active = solver->size - s->fixed;
 
   static volatile uint64_t reported;
   if (!(atomic_fetch_add (&reported, 1) % 20))
@@ -3448,7 +3466,7 @@ report (struct solver *solver, char type)
 	 " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
 	 a->level.value, s->reductions, s->restarts, conflicts,
 	 s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
-	 solver->active, percent (solver->active, solver->size));
+	 active, percent (active, solver->size));
 
   fflush (stdout);
 
@@ -4939,9 +4957,17 @@ rephase (struct solver *solver)
 static void
 iterate (struct solver *solver)
 {
+  assert (solver->iterating);
+  assert (!solver->level);
+  struct trail * trail = &solver->trail;
+  assert (trail->end == trail->propagate);
+  assert (trail->iterate < trail->propagate);
+  size_t new_units = trail->propagate - trail->iterate;
+  very_verbose (solver, "iterating %zu units", new_units);
   solver->iterating = false;
-  if (!solver->parallel || verbosity)
-    report (solver, 'i');
+  report (solver, 'i');
+  export_units (solver);
+  trail->iterate = trail->propagate;
 }
 
 static void
@@ -5028,7 +5054,7 @@ solve (struct solver *solver)
       else if (!solver->statistics.walked)
 	local_search (solver);
 #endif
-#if 1
+#if 0
       else if (!solver->statistics.reductions)
 	reduce (solver);
 #endif
