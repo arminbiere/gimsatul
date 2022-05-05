@@ -2542,12 +2542,13 @@ export_binary (struct solver * solver, struct watch * watch)
 }
 
 static unsigned
-export_clause (struct solver * solver, struct clause * clause, unsigned pos)
+export_clause (struct solver * solver, struct clause * clause, unsigned shared)
 {
+  assert (shared < SIZE_SHARED);
   LOGCLAUSE (clause, "exporting");
   unsigned threads = solver->threads;
-  unsigned inc = threads - 1;
   assert (threads);
+  unsigned inc = threads - 1;
   assert (inc);
   reference_clause (solver, clause, inc);
   struct pool * pool = solver->pool;
@@ -2557,12 +2558,15 @@ export_clause (struct solver * solver, struct clause * clause, unsigned pos)
     {
       if (i == solver->id)
 	continue;
-      struct clause * volatile * share = &pool->share[pos];
+      struct clause * volatile * share = &pool->share[shared];
       struct clause * previous = atomic_exchange (share, clause);
       if (previous)
 	dereference_clause (solver, previous);
       else
-	solver->statistics.exported.clauses++, exported++;
+	{
+	  solver->statistics.exported.clauses++;
+	  exported++;
+	}
     }
   return exported;
 }
