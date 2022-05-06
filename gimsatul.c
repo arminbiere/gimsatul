@@ -269,9 +269,9 @@ struct buffer
 
 struct trail
 {
-  unsigned *begin, *end, * pos;
-  unsigned * propagate, * iterate;
-  unsigned * export;
+  unsigned *begin, *end, *pos;
+  unsigned *propagate, *iterate;
+  unsigned *export;
 };
 
 #define SHARE
@@ -307,12 +307,12 @@ struct watch
 
 struct watches
 {
-  struct watch ** begin, **end, **allocated;
+  struct watch **begin, **end, **allocated;
 };
 
 struct references
 {
-  struct watch ** begin, **end, **allocated;
+  struct watch **begin, **end, **allocated;
   unsigned *binaries;
 };
 
@@ -424,7 +424,8 @@ struct statistics
 
   struct context contexts[SIZE_CONTEXTS];
 
-  struct {
+  struct
+  {
     uint64_t learned;
     uint64_t deduced;
     uint64_t minimized;
@@ -466,13 +467,13 @@ struct statistics
 
 struct rings
 {
-  struct ring ** begin, ** end, **allocated;
+  struct ring **begin, **end, **allocated;
 };
 
 struct units
 {
-  unsigned * begin;
-  unsigned * volatile end;
+  unsigned *begin;
+  unsigned *volatile end;
 };
 
 struct locks
@@ -492,10 +493,10 @@ struct ruler
   bool inconsistent;
   struct locks locks;
   struct rings rings;
-  pthread_t * threads;
-  struct ring * volatile winner;
-  volatile signed char * values;
-  struct clauses * occurrences;
+  pthread_t *threads;
+  struct ring *volatile winner;
+  volatile signed char *values;
+  struct clauses *occurrences;
   struct clauses clauses;
   struct buffer buffer;
   struct units units;
@@ -512,7 +513,7 @@ struct ruler
 
 struct pool
 {
-  struct clause * volatile share[ALLOCATED_SHARED];
+  struct clause *volatile share[ALLOCATED_SHARED];
 };
 
 struct ring
@@ -520,9 +521,9 @@ struct ring
   unsigned id;
   unsigned threads;
   struct ruler *ruler;
-  struct pool * pool;
+  struct pool *pool;
   volatile int status;
-  unsigned * units;
+  unsigned *units;
   bool inconsistent;
   bool iterating;
   bool stable;
@@ -663,7 +664,7 @@ export_literal (unsigned unsigned_lit)
 static pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void
-message_lock_failure (const char * str)
+message_lock_failure (const char *str)
 {
   char buffer[128];
   sprintf (buffer, "gimsatul: fatal message locking error: %s\n", str);
@@ -725,12 +726,12 @@ fatal_error (const char *fmt, ...)
 
 static void
 print_line_without_acquiring_lock (struct ring *, const char *, ...)
-  __attribute__((format (printf, 2, 3)));
+__attribute__((format (printf, 2, 3)));
 
-static const char * prefix_format = "c%-2u ";
+static const char *prefix_format = "c%-2u ";
 
 static void
-print_line_without_acquiring_lock (struct ring * ring, const char * fmt, ...)
+print_line_without_acquiring_lock (struct ring *ring, const char *fmt, ...)
 {
   va_list ap;
   char line[256];
@@ -1074,7 +1075,7 @@ random32 (struct ring *ring)
 #if 0
 
 static bool
-random_bool (struct ring * ring)
+random_bool (struct ring *ring)
 {
   return (random64 (ring) >> 33) & 1;
 }
@@ -1322,13 +1323,13 @@ tag_literal (bool tag, unsigned lit)
 /*------------------------------------------------------------------------*/
 
 static unsigned
-lower_pointer (void * watch)
+lower_pointer (void *watch)
 {
   return (size_t) watch;
 }
 
 static unsigned
-upper_pointer (void * watch)
+upper_pointer (void *watch)
 {
   return (size_t) watch >> 32;
 }
@@ -1352,7 +1353,7 @@ static unsigned
 lit_pointer (void *watch)
 {
   assert (binary_pointer (watch));
-  unsigned lower = lower_pointer  (watch);
+  unsigned lower = lower_pointer (watch);
   return untag_literal (lower);
 }
 
@@ -1360,7 +1361,7 @@ static unsigned
 other_pointer (void *watch)
 {
   assert (binary_pointer (watch));
-  unsigned upper = upper_pointer  (watch);
+  unsigned upper = upper_pointer (watch);
   return untag_literal (upper);
 }
 
@@ -1370,7 +1371,7 @@ tag_pointer (bool redundant, unsigned lit, unsigned other)
   unsigned lower = tag_literal (true, lit);
   unsigned upper = tag_literal (redundant, other);
   size_t word = lower | (size_t) upper << 32;
-  void * res = (void*) word;
+  void *res = (void *) word;
   assert (binary_pointer (res));
   assert (lit_pointer (res) == lit);
   assert (other_pointer (res) == other);
@@ -1453,16 +1454,16 @@ new_ruler (size_t size)
   pthread_mutex_init (&ruler->locks.winner, 0);
 #endif
   ruler->size = size;
-  ruler->values = allocate_and_clear_block (2*size);
+  ruler->values = allocate_and_clear_block (2 * size);
   ruler->occurrences =
-    allocate_and_clear_array (2*size, sizeof *ruler->occurrences);
+    allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
   ruler->units.end = ruler->units.begin;
   return ruler;
 }
 
 static void
-release_occurrences (struct ruler * ruler)
+release_occurrences (struct ruler *ruler)
 {
   if (!ruler->occurrences)
     return;
@@ -1481,14 +1482,14 @@ delete_ruler (struct ruler *ruler)
   RELEASE (ruler->rings);
   RELEASE (ruler->buffer);
   release_occurrences (ruler);
-  free ((void*) ruler->values);
+  free ((void *) ruler->values);
   free (ruler->units.begin);
   free (ruler->threads);
   free (ruler);
 }
 
 static struct ring *
-first_ring (struct ruler * ruler)
+first_ring (struct ruler *ruler)
 {
   assert (!EMPTY (ruler->rings));
   return ruler->rings.begin[0];
@@ -1499,7 +1500,7 @@ push_ring (struct ruler *ruler, struct ring *ring)
 {
   if (pthread_mutex_lock (&ruler->locks.rings))
     fatal_error ("failed to acquire rings lock while pushing ring");
-  size_t id = SIZE (ruler->rings); 
+  size_t id = SIZE (ruler->rings);
   assert (id < MAX_THREADS);
   ring->id = id;
   PUSH (ruler->rings, ring);
@@ -1513,7 +1514,7 @@ push_ring (struct ruler *ruler, struct ring *ring)
 static void
 detach_ring (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   if (pthread_mutex_lock (&ruler->locks.rings))
     fatal_error ("failed to acquire rings lock while detaching ring");
   assert (ring->id < SIZE (ruler->rings));
@@ -1539,8 +1540,7 @@ new_ring (struct ruler *ruler)
   ring->references =
     allocate_and_clear_array (sizeof (struct references), 2 * size);
   ring->used = allocate_and_clear_block (size);
-  ring->variables =
-    allocate_and_clear_array (size, sizeof *ring->variables);
+  ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
   struct trail *trail = &ring->trail;
   trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
   trail->export = trail->propagate = trail->iterate = trail->begin;
@@ -1580,23 +1580,23 @@ release_watches (struct ring *ring)
 }
 
 static void
-init_pool (struct ring * ring, unsigned threads)
+init_pool (struct ring *ring, unsigned threads)
 {
   ring->threads = threads;
   ring->pool = allocate_and_clear_array (threads, sizeof *ring->pool);
 }
 
 static void
-release_references (struct ring * ring)
+release_references (struct ring *ring)
 {
   for (all_ring_literals (lit))
     RELEASE (REFERENCES (lit));
 }
 
 static void
-release_pool (struct ring * ring)
+release_pool (struct ring *ring)
 {
-  struct pool * pool = ring->pool;
+  struct pool *pool = ring->pool;
   if (!pool)
     return;
   for (unsigned i = 0; i != ring->threads; i++, pool++)
@@ -1605,7 +1605,7 @@ release_pool (struct ring * ring)
 	continue;
       for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
 	{
-	  struct clause * clause = pool->share[i];
+	  struct clause *clause = pool->share[i];
 	  if (!clause)
 	    continue;
 	  if (binary_pointer (clause))
@@ -1701,7 +1701,7 @@ ascii_proof_line (struct buffer *buffer, size_t size, unsigned *literals)
 }
 
 static inline void
-trace_add_literals (struct buffer * buffer, size_t size, unsigned * literals)
+trace_add_literals (struct buffer *buffer, size_t size, unsigned *literals)
 {
   assert (proof.file);
   assert (EMPTY (*buffer));
@@ -1717,21 +1717,21 @@ trace_add_literals (struct buffer * buffer, size_t size, unsigned * literals)
 }
 
 static inline void
-trace_add_empty (struct buffer * buffer)
+trace_add_empty (struct buffer *buffer)
 {
   if (proof.file)
     trace_add_literals (buffer, 0, 0);
 }
 
 static inline void
-trace_add_unit (struct buffer * buffer, unsigned unit)
+trace_add_unit (struct buffer *buffer, unsigned unit)
 {
   if (proof.file)
     trace_add_literals (buffer, 1, &unit);
 }
 
 static inline void
-trace_add_binary (struct buffer * buffer, unsigned lit, unsigned other)
+trace_add_binary (struct buffer *buffer, unsigned lit, unsigned other)
 {
   if (!proof.file)
     return;
@@ -1740,15 +1740,14 @@ trace_add_binary (struct buffer * buffer, unsigned lit, unsigned other)
 }
 
 static inline void
-trace_add_clause (struct buffer * buffer, struct clause * clause)
+trace_add_clause (struct buffer *buffer, struct clause *clause)
 {
   if (proof.file)
     trace_add_literals (buffer, clause->size, clause->literals);
 }
 
 static inline void
-trace_delete_literals (struct buffer *buffer,
-                       size_t size, unsigned * literals)
+trace_delete_literals (struct buffer *buffer, size_t size, unsigned *literals)
 {
   if (!proof.file)
     return;
@@ -1766,7 +1765,7 @@ trace_delete_literals (struct buffer *buffer,
 }
 
 static inline void
-trace_delete_binary (struct buffer * buffer, unsigned lit, unsigned other)
+trace_delete_binary (struct buffer *buffer, unsigned lit, unsigned other)
 {
   if (!proof.file)
     return;
@@ -1775,7 +1774,7 @@ trace_delete_binary (struct buffer * buffer, unsigned lit, unsigned other)
 }
 
 static inline void
-trace_delete_clause (struct buffer * buffer, struct clause * clause)
+trace_delete_clause (struct buffer *buffer, struct clause *clause)
 {
   if (proof.file)
     trace_delete_literals (buffer, clause->size, clause->literals);
@@ -1855,9 +1854,9 @@ watch_large_clause (struct ring *ring, struct clause *clause)
 }
 
 static struct watch *
-watch_literals_in_large_clause (struct ring * ring,
-                                struct clause * clause,
-			        unsigned first, unsigned second)
+watch_literals_in_large_clause (struct ring *ring,
+				struct clause *clause,
+				unsigned first, unsigned second)
 {
 #ifndef NDEBUG
   assert (first != second);
@@ -1870,7 +1869,7 @@ watch_literals_in_large_clause (struct ring * ring,
     found_second |= (lit == second);
   assert (found_second);
 #endif
-  struct watch * watch = watch_large_clause (ring, clause);
+  struct watch *watch = watch_large_clause (ring, clause);
   watch->sum = first ^ second;
   watch_literal (ring, first, watch);
   watch_literal (ring, second, watch);
@@ -1878,20 +1877,19 @@ watch_literals_in_large_clause (struct ring * ring,
 }
 
 static struct watch *
-watch_first_two_literals_in_large_clause (struct ring * ring,
-                                          struct clause * clause)
+watch_first_two_literals_in_large_clause (struct ring *ring,
+					  struct clause *clause)
 {
   unsigned *lits = clause->literals;
-  return watch_literals_in_large_clause (ring, clause,
-                                         lits[0], lits[1]);
+  return watch_literals_in_large_clause (ring, clause, lits[0], lits[1]);
 }
 
 static void
-push_ruler_binary (struct ruler * ruler, unsigned lit, unsigned other)
+push_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 {
   ROGBINARY (false, lit, other, "watching %s in", ROGLIT (lit));
-  struct clauses * clauses = &OCCURENCES (lit);
-  struct clause * watch_lit = tag_pointer (false, lit, other);
+  struct clauses *clauses = &OCCURENCES (lit);
+  struct clause *watch_lit = tag_pointer (false, lit, other);
   PUSH (*clauses, watch_lit);
 }
 
@@ -1918,7 +1916,7 @@ new_local_binary_clause (struct ring *ring, bool redundant,
 
 static struct clause *
 new_large_clause (size_t size, unsigned *literals,
-                  bool redundant, unsigned glue)
+		  bool redundant, unsigned glue)
 {
   assert (2 <= size);
   size_t bytes = size * sizeof (unsigned);
@@ -1945,9 +1943,7 @@ really_delete_clause (struct ring *ring, struct clause *clause)
 }
 
 static void
-reference_clause (struct ring * ring,
-                  struct clause * clause,
-		  unsigned inc)
+reference_clause (struct ring *ring, struct clause *clause, unsigned inc)
 {
   assert (inc);
   unsigned shared = atomic_fetch_add (&clause->shared, inc);
@@ -1956,7 +1952,7 @@ reference_clause (struct ring * ring,
 }
 
 static void
-dereference_clause (struct ring * ring, struct clause * clause)
+dereference_clause (struct ring *ring, struct clause *clause)
 {
   unsigned shared = atomic_fetch_sub (&clause->shared, 1);
   assert (shared + 1);
@@ -2002,9 +1998,9 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
       ring->statistics.fixed++;
     }
   else
-      v->reason = reason;
+    v->reason = reason;
 
-  struct trail * trail = &ring->trail;
+  struct trail *trail = &ring->trail;
   size_t pos = trail->end - trail->begin;
   assert (pos < ring->size);
   trail->pos[idx] = pos;
@@ -2072,8 +2068,7 @@ set_winner (struct ring *ring)
   if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
 #endif
-  verbose (ring, "winning ring[%u] with status %d",
-	   ring->id, ring->status);
+  verbose (ring, "winning ring[%u] with status %d", ring->id, ring->status);
 }
 
 static void
@@ -2100,36 +2095,36 @@ set_satisfied (struct ring *ring)
 /*------------------------------------------------------------------------*/
 
 static void
-copy_ruler_units (struct ring * ring)
+copy_ruler_units (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   assert (first_ring (ruler) == ring);
   assert (!ring->id);
   size_t units = 0;
   for (all_elements_on_stack (unsigned, unit, ruler->units))
-    assign_unit (ring, unit), units++;
+      assign_unit (ring, unit), units++;
   very_verbose (ring, "copied %zu units", units);
   ring->trail.export = ring->trail.iterate = ring->trail.end;
 }
 
 static void
-copy_ruler_binaries (struct ring * ring)
+copy_ruler_binaries (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   assert (first_ring (ruler) == ring);
   assert (!ring->id);
   size_t watched = 0;
 
   for (all_ruler_literals (lit))
     {
-      struct clauses * occurrences = &OCCURENCES (lit);
-      struct references * references = &REFERENCES (lit);
+      struct clauses *occurrences = &OCCURENCES (lit);
+      struct references *references = &REFERENCES (lit);
       size_t size = 0;
       for (all_clauses (clause, *occurrences))
 	if (binary_pointer (clause))
 	  size++;
-      unsigned * binaries = allocate_array (size + 1, sizeof *binaries);
-      unsigned * b = references->binaries = binaries;
+      unsigned *binaries = allocate_array (size + 1, sizeof *binaries);
+      unsigned *b = references->binaries = binaries;
       for (all_clauses (clause, *occurrences))
 	if (binary_pointer (clause))
 	  *b++ = other_pointer (clause);
@@ -2139,23 +2134,23 @@ copy_ruler_binaries (struct ring * ring)
       watched += size;
     }
   assert (!(watched & 1));
-  size_t copied = watched/2;
+  size_t copied = watched / 2;
   ring->statistics.irredundant += copied;
   very_verbose (ring, "copied %zu binary clauses", copied);
 }
 
 static void
-share_ring_binaries (struct ring * dst, struct ring * src)
+share_ring_binaries (struct ring *dst, struct ring *src)
 {
-  struct ring * ring = dst;
+  struct ring *ring = dst;
   assert (first_ring (ruler) == src);
   assert (src->ruler == ruler);
   assert (!src->id);
 
   for (all_ring_literals (lit))
     {
-      struct references * src_references = src->references + lit;
-      struct references * dst_references = dst->references + lit;
+      struct references *src_references = src->references + lit;
+      struct references *dst_references = dst->references + lit;
       dst_references->binaries = src_references->binaries;
     }
 
@@ -2165,9 +2160,9 @@ share_ring_binaries (struct ring * dst, struct ring * src)
 }
 
 static void
-transfer_and_own_ruler_clauses (struct ring * ring)
+transfer_and_own_ruler_clauses (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   assert (first_ring (ruler) == ring);
   assert (!ring->id);
   size_t transferred = 0;
@@ -2178,9 +2173,9 @@ transfer_and_own_ruler_clauses (struct ring * ring)
 }
 
 static void
-clone_ruler (struct ruler * ruler)
+clone_ruler (struct ruler *ruler)
 {
-  struct ring * ring = new_ring (ruler);
+  struct ring *ring = new_ring (ruler);
   if (ruler->inconsistent)
     set_inconsistent (ring, "copied empty clause");
   copy_ruler_units (ring);
@@ -2225,9 +2220,9 @@ clone_clauses (struct ring *dst, struct ring *src)
 }
 
 static void *
-clone_ring (void * ptr)
+clone_ring (void *ptr)
 {
-  struct ring * src = ptr;
+  struct ring *src = ptr;
   struct ring *ring = new_ring (src->ruler);
   share_ring_binaries (ring, src);
   clone_clauses (ring, src);
@@ -2238,12 +2233,12 @@ clone_ring (void * ptr)
 /*------------------------------------------------------------------------*/
 
 static size_t
-cache_lines (void * p, void * q)
+cache_lines (void *p, void *q)
 {
   if (p == q)
     return 0;
   assert (p >= q);
-  size_t bytes = (char*) p - (char *) q;
+  size_t bytes = (char *) p - (char *) q;
   size_t res = (bytes + (CACHE_LINE_SIZE - 1)) / CACHE_LINE_SIZE;
   return res;
 }
@@ -2268,7 +2263,7 @@ propagate (struct ring *ring, bool search)
       unsigned *binaries = watches->binaries;
       if (binaries)
 	{
-	  unsigned other, * p;
+	  unsigned other, *p;
 	  for (p = binaries; (other = *p) != INVALID; p++)
 	    {
 	      struct watch *watch = tag_pointer (false, other, not_lit);
@@ -2281,7 +2276,7 @@ propagate (struct ring *ring, bool search)
 		}
 	      else if (!other_value)
 		{
-		  struct watch * reason = tag_pointer (false, other, not_lit);
+		  struct watch *reason = tag_pointer (false, other, not_lit);
 		  assign_with_reason (ring, other, reason);
 		  ticks++;
 		}
@@ -2314,7 +2309,7 @@ propagate (struct ring *ring, bool search)
 		}
 	      else
 		{
-		  struct watch * reason = tag_pointer (false, other, not_lit);
+		  struct watch *reason = tag_pointer (false, other, not_lit);
 		  assign_with_reason (ring, other, reason);
 		  ticks++;
 		}
@@ -2393,7 +2388,7 @@ propagate (struct ring *ring, bool search)
 	RELEASE (*watches);
     }
 
-  struct context * context = ring->statistics.contexts + ring->context;
+  struct context *context = ring->statistics.contexts + ring->context;
 
   if (conflict)
     {
@@ -2410,7 +2405,7 @@ propagate (struct ring *ring, bool search)
 /*------------------------------------------------------------------------*/
 
 static void
-unassign (struct ring * ring, unsigned lit)
+unassign (struct ring *ring, unsigned lit)
 {
 #ifdef LOGGING
   ring->level = VAR (lit)->level;
@@ -2485,7 +2480,7 @@ update_best_and_target_phases (struct ring *ring)
 /*------------------------------------------------------------------------*/
 
 static bool
-subsumed_binary (struct ring * ring, unsigned lit, unsigned other)
+subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 {
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
     SWAP (lit, other);
@@ -2498,15 +2493,15 @@ subsumed_binary (struct ring * ring, unsigned lit, unsigned other)
 /*------------------------------------------------------------------------*/
 
 static void
-export_units (struct ring * ring)
+export_units (struct ring *ring)
 {
   if (ring->threads < 2)
     return;
   assert (!ring->level);
-  struct ruler * ruler = ring->ruler;
-  struct trail * trail = &ring->trail;
-  volatile signed char * values = ruler->values;
-  unsigned * end = trail->end;
+  struct ruler *ruler = ring->ruler;
+  struct trail *trail = &ring->trail;
+  volatile signed char *values = ruler->values;
+  unsigned *end = trail->end;
   bool locked = false;
   while (trail->export != end)
     {
@@ -2542,16 +2537,16 @@ export_units (struct ring * ring)
 }
 
 static bool
-import_units (struct ring * ring)
+import_units (struct ring *ring)
 {
   assert (ring->pool);
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
 #ifndef NFASTPATH
   if (ring->units == ruler->units.end)
     return false;
 #endif
-  struct variable * variables = ring->variables;
-  signed char * values = ring->values;
+  struct variable *variables = ring->variables;
+  signed char *values = ring->values;
   unsigned level = ring->level;
   unsigned imported = 0;
   if (pthread_mutex_lock (&ruler->locks.units))
@@ -2594,7 +2589,7 @@ import_units (struct ring * ring)
 }
 
 static void
-export_binary (struct ring * ring, struct watch * watch)
+export_binary (struct ring *ring, struct watch *watch)
 {
   assert (binary_pointer (watch));
   unsigned threads = ring->threads;
@@ -2605,10 +2600,10 @@ export_binary (struct ring * ring, struct watch * watch)
     {
       if (i == ring->id)
 	continue;
-      struct pool * pool = ring->pool + i;
-      struct clause * clause = (struct clause*) watch;
-      struct clause * volatile * share = &pool->share[BINARY_SHARED];
-      struct clause * previous = atomic_exchange (share, clause);
+      struct pool *pool = ring->pool + i;
+      struct clause *clause = (struct clause *) watch;
+      struct clause *volatile *share = &pool->share[BINARY_SHARED];
+      struct clause *previous = atomic_exchange (share, clause);
       if (previous)
 	continue;
       ring->statistics.exported.binary++;
@@ -2617,7 +2612,7 @@ export_binary (struct ring * ring, struct watch * watch)
 }
 
 static unsigned
-export_clause (struct ring * ring, struct clause * clause, unsigned shared)
+export_clause (struct ring *ring, struct clause *clause, unsigned shared)
 {
   assert (shared < SIZE_SHARED);
   LOGCLAUSE (clause, "exporting");
@@ -2626,15 +2621,15 @@ export_clause (struct ring * ring, struct clause * clause, unsigned shared)
   unsigned inc = threads - 1;
   assert (inc);
   reference_clause (ring, clause, inc);
-  struct pool * pool = ring->pool;
+  struct pool *pool = ring->pool;
   assert (pool);
   unsigned exported = 0;
   for (unsigned i = 0; i != threads; i++, pool++)
     {
       if (i == ring->id)
 	continue;
-      struct clause * volatile * share = &pool->share[shared];
-      struct clause * previous = atomic_exchange (share, clause);
+      struct clause *volatile *share = &pool->share[shared];
+      struct clause *previous = atomic_exchange (share, clause);
       if (previous)
 	dereference_clause (ring, previous);
       else
@@ -2647,7 +2642,7 @@ export_clause (struct ring * ring, struct clause * clause, unsigned shared)
 }
 
 static void
-export_glue1_clause (struct ring * ring, struct clause * clause)
+export_glue1_clause (struct ring *ring, struct clause *clause)
 {
   assert (!binary_pointer (clause));
   assert (clause->glue == 1);
@@ -2657,7 +2652,7 @@ export_glue1_clause (struct ring * ring, struct clause * clause)
 }
 
 static void
-export_tier1_clause (struct ring * ring, struct clause * clause)
+export_tier1_clause (struct ring *ring, struct clause *clause)
 {
   assert (!binary_pointer (clause));
   assert (1 < clause->glue);
@@ -2668,7 +2663,7 @@ export_tier1_clause (struct ring * ring, struct clause * clause)
 }
 
 static void
-export_tier2_clause (struct ring * ring, struct clause * clause)
+export_tier2_clause (struct ring *ring, struct clause *clause)
 {
   assert (!binary_pointer (clause));
   assert (TIER1_GLUE_LIMIT < clause->glue);
@@ -2679,8 +2674,7 @@ export_tier2_clause (struct ring * ring, struct clause * clause)
 }
 
 static void
-really_import_binary_clause (struct ring * ring,
-                             unsigned lit, unsigned other)
+really_import_binary_clause (struct ring *ring, unsigned lit, unsigned other)
 {
   (void) new_local_binary_clause (ring, true, lit, other);
   trace_add_binary (&ring->buffer, lit, other);
@@ -2689,29 +2683,29 @@ really_import_binary_clause (struct ring * ring,
 }
 
 static void
-force_to_repropagate (struct ring * ring, unsigned lit)
+force_to_repropagate (struct ring *ring, unsigned lit)
 {
   LOG ("forcing to repropagate %s", LOGLIT (lit));
   assert (ring->values[lit] < 0);
   unsigned idx = IDX (lit);
-  struct variable * v = ring->variables + idx;
+  struct variable *v = ring->variables + idx;
   if (ring->level > v->level)
     backtrack (ring, v->level);
   size_t pos = ring->trail.pos[idx];
   assert (pos < SIZE (ring->trail));
   LOG ("setting end of trail to %zu", pos);
-  unsigned * propagate = ring->trail.begin + pos;
+  unsigned *propagate = ring->trail.begin + pos;
   assert (propagate < ring->trail.end);
   assert (*propagate == NOT (lit));
   ring->trail.propagate = propagate;
 }
 
 static bool
-import_binary (struct ring * ring, struct clause * clause)
+import_binary (struct ring *ring, struct clause *clause)
 {
   assert (binary_pointer (clause));
   assert (redundant_pointer (clause));
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   unsigned lit = lit_pointer (clause);
   signed char lit_value = values[lit];
   unsigned lit_level = INVALID;
@@ -2719,7 +2713,7 @@ import_binary (struct ring * ring, struct clause * clause)
     {
       lit_level = VAR (lit)->level;
       if (lit_value > 0 && !lit_level)
-        return false;
+	return false;
     }
   unsigned other = other_pointer (clause);
   signed char other_value = values[other];
@@ -2728,7 +2722,7 @@ import_binary (struct ring * ring, struct clause * clause)
     {
       other_level = VAR (other)->level;
       if (other_value > 0 && !other_level)
-        return false;
+	return false;
     }
 
 #define SUBSUME_BINARY(LIT, OTHER) \
@@ -2740,8 +2734,8 @@ do { \
     } \
 } while (0);
 
-  if ((lit_value >= 0 && other_value >= 0) || \
-      (lit_value > 0 && other_value < 0 && lit_level <= other_level) || \
+  if ((lit_value >= 0 && other_value >= 0) ||
+      (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
       (other_value > 0 && lit_value < 0 && other_level <= lit_level))
     {
       SUBSUME_BINARY (lit, other);
@@ -2750,51 +2744,49 @@ do { \
       return false;
     }
 
-  unsigned * pos = ring->trail.pos;
+  unsigned *pos = ring->trail.pos;
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
 
-  if (lit_value < 0 && \
-      (other_value >= 0 || \
-       lit_level < other_level || \
+  if (lit_value < 0 &&
+      (other_value >= 0 ||
+       lit_level < other_level ||
        (lit_level == other_level && lit_pos < other_pos)))
     {
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other,
-                 "importing (repropagate first literal %s)",
-		 LOGLIT (lit));
+		 "importing (repropagate first literal %s)", LOGLIT (lit));
       force_to_repropagate (ring, lit);
       really_import_binary_clause (ring, lit, other);
       return true;
     }
 
-  assert (other_value < 0 && \
-          (lit_value >= 0 || \
-           other_level < lit_level || \
-           (other_level == lit_level && other_pos < lit_pos)));
+  assert (other_value < 0 &&
+	  (lit_value >= 0 ||
+	   other_level < lit_level ||
+	   (other_level == lit_level && other_pos < lit_pos)));
 
   SUBSUME_BINARY (lit, other);
   LOGBINARY (true, lit, other,
-	     "importing (repropagate second literal %s))",
-	     LOGLIT (other));
+	     "importing (repropagate second literal %s))", LOGLIT (other));
   force_to_repropagate (ring, other);
   really_import_binary_clause (ring, lit, other);
   return true;
 }
 
 static bool
-subsumed_large_clause (struct ring * ring, struct clause * clause)
+subsumed_large_clause (struct ring *ring, struct clause *clause)
 {
-  signed char * values = ring->values;
-  struct variable * variables = ring->variables;
-  signed char * marks = ring->marks;
+  signed char *values = ring->values;
+  struct variable *variables = ring->variables;
+  signed char *marks = ring->marks;
   uint64_t min_watched = UINT64_MAX;
   unsigned best = INVALID;
   for (all_literals_in_clause (lit, clause))
     {
       signed char value = values[lit];
       unsigned idx = IDX (lit);
-      struct variable * v = variables + idx;
+      struct variable *v = variables + idx;
       if (value < 0 && !v->level)
 	continue;
       assert (!value || v->level);
@@ -2808,7 +2800,7 @@ subsumed_large_clause (struct ring * ring, struct clause * clause)
   bool res = false;
   if (best != INVALID)
     {
-      struct references * watches = &REFERENCES (best);
+      struct references *watches = &REFERENCES (best);
       for (all_watches (watch, *watches))
 	{
 	  if (binary_pointer (watch))
@@ -2816,14 +2808,14 @@ subsumed_large_clause (struct ring * ring, struct clause * clause)
 	  if (!watch->redundant)
 	    continue;
 	  res = true;
-	  struct clause * other_clause = watch->clause;
+	  struct clause *other_clause = watch->clause;
 	  for (all_literals_in_clause (other, other_clause))
 	    {
 	      if (other == best)
 		continue;
 	      signed char value = values[other];
 	      unsigned idx = IDX (other);
-	      struct variable * v = variables + idx;
+	      struct variable *v = variables + idx;
 	      if (value < 0 && !v->level)
 		continue;
 	      signed char mark = marks[other];
@@ -2844,13 +2836,13 @@ subsumed_large_clause (struct ring * ring, struct clause * clause)
 }
 
 static void
-really_import_large_clause (struct ring * ring, struct clause * clause,
-                            unsigned first, unsigned second)
+really_import_large_clause (struct ring *ring, struct clause *clause,
+			    unsigned first, unsigned second)
 {
   (void) watch_literals_in_large_clause (ring, clause, first, second);
   unsigned glue = clause->glue;
   assert (clause->redundant);
-  struct statistics * statistics = &ring->statistics;
+  struct statistics *statistics = &ring->statistics;
   if (glue == 1)
     statistics->imported.glue1++;
   else if (glue <= TIER1_GLUE_LIMIT)
@@ -2864,11 +2856,11 @@ really_import_large_clause (struct ring * ring, struct clause * clause,
 }
 
 static unsigned
-find_literal_to_watch (struct ring * ring,  struct clause * clause,
-                       unsigned ignore, signed char * res_value_ptr,
-		       unsigned * res_level_ptr)
+find_literal_to_watch (struct ring *ring, struct clause *clause,
+		       unsigned ignore, signed char *res_value_ptr,
+		       unsigned *res_level_ptr)
 {
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   unsigned res = INVALID, res_level = 0;
   signed char res_value = 0;
   for (all_literals_in_clause (lit, clause))
@@ -2908,9 +2900,9 @@ find_literal_to_watch (struct ring * ring,  struct clause * clause,
 }
 
 static bool
-import_large_clause (struct ring * ring, struct clause * clause)
+import_large_clause (struct ring *ring, struct clause *clause)
 {
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   for (all_literals_in_clause (lit, clause))
     {
       if (values[lit] <= 0)
@@ -2925,11 +2917,11 @@ import_large_clause (struct ring * ring, struct clause * clause)
   unsigned lit_level = 0;
   signed char lit_value = 0;
   unsigned lit = find_literal_to_watch (ring, clause, INVALID,
-                                          &lit_value, &lit_level);
+					&lit_value, &lit_level);
   unsigned other_level = 0;
   signed char other_value = 0;
   unsigned other = find_literal_to_watch (ring, clause, lit,
-                                           &other_value, &other_level);
+					  &other_value, &other_level);
 #define SUBSUME_LARGE_CLAUSE(CLAUSE) \
 do { \
   if (subsumed_large_clause (ring, clause)) \
@@ -2952,9 +2944,9 @@ do { \
   unsigned lit_pos = ring->trail.pos[IDX (lit)];
   unsigned other_pos = ring->trail.pos[IDX (other)];
 
-  if (lit_value < 0 && \
-      (other_value >= 0 || \
-       lit_level < other_level || \
+  if (lit_value < 0 &&
+      (other_value >= 0 ||
+       lit_level < other_level ||
        (lit_level == other_level && lit_pos < other_pos)))
     {
       SUBSUME_LARGE_CLAUSE (clause);
@@ -2965,10 +2957,10 @@ do { \
       return true;
     }
 
-  assert (other_value < 0 && \
-          (lit_value >= 0 || \
-           other_level < lit_level || \
-           (other_level == lit_level && other_pos < lit_pos)));
+  assert (other_value < 0 &&
+	  (lit_value >= 0 ||
+	   other_level < lit_level ||
+	   (other_level == lit_level && other_pos < lit_pos)));
 
   SUBSUME_LARGE_CLAUSE (clause);
   LOGCLAUSE (clause, "importing (repropagate second watch %s)",
@@ -2979,31 +2971,31 @@ do { \
 }
 
 static bool
-import_shared (struct ring * ring)
+import_shared (struct ring *ring)
 {
   if (!ring->pool)
     return false;
   if (import_units (ring))
     return true;
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   size_t rings = SIZE (ruler->rings);
   assert (rings <= UINT_MAX);
   assert (rings > 1);
-  unsigned id = random_modulo (ring, rings-1) + ring->id + 1;
+  unsigned id = random_modulo (ring, rings - 1) + ring->id + 1;
   if (id >= rings)
     id -= rings;
   assert (id < rings);
   assert (id != ring->id);
-  struct ring * src = ruler->rings.begin[id];
+  struct ring *src = ruler->rings.begin[id];
   assert (src->pool);
-  struct pool * pool = src->pool + ring->id;
-  struct clause * volatile * end = pool->share + SIZE_SHARED;
-  struct clause * clause = 0;
-  for (struct clause * volatile * p = pool->share; !clause && p != end; p++)
+  struct pool *pool = src->pool + ring->id;
+  struct clause *volatile *end = pool->share + SIZE_SHARED;
+  struct clause *clause = 0;
+  for (struct clause * volatile *p = pool->share; !clause && p != end; p++)
 #ifndef NFASTPATH
-      if (*p)
+    if (*p)
 #endif
-	clause = atomic_exchange (p, 0);
+      clause = atomic_exchange (p, 0);
   if (!clause)
     return false;
   if (binary_pointer (clause))
@@ -3095,13 +3087,13 @@ do { \
 } while (0)
 
 static size_t
-shrink_clause (struct ring * ring)
+shrink_clause (struct ring *ring)
 {
   LOGTMP ("trying to shrink");
 
-  struct variable * variables = ring->variables;
-  struct unsigneds * analyzed = &ring->analyzed;
-  struct trail * trail = &ring->trail;
+  struct variable *variables = ring->variables;
+  struct unsigneds *analyzed = &ring->analyzed;
+  struct trail *trail = &ring->trail;
 
   struct unsigneds *clause = &ring->clause;
   unsigned *begin = clause->begin;
@@ -3116,7 +3108,7 @@ shrink_clause (struct ring * ring)
     {
       unsigned lit = *p;
       unsigned idx = IDX (lit);
-      struct variable * v = variables + idx;
+      struct variable *v = variables + idx;
       assert (v->level < ring->level);
       if (!v->level)
 	continue;
@@ -3137,17 +3129,17 @@ shrink_clause (struct ring * ring)
   assert (max_pos > 0), assert (open > 1);
   assert (level), assert (level != INVALID);
 
-  unsigned * t = trail->begin + max_pos, uip = INVALID;
+  unsigned *t = trail->begin + max_pos, uip = INVALID;
 
   while (open)
     {
       uip = *t--;
       unsigned idx = IDX (uip);
-      struct variable * v = variables + idx;
+      struct variable *v = variables + idx;
       assert (v->level == level);
       if (!v->shrinkable)
 	continue;
-      struct watch * reason = v->reason;
+      struct watch *reason = v->reason;
       if (binary_pointer (reason))
 	{
 	  unsigned other = other_pointer (reason);
@@ -3155,7 +3147,7 @@ shrink_clause (struct ring * ring)
 	}
       else if (reason)
 	{
-	  struct clause * clause = reason->clause;
+	  struct clause *clause = reason->clause;
 	  for (all_literals_in_clause (other, clause))
 	    SHRINK_LITERAL (other);
 	}
@@ -3167,7 +3159,7 @@ shrink_clause (struct ring * ring)
   LOGTMP ("shrinking succeeded with first UIP %s1 of", LOGLIT (uip));
 #if 0
   unsigned idx = IDX (uip);
-  struct variable * v = variables + idx;
+  struct variable *v = variables + idx;
   if (!v->seen)
     bump_variable_score (ring, idx);
 #endif
@@ -3182,7 +3174,7 @@ shrink_clause (struct ring * ring)
 }
 
 static size_t
-minimize_clause (struct ring * ring)
+minimize_clause (struct ring *ring)
 {
   LOGTMP ("trying to minimize clause");
   struct unsigneds *clause = &ring->clause;
@@ -3323,7 +3315,7 @@ analyze (struct ring *ring, struct watch *reason)
 #if 0
   for (all_variables (v))
     assert (!v->seen), assert (!v->poison), assert (!v->minimize),
-    assert (!v->shrinkable);
+      assert (!v->shrinkable);
 #endif
   if (!ring->level)
     {
@@ -3409,7 +3401,7 @@ analyze (struct ring *ring, struct watch *reason)
 	{
 	  assert (VAR (other)->level == jump);
 	  learned = new_local_binary_clause (ring, true, not_uip, other);
-          trace_add_binary (&ring->buffer, not_uip, other);
+	  trace_add_binary (&ring->buffer, not_uip, other);
 	  export_binary (ring, learned);
 	}
       else
@@ -3423,11 +3415,10 @@ analyze (struct ring *ring, struct watch *reason)
 	      literals[1] = replacement;
 	      *p = other;
 	    }
-	  struct clause * clause =
+	  struct clause *clause =
 	    new_large_clause (size, literals, true, glue);
 	  LOGCLAUSE (clause, "new");
-          learned =
-	    watch_first_two_literals_in_large_clause (ring, clause);
+	  learned = watch_first_two_literals_in_large_clause (ring, clause);
 	  assert (!binary_pointer (learned));
 	  trace_add_clause (&ring->buffer, clause);
 	  if (glue == 1)
@@ -3471,15 +3462,16 @@ decide_phase (struct ring *ring, struct variable *v)
 static unsigned
 gcd (unsigned a, unsigned b)
 {
-  while (b) {
-    unsigned r = a % b;
-    a = b, b = r;
-  }
+  while (b)
+    {
+      unsigned r = a % b;
+      a = b, b = r;
+    }
   return a;
 }
 
 static unsigned
-random_decision (struct ring * ring)
+random_decision (struct ring *ring)
 {
   assert (ring->unassigned);
 
@@ -3496,12 +3488,14 @@ random_decision (struct ring * ring)
 	if (++delta == size)
 	  delta = 1;
       assert (delta < size);
-      do {
-	idx += delta;
-	if (idx >= size)
-	  idx -= size;
-	lit = LIT (idx);
-      } while (values[lit]);
+      do
+	{
+	  idx += delta;
+	  if (idx >= size)
+	    idx -= size;
+	  lit = LIT (idx);
+	}
+      while (values[lit]);
     }
 
   LOG ("random decision %s", LOGVAR (idx));
@@ -3510,7 +3504,7 @@ random_decision (struct ring * ring)
 }
 
 static unsigned
-best_score_decision (struct ring * ring)
+best_score_decision (struct ring *ring)
 {
   assert (ring->unassigned);
 
@@ -3534,8 +3528,7 @@ best_score_decision (struct ring * ring)
     }
   assert (idx < ring->size);
 
-  LOG ("best score decision %s score %g",
-       LOGVAR (idx), nodes[idx].score);
+  LOG ("best score decision %s score %g", LOGVAR (idx), nodes[idx].score);
 
   return idx;
 }
@@ -3543,7 +3536,7 @@ best_score_decision (struct ring * ring)
 static void
 decide (struct ring *ring)
 {
-  struct context * context = ring->statistics.contexts;
+  struct context *context = ring->statistics.contexts;
   context += ring->context;
   uint64_t decisions = context->decisions++;
 
@@ -3585,10 +3578,10 @@ report (struct ring *ring, char type)
 	    "conflicts redundant trail glue irredundant variables\nc\n");
 
   PRINTLN ("%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
-	 " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
-	 a->level.value, s->reductions, s->restarts, conflicts,
-	 s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
-	 active, percent (active, ring->size));
+	   " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
+	   a->level.value, s->reductions, s->restarts, conflicts,
+	   s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
+	   active, percent (active, ring->size));
 
   fflush (stdout);
 
@@ -3826,7 +3819,7 @@ flush_references (struct ring *ring, bool fixed)
       watches->end = q;
       SHRINK_STACK (*watches);
     }
-  assert (!(flushed  & 1));
+  assert (!(flushed & 1));
   verbose (ring, "flushed %zu garbage watches from watch lists", flushed);
 }
 
@@ -3858,14 +3851,14 @@ flush_watches (struct ring *ring)
 #ifndef NDEBUG
 
 static void
-check_clause_statistics (struct ring * ring)
+check_clause_statistics (struct ring *ring)
 {
   size_t redundant = 0;
   size_t irredundant = 0;
 
   for (all_ring_literals (lit))
     {
-      struct references * watches = &REFERENCES (lit);
+      struct references *watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
 	{
 	  if (!binary_pointer (watch))
@@ -3878,10 +3871,10 @@ check_clause_statistics (struct ring * ring)
 	  redundant++;
 	}
 
-      unsigned * binaries = watches->binaries;
+      unsigned *binaries = watches->binaries;
       if (!binaries)
 	continue;
-      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+      for (unsigned *p = binaries, other; (other = *p) != INVALID; p++)
 	if (lit < other)
 	  irredundant++;
     }
@@ -3889,7 +3882,7 @@ check_clause_statistics (struct ring * ring)
   for (all_watches (watch, ring->watches))
     {
       assert (!binary_pointer (watch));
-      struct clause * clause = watch->clause;
+      struct clause *clause = watch->clause;
       assert (clause->glue == watch->glue);
       assert (clause->redundant == watch->redundant);
       if (watch->redundant)
@@ -4023,7 +4016,7 @@ struct counter
 
 struct counters
 {
-  struct counter ** begin, ** end, ** allocated;
+  struct counter **begin, **end, **allocated;
   unsigned *binaries;
 };
 
@@ -4032,18 +4025,18 @@ struct set
   size_t size;
   size_t deleted;
   size_t allocated;
-  void ** table;
+  void **table;
 };
 
 static size_t
-hash_pointer_to_position (void * ptr)
+hash_pointer_to_position (void *ptr)
 {
   size_t res = 1111111121u * (size_t) ptr;
   return res;
 }
 
 static size_t
-hash_pointer_to_delta (void * ptr)
+hash_pointer_to_delta (void *ptr)
 {
   size_t res = 2222222243u * (size_t) ptr;
   return res;
@@ -4054,7 +4047,7 @@ hash_pointer_to_delta (void * ptr)
 static bool
 is_power_of_two (size_t n)
 {
-  return n && !(n & (n-1));
+  return n && !(n & (n - 1));
 }
 
 #endif
@@ -4065,11 +4058,11 @@ reduce_hash (size_t hash, size_t allocated)
   assert (allocated);
   assert (is_power_of_two (allocated));
   size_t res = hash;
-  if (allocated >= (size_t)1 << 32)
+  if (allocated >= (size_t) 1 << 32)
     res ^= res >> 32;
-  if (allocated >= (size_t)1 << 16)
+  if (allocated >= (size_t) 1 << 16)
     res ^= res >> 16;
-  if (allocated >= (size_t)1 << 8)
+  if (allocated >= (size_t) 1 << 8)
     res ^= res >> 8;
   res &= allocated - 1;
   assert (res < allocated);
@@ -4087,7 +4080,7 @@ reduce_delta (size_t hash, size_t allocated)
 #ifndef NDEBUG
 
 static bool
-set_contains (struct set * set, void * ptr)
+set_contains (struct set *set, void *ptr)
 {
   assert (ptr);
   assert (ptr != DELETED);
@@ -4097,8 +4090,8 @@ set_contains (struct set * set, void * ptr)
   size_t hash = hash_pointer_to_position (ptr);
   size_t allocated = set->allocated;
   size_t start = reduce_hash (hash, allocated);
-  void ** table = set->table;
-  void * tmp = table[start];
+  void **table = set->table;
+  void *tmp = table[start];
   if (!tmp)
     return false;
   if (tmp == ptr)
@@ -4120,27 +4113,27 @@ set_contains (struct set * set, void * ptr)
 	return false;
       if (tmp == ptr)
 	return true;
-    } 
+    }
 }
 
 #endif
 
-static void enlarge_set (struct set * set);
-static void shrink_set (struct set * set);
+static void enlarge_set (struct set *set);
+static void shrink_set (struct set *set);
 
 static void
-set_insert (struct set * set, void * ptr)
+set_insert (struct set *set, void *ptr)
 {
   assert (ptr);
   assert (ptr != DELETED);
-  if (set->size + set->deleted >= set->allocated/2)
+  if (set->size + set->deleted >= set->allocated / 2)
     enlarge_set (set);
   size_t hash = hash_pointer_to_position (ptr);
   size_t allocated = set->allocated;
   size_t start = reduce_hash (hash, allocated);
-  void ** table = set->table;
+  void **table = set->table;
   size_t pos = start;
-  void * tmp = table[pos];
+  void *tmp = table[pos];
   if (tmp && tmp != DELETED)
     {
       hash = hash_pointer_to_delta (ptr);
@@ -4168,27 +4161,27 @@ set_insert (struct set * set, void * ptr)
 }
 
 static void
-set_remove (struct set * set, void * ptr)
+set_remove (struct set *set, void *ptr)
 {
   assert (ptr);
   assert (ptr != DELETED);
   assert (set_contains (set, ptr));
   assert (set->size);
-  if (set->allocated > 16 && set->size <= set->allocated/8)
+  if (set->allocated > 16 && set->size <= set->allocated / 8)
     shrink_set (set);
   size_t hash = hash_pointer_to_position (ptr);
   size_t allocated = set->allocated;
   size_t start = reduce_hash (hash, allocated);
-  void ** table = set->table;
+  void **table = set->table;
   size_t pos = start;
-  void * tmp = table[pos];
+  void *tmp = table[pos];
   if (tmp != ptr)
     {
       assert (tmp);
       hash = hash_pointer_to_delta (ptr);
       size_t delta = reduce_delta (hash, allocated);
       assert (delta & 1);
-      do 
+      do
 	{
 	  pos += delta;
 	  if (pos >= allocated)
@@ -4197,7 +4190,7 @@ set_remove (struct set * set, void * ptr)
 	  assert (pos != start);
 	  tmp = table[pos];
 	  assert (tmp);
-	} 
+	}
       while (tmp != ptr);
     }
   table[pos] = DELETED;
@@ -4206,10 +4199,10 @@ set_remove (struct set * set, void * ptr)
 }
 
 static void
-resize_set (struct set * set, size_t new_allocated)
+resize_set (struct set *set, size_t new_allocated)
 {
   assert (new_allocated != set->allocated);
-  void ** old_table = set->table;
+  void **old_table = set->table;
   unsigned old_allocated = set->allocated;
   set->allocated = new_allocated;
 #ifndef NDEBUG
@@ -4218,8 +4211,8 @@ resize_set (struct set * set, size_t new_allocated)
   assert (old_size < new_allocated);
   set->size = set->deleted = 0;
   set->table = allocate_and_clear_array (new_allocated, sizeof *set->table);
-  void ** end = old_table + old_allocated;
-  for (void ** p = old_table, * ptr; p != end; p++)
+  void **end = old_table + old_allocated;
+  for (void **p = old_table, *ptr; p != end; p++)
     if ((ptr = *p) && ptr != DELETED)
       set_insert (set, ptr);
   assert (set->size == old_size);
@@ -4228,15 +4221,15 @@ resize_set (struct set * set, size_t new_allocated)
 }
 
 static void
-enlarge_set (struct set * set)
+enlarge_set (struct set *set)
 {
   size_t old_allocated = set->allocated;
-  size_t new_allocated = old_allocated ? 2*old_allocated : 2;
+  size_t new_allocated = old_allocated ? 2 * old_allocated : 2;
   resize_set (set, new_allocated);
 }
 
 static void
-shrink_set (struct set * set)
+shrink_set (struct set *set)
 {
   size_t old_allocated = set->allocated;
   size_t new_allocated = old_allocated / 2;
@@ -4244,13 +4237,13 @@ shrink_set (struct set * set)
 }
 
 static void *
-random_set (struct ring * ring, struct set * set)
+random_set (struct ring *ring, struct set *set)
 {
   assert (set->size);
   size_t allocated = set->allocated;
   size_t pos = random_modulo (ring, allocated);
-  void ** table = set->table;
-  void * res = table[pos];
+  void **table = set->table;
+  void *res = table[pos];
   while (!res || res == DELETED)
     {
       if (++pos == allocated)
@@ -4429,17 +4422,17 @@ connect_counters (struct walker *walker, struct clause *last)
     {
       if (values[lit] >= 0)
 	continue;
-      struct counters * counters = &COUNTERS (lit);
+      struct counters *counters = &COUNTERS (lit);
       ticks++;
-      unsigned * binaries = counters->binaries;
+      unsigned *binaries = counters->binaries;
       if (!binaries)
 	continue;
-      unsigned * p, other;
+      unsigned *p, other;
       for (p = binaries; (other = *p) != INVALID; p++)
 	if (lit < other && values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "initially broken");
-	    void * ptr = tag_pointer (false, lit, other);
+	    void *ptr = tag_pointer (false, lit, other);
 	    assert (ptr == min_max_tag_pointer (false, lit, other));
 	    set_insert (&walker->unsatisfied, ptr);
 	    ticks++;
@@ -4542,12 +4535,12 @@ set_walking_limits (struct walker *walker)
 }
 
 static void
-disconnect_references (struct ring * ring, struct watches * saved)
+disconnect_references (struct ring *ring, struct watches *saved)
 {
   size_t disconnected = 0;
   for (all_ring_literals (lit))
     {
-      struct references * watches = &REFERENCES (lit);
+      struct references *watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
 	if (binary_pointer (watch))
 	  {
@@ -4563,13 +4556,13 @@ disconnect_references (struct ring * ring, struct watches * saved)
 }
 
 static void
-reconnect_watches (struct ring * ring, struct watches * saved)
+reconnect_watches (struct ring *ring, struct watches *saved)
 {
   size_t reconnected = 0;
   for (all_watches (watch, ring->watches))
     {
       assert (!binary_pointer (watch));
-      unsigned * literals = watch->clause->literals;
+      unsigned *literals = watch->clause->literals;
       watch->sum = literals[0] ^ literals[1];
       watch_literal (ring, literals[0], watch);
       watch_literal (ring, literals[1], watch);
@@ -4581,7 +4574,7 @@ reconnect_watches (struct ring * ring, struct watches * saved)
       assert (redundant_pointer (lit_watch));
       unsigned lit = lit_pointer (lit_watch);
       unsigned other = other_pointer (lit_watch);
-      struct watch * other_watch = tag_pointer (true, other, lit);
+      struct watch *other_watch = tag_pointer (true, other, lit);
       watch_literal (ring, lit, lit_watch);
       watch_literal (ring, other, other_watch);
     }
@@ -4598,8 +4591,8 @@ new_walker (struct ring *ring)
   verbose (ring, "local search over %zu clauses %.0f%%", clauses,
 	   percent (clauses, ring->statistics.irredundant));
 
-  struct walker * walker = allocate_and_clear_block (sizeof *walker);
-  
+  struct walker *walker = allocate_and_clear_block (sizeof *walker);
+
   disconnect_references (ring, &walker->saved);
 
   walker->ring = ring;
@@ -4637,20 +4630,20 @@ delete_walker (struct walker *walker)
 static unsigned
 break_count (struct walker *walker, unsigned lit)
 {
-  struct ring * ring = walker->ring;
-  signed char * values = ring->values;
+  struct ring *ring = walker->ring;
+  signed char *values = ring->values;
   unsigned not_lit = NOT (lit);
   assert (values[not_lit] > 0);
   unsigned res = 0;
-  struct counters * counters = &COUNTERS (not_lit);
-  unsigned * binaries = counters->binaries;
+  struct counters *counters = &COUNTERS (not_lit);
+  unsigned *binaries = counters->binaries;
   uint64_t ticks = 1;
   if (binaries)
     {
-      unsigned * p, other;
+      unsigned *p, other;
       for (p = binaries; (other = *p) != INVALID; p++)
-	  if (values[other] <= 0)
-	    res++;
+	if (values[other] <= 0)
+	  res++;
       ticks += cache_lines (p, binaries);
     }
   for (all_counters (counter, *counters))
@@ -4793,10 +4786,10 @@ static void
 make_literal (struct walker *walker, unsigned lit)
 {
   struct ring *ring = walker->ring;
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   assert (values[lit] > 0);
   uint64_t ticks = 1;
-  struct counters * counters = &COUNTERS (lit);
+  struct counters *counters = &COUNTERS (lit);
   for (all_counters (counter, *counters))
     {
       ticks++;
@@ -4807,15 +4800,15 @@ make_literal (struct walker *walker, unsigned lit)
       set_remove (&walker->unsatisfied, counter);
       ticks++;
     }
-  unsigned * binaries = counters->binaries;
+  unsigned *binaries = counters->binaries;
   if (binaries)
     {
-      unsigned * p, other;
+      unsigned *p, other;
       for (p = binaries; (other = *p) != INVALID; p++)
 	if (values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "literal %s makes", LOGLIT (lit));
-	    void * ptr = min_max_tag_pointer (false, lit, other);
+	    void *ptr = min_max_tag_pointer (false, lit, other);
 	    set_remove (&walker->unsatisfied, ptr);
 	    ticks++;
 	  }
@@ -4828,7 +4821,7 @@ static void
 break_literal (struct walker *walker, unsigned lit)
 {
   struct ring *ring = walker->ring;
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   assert (values[lit] < 0);
   uint64_t ticks = 1;
   struct counters *counters = &COUNTERS (lit);
@@ -4843,16 +4836,16 @@ break_literal (struct walker *walker, unsigned lit)
       set_insert (&walker->unsatisfied, counter);
       ticks++;
     }
-  unsigned * binaries = counters->binaries;
+  unsigned *binaries = counters->binaries;
   if (binaries)
     {
       ticks++;
-      unsigned * p, other;
+      unsigned *p, other;
       for (p = binaries; (other = *p) != INVALID; p++)
 	if (values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "literal %s breaks", LOGLIT (lit));
-	    void * ptr = min_max_tag_pointer (false, lit, other);
+	    void *ptr = min_max_tag_pointer (false, lit, other);
 	    set_insert (&walker->unsatisfied, ptr);
 	    ticks++;
 	  }
@@ -4876,8 +4869,7 @@ flip_literal (struct walker *walker, unsigned lit)
 }
 
 static unsigned
-pick_literal_to_flip (struct walker *walker,
-                      size_t size, unsigned * literals)
+pick_literal_to_flip (struct walker *walker, size_t size, unsigned *literals)
 {
   assert (EMPTY (walker->literals));
   assert (EMPTY (walker->scores));
@@ -4888,9 +4880,9 @@ pick_literal_to_flip (struct walker *walker,
   unsigned res = INVALID;
   double total = 0, score = -1;
 
-  unsigned * end = literals + size;
+  unsigned *end = literals + size;
 
-  for (unsigned * p = literals; p != end; p++)
+  for (unsigned *p = literals; p != end; p++)
     {
       unsigned lit = *p;
       if (!values[lit])
@@ -4908,7 +4900,7 @@ pick_literal_to_flip (struct walker *walker,
 
   double sum = 0, *scores = walker->scores.begin;
 
-  for (unsigned * p = literals; p != end; p++)
+  for (unsigned *p = literals; p != end; p++)
     {
       unsigned other = *p;
       if (!values[other])
@@ -4937,8 +4929,8 @@ static void
 walking_step (struct walker *walker)
 {
   struct set *unsatisfied = &walker->unsatisfied;
-  struct ring * ring = walker->ring;
-  struct counter * counter = random_set (ring, unsatisfied);
+  struct ring *ring = walker->ring;
+  struct counter *counter = random_set (ring, unsatisfied);
   unsigned lit;
   if (binary_pointer (counter))
     {
@@ -4952,7 +4944,7 @@ walking_step (struct walker *walker)
   else
     {
       assert (!counter->count);
-      struct clause * clause = counter->clause;
+      struct clause *clause = counter->clause;
       LOGCLAUSE (clause, "picked broken");
       lit = pick_literal_to_flip (walker, clause->size, clause->literals);
     }
@@ -4982,7 +4974,7 @@ local_search (struct ring *ring)
     backtrack (ring, 0);
   if (ring->last.fixed != ring->statistics.fixed)
     mark_satisfied_clauses_as_garbage (ring);
-  struct walker * walker = new_walker (ring);
+  struct walker *walker = new_walker (ring);
   walking_loop (walker);
   save_final_minimum (walker);
   verbose (ring, "walker flipped %" PRIu64 " literals", walker->flips);
@@ -5072,7 +5064,7 @@ iterate (struct ring *ring)
 {
   assert (ring->iterating);
   assert (!ring->level);
-  struct trail * trail = &ring->trail;
+  struct trail *trail = &ring->trail;
   assert (trail->end == trail->propagate);
   assert (trail->iterate < trail->propagate);
   size_t new_units = trail->propagate - trail->iterate;
@@ -5129,9 +5121,9 @@ conflict_limit_hit (struct ring *ring)
 }
 
 static bool
-terminate_ring (struct ring * ring)
+terminate_ring (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
 #ifdef NFASTPATH
   if (pthread_mutex_lock (&ruler->locks.terminate))
     fatal_error ("failed to acquire terminate lock");
@@ -5263,19 +5255,19 @@ struct options
 };
 
 static const char *
-parse_long_option (const char * arg, const char * match)
+parse_long_option (const char *arg, const char *match)
 {
   if (arg[0] != '-')
     return 0;
   if (arg[1] != '-')
     return 0;
-  const char * p = arg + 2;
-  for (const char * q = match; *q; q++, p++)
+  const char *p = arg + 2;
+  for (const char *q = match; *q; q++, p++)
     if (*q != *p)
       return 0;
   if (*p++ != '=')
     return 0;
-  const char * res = p;
+  const char *res = p;
   int ch;
   if (!(ch = *p++))
     return 0;
@@ -5292,11 +5284,11 @@ parse_options (int argc, char **argv, struct options *opts)
   opts->conflicts = -1;
   opts->seconds = 0;
   opts->threads = 0;
-  const char * quiet_opt = 0;
-  const char * verbose_opt = 0;
+  const char *quiet_opt = 0;
+  const char *verbose_opt = 0;
   for (int i = 1; i != argc; i++)
     {
-      const char *opt = argv[i], * arg;
+      const char *opt = argv[i], *arg;
       if (!strcmp (opt, "-a") || !strcmp (opt, "--ascii"))
 	binary_proof_format = false;
       else if (!strcmp (opt, "-f") || !strcmp (opt, "--force"))
@@ -5340,7 +5332,8 @@ parse_options (int argc, char **argv, struct options *opts)
       else if ((arg = parse_long_option (opt, "conflicts")))
 	{
 	  if (opts->conflicts >= 0)
-	    die ("multiple '--conflicts=%lld' and '%s'", opts->conflicts, opt);
+	    die ("multiple '--conflicts=%lld' and '%s'", opts->conflicts,
+		 opt);
 	  if (sscanf (arg, "%lld", &opts->conflicts) != 1)
 	    die ("invalid argument in '%s'", opt);
 	  if (opts->conflicts < 0)
@@ -5455,8 +5448,7 @@ set_limits (struct ring *ring, long long conflicts)
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
   verbose (ring, "reduce interval of %" PRIu64 " conflict", limits->reduce);
-  verbose (ring, "restart interval of %" PRIu64 " conflict",
-	   limits->restart);
+  verbose (ring, "restart interval of %" PRIu64 " conflict", limits->restart);
   verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
 	   limits->mode);
   if (conflicts >= 0)
@@ -5590,7 +5582,7 @@ parse_dimacs_file ()
   struct ring *ring = new_ring (ruler);
   signed char *marked = ring->marks;
 #endif
-  signed char * marked = allocate_and_clear_block (variables);
+  signed char *marked = allocate_and_clear_block (variables);
   struct unsigneds clause;
   INIT (clause);
   int signed_lit = 0, parsed = 0;
@@ -5683,7 +5675,7 @@ parse_dimacs_file ()
 		      ruler->values[unit] = 1;
 		      ruler->values[not_unit] = -1;
 		      assert (ruler->units.end <
-		              ruler->units.begin + ruler->size);
+			      ruler->units.begin + ruler->size);
 		      *ruler->units.end++ = unit;
 		      ROG ("assign %s unit", ROGLIT (unit));
 		    }
@@ -5692,7 +5684,7 @@ parse_dimacs_file ()
 		new_ruler_binary_clause (ruler, literals[0], literals[1]);
 	      else
 		{
-		  struct clause * large_clause =
+		  struct clause *large_clause =
 		    new_large_clause (size, literals, false, 0);
 		  ROGCLAUSE (large_clause, "new");
 		  PUSH (ruler->clauses, large_clause);
@@ -5776,9 +5768,9 @@ print_witness (struct ring *ring)
 static void
 start_cloning_ring (struct ring *first, unsigned clone)
 {
-  struct ruler * ruler = first->ruler;
+  struct ruler *ruler = first->ruler;
   assert (ruler->threads);
-  pthread_t * thread = ruler->threads + clone;
+  pthread_t *thread = ruler->threads + clone;
   if (pthread_create (thread, 0, clone_ring, first))
     fatal_error ("failed to create cloning thread %u", clone);
 }
@@ -5786,14 +5778,14 @@ start_cloning_ring (struct ring *first, unsigned clone)
 static void
 stop_cloning_ring (struct ring *first, unsigned clone)
 {
-  struct ruler * ruler = first->ruler;
-  pthread_t * thread = ruler->threads + clone;
+  struct ruler *ruler = first->ruler;
+  pthread_t *thread = ruler->threads + clone;
   if (pthread_join (*thread, 0))
     fatal_error ("failed to join cloning thread %u", clone);
 }
 
 static void
-clone_rings (struct ruler * ruler, unsigned threads)
+clone_rings (struct ruler *ruler, unsigned threads)
 {
   assert (threads > 1);
   double before = 0;
@@ -5805,7 +5797,7 @@ clone_rings (struct ruler * ruler, unsigned threads)
       fflush (stdout);
     }
   ruler->threads = allocate_array (threads, sizeof *ruler->threads);
-  struct ring * first = first_ring (ruler);
+  struct ring *first = first_ring (ruler);
   init_pool (first, threads);
   for (unsigned i = 1; i != threads; i++)
     start_cloning_ring (first, i);
@@ -5822,7 +5814,7 @@ clone_rings (struct ruler * ruler, unsigned threads)
 }
 
 static void
-set_limits_of_all_rings (struct ruler * ruler, long long conflicts)
+set_limits_of_all_rings (struct ruler *ruler, long long conflicts)
 {
   for (all_rings (ring))
     set_limits (ring, conflicts);
@@ -5831,9 +5823,9 @@ set_limits_of_all_rings (struct ruler * ruler, long long conflicts)
 static void
 start_running_ring (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   assert (ruler->threads);
-  pthread_t * thread = ruler->threads + ring->id;
+  pthread_t *thread = ruler->threads + ring->id;
   if (pthread_create (thread, 0, solve_routine, ring))
     fatal_error ("failed to create solving thread %u", ring->id);
 }
@@ -5841,15 +5833,15 @@ start_running_ring (struct ring *ring)
 static void
 stop_running_ring (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   assert (ruler->threads);
-  pthread_t * thread = ruler->threads + ring->id;
+  pthread_t *thread = ruler->threads + ring->id;
   if (pthread_join (*thread, 0))
     fatal_error ("failed to join solving thread %u", ring->id);
 }
 
 static void
-run_rings (struct ruler * ruler)
+run_rings (struct ruler *ruler)
 {
   size_t threads = SIZE (ruler->rings);
   if (threads > 1)
@@ -5873,15 +5865,15 @@ run_rings (struct ruler * ruler)
 	  printf ("c running single ring in main thread\n");
 	  fflush (stdout);
 	}
-      struct ring * ring = first_ring (ruler);
+      struct ring *ring = first_ring (ruler);
       solve_routine (ring);
     }
 }
 
 static void *
-detach_and_delete_ring (void * ptr)
+detach_and_delete_ring (void *ptr)
 {
-  struct ring * ring = ptr;
+  struct ring *ring = ptr;
   detach_ring (ring);
   delete_ring (ring);
   return ring;
@@ -5890,24 +5882,24 @@ detach_and_delete_ring (void * ptr)
 static void
 start_detaching_and_deleting_ring (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   assert (ruler->threads);
-  pthread_t * thread = ruler->threads + ring->id;
+  pthread_t *thread = ruler->threads + ring->id;
   if (pthread_create (thread, 0, detach_and_delete_ring, ring))
     fatal_error ("failed to create deletion thread %u", ring->id);
 }
 
 static void
-stop_detaching_and_deleting_ring (struct ruler * ruler, unsigned id)
+stop_detaching_and_deleting_ring (struct ruler *ruler, unsigned id)
 {
   assert (ruler->threads);
-  pthread_t * thread = ruler->threads + id;
+  pthread_t *thread = ruler->threads + id;
   if (pthread_join (*thread, 0))
     fatal_error ("failed to join deletion thread %u", id);
 }
 
 static void
-detach_and_delete_rings (struct ruler * ruler)
+detach_and_delete_rings (struct ruler *ruler)
 {
   size_t threads = SIZE (ruler->rings);
   if (threads > 1)
@@ -5925,7 +5917,7 @@ detach_and_delete_rings (struct ruler * ruler)
 	stop_detaching_and_deleting_ring (ruler, i);
 #else
       for (all_rings (ring))
-      detach_and_delete_ring (ring);
+	detach_and_delete_ring (ring);
 #endif
     }
   else
@@ -5936,7 +5928,7 @@ detach_and_delete_rings (struct ruler * ruler)
 	  fflush (stdout);
 	}
 
-      struct ring * ring = first_ring (ruler);
+      struct ring *ring = first_ring (ruler);
       detach_and_delete_ring (ring);
     }
 }
@@ -6157,7 +6149,7 @@ print_profiles (struct ring *ring)
       if (!next)
 	break;
       PRINTLN ("%10.2f seconds  %5.1f %%  %s",
-	     next->time, percent (next->time, total), next->name);
+	       next->time, percent (next->time, total), next->name);
       prev = next;
     }
   PRINTLN ("---------------------------------------");
@@ -6177,103 +6169,103 @@ print_ring_statistics (struct ring *ring)
   uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;
   uint64_t propagations = s->contexts[SEARCH_CONTEXT].propagations;
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "conflicts:",
-	  conflicts, average (conflicts, search));
+	   conflicts, average (conflicts, search));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "decisions:",
-	  decisions, average (decisions, search));
+	   decisions, average (decisions, search));
   PRINTLN ("%-21s %17u %13.2f %% variables", "fixed-variables:",
-	  s->fixed, percent (s->fixed, ring->size));
+	   s->fixed, percent (s->fixed, ring->size));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
-	  "flips:", s->flips, average (s->flips, 1e3 * walk));
+	   "flips:", s->flips, average (s->flips, 1e3 * walk));
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per learned clause",
-	  "learned-literals:", s->literals.learned,
-	  average (s->literals.learned, s->learned.clauses));
+	   "learned-literals:", s->literals.learned,
+	   average (s->literals.learned, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f times learned literals",
-	  "  deduced-literals:", s->literals.deduced,
-	  average (s->literals.deduced, s->literals.learned));
+	   "  deduced-literals:", s->literals.deduced,
+	   average (s->literals.deduced, s->literals.learned));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per deduced literal",
-	  "  minimized-literals:", s->literals.minimized,
-	  percent (s->literals.minimized, s->literals.deduced));
+	   "  minimized-literals:", s->literals.minimized,
+	   percent (s->literals.minimized, s->literals.deduced));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per deduced literal",
-	  "  shrunken-literals:", s->literals.shrunken,
-	  percent (s->literals.shrunken, s->literals.deduced));
+	   "  shrunken-literals:", s->literals.shrunken,
+	   percent (s->literals.shrunken, s->literals.deduced));
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second",
-	  "learned-clauses:", s->learned.clauses,
-	  average (s->learned.clauses, search));
+	   "learned-clauses:", s->learned.clauses,
+	   average (s->learned.clauses, search));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	  "  learned-units:", s->learned.units,
-	  percent (s->learned.units, s->learned.clauses));
+	   "  learned-units:", s->learned.units,
+	   percent (s->learned.units, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	  "  learned-binary:", s->learned.binary,
-	  percent (s->learned.binary, s->learned.clauses));
+	   "  learned-binary:", s->learned.binary,
+	   percent (s->learned.binary, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	  "  learned-glue1:", s->learned.glue1,
-	  percent (s->learned.glue1, s->learned.clauses));
+	   "  learned-glue1:", s->learned.glue1,
+	   percent (s->learned.glue1, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	  "  learned-tier1:", s->learned.tier1,
-	  percent (s->learned.tier1, s->learned.clauses));
+	   "  learned-tier1:", s->learned.tier1,
+	   percent (s->learned.tier1, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	  "  learned-tier2:", s->learned.tier2,
-	  percent (s->learned.tier2, s->learned.clauses));
+	   "  learned-tier2:", s->learned.tier2,
+	   percent (s->learned.tier2, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	  "  learned-tier3:", s->learned.tier3,
-	  percent (s->learned.tier3, s->learned.clauses));
+	   "  learned-tier3:", s->learned.tier3,
+	   percent (s->learned.tier3, s->learned.clauses));
 
   if (ring->pool)
     {
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	      "imported-clauses:", s->imported.clauses,
-	      percent (s->imported.clauses, s->learned.clauses));
+	       "imported-clauses:", s->imported.clauses,
+	       percent (s->imported.clauses, s->learned.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
-	      "  imported-units:", s->imported.units,
-	      percent (s->imported.units, s->imported.clauses));
+	       "  imported-units:", s->imported.units,
+	       percent (s->imported.units, s->imported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
-	      "  imported-binary:", s->imported.binary,
-	      percent (s->imported.binary, s->imported.clauses));
+	       "  imported-binary:", s->imported.binary,
+	       percent (s->imported.binary, s->imported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
-	      "  imported-glue1:", s->imported.glue1,
-	      percent (s->imported.glue1, s->imported.clauses));
+	       "  imported-glue1:", s->imported.glue1,
+	       percent (s->imported.glue1, s->imported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
-	      "  imported-tier1:", s->imported.tier1,
-	      percent (s->imported.tier1, s->imported.clauses));
+	       "  imported-tier1:", s->imported.tier1,
+	       percent (s->imported.tier1, s->imported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
-	      "  imported-tier2:", s->imported.tier2,
-	      percent (s->imported.tier2, s->imported.clauses));
+	       "  imported-tier2:", s->imported.tier2,
+	       percent (s->imported.tier2, s->imported.clauses));
 
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	      "exported-clauses:", s->exported.clauses,
-	      percent (s->exported.clauses, s->learned.clauses));
+	       "exported-clauses:", s->exported.clauses,
+	       percent (s->exported.clauses, s->learned.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
-	      "  exported-units:", s->exported.units,
-	      percent (s->exported.units, s->exported.clauses));
+	       "  exported-units:", s->exported.units,
+	       percent (s->exported.units, s->exported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
-	      "  exported-binary:", s->exported.binary,
-	      percent (s->exported.binary, s->exported.clauses));
+	       "  exported-binary:", s->exported.binary,
+	       percent (s->exported.binary, s->exported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
-	      "  exported-glue1:", s->exported.glue1,
-	      percent (s->exported.glue1, s->exported.clauses));
+	       "  exported-glue1:", s->exported.glue1,
+	       percent (s->exported.glue1, s->exported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
-	      "  exported-tier1:", s->exported.tier1,
-	      percent (s->exported.tier1, s->exported.clauses));
+	       "  exported-tier1:", s->exported.tier1,
+	       percent (s->exported.tier1, s->exported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
-	      "  exported-tier2:", s->exported.tier2,
-	      percent (s->exported.tier2, s->exported.clauses));
+	       "  exported-tier2:", s->exported.tier2,
+	       percent (s->exported.tier2, s->exported.clauses));
     }
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f millions per second",
-	  "propagations:", propagations, average (propagations,
-						  1e6 * search));
+	   "propagations:", propagations, average (propagations,
+						   1e6 * search));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
-	  "reductions:", s->reductions, average (conflicts, s->reductions));
+	   "reductions:", s->reductions, average (conflicts, s->reductions));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
-	  "rephased:", s->rephased, average (conflicts, s->rephased));
+	   "rephased:", s->rephased, average (conflicts, s->rephased));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
-	  "restarts:", s->restarts, average (conflicts, s->restarts));
+	   "restarts:", s->restarts, average (conflicts, s->restarts));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
-	  "switched:", s->switched, average (conflicts, s->switched));
+	   "switched:", s->switched, average (conflicts, s->switched));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f flips per walkinterval",
-	  "walked:", s->walked, average (s->flips, s->walked));
+	   "walked:", s->walked, average (s->flips, s->walked));
   fflush (stdout);
 }
 
@@ -6294,7 +6286,7 @@ print_ruler_statistics (struct ruler *ruler)
   double memory = maximum_resident_set_size () / (double) (1 << 20);
 
   printf ("c %-30s %23.2f %%\n", "utilization:",
-          percent (process / SIZE (ruler->rings),  total));
+	  percent (process / SIZE (ruler->rings), total));
   printf ("c %-30s %23.2f seconds\n", "process-time:", process);
   printf ("c %-30s %23.2f seconds\n", "wall-clock-time:", total);
   printf ("c %-30s %23.2f MB\n", "maximum-resident-set-size:", memory);
@@ -6323,17 +6315,17 @@ check_types (void)
   CHECK_TYPE (unsigned, 4);
   CHECK_TYPE (int, 4);
   CHECK_TYPE (size_t, 8);
-  CHECK_TYPE (void*, 8);
+  CHECK_TYPE (void *, 8);
 
   {
-    size_t glue_in_clause_bytes = sizeof ((struct clause*)0)->glue;
+    size_t glue_in_clause_bytes = sizeof ((struct clause *) 0)->glue;
     if (glue_in_clause_bytes << 8 <= MAX_GLUE)
       fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (clause.glue) = %zu'",
 		   MAX_GLUE, glue_in_clause_bytes);
   }
 
   {
-    size_t glue_in_watch_bytes = sizeof ((struct watch*)0)->glue;
+    size_t glue_in_watch_bytes = sizeof ((struct watch *) 0)->glue;
     if (glue_in_watch_bytes << 8 <= MAX_GLUE)
       fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (watch.glue) = %zu'",
 		   MAX_GLUE, glue_in_watch_bytes);
@@ -6370,14 +6362,14 @@ main (int argc, char **argv)
   set_limits_of_all_rings (ruler, options.conflicts);
   set_signal_handlers (options.seconds);
   run_rings (ruler);
-  struct ring *winner = (struct ring*) ruler->winner;
+  struct ring *winner = (struct ring *) ruler->winner;
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();
   close_proof ();
   if (res == 20)
     {
       if (verbosity >= 0)
-        printf ("c\n");
+	printf ("c\n");
       printf ("s UNSATISFIABLE\n");
       fflush (stdout);
     }
@@ -6387,7 +6379,7 @@ main (int argc, char **argv)
       check_witness (winner);
 #endif
       if (verbosity >= 0)
-        printf ("c\n");
+	printf ("c\n");
       printf ("s SATISFIABLE\n");
       if (witness)
 	print_witness (winner);
