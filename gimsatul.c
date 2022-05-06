@@ -389,12 +389,22 @@ struct profile
   volatile double time;
 };
 
-struct profiles
+struct ring_profiles
 {
   struct profile focused;
   struct profile search;
   struct profile stable;
   struct profile walk;
+
+  struct profile solving;
+};
+
+struct ruler_profiles
+{
+  struct profile cloning;
+  struct profile parsing;
+  struct profile solving;
+  struct profile simplifying;
 
   struct profile total;
 };
@@ -503,8 +513,9 @@ struct ruler
   struct clauses *occurrences;
   size_t original_binaries;
   struct clauses clauses;
-  struct buffer buffer;
   struct units units;
+  struct buffer buffer;
+  struct ruler_profiles profiles;
 };
 
 #define BINARY_SHARED 0
@@ -555,7 +566,7 @@ struct ring
   struct averages averages[2];
   struct reluctant reluctant;
   struct statistics statistics;
-  struct profiles profiles;
+  struct ring_profiles profiles;
   struct last last;
   uint64_t random;
 };
@@ -740,7 +751,10 @@ print_line_without_acquiring_lock (struct ring *ring, const char *fmt, ...)
 {
   va_list ap;
   char line[256];
-  sprintf (line, prefix_format, ring->id);
+  if (ring)
+    sprintf (line, prefix_format, ring->id);
+  else
+    strcpy (line, "c ");
   va_start (ap, fmt);
   vsprintf (line + strlen (line), fmt, ap);
   va_end (ap);
@@ -1386,13 +1400,6 @@ tag_pointer (bool redundant, unsigned lit, unsigned other)
 
 /*------------------------------------------------------------------------*/
 
-#define INIT_PROFILE(NAME) \
-do { \
-  struct profile * profile = &ring->profiles.NAME; \
-  profile->start = -1; \
-  profile->name = #NAME; \
-} while (0)
-
 static void
 start_profile (struct profile *profile, double time)
 {
@@ -1410,11 +1417,11 @@ stop_profile (struct profile *profile, double time)
   profile->time += delta;
 }
 
-#define START(NAME) \
-  start_profile (&ring->profiles.NAME, current_time ())
+#define START(OWNER,NAME) \
+  start_profile (&OWNER->profiles.NAME, current_time ())
 
-#define STOP(NAME) \
-  stop_profile (&ring->profiles.NAME, current_time ())
+#define STOP(OWNER,NAME) \
+  stop_profile (&OWNER->profiles.NAME, current_time ())
 
 #define MODE_PROFILE \
   (ring->stable ? &ring->profiles.stable : &ring->profiles.focused)
@@ -1435,15 +1442,33 @@ do { \
   start_profile (MODE_PROFILE, t); \
 } while (0)
 
+#define INIT_PROFILE(OWNER,NAME) \
+do { \
+  struct profile * profile = &OWNER->profiles.NAME; \
+  profile->start = -1; \
+  profile->name = #NAME; \
+} while (0)
+
 static void
-init_profiles (struct ring *ring)
+init_ring_profiles (struct ring *ring)
 {
-  INIT_PROFILE (focused);
-  INIT_PROFILE (search);
-  INIT_PROFILE (stable);
-  INIT_PROFILE (walk);
-  INIT_PROFILE (total);
-  START (total);
+  INIT_PROFILE (ring, focused);
+  INIT_PROFILE (ring, search);
+  INIT_PROFILE (ring, stable);
+  INIT_PROFILE (ring, walk);
+  INIT_PROFILE (ring, solving);
+  START (ring, solving);
+}
+
+static void
+init_ruler_profiles (struct ruler *ruler)
+{
+  INIT_PROFILE (ruler, cloning);
+  INIT_PROFILE (ruler, parsing);
+  INIT_PROFILE (ruler, solving);
+  INIT_PROFILE (ruler, simplifying);
+  INIT_PROFILE (ruler, total);
+  START (ruler, total);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1464,6 +1489,7 @@ new_ruler (size_t size)
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
   ruler->units.end = ruler->units.begin;
+  init_ruler_profiles (ruler);
   return ruler;
 }
 
@@ -1557,7 +1583,7 @@ new_ring (struct ruler *ruler)
   for (all_nodes (node))
     push_queue (queue, node);
   ring->unassigned = size;
-  init_profiles (ring);
+  init_ring_profiles (ring);
   for (all_averages (a))
     a->exp = 1.0;
   ring->limits.conflicts = -1;
@@ -1813,11 +1839,14 @@ close_proof (void)
 /*------------------------------------------------------------------------*/
 
 static void
-watch_literal (struct ring *ring, unsigned lit, struct watch *watch)
+connect_large_clause (struct ruler * ruler, struct clause * clause)
 {
-  LOGWATCH (watch, "watching %s in", LOGLIT (lit));
-  PUSH (REFERENCES (lit), watch);
+  assert (!binary_pointer (clause));
+  for (all_literals_in_clause (lit, clause))
+    PUSH (OCCURENCES (lit), clause);
 }
+
+/*------------------------------------------------------------------------*/
 
 static void
 dec_clauses (struct ring *ring, bool redundant)
@@ -1865,6 +1894,13 @@ watch_large_clause (struct ring *ring, struct clause *clause)
   PUSH (ring->watches, watch);
   inc_clauses (ring, redundant);
   return watch;
+}
+
+static void
+watch_literal (struct ring *ring, unsigned lit, struct watch *watch)
+{
+  LOGWATCH (watch, "watching %s in", LOGLIT (lit));
+  PUSH (REFERENCES (lit), watch);
 }
 
 static struct watch *
@@ -3966,9 +4002,9 @@ switch_to_focused_mode (struct ring *ring)
 {
   assert (ring->stable);
   report (ring, ']');
-  STOP (stable);
+  STOP (ring, stable);
   ring->stable = false;
-  START (focused);
+  START (ring, focused);
   report (ring, '{');
   struct limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS + FOCUSED_RESTART_INTERVAL;
@@ -3979,9 +4015,9 @@ switch_to_stable_mode (struct ring *ring)
 {
   assert (!ring->stable);
   report (ring, '}');
-  STOP (focused);
+  STOP (ring, focused);
   ring->stable = true;
-  START (stable);
+  START (ring, stable);
   report (ring, '[');
   struct limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS + STABLE_RESTART_INTERVAL;
@@ -5101,9 +5137,9 @@ iterate (struct ring *ring)
 static void
 start_search (struct ring *ring)
 {
-  START (search);
+  START (ring, search);
   assert (!ring->stable);
-  START (focused);
+  START (ring, focused);
   report (ring, '{');
 }
 
@@ -5113,12 +5149,12 @@ stop_search (struct ring *ring, int res)
   if (ring->stable)
     {
       report (ring, ']');
-      STOP (stable);
+      STOP (ring, stable);
     }
   else
     {
       report (ring, '}');
-      STOP (focused);
+      STOP (ring, focused);
     }
   if (res == 10)
     report (ring, '1');
@@ -5126,7 +5162,7 @@ stop_search (struct ring *ring, int res)
     report (ring, '0');
   else
     report (ring, '?');
-  STOP (search);
+  STOP (ring, search);
 }
 
 static bool
@@ -5601,6 +5637,7 @@ parse_dimacs_file ()
       fflush (stdout);
     }
   struct ruler *ruler = new_ruler (variables);
+  START (ruler, parsing);
 #if 0
   struct ring *ring = new_ring (ruler);
   signed char *marked = ring->marks;
@@ -5736,6 +5773,7 @@ parse_dimacs_file ()
     pclose (dimacs.file);
   RELEASE (clause);
   free (marked);
+  STOP (ruler, parsing);
   return ruler;
 }
 
@@ -5810,20 +5848,24 @@ stop_cloning_ring (struct ring *first, unsigned clone)
 static void
 clone_rings (struct ruler *ruler, unsigned threads)
 {
-  assert (threads > 1);
+  assert (threads > 0);
+  START (ruler, cloning);
   double before = 0;
   if (verbosity >= 0)
       before = current_resident_set_size () / (double) (1 << 20);
   clone_ruler (ruler);
-  message (0, "cloning %u rings from first to support %u threads",
-	      threads - 1, threads);
-  ruler->threads = allocate_array (threads, sizeof *ruler->threads);
-  struct ring *first = first_ring (ruler);
-  init_pool (first, threads);
-  for (unsigned i = 1; i != threads; i++)
-    start_cloning_ring (first, i);
-  for (unsigned i = 1; i != threads; i++)
-    stop_cloning_ring (first, i);
+  if (threads > 1)
+    {
+      message (0, "cloning %u rings from first to support %u threads",
+		  threads - 1, threads);
+      ruler->threads = allocate_array (threads, sizeof *ruler->threads);
+      struct ring *first = first_ring (ruler);
+      init_pool (first, threads);
+      for (unsigned i = 1; i != threads; i++)
+	start_cloning_ring (first, i);
+      for (unsigned i = 1; i != threads; i++)
+	stop_cloning_ring (first, i);
+    }
   assert (SIZE (ruler->rings) == threads);
   if (verbosity >= 0)
     {
@@ -5832,6 +5874,7 @@ clone_rings (struct ruler *ruler, unsigned threads)
 	      average (after, before), before, after);
       fflush (stdout);
     }
+  STOP (ruler, cloning);
 }
 
 static void
@@ -5864,6 +5907,7 @@ stop_running_ring (struct ring *ring)
 static void
 run_rings (struct ruler *ruler)
 {
+  START (ruler, solving);
   size_t threads = SIZE (ruler->rings);
   if (threads > 1)
     {
@@ -5889,6 +5933,7 @@ run_rings (struct ruler *ruler)
       struct ring *ring = first_ring (ruler);
       solve_routine (ring);
     }
+  STOP (ruler, solving);
 }
 
 static void *
@@ -6109,12 +6154,21 @@ check_witness (struct ring *ring)
 
 /*------------------------------------------------------------------------*/
 
-#define begin_profiles ((struct profile *)(&ring->profiles))
-#define end_profiles (&ring->profiles.total)
+#define begin_ring_profiles ((struct profile *)(&ring->profiles))
+#define end_ring_profiles (&ring->profiles.solving)
 
-#define all_profiles(PROFILE) \
-struct profile * PROFILE = begin_profiles, \
-               * END_ ## PROFILE = end_profiles; \
+#define all_ring_profiles(PROFILE) \
+struct profile * PROFILE = begin_ring_profiles, \
+               * END_ ## PROFILE = end_ring_profiles; \
+PROFILE != END_ ## PROFILE; \
+++PROFILE
+
+#define begin_ruler_profiles ((struct profile *)(&ruler->profiles))
+#define end_ruler_profiles (&ruler->profiles.total)
+
+#define all_ruler_profiles(PROFILE) \
+struct profile * PROFILE = begin_ruler_profiles, \
+               * END_ ## PROFILE = end_ruler_profiles; \
 PROFILE != END_ ## PROFILE; \
 ++PROFILE
 
@@ -6129,14 +6183,26 @@ flush_profile (double time, struct profile *profile)
 }
 
 static double
-flush_profiles (struct ring *ring)
+flush_ring_profiles (struct ring *ring)
 {
   double time = current_time ();
-  for (all_profiles (profile))
+  for (all_ring_profiles (profile))
     if (profile->start >= 0)
       flush_profile (time, profile);
 
-  flush_profile (time, &ring->profiles.total);
+  flush_profile (time, &ring->profiles.solving);
+  return time;
+}
+
+static double
+flush_ruler_profiles (struct ruler *ruler)
+{
+  double time = current_time ();
+  for (all_ruler_profiles (profile))
+    if (profile->start >= 0)
+      flush_profile (time, profile);
+
+  flush_profile (time, &ruler->profiles.total);
   return time;
 }
 
@@ -6155,16 +6221,42 @@ cmp_profiles (struct profile *a, struct profile *b)
 }
 
 static void
-print_profiles (struct ring *ring)
+print_ring_profiles (struct ring *ring)
 {
-  flush_profiles (ring);
-  double total = ring->profiles.total.time;
+  flush_ring_profiles (ring);
+  double solving = ring->profiles.solving.time;
   struct profile *prev = 0;
   fputs ("c\n", stdout);
   for (;;)
     {
       struct profile *next = 0;
-      for (all_profiles (tmp))
+      for (all_ring_profiles (tmp))
+	if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
+	  next = tmp;
+      if (!next)
+	break;
+      PRINTLN ("%10.2f seconds  %5.1f %%  %s",
+	       next->time, percent (next->time, solving), next->name);
+      prev = next;
+    }
+  PRINTLN ("-----------------------------------------");
+  PRINTLN ("%10.2f seconds  100.0 %%  solving", solving);
+  fputs ("c\n", stdout);
+  fflush (stdout);
+}
+
+static void
+print_ruler_profiles (struct ruler *ruler)
+{
+  struct ring * ring = 0;
+  flush_ruler_profiles (ruler);
+  double total = ruler->profiles.total.time;
+  struct profile *prev = 0;
+  //fputs ("c\n", stdout);
+  for (;;)
+    {
+      struct profile *next = 0;
+      for (all_ruler_profiles (tmp))
 	if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
 	  next = tmp;
       if (!next)
@@ -6173,7 +6265,7 @@ print_profiles (struct ring *ring)
 	       next->time, percent (next->time, total), next->name);
       prev = next;
     }
-  PRINTLN ("---------------------------------------");
+  PRINTLN ("--------------------------------------------");
   PRINTLN ("%10.2f seconds  100.0 %%  total", total);
   fputs ("c\n", stdout);
   fflush (stdout);
@@ -6182,9 +6274,9 @@ print_profiles (struct ring *ring)
 static void
 print_ring_statistics (struct ring *ring)
 {
-  print_profiles (ring);
+  print_ring_profiles (ring);
   double search = ring->profiles.search.time;
-  double walk = ring->profiles.total.time;
+  double walk = ring->profiles.solving.time;
   struct statistics *s = &ring->statistics;
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
   uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;
@@ -6302,6 +6394,8 @@ print_ruler_statistics (struct ruler *ruler)
       printf ("c\n");
     }
 
+  print_ruler_profiles (ruler);
+
   double process = process_time ();
   double total = current_time () - start_time;
   double memory = maximum_resident_set_size () / (double) (1 << 20);
@@ -6362,6 +6456,17 @@ check_types (void)
 
 /*------------------------------------------------------------------------*/
 
+static void
+simplify_ruler (struct ruler * ruler)
+{
+  START (ruler, simplifying);
+  for (all_clauses (clause, ruler->clauses))
+    connect_large_clause (ruler, clause);
+  STOP (ruler, simplifying);
+}
+
+/*------------------------------------------------------------------------*/
+
 int
 main (int argc, char **argv)
 {
@@ -6377,6 +6482,7 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   ruler = parse_dimacs_file ();
+  simplify_ruler (ruler);
   clone_rings (ruler, options.threads);
   set_limits_of_all_rings (ruler, options.conflicts);
   set_signal_handlers (options.seconds);
