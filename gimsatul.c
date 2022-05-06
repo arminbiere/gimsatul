@@ -65,7 +65,7 @@ static const char * usage =
 
 #define FOCUSED_RESTART_INTERVAL 50
 #define MODE_INTERVAL 3e3
-#if 0
+#if 1
 #define REDUCE_INTERVAL 1e3
 #else
 #define REDUCE_INTERVAL 1
@@ -2189,6 +2189,7 @@ transfer_and_own_ruler_clauses (struct ring *ring)
 static void
 clone_ruler (struct ruler *ruler)
 {
+  message (0, "cloning first ring from ruler");
   struct ring *ring = new_ring (ruler);
   if (ruler->inconsistent)
     set_inconsistent (ring, "copied empty clause");
@@ -2258,7 +2259,7 @@ cache_lines (void *p, void *q)
 }
 
 static struct watch *
-propagate (struct ring *ring, bool search)
+ring_propagate (struct ring *ring, bool search)
 {
   assert (!ring->inconsistent);
   struct trail *trail = &ring->trail;
@@ -4479,7 +4480,7 @@ warming_up_saved_phases (struct ring *ring)
     {
       decisions++;
       decide (ring);
-      if (!propagate (ring, false))
+      if (!ring_propagate (ring, false))
 	conflicts++;
     }
   if (ring->level)
@@ -5165,7 +5166,7 @@ solve (struct ring *ring)
   int res = ring->inconsistent ? 20 : 0;
   while (!res)
     {
-      struct watch *conflict = propagate (ring, true);
+      struct watch *conflict = ring_propagate (ring, true);
       if (conflict)
 	{
 	  if (!analyze (ring, conflict))
@@ -5812,12 +5813,10 @@ clone_rings (struct ruler *ruler, unsigned threads)
   assert (threads > 1);
   double before = 0;
   if (verbosity >= 0)
-    {
       before = current_resident_set_size () / (double) (1 << 20);
-      printf ("c cloning %u rings to support %u ring threads\n",
+  clone_ruler (ruler);
+  message (0, "cloning %u rings from first to support %u threads",
 	      threads - 1, threads);
-      fflush (stdout);
-    }
   ruler->threads = allocate_array (threads, sizeof *ruler->threads);
   struct ring *first = first_ring (ruler);
   init_pool (first, threads);
@@ -6378,9 +6377,7 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   ruler = parse_dimacs_file ();
-  clone_ruler (ruler);
-  if (options.threads > 1)
-    clone_rings (ruler, options.threads);
+  clone_rings (ruler, options.threads);
   set_limits_of_all_rings (ruler, options.conflicts);
   set_signal_handlers (options.seconds);
   run_rings (ruler);
