@@ -9,19 +9,19 @@ For more information on build options try
 > `./configure -h`
 
 The resulting solver `gimsatul` is multi-threaded but you need
-to specified the number of threads explicitly to make use of that
+to specify the number of threads explicitly to make use of that
 feature:
 
 > `./gimsatul cnf/prime4294967297.cnf --threads=16`
 
-Information about other command line options is obtained with
+Information about other command line options can be obtained with
 
 > `./gimsatul -h`
 
-The solver reasos (optionally copmpressed) files in DIMACS format
-and also is able to produce DRUP/DRAT proofs.  To generate a
+The solver reads (optionally compressed) files in DIMACS format
+and if requested is able to produce DRUP/DRAT proofs. To generate a
 proof trace just specify the path to the output proof file
-as an addition argument on the command line:
+as an additional argument on the command line
 
 > `./gimsatul cnf/prime4294967297.cnf --threads=16 /tmp/proof`
 
