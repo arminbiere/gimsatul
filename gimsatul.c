@@ -65,7 +65,11 @@ static const char * usage =
 
 #define FOCUSED_RESTART_INTERVAL 50
 #define MODE_INTERVAL 3e3
+#if 0
 #define REDUCE_INTERVAL 1e3
+#else
+#define REDUCE_INTERVAL 1
+#endif
 #define REPHASE_INTERVAL 1e3
 #define STABLE_RESTART_INTERVAL 500
 #define RANDOM_DECISIONS 100
@@ -497,6 +501,7 @@ struct ruler
   struct ring *volatile winner;
   volatile signed char *values;
   struct clauses *occurrences;
+  size_t original_binaries;
   struct clauses clauses;
   struct buffer buffer;
   struct units units;
@@ -1908,6 +1913,7 @@ new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
   ROGBINARY (false, lit, other, "new ruler");
   push_ruler_binary (ruler, lit, other);
   push_ruler_binary (ruler, other, lit);
+  ruler->original_binaries++;
 }
 
 static struct watch *
@@ -2146,6 +2152,7 @@ copy_ruler_binaries (struct ring *ring)
   size_t copied = watched / 2;
   ring->statistics.irredundant += copied;
   very_verbose (ring, "copied %zu binary clauses", copied);
+  assert (copied == ruler->original_binaries);
 }
 
 static void
@@ -2161,7 +2168,7 @@ share_ring_binaries (struct ring *dst, struct ring *src)
       dst_references->binaries = src_references->binaries;
     }
 
-  size_t shared = src->statistics.irredundant;
+  size_t shared = src->ruler->original_binaries;
   ring->statistics.irredundant += shared;
   very_verbose (ring, "shared %zu binary clauses", shared);
 }
@@ -3900,6 +3907,14 @@ check_clause_statistics (struct ring *ring)
 
   struct statistics *statistics = &ring->statistics;
   assert (statistics->redundant == redundant);
+#if 1
+  if (statistics->irredundant != irredundant)
+    {
+      fprintf (stderr, "ring %u: expected %zu actual %zu\n",
+	       ring->id, statistics->irredundant, irredundant);
+      fflush (stderr);
+    }
+#endif
   assert (statistics->irredundant == irredundant);
 }
 
