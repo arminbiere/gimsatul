@@ -92,9 +92,9 @@ static const char * usage =
 #define NOT(LIT) ((LIT) ^ 1u)
 #define SGN(LIT) ((LIT) & 1)
 
-#define VAR(LIT) (solver->variables + IDX (LIT))
+#define VAR(LIT) (ring->variables + IDX (LIT))
 
-#define REFERENCES(LIT) (solver->references[LIT])
+#define REFERENCES(LIT) (ring->references[LIT])
 #define OCCURENCES(LIT) (ruler->occurrences[LIT])
 #define COUNTERS(LIT) (walker->occurrences[LIT])
 
@@ -199,34 +199,34 @@ do { \
 #define all_counters(ELEM,COUNTERS) \
   all_pointers_on_stack (struct counter, ELEM, COUNTERS)
 
-#define all_solvers(SOLVER) \
-  all_pointers_on_stack(struct solver, SOLVER, ruler->solvers)
+#define all_rings(RING) \
+  all_pointers_on_stack(struct ring, RING, ruler->rings)
 
 #define all_variables(VAR) \
-  struct variable * VAR = solver->variables, \
-                  * END_ ## VAR = VAR + solver->size; \
+  struct variable * VAR = ring->variables, \
+                  * END_ ## VAR = VAR + ring->size; \
   (VAR != END_ ## VAR); \
   ++ VAR
 
 #define all_literals_on_trail_with_reason(LIT) \
-  unsigned * P_ ## LIT = solver->trail.iterate, \
-           * END_ ## LIT = solver->trail.end, LIT; \
+  unsigned * P_ ## LIT = ring->trail.iterate, \
+           * END_ ## LIT = ring->trail.end, LIT; \
   P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
   ++ P_ ## LIT
 
 #define all_nodes(NODE) \
-  struct node * NODE = solver->queue.nodes, \
-              * END_ ## NODE = (NODE) + solver->size; \
+  struct node * NODE = ring->queue.nodes, \
+              * END_ ## NODE = (NODE) + ring->size; \
   NODE != END_ ## NODE; \
   ++NODE
 
 #define all_indices(IDX) \
-  unsigned IDX = 0, END_ ## IDX = solver->size; \
+  unsigned IDX = 0, END_ ## IDX = ring->size; \
   IDX != END_ ## IDX; \
   ++IDX
 
-#define all_solver_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*solver->size; \
+#define all_ring_literals(LIT) \
+  unsigned LIT = 0, END_ ## LIT = 2*ring->size; \
   LIT != END_ ## LIT; \
   ++LIT
 
@@ -242,8 +242,8 @@ do { \
   ++ P_ ## LIT
 
 #define all_averages(AVG) \
-  struct average * AVG = (struct average*) &solver->averages, \
-  * END_ ## AVG = (struct average*) ((char*) AVG + sizeof solver->averages); \
+  struct average * AVG = (struct average*) &ring->averages, \
+  * END_ ## AVG = (struct average*) ((char*) AVG + sizeof ring->averages); \
   AVG != END_ ## AVG; \
   ++AVG
 
@@ -459,14 +459,14 @@ struct statistics
 };
 
 #define SEARCH_CONFLICTS \
-  solver->statistics.contexts[SEARCH_CONTEXT].conflicts
+  ring->statistics.contexts[SEARCH_CONTEXT].conflicts
 
 #define SEARCH_TICKS \
-  solver->statistics.contexts[SEARCH_CONTEXT].ticks
+  ring->statistics.contexts[SEARCH_CONTEXT].ticks
 
-struct solvers
+struct rings
 {
-  struct solver ** begin, ** end, **allocated;
+  struct ring ** begin, ** end, **allocated;
 };
 
 struct units
@@ -477,7 +477,7 @@ struct units
 
 struct locks
 {
-  pthread_mutex_t solvers;
+  pthread_mutex_t rings;
   pthread_mutex_t units;
 #ifdef NFASTPATH
   pthread_mutex_t terminate;
@@ -491,9 +491,9 @@ struct ruler
   volatile bool terminate;
   bool inconsistent;
   struct locks locks;
-  struct solvers solvers;
+  struct rings rings;
   pthread_t * threads;
-  struct solver * volatile winner;
+  struct ring * volatile winner;
   volatile signed char * values;
   struct clauses * occurrences;
   struct clauses clauses;
@@ -515,7 +515,7 @@ struct pool
   struct clause * volatile share[ALLOCATED_SHARED];
 };
 
-struct solver
+struct ring
 {
   unsigned id;
   unsigned threads;
@@ -724,17 +724,17 @@ fatal_error (const char *fmt, ...)
 }
 
 static void
-print_line_without_acquiring_lock (struct solver *, const char *, ...)
+print_line_without_acquiring_lock (struct ring *, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
 static const char * prefix_format = "c%-2u ";
 
 static void
-print_line_without_acquiring_lock (struct solver * solver, const char * fmt, ...)
+print_line_without_acquiring_lock (struct ring * ring, const char * fmt, ...)
 {
   va_list ap;
   char line[256];
-  sprintf (line, prefix_format, solver->id);
+  sprintf (line, prefix_format, ring->id);
   va_start (ap, fmt);
   vsprintf (line + strlen (line), fmt, ap);
   va_end (ap);
@@ -749,19 +749,19 @@ static volatile uint64_t clause_ids;
 #endif
 
 #define PRINTLN(...) \
-  print_line_without_acquiring_lock (solver, __VA_ARGS__)
+  print_line_without_acquiring_lock (ring, __VA_ARGS__)
 
-static void message (struct solver *solver, const char *, ...)
+static void message (struct ring *ring, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
 static void
-message (struct solver *solver, const char *fmt, ...)
+message (struct ring *ring, const char *fmt, ...)
 {
   if (verbosity < 0)
     return;
   acquire_message_lock ();
-  if (solver)
-    printf (prefix_format, solver->id);
+  if (ring)
+    printf (prefix_format, ring->id);
   else
     fputs ("c ", stdout);
   va_list ap;
@@ -820,12 +820,12 @@ next_loglitbuf (void)
 }
 
 static const char *
-loglit (struct solver *solver, unsigned unsigned_lit)
+loglit (struct ring *ring, unsigned unsigned_lit)
 {
   char *res = next_loglitbuf ();
   int signed_lit = export_literal (unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
-  signed char value = solver->values[unsigned_lit];
+  signed char value = ring->values[unsigned_lit];
   if (value)
     {
       sprintf (res + strlen (res), "=%d", (int) value);
@@ -838,10 +838,10 @@ loglit (struct solver *solver, unsigned unsigned_lit)
 }
 
 static const char *
-logvar (struct solver *solver, unsigned idx)
+logvar (struct ring *ring, unsigned idx)
 {
   unsigned lit = LIT (idx);
-  const char *tmp = loglit (solver, lit);
+  const char *tmp = loglit (ring, lit);
   char *res = next_loglitbuf ();
   sprintf (res, "variable %u(%u) (literal %s)", idx, idx + 1, tmp);
   return res;
@@ -872,8 +872,8 @@ rogvar (struct ruler *ruler, unsigned idx)
 }
 #endif
 
-#define LOGLIT(...) loglit (solver, __VA_ARGS__)
-#define LOGVAR(...) logvar (solver, __VA_ARGS__)
+#define LOGLIT(...) loglit (ring, __VA_ARGS__)
+#define LOGVAR(...) logvar (ring, __VA_ARGS__)
 
 #define ROGLIT(...) roglit (ruler, __VA_ARGS__)
 #define ROGVAR(...) rogvar (ruler, __VA_ARGS__)
@@ -882,8 +882,8 @@ rogvar (struct ruler *ruler, unsigned idx)
   if (verbosity < INT_MAX) \
     break; \
   acquire_message_lock (); \
-  printf (prefix_format, solver->id); \
-  printf ("LOG %u ", solver->level); \
+  printf (prefix_format, ring->id); \
+  printf ("LOG %u ", ring->level); \
   printf (__VA_ARGS__)
 
 #define LOGSUFFIX() \
@@ -900,8 +900,8 @@ do { \
 #define LOGTMP(...) \
 do { \
   LOGPREFIX (__VA_ARGS__); \
-  printf (" size %zu temporary clause", SIZE (solver->clause)); \
-  for (all_elements_on_stack (unsigned, LIT, solver->clause)) \
+  printf (" size %zu temporary clause", SIZE (ring->clause)); \
+  for (all_elements_on_stack (unsigned, LIT, ring->clause)) \
     printf (" %s", LOGLIT (LIT)); \
   LOGSUFFIX (); \
 } while (0)
@@ -1056,45 +1056,45 @@ reallocate_block (void *ptr, size_t bytes)
 /*------------------------------------------------------------------------*/
 
 static uint64_t
-random64 (struct solver *solver)
+random64 (struct ring *ring)
 {
-  uint64_t res = solver->random, next = res;
+  uint64_t res = ring->random, next = res;
   next *= 6364136223846793005ul;
   next += 1442695040888963407ul;
-  solver->random = next;
+  ring->random = next;
   return res;
 }
 
 static unsigned
-random32 (struct solver *solver)
+random32 (struct ring *ring)
 {
-  return random64 (solver) >> 32;
+  return random64 (ring) >> 32;
 }
 
 #if 0
 
 static bool
-random_bool (struct solver * solver)
+random_bool (struct ring * ring)
 {
-  return (random64 (solver) >> 33) & 1;
+  return (random64 (ring) >> 33) & 1;
 }
 
 #endif
 
 static size_t
-random_modulo (struct solver *solver, size_t mod)
+random_modulo (struct ring *ring, size_t mod)
 {
   assert (mod);
-  size_t tmp = random64 (solver);
+  size_t tmp = random64 (ring);
   size_t res = tmp % mod;
   assert (res < mod);
   return res;
 }
 
 static double
-random_double (struct solver *solver)
+random_double (struct ring *ring)
 {
-  return random32 (solver) / 4294967296.0;
+  return random32 (ring) / 4294967296.0;
 }
 
 /*------------------------------------------------------------------------*/
@@ -1229,13 +1229,13 @@ update_queue (struct queue *queue, struct node *node, double new_score)
 }
 
 static void
-rescale_variable_scores (struct solver *solver)
+rescale_variable_scores (struct ring *ring)
 {
-  struct queue *queue = &solver->queue;
-  unsigned stable = solver->stable;
+  struct queue *queue = &ring->queue;
+  unsigned stable = ring->stable;
   double max_score = queue->increment[stable];
   struct node *nodes = queue->nodes;
-  struct node *end = nodes + solver->size;
+  struct node *end = nodes + ring->size;
   for (struct node * node = nodes; node != end; node++)
     if (node->score > max_score)
       max_score = node->score;
@@ -1247,37 +1247,37 @@ rescale_variable_scores (struct solver *solver)
 }
 
 static void
-bump_variable_score (struct solver *solver, unsigned idx)
+bump_variable_score (struct ring *ring, unsigned idx)
 {
-  struct queue *queue = &solver->queue;
+  struct queue *queue = &ring->queue;
   struct node *node = queue->nodes + idx;
   double old_score = node->score;
-  double new_score = old_score + queue->increment[solver->stable];
+  double new_score = old_score + queue->increment[ring->stable];
   LOG ("bumping %s old score %g to new score %g",
        LOGVAR (idx), old_score, new_score);
   update_queue (queue, node, new_score);
   if (new_score > MAX_SCORE)
-    rescale_variable_scores (solver);
+    rescale_variable_scores (ring);
 }
 
 static void
-bump_score_increment (struct solver *solver)
+bump_score_increment (struct ring *ring)
 {
-  struct queue *queue = &solver->queue;
-  unsigned stable = solver->stable;
+  struct queue *queue = &ring->queue;
+  unsigned stable = ring->stable;
   double old_increment = queue->increment[stable];
   double factor = stable ? 1.0 / STABLE_DECAY : 1.0 / FOCUSED_DECAY;
   double new_increment = old_increment * factor;
   LOG ("new increment %g", new_increment);
   queue->increment[stable] = new_increment;
   if (queue->increment[stable] > MAX_SCORE)
-    rescale_variable_scores (solver);
+    rescale_variable_scores (ring);
 }
 
 static void
-swap_scores (struct solver *solver)
+swap_scores (struct ring *ring)
 {
-  struct queue *queue = &solver->queue;
+  struct queue *queue = &ring->queue;
   double *s = queue->scores;
   for (all_nodes (node))
     {
@@ -1286,7 +1286,7 @@ swap_scores (struct solver *solver)
       node->child = node->prev = node->next = 0;
       *s++ = tmp;
     }
-  assert (s == queue->scores + solver->size);
+  assert (s == queue->scores + ring->size);
   queue->root = 0;
   for (all_nodes (node))
     push_queue (queue, node);
@@ -1382,7 +1382,7 @@ tag_pointer (bool redundant, unsigned lit, unsigned other)
 
 #define INIT_PROFILE(NAME) \
 do { \
-  struct profile * profile = &solver->profiles.NAME; \
+  struct profile * profile = &ring->profiles.NAME; \
   profile->start = -1; \
   profile->name = #NAME; \
 } while (0)
@@ -1405,32 +1405,32 @@ stop_profile (struct profile *profile, double time)
 }
 
 #define START(NAME) \
-  start_profile (&solver->profiles.NAME, current_time ())
+  start_profile (&ring->profiles.NAME, current_time ())
 
 #define STOP(NAME) \
-  stop_profile (&solver->profiles.NAME, current_time ())
+  stop_profile (&ring->profiles.NAME, current_time ())
 
 #define MODE_PROFILE \
-  (solver->stable ? &solver->profiles.stable : &solver->profiles.focused)
+  (ring->stable ? &ring->profiles.stable : &ring->profiles.focused)
 
 #define STOP_SEARCH_AND_START(NAME) \
 do { \
   double t = current_time (); \
   stop_profile (MODE_PROFILE, t); \
-  stop_profile (&solver->profiles.search, t); \
-  start_profile (&solver->profiles.NAME, t); \
+  stop_profile (&ring->profiles.search, t); \
+  start_profile (&ring->profiles.NAME, t); \
 } while (0)
 
 #define STOP_AND_START_SEARCH(NAME) \
 do { \
   double t = current_time (); \
-  stop_profile (&solver->profiles.NAME, t); \
-  start_profile (&solver->profiles.search, t); \
+  stop_profile (&ring->profiles.NAME, t); \
+  start_profile (&ring->profiles.search, t); \
   start_profile (MODE_PROFILE, t); \
 } while (0)
 
 static void
-init_profiles (struct solver *solver)
+init_profiles (struct ring *ring)
 {
   INIT_PROFILE (focused);
   INIT_PROFILE (search);
@@ -1447,7 +1447,7 @@ new_ruler (size_t size)
 {
   struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
   pthread_mutex_init (&ruler->locks.units, 0);
-  pthread_mutex_init (&ruler->locks.solvers, 0);
+  pthread_mutex_init (&ruler->locks.rings, 0);
 #ifdef NFASTPATH
   pthread_mutex_init (&ruler->locks.terminate, 0);
   pthread_mutex_init (&ruler->locks.winner, 0);
@@ -1475,10 +1475,10 @@ static void
 delete_ruler (struct ruler *ruler)
 {
 #ifndef NDEBUG
-  for (all_solvers (solver))
-    assert (!solver);
+  for (all_rings (ring))
+    assert (!ring);
 #endif
-  RELEASE (ruler->solvers);
+  RELEASE (ruler->rings);
   RELEASE (ruler->buffer);
   release_occurrences (ruler);
   free ((void*) ruler->values);
@@ -1487,82 +1487,82 @@ delete_ruler (struct ruler *ruler)
   free (ruler);
 }
 
-static struct solver *
-first_solver (struct ruler * ruler)
+static struct ring *
+first_ring (struct ruler * ruler)
 {
-  assert (!EMPTY (ruler->solvers));
-  return ruler->solvers.begin[0];
+  assert (!EMPTY (ruler->rings));
+  return ruler->rings.begin[0];
 }
 
 static void
-push_solver (struct ruler *ruler, struct solver *solver)
+push_ring (struct ruler *ruler, struct ring *ring)
 {
-  if (pthread_mutex_lock (&ruler->locks.solvers))
-    fatal_error ("failed to acquire solvers lock while pushing solver");
-  size_t id = SIZE (ruler->solvers); 
+  if (pthread_mutex_lock (&ruler->locks.rings))
+    fatal_error ("failed to acquire rings lock while pushing ring");
+  size_t id = SIZE (ruler->rings); 
   assert (id < MAX_THREADS);
-  solver->id = id;
-  PUSH (ruler->solvers, solver);
-  solver->random = solver->id;
-  solver->ruler = ruler;
-  solver->units = ruler->units.begin;
-  if (pthread_mutex_unlock (&ruler->locks.solvers))
-    fatal_error ("failed to release solvers lock while pushing solver");
+  ring->id = id;
+  PUSH (ruler->rings, ring);
+  ring->random = ring->id;
+  ring->ruler = ruler;
+  ring->units = ruler->units.begin;
+  if (pthread_mutex_unlock (&ruler->locks.rings))
+    fatal_error ("failed to release rings lock while pushing ring");
 }
 
 static void
-detach_solver (struct solver *solver)
+detach_ring (struct ring *ring)
 {
-  struct ruler * ruler = solver->ruler;
-  if (pthread_mutex_lock (&ruler->locks.solvers))
-    fatal_error ("failed to acquire solvers lock while detaching solver");
-  assert (solver->id < SIZE (ruler->solvers));
-  assert (ruler->solvers.begin[solver->id] == solver);
-  ruler->solvers.begin[solver->id] = 0;
-  if (pthread_mutex_unlock (&ruler->locks.solvers))
-    fatal_error ("failed to release solverfs lock while detaching solver");
+  struct ruler * ruler = ring->ruler;
+  if (pthread_mutex_lock (&ruler->locks.rings))
+    fatal_error ("failed to acquire rings lock while detaching ring");
+  assert (ring->id < SIZE (ruler->rings));
+  assert (ruler->rings.begin[ring->id] == ring);
+  ruler->rings.begin[ring->id] = 0;
+  if (pthread_mutex_unlock (&ruler->locks.rings))
+    fatal_error ("failed to release ringfs lock while detaching ring");
 }
 
 /*------------------------------------------------------------------------*/
 
-static struct solver *
-new_solver (struct ruler *ruler)
+static struct ring *
+new_ring (struct ruler *ruler)
 {
   unsigned size = ruler->size;
   assert (size < (1u << 30));
-  struct solver *solver = allocate_and_clear_block (sizeof *solver);
-  push_solver (ruler, solver);
-  solver->size = size;
-  verbose (solver, "new solver[%u] of size %u", solver->id, size);
-  solver->values = allocate_and_clear_block (2 * size);
-  solver->marks = allocate_and_clear_block (2 * size);
-  solver->references =
+  struct ring *ring = allocate_and_clear_block (sizeof *ring);
+  push_ring (ruler, ring);
+  ring->size = size;
+  verbose (ring, "new ring[%u] of size %u", ring->id, size);
+  ring->values = allocate_and_clear_block (2 * size);
+  ring->marks = allocate_and_clear_block (2 * size);
+  ring->references =
     allocate_and_clear_array (sizeof (struct references), 2 * size);
-  solver->used = allocate_and_clear_block (size);
-  solver->variables =
-    allocate_and_clear_array (size, sizeof *solver->variables);
-  struct trail *trail = &solver->trail;
+  ring->used = allocate_and_clear_block (size);
+  ring->variables =
+    allocate_and_clear_array (size, sizeof *ring->variables);
+  struct trail *trail = &ring->trail;
   trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
   trail->export = trail->propagate = trail->iterate = trail->begin;
   trail->pos = allocate_array (size, sizeof *trail->pos);
-  struct queue *queue = &solver->queue;
+  struct queue *queue = &ring->queue;
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
   queue->scores = allocate_and_clear_array (size, sizeof *queue->scores);
   queue->increment[0] = queue->increment[1] = 1;
   for (all_nodes (node))
     push_queue (queue, node);
-  solver->unassigned = size;
-  init_profiles (solver);
+  ring->unassigned = size;
+  init_profiles (ring);
   for (all_averages (a))
     a->exp = 1.0;
-  solver->limits.conflicts = -1;
-  return solver;
+  ring->limits.conflicts = -1;
+  return ring;
 }
 
 static void
-release_watches (struct solver *solver)
+release_watches (struct ring *ring)
 {
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, ring->watches))
     {
       assert (!binary_pointer (watch));
       struct clause *clause = watch->clause;
@@ -1576,32 +1576,32 @@ release_watches (struct solver *solver)
 	}
       free (watch);
     }
-  RELEASE (solver->watches);
+  RELEASE (ring->watches);
 }
 
 static void
-init_pool (struct solver * solver, unsigned threads)
+init_pool (struct ring * ring, unsigned threads)
 {
-  solver->threads = threads;
-  solver->pool = allocate_and_clear_array (threads, sizeof *solver->pool);
+  ring->threads = threads;
+  ring->pool = allocate_and_clear_array (threads, sizeof *ring->pool);
 }
 
 static void
-release_references (struct solver * solver)
+release_references (struct ring * ring)
 {
-  for (all_solver_literals (lit))
+  for (all_ring_literals (lit))
     RELEASE (REFERENCES (lit));
 }
 
 static void
-release_pool (struct solver * solver)
+release_pool (struct ring * ring)
 {
-  struct pool * pool = solver->pool;
+  struct pool * pool = ring->pool;
   if (!pool)
     return;
-  for (unsigned i = 0; i != solver->threads; i++, pool++)
+  for (unsigned i = 0; i != ring->threads; i++, pool++)
     {
-      if (i == solver->id)
+      if (i == ring->id)
 	continue;
       for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
 	{
@@ -1619,30 +1619,30 @@ release_pool (struct solver * solver)
 	    }
 	}
     }
-  free (solver->pool);
+  free (ring->pool);
 }
 
 static void
-delete_solver (struct solver *solver)
+delete_ring (struct ring *ring)
 {
-  verbose (solver, "delete solver[%u]", solver->id);
-  release_pool (solver);
-  RELEASE (solver->clause);
-  RELEASE (solver->analyzed);
-  free (solver->trail.begin);
-  free (solver->trail.pos);
-  RELEASE (solver->levels);
-  RELEASE (solver->buffer);
-  release_references (solver);
-  free (solver->references);
-  release_watches (solver);
-  free (solver->queue.nodes);
-  free (solver->queue.scores);
-  free (solver->variables);
-  free (solver->values);
-  free (solver->marks);
-  free (solver->used);
-  free (solver);
+  verbose (ring, "delete ring[%u]", ring->id);
+  release_pool (ring);
+  RELEASE (ring->clause);
+  RELEASE (ring->analyzed);
+  free (ring->trail.begin);
+  free (ring->trail.pos);
+  RELEASE (ring->levels);
+  RELEASE (ring->buffer);
+  release_references (ring);
+  free (ring->references);
+  release_watches (ring);
+  free (ring->queue.nodes);
+  free (ring->queue.scores);
+  free (ring->variables);
+  free (ring->values);
+  free (ring->marks);
+  free (ring->used);
+  free (ring);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1800,38 +1800,38 @@ close_proof (void)
 /*------------------------------------------------------------------------*/
 
 static void
-watch_literal (struct solver *solver, unsigned lit, struct watch *watch)
+watch_literal (struct ring *ring, unsigned lit, struct watch *watch)
 {
   LOGWATCH (watch, "watching %s in", LOGLIT (lit));
   PUSH (REFERENCES (lit), watch);
 }
 
 static void
-dec_clauses (struct solver *solver, bool redundant)
+dec_clauses (struct ring *ring, bool redundant)
 {
   if (redundant)
     {
-      assert (solver->statistics.redundant > 0);
-      solver->statistics.redundant--;
+      assert (ring->statistics.redundant > 0);
+      ring->statistics.redundant--;
     }
   else
     {
-      assert (solver->statistics.irredundant > 0);
-      solver->statistics.irredundant--;
+      assert (ring->statistics.irredundant > 0);
+      ring->statistics.irredundant--;
     }
 }
 
 static void
-inc_clauses (struct solver *solver, bool redundant)
+inc_clauses (struct ring *ring, bool redundant)
 {
   if (redundant)
-    solver->statistics.redundant++;
+    ring->statistics.redundant++;
   else
-    solver->statistics.irredundant++;
+    ring->statistics.irredundant++;
 }
 
 static struct watch *
-watch_large_clause (struct solver *solver, struct clause *clause)
+watch_large_clause (struct ring *ring, struct clause *clause)
 {
   assert (clause->size > 2);
   bool redundant = clause->redundant;
@@ -1849,13 +1849,13 @@ watch_large_clause (struct solver *solver, struct clause *clause)
   watch->glue = glue;
   watch->middle = 2;
   watch->clause = clause;
-  PUSH (solver->watches, watch);
-  inc_clauses (solver, redundant);
+  PUSH (ring->watches, watch);
+  inc_clauses (ring, redundant);
   return watch;
 }
 
 static struct watch *
-watch_literals_in_large_clause (struct solver * solver,
+watch_literals_in_large_clause (struct ring * ring,
                                 struct clause * clause,
 			        unsigned first, unsigned second)
 {
@@ -1870,19 +1870,19 @@ watch_literals_in_large_clause (struct solver * solver,
     found_second |= (lit == second);
   assert (found_second);
 #endif
-  struct watch * watch = watch_large_clause (solver, clause);
+  struct watch * watch = watch_large_clause (ring, clause);
   watch->sum = first ^ second;
-  watch_literal (solver, first, watch);
-  watch_literal (solver, second, watch);
+  watch_literal (ring, first, watch);
+  watch_literal (ring, second, watch);
   return watch;
 }
 
 static struct watch *
-watch_first_two_literals_in_large_clause (struct solver * solver,
+watch_first_two_literals_in_large_clause (struct ring * ring,
                                           struct clause * clause)
 {
   unsigned *lits = clause->literals;
-  return watch_literals_in_large_clause (solver, clause,
+  return watch_literals_in_large_clause (ring, clause,
                                          lits[0], lits[1]);
 }
 
@@ -1904,14 +1904,14 @@ new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
 }
 
 static struct watch *
-new_local_binary_clause (struct solver *solver, bool redundant,
+new_local_binary_clause (struct ring *ring, bool redundant,
 			 unsigned lit, unsigned other)
 {
-  inc_clauses (solver, redundant);
+  inc_clauses (ring, redundant);
   struct watch *watch_lit = tag_pointer (redundant, lit, other);
   struct watch *watch_other = tag_pointer (redundant, other, lit);
-  watch_literal (solver, lit, watch_lit);
-  watch_literal (solver, other, watch_other);
+  watch_literal (ring, lit, watch_lit);
+  watch_literal (ring, other, watch_other);
   LOGBINARY (redundant, lit, other, "new local");
   return watch_lit;
 }
@@ -1937,15 +1937,15 @@ new_large_clause (size_t size, unsigned *literals,
 }
 
 static void
-really_delete_clause (struct solver *solver, struct clause *clause)
+really_delete_clause (struct ring *ring, struct clause *clause)
 {
   LOGCLAUSE (clause, "delete");
-  trace_delete_clause (&solver->buffer, clause);
+  trace_delete_clause (&ring->buffer, clause);
   free (clause);
 }
 
 static void
-reference_clause (struct solver * solver,
+reference_clause (struct ring * ring,
                   struct clause * clause,
 		  unsigned inc)
 {
@@ -1956,111 +1956,111 @@ reference_clause (struct solver * solver,
 }
 
 static void
-dereference_clause (struct solver * solver, struct clause * clause)
+dereference_clause (struct ring * ring, struct clause * clause)
 {
   unsigned shared = atomic_fetch_sub (&clause->shared, 1);
   assert (shared + 1);
   LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
   if (!shared)
-    really_delete_clause (solver, clause);
+    really_delete_clause (ring, clause);
 }
 
 static void
-delete_watch (struct solver *solver, struct watch *watch)
+delete_watch (struct ring *ring, struct watch *watch)
 {
   struct clause *clause = watch->clause;
-  dec_clauses (solver, clause->redundant);
-  dereference_clause (solver, clause);
+  dec_clauses (ring, clause->redundant);
+  dereference_clause (ring, clause);
   free (watch);
 }
 
 /*------------------------------------------------------------------------*/
 
 static void
-assign (struct solver *solver, unsigned lit, struct watch *reason)
+assign (struct ring *ring, unsigned lit, struct watch *reason)
 {
   const unsigned not_lit = NOT (lit);
   unsigned idx = IDX (lit);
 
-  assert (idx < solver->size);
-  assert (!solver->values[lit]);
-  assert (!solver->values[not_lit]);
+  assert (idx < ring->size);
+  assert (!ring->values[lit]);
+  assert (!ring->values[not_lit]);
 
-  assert (solver->unassigned);
-  solver->unassigned--;
+  assert (ring->unassigned);
+  ring->unassigned--;
 
-  solver->values[lit] = 1;
-  solver->values[not_lit] = -1;
+  ring->values[lit] = 1;
+  ring->values[not_lit] = -1;
 
-  unsigned level = solver->level;
-  struct variable *v = solver->variables + idx;
+  unsigned level = ring->level;
+  struct variable *v = ring->variables + idx;
   v->saved = SGN (lit) ? -1 : 1;
   v->level = level;
   if (!level)
     {
       v->reason = 0;
-      solver->statistics.fixed++;
+      ring->statistics.fixed++;
     }
   else
       v->reason = reason;
 
-  struct trail * trail = &solver->trail;
+  struct trail * trail = &ring->trail;
   size_t pos = trail->end - trail->begin;
-  assert (pos < solver->size);
+  assert (pos < ring->size);
   trail->pos[idx] = pos;
   *trail->end++ = lit;
 }
 
 static void
-assign_with_reason (struct solver *solver, unsigned lit, struct watch *reason)
+assign_with_reason (struct ring *ring, unsigned lit, struct watch *reason)
 {
   assert (reason);
-  assign (solver, lit, reason);
+  assign (ring, lit, reason);
   LOGWATCH (reason, "assign %s with reason", LOGLIT (lit));
 }
 
 static void
-assign_unit (struct solver *solver, unsigned unit)
+assign_unit (struct ring *ring, unsigned unit)
 {
-  assert (!solver->level);
-  assign (solver, unit, 0);
+  assert (!ring->level);
+  assign (ring, unit, 0);
   LOG ("assign %s unit", LOGLIT (unit));
 }
 
 static void
-assign_decision (struct solver *solver, unsigned decision)
+assign_decision (struct ring *ring, unsigned decision)
 {
-  assert (solver->level);
-  assign (solver, decision, 0);
+  assert (ring->level);
+  assign (ring, decision, 0);
   LOG ("assign %s decision score %g",
-       LOGLIT (decision), solver->queue.nodes[IDX (decision)].score);
+       LOGLIT (decision), ring->queue.nodes[IDX (decision)].score);
 }
 
 /*------------------------------------------------------------------------*/
 
 static void
-set_winner (struct solver *solver)
+set_winner (struct ring *ring)
 {
-  volatile struct solver *winner;
-  struct ruler *ruler = solver->ruler;
+  volatile struct ring *winner;
+  struct ruler *ruler = ring->ruler;
   bool winning;
 #ifndef NFASTPATH
   winner = 0;
-  winning = atomic_compare_exchange_strong (&ruler->winner, &winner, solver);
+  winning = atomic_compare_exchange_strong (&ruler->winner, &winner, ring);
 #else
   if (pthread_mutex_lock (&ruler->locks.winner))
     fatal_error ("failed to acquire winner lock");
   winner = ruler->winner;
   winning = !winner;
   if (winning)
-    ruler->winner = solver;
+    ruler->winner = ring;
   if (pthread_mutex_unlock (&ruler->locks.winner))
     fatal_error ("failed to release winner lock");
 #endif
   if (!winning)
     {
       assert (winner);
-      assert (winner->status == solver->status);
+      assert (winner->status == ring->status);
       return;
     }
 #ifndef NFASTPATH
@@ -2072,52 +2072,52 @@ set_winner (struct solver *solver)
   if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
 #endif
-  verbose (solver, "winning solver[%u] with status %d",
-	   solver->id, solver->status);
+  verbose (ring, "winning ring[%u] with status %d",
+	   ring->id, ring->status);
 }
 
 static void
-set_inconsistent (struct solver *solver, const char *msg)
+set_inconsistent (struct ring *ring, const char *msg)
 {
-  assert (!solver->inconsistent);
-  very_verbose (solver, "%s", msg);
-  solver->inconsistent = true;
-  assert (!solver->status);
-  solver->status = 20;
-  set_winner (solver);
+  assert (!ring->inconsistent);
+  very_verbose (ring, "%s", msg);
+  ring->inconsistent = true;
+  assert (!ring->status);
+  ring->status = 20;
+  set_winner (ring);
 }
 
 static void
-set_satisfied (struct solver *solver)
+set_satisfied (struct ring *ring)
 {
-  assert (!solver->inconsistent);
-  assert (!solver->unassigned);
-  assert (solver->trail.propagate == solver->trail.end);
-  solver->status = 10;
-  set_winner (solver);
+  assert (!ring->inconsistent);
+  assert (!ring->unassigned);
+  assert (ring->trail.propagate == ring->trail.end);
+  ring->status = 10;
+  set_winner (ring);
 }
 
 /*------------------------------------------------------------------------*/
 
 static void
-copy_ruler_units (struct solver * solver)
+copy_ruler_units (struct ring * ring)
 {
-  struct ruler * ruler = solver->ruler;
-  assert (first_solver (ruler) == solver);
-  assert (!solver->id);
+  struct ruler * ruler = ring->ruler;
+  assert (first_ring (ruler) == ring);
+  assert (!ring->id);
   size_t units = 0;
   for (all_elements_on_stack (unsigned, unit, ruler->units))
-    assign_unit (solver, unit), units++;
-  very_verbose (solver, "copied %zu units", units);
-  solver->trail.export = solver->trail.iterate = solver->trail.end;
+    assign_unit (ring, unit), units++;
+  very_verbose (ring, "copied %zu units", units);
+  ring->trail.export = ring->trail.iterate = ring->trail.end;
 }
 
 static void
-copy_ruler_binaries (struct solver * solver)
+copy_ruler_binaries (struct ring * ring)
 {
-  struct ruler * ruler = solver->ruler;
-  assert (first_solver (ruler) == solver);
-  assert (!solver->id);
+  struct ruler * ruler = ring->ruler;
+  assert (first_ring (ruler) == ring);
+  assert (!ring->id);
   size_t watched = 0;
 
   for (all_ruler_literals (lit))
@@ -2140,19 +2140,19 @@ copy_ruler_binaries (struct solver * solver)
     }
   assert (!(watched & 1));
   size_t copied = watched/2;
-  solver->statistics.irredundant += copied;
-  very_verbose (solver, "copied %zu binary clauses", copied);
+  ring->statistics.irredundant += copied;
+  very_verbose (ring, "copied %zu binary clauses", copied);
 }
 
 static void
-share_solver_binaries (struct solver * dst, struct solver * src)
+share_ring_binaries (struct ring * dst, struct ring * src)
 {
-  struct solver * solver = dst;
-  assert (first_solver (ruler) == src);
+  struct ring * ring = dst;
+  assert (first_ring (ruler) == src);
   assert (src->ruler == ruler);
   assert (!src->id);
 
-  for (all_solver_literals (lit))
+  for (all_ring_literals (lit))
     {
       struct references * src_references = src->references + lit;
       struct references * dst_references = dst->references + lit;
@@ -2160,79 +2160,79 @@ share_solver_binaries (struct solver * dst, struct solver * src)
     }
 
   size_t shared = src->statistics.irredundant;
-  solver->statistics.irredundant += shared;
-  very_verbose (solver, "shared %zu binary clauses", shared);
+  ring->statistics.irredundant += shared;
+  very_verbose (ring, "shared %zu binary clauses", shared);
 }
 
 static void
-transfer_and_own_ruler_clauses (struct solver * solver)
+transfer_and_own_ruler_clauses (struct ring * ring)
 {
-  struct ruler * ruler = solver->ruler;
-  assert (first_solver (ruler) == solver);
-  assert (!solver->id);
+  struct ruler * ruler = ring->ruler;
+  assert (first_ring (ruler) == ring);
+  assert (!ring->id);
   size_t transferred = 0;
   for (all_clauses (clause, ruler->clauses))
-    watch_first_two_literals_in_large_clause (solver, clause);
+    watch_first_two_literals_in_large_clause (ring, clause);
   RELEASE (ruler->clauses);
-  very_verbose (solver, "transferred %zu large clauses", transferred);
+  very_verbose (ring, "transferred %zu large clauses", transferred);
 }
 
 static void
 clone_ruler (struct ruler * ruler)
 {
-  struct solver * solver = new_solver (ruler);
+  struct ring * ring = new_ring (ruler);
   if (ruler->inconsistent)
-    set_inconsistent (solver, "copied empty clause");
-  copy_ruler_units (solver);
-  copy_ruler_binaries (solver);
-  transfer_and_own_ruler_clauses (solver);
+    set_inconsistent (ring, "copied empty clause");
+  copy_ruler_units (ring);
+  copy_ruler_binaries (ring);
+  transfer_and_own_ruler_clauses (ring);
 }
 
 /*------------------------------------------------------------------------*/
 
 static void
-clone_clauses (struct solver *dst, struct solver *src)
+clone_clauses (struct ring *dst, struct ring *src)
 {
-  struct solver *solver = dst;
-  verbose (solver, "cloning clauses from solver[%u] to solver[%u]",
+  struct ring *ring = dst;
+  verbose (ring, "cloning clauses from ring[%u] to ring[%u]",
 	   src->id, dst->id);
   assert (!src->level);
   assert (src->trail.propagate == src->trail.begin);
   if (src->inconsistent)
     {
-      set_inconsistent (solver, "cloning inconsistent empty clause");
+      set_inconsistent (ring, "cloning inconsistent empty clause");
       return;
     }
   unsigned units = 0;
   for (all_elements_on_stack (unsigned, lit, src->trail))
     {
       LOG ("cloning unit %s", LOGLIT (lit));
-      assign_unit (solver, lit);
+      assign_unit (ring, lit);
       units++;
     }
-  very_verbose (solver, "cloned %u units", units);
+  very_verbose (ring, "cloned %u units", units);
 
   size_t shared = 0;
   for (all_watches (src_watch, src->watches))
     {
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
-      reference_clause (solver, clause, 1);
-      watch_first_two_literals_in_large_clause (solver, clause);
+      reference_clause (ring, clause, 1);
+      watch_first_two_literals_in_large_clause (ring, clause);
       shared++;
     }
-  very_verbose (solver, "sharing %zu large clauses", shared);
+  very_verbose (ring, "sharing %zu large clauses", shared);
 }
 
 static void *
-clone_solver (void * ptr)
+clone_ring (void * ptr)
 {
-  struct solver * src = ptr;
-  struct solver *solver = new_solver (src->ruler);
-  share_solver_binaries (solver, src);
-  clone_clauses (solver, src);
-  init_pool (solver, src->threads);
-  return solver;
+  struct ring * src = ptr;
+  struct ring *ring = new_ring (src->ruler);
+  share_ring_binaries (ring, src);
+  clone_clauses (ring, src);
+  init_pool (ring, src->threads);
+  return ring;
 }
 
 /*------------------------------------------------------------------------*/
@@ -2249,12 +2249,12 @@ cache_lines (void * p, void * q)
 }
 
 static struct watch *
-propagate (struct solver *solver, bool search)
+propagate (struct ring *ring, bool search)
 {
-  assert (!solver->inconsistent);
-  struct trail *trail = &solver->trail;
+  assert (!ring->inconsistent);
+  struct trail *trail = &ring->trail;
   struct watch *conflict = 0;
-  signed char *values = solver->values;
+  signed char *values = ring->values;
   uint64_t ticks = 0, propagations = 0;
   while (trail->propagate != trail->end)
     {
@@ -2282,7 +2282,7 @@ propagate (struct solver *solver, bool search)
 	      else if (!other_value)
 		{
 		  struct watch * reason = tag_pointer (false, other, not_lit);
-		  assign_with_reason (solver, other, reason);
+		  assign_with_reason (ring, other, reason);
 		  ticks++;
 		}
 	    }
@@ -2315,14 +2315,14 @@ propagate (struct solver *solver, bool search)
 	      else
 		{
 		  struct watch * reason = tag_pointer (false, other, not_lit);
-		  assign_with_reason (solver, other, reason);
+		  assign_with_reason (ring, other, reason);
 		  ticks++;
 		}
 	    }
 	  else
 	    {
 	      other = watch->sum ^ not_lit;
-	      assert (other < 2 * solver->size);
+	      assert (other < 2 * ring->size);
 	      other_value = values[other];
 	      ticks++;
 	      if (other_value > 0)
@@ -2367,7 +2367,7 @@ propagate (struct solver *solver, bool search)
 		{
 		  watch->sum = other ^ replacement;
 		  LOGCLAUSE (watch->clause, "unwatching %s in", LOGLIT (lit));
-		  watch_literal (solver, replacement, watch);
+		  watch_literal (ring, replacement, watch);
 		  ticks++;
 		  q--;
 		}
@@ -2380,7 +2380,7 @@ propagate (struct solver *solver, bool search)
 		}
 	      else
 		{
-		  assign_with_reason (solver, other, watch);
+		  assign_with_reason (ring, other, watch);
 		  ticks++;
 		}
 	    }
@@ -2393,7 +2393,7 @@ propagate (struct solver *solver, bool search)
 	RELEASE (*watches);
     }
 
-  struct context * context = solver->statistics.contexts + solver->context;
+  struct context * context = ring->statistics.contexts + ring->context;
 
   if (conflict)
     {
@@ -2410,28 +2410,28 @@ propagate (struct solver *solver, bool search)
 /*------------------------------------------------------------------------*/
 
 static void
-unassign (struct solver * solver, unsigned lit)
+unassign (struct ring * ring, unsigned lit)
 {
 #ifdef LOGGING
-  solver->level = VAR (lit)->level;
+  ring->level = VAR (lit)->level;
   LOG ("unassign %s", LOGLIT (lit));
 #endif
   unsigned not_lit = NOT (lit);
-  signed char *values = solver->values;
+  signed char *values = ring->values;
   values[lit] = values[not_lit] = 0;
-  assert (solver->unassigned < solver->size);
-  solver->unassigned++;
-  struct queue *queue = &solver->queue;
+  assert (ring->unassigned < ring->size);
+  ring->unassigned++;
+  struct queue *queue = &ring->queue;
   struct node *node = queue->nodes + IDX (lit);
   if (!queue_contains (queue, node))
     push_queue (queue, node);
 }
 
 static void
-backtrack (struct solver *solver, unsigned new_level)
+backtrack (struct ring *ring, unsigned new_level)
 {
-  assert (solver->level > new_level);
-  struct trail *trail = &solver->trail;
+  assert (ring->level > new_level);
+  struct trail *trail = &ring->trail;
   unsigned *t = trail->end;
   while (t != trail->begin)
     {
@@ -2439,26 +2439,26 @@ backtrack (struct solver *solver, unsigned new_level)
       unsigned lit_level = VAR (lit)->level;
       if (lit_level == new_level)
 	break;
-      unassign (solver, lit);
+      unassign (ring, lit);
       t--;
     }
   trail->end = trail->propagate = t;
   assert (trail->export <= trail->propagate);
   assert (trail->iterate <= trail->propagate);
-  solver->level = new_level;
+  ring->level = new_level;
 }
 
 static void
-update_best_and_target_phases (struct solver *solver)
+update_best_and_target_phases (struct ring *ring)
 {
-  if (!solver->stable)
+  if (!ring->stable)
     return;
-  unsigned assigned = SIZE (solver->trail);
-  if (solver->target < assigned)
+  unsigned assigned = SIZE (ring->trail);
+  if (ring->target < assigned)
     {
-      very_verbose (solver, "updating target assigned to %u", assigned);
-      solver->target = assigned;
-      signed char *p = solver->values;
+      very_verbose (ring, "updating target assigned to %u", assigned);
+      ring->target = assigned;
+      signed char *p = ring->values;
       for (all_variables (v))
 	{
 	  signed char tmp = *p;
@@ -2467,11 +2467,11 @@ update_best_and_target_phases (struct solver *solver)
 	    v->target = tmp;
 	}
     }
-  if (solver->best < assigned)
+  if (ring->best < assigned)
     {
-      very_verbose (solver, "updating best assigned to %u", assigned);
-      solver->best = assigned;
-      signed char *p = solver->values;
+      very_verbose (ring, "updating best assigned to %u", assigned);
+      ring->best = assigned;
+      signed char *p = ring->values;
       for (all_variables (v))
 	{
 	  signed char tmp = *p;
@@ -2485,7 +2485,7 @@ update_best_and_target_phases (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static bool
-subsumed_binary (struct solver * solver, unsigned lit, unsigned other)
+subsumed_binary (struct ring * ring, unsigned lit, unsigned other)
 {
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
     SWAP (lit, other);
@@ -2498,13 +2498,13 @@ subsumed_binary (struct solver * solver, unsigned lit, unsigned other)
 /*------------------------------------------------------------------------*/
 
 static void
-export_units (struct solver * solver)
+export_units (struct ring * ring)
 {
-  if (solver->threads < 2)
+  if (ring->threads < 2)
     return;
-  assert (!solver->level);
-  struct ruler * ruler = solver->ruler;
-  struct trail * trail = &solver->trail;
+  assert (!ring->level);
+  struct ruler * ruler = ring->ruler;
+  struct trail * trail = &ring->trail;
   volatile signed char * values = ruler->values;
   unsigned * end = trail->end;
   bool locked = false;
@@ -2526,15 +2526,15 @@ export_units (struct solver * solver)
       if (value)
 	continue;
 
-      very_verbose (solver, "exporting unit %d", export_literal (unit));
+      very_verbose (ring, "exporting unit %d", export_literal (unit));
       unsigned not_unit = NOT (unit);
       assert (!values[not_unit]);
       *ruler->units.end++ = unit;
       values[not_unit] = -1;
       values[unit] = 1;
 
-      solver->statistics.exported.clauses++;
-      solver->statistics.exported.units++;
+      ring->statistics.exported.clauses++;
+      ring->statistics.exported.units++;
     }
 
   if (locked && pthread_mutex_unlock (&ruler->locks.units))
@@ -2542,23 +2542,23 @@ export_units (struct solver * solver)
 }
 
 static bool
-import_units (struct solver * solver)
+import_units (struct ring * ring)
 {
-  assert (solver->pool);
-  struct ruler * ruler = solver->ruler;
+  assert (ring->pool);
+  struct ruler * ruler = ring->ruler;
 #ifndef NFASTPATH
-  if (solver->units == ruler->units.end)
+  if (ring->units == ruler->units.end)
     return false;
 #endif
-  struct variable * variables = solver->variables;
-  signed char * values = solver->values;
-  unsigned level = solver->level;
+  struct variable * variables = ring->variables;
+  signed char * values = ring->values;
+  unsigned level = ring->level;
   unsigned imported = 0;
   if (pthread_mutex_lock (&ruler->locks.units))
     fatal_error ("failed to acquire unit lock");
-  while (solver->units != ruler->units.end)
+  while (ring->units != ruler->units.end)
     {
-      unsigned unit = *solver->units++;
+      unsigned unit = *ring->units++;
       LOG ("trying to import unit %s", LOGLIT (unit));
       signed char value = values[unit];
       if (level && value)
@@ -2569,24 +2569,24 @@ import_units (struct solver * solver)
 	}
       if (value > 0)
 	continue;
-      very_verbose (solver, "importing unit %d", export_literal (unit));
-      solver->statistics.imported.units++;
-      solver->statistics.imported.clauses++;
+      very_verbose (ring, "importing unit %d", export_literal (unit));
+      ring->statistics.imported.units++;
+      ring->statistics.imported.clauses++;
       imported++;
       if (value < 0)
 	{
-	  set_inconsistent (solver, "imported falsified unit");
-	  trace_add_empty (&solver->buffer);
+	  set_inconsistent (ring, "imported falsified unit");
+	  trace_add_empty (&ring->buffer);
 	  imported = INVALID;
 	  break;
 	}
       if (level)
 	{
-	  backtrack (solver, 0);
+	  backtrack (ring, 0);
 	  level = 0;
 	}
-      assert (!solver->level);
-      assign_unit (solver, unit);
+      assert (!ring->level);
+      assign_unit (ring, unit);
     }
   if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
@@ -2594,52 +2594,52 @@ import_units (struct solver * solver)
 }
 
 static void
-export_binary (struct solver * solver, struct watch * watch)
+export_binary (struct ring * ring, struct watch * watch)
 {
   assert (binary_pointer (watch));
-  unsigned threads = solver->threads;
+  unsigned threads = ring->threads;
   if (threads < 2)
     return;
   LOGWATCH (watch, "exporting");
   for (unsigned i = 0; i != threads; i++)
     {
-      if (i == solver->id)
+      if (i == ring->id)
 	continue;
-      struct pool * pool = solver->pool + i;
+      struct pool * pool = ring->pool + i;
       struct clause * clause = (struct clause*) watch;
       struct clause * volatile * share = &pool->share[BINARY_SHARED];
       struct clause * previous = atomic_exchange (share, clause);
       if (previous)
 	continue;
-      solver->statistics.exported.binary++;
-      solver->statistics.exported.clauses++;
+      ring->statistics.exported.binary++;
+      ring->statistics.exported.clauses++;
     }
 }
 
 static unsigned
-export_clause (struct solver * solver, struct clause * clause, unsigned shared)
+export_clause (struct ring * ring, struct clause * clause, unsigned shared)
 {
   assert (shared < SIZE_SHARED);
   LOGCLAUSE (clause, "exporting");
-  unsigned threads = solver->threads;
+  unsigned threads = ring->threads;
   assert (threads);
   unsigned inc = threads - 1;
   assert (inc);
-  reference_clause (solver, clause, inc);
-  struct pool * pool = solver->pool;
+  reference_clause (ring, clause, inc);
+  struct pool * pool = ring->pool;
   assert (pool);
   unsigned exported = 0;
   for (unsigned i = 0; i != threads; i++, pool++)
     {
-      if (i == solver->id)
+      if (i == ring->id)
 	continue;
       struct clause * volatile * share = &pool->share[shared];
       struct clause * previous = atomic_exchange (share, clause);
       if (previous)
-	dereference_clause (solver, previous);
+	dereference_clause (ring, previous);
       else
 	{
-	  solver->statistics.exported.clauses++;
+	  ring->statistics.exported.clauses++;
 	  exported++;
 	}
     }
@@ -2647,71 +2647,71 @@ export_clause (struct solver * solver, struct clause * clause, unsigned shared)
 }
 
 static void
-export_glue1_clause (struct solver * solver, struct clause * clause)
+export_glue1_clause (struct ring * ring, struct clause * clause)
 {
   assert (!binary_pointer (clause));
   assert (clause->glue == 1);
-  if (solver->pool)
-    solver->statistics.exported.glue1 +=
-      export_clause (solver, clause, GLUE1_SHARED);
+  if (ring->pool)
+    ring->statistics.exported.glue1 +=
+      export_clause (ring, clause, GLUE1_SHARED);
 }
 
 static void
-export_tier1_clause (struct solver * solver, struct clause * clause)
+export_tier1_clause (struct ring * ring, struct clause * clause)
 {
   assert (!binary_pointer (clause));
   assert (1 < clause->glue);
   assert (clause->glue <= TIER2_GLUE_LIMIT);
-  if (solver->pool)
-    solver->statistics.exported.tier1 +=
-      export_clause (solver, clause, TIER1_SHARED);
+  if (ring->pool)
+    ring->statistics.exported.tier1 +=
+      export_clause (ring, clause, TIER1_SHARED);
 }
 
 static void
-export_tier2_clause (struct solver * solver, struct clause * clause)
+export_tier2_clause (struct ring * ring, struct clause * clause)
 {
   assert (!binary_pointer (clause));
   assert (TIER1_GLUE_LIMIT < clause->glue);
   assert (clause->glue <= TIER2_GLUE_LIMIT);
-  if (solver->pool)
-    solver->statistics.exported.tier2 +=
-      export_clause (solver, clause, TIER2_SHARED);
+  if (ring->pool)
+    ring->statistics.exported.tier2 +=
+      export_clause (ring, clause, TIER2_SHARED);
 }
 
 static void
-really_import_binary_clause (struct solver * solver,
+really_import_binary_clause (struct ring * ring,
                              unsigned lit, unsigned other)
 {
-  (void) new_local_binary_clause (solver, true, lit, other);
-  trace_add_binary (&solver->buffer, lit, other);
-  solver->statistics.imported.binary++;
-  solver->statistics.imported.clauses++;
+  (void) new_local_binary_clause (ring, true, lit, other);
+  trace_add_binary (&ring->buffer, lit, other);
+  ring->statistics.imported.binary++;
+  ring->statistics.imported.clauses++;
 }
 
 static void
-force_to_repropagate (struct solver * solver, unsigned lit)
+force_to_repropagate (struct ring * ring, unsigned lit)
 {
   LOG ("forcing to repropagate %s", LOGLIT (lit));
-  assert (solver->values[lit] < 0);
+  assert (ring->values[lit] < 0);
   unsigned idx = IDX (lit);
-  struct variable * v = solver->variables + idx;
-  if (solver->level > v->level)
-    backtrack (solver, v->level);
-  size_t pos = solver->trail.pos[idx];
-  assert (pos < SIZE (solver->trail));
+  struct variable * v = ring->variables + idx;
+  if (ring->level > v->level)
+    backtrack (ring, v->level);
+  size_t pos = ring->trail.pos[idx];
+  assert (pos < SIZE (ring->trail));
   LOG ("setting end of trail to %zu", pos);
-  unsigned * propagate = solver->trail.begin + pos;
-  assert (propagate < solver->trail.end);
+  unsigned * propagate = ring->trail.begin + pos;
+  assert (propagate < ring->trail.end);
   assert (*propagate == NOT (lit));
-  solver->trail.propagate = propagate;
+  ring->trail.propagate = propagate;
 }
 
 static bool
-import_binary (struct solver * solver, struct clause * clause)
+import_binary (struct ring * ring, struct clause * clause)
 {
   assert (binary_pointer (clause));
   assert (redundant_pointer (clause));
-  signed char * values = solver->values;
+  signed char * values = ring->values;
   unsigned lit = lit_pointer (clause);
   signed char lit_value = values[lit];
   unsigned lit_level = INVALID;
@@ -2733,7 +2733,7 @@ import_binary (struct solver * solver, struct clause * clause)
 
 #define SUBSUME_BINARY(LIT, OTHER) \
 do { \
-  if (subsumed_binary (solver, LIT, OTHER)) \
+  if (subsumed_binary (ring, LIT, OTHER)) \
     { \
       LOGBINARY (true, LIT, OTHER, "subsumed imported"); \
       return false; \
@@ -2746,11 +2746,11 @@ do { \
     {
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
-      really_import_binary_clause (solver, lit, other);
+      really_import_binary_clause (ring, lit, other);
       return false;
     }
 
-  unsigned * pos = solver->trail.pos;
+  unsigned * pos = ring->trail.pos;
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
 
@@ -2763,8 +2763,8 @@ do { \
       LOGBINARY (true, lit, other,
                  "importing (repropagate first literal %s)",
 		 LOGLIT (lit));
-      force_to_repropagate (solver, lit);
-      really_import_binary_clause (solver, lit, other);
+      force_to_repropagate (ring, lit);
+      really_import_binary_clause (ring, lit, other);
       return true;
     }
 
@@ -2777,17 +2777,17 @@ do { \
   LOGBINARY (true, lit, other,
 	     "importing (repropagate second literal %s))",
 	     LOGLIT (other));
-  force_to_repropagate (solver, other);
-  really_import_binary_clause (solver, lit, other);
+  force_to_repropagate (ring, other);
+  really_import_binary_clause (ring, lit, other);
   return true;
 }
 
 static bool
-subsumed_large_clause (struct solver * solver, struct clause * clause)
+subsumed_large_clause (struct ring * ring, struct clause * clause)
 {
-  signed char * values = solver->values;
-  struct variable * variables = solver->variables;
-  signed char * marks = solver->marks;
+  signed char * values = ring->values;
+  struct variable * variables = ring->variables;
+  signed char * marks = ring->marks;
   uint64_t min_watched = UINT64_MAX;
   unsigned best = INVALID;
   for (all_literals_in_clause (lit, clause))
@@ -2844,13 +2844,13 @@ subsumed_large_clause (struct solver * solver, struct clause * clause)
 }
 
 static void
-really_import_large_clause (struct solver * solver, struct clause * clause,
+really_import_large_clause (struct ring * ring, struct clause * clause,
                             unsigned first, unsigned second)
 {
-  (void) watch_literals_in_large_clause (solver, clause, first, second);
+  (void) watch_literals_in_large_clause (ring, clause, first, second);
   unsigned glue = clause->glue;
   assert (clause->redundant);
-  struct statistics * statistics = &solver->statistics;
+  struct statistics * statistics = &ring->statistics;
   if (glue == 1)
     statistics->imported.glue1++;
   else if (glue <= TIER1_GLUE_LIMIT)
@@ -2864,11 +2864,11 @@ really_import_large_clause (struct solver * solver, struct clause * clause,
 }
 
 static unsigned
-find_literal_to_watch (struct solver * solver,  struct clause * clause,
+find_literal_to_watch (struct ring * ring,  struct clause * clause,
                        unsigned ignore, signed char * res_value_ptr,
 		       unsigned * res_level_ptr)
 {
-  signed char * values = solver->values;
+  signed char * values = ring->values;
   unsigned res = INVALID, res_level = 0;
   signed char res_value = 0;
   for (all_literals_in_clause (lit, clause))
@@ -2908,9 +2908,9 @@ find_literal_to_watch (struct solver * solver,  struct clause * clause,
 }
 
 static bool
-import_large_clause (struct solver * solver, struct clause * clause)
+import_large_clause (struct ring * ring, struct clause * clause)
 {
-  signed char * values = solver->values;
+  signed char * values = ring->values;
   for (all_literals_in_clause (lit, clause))
     {
       if (values[lit] <= 0)
@@ -2918,23 +2918,23 @@ import_large_clause (struct solver * solver, struct clause * clause)
       if (VAR (lit)->level)
 	continue;
       LOGCLAUSE (clause, "not importing %s satisfied", LOGLIT (lit));
-      dereference_clause (solver, clause);
+      dereference_clause (ring, clause);
       return false;
     }
 
   unsigned lit_level = 0;
   signed char lit_value = 0;
-  unsigned lit = find_literal_to_watch (solver, clause, INVALID,
+  unsigned lit = find_literal_to_watch (ring, clause, INVALID,
                                           &lit_value, &lit_level);
   unsigned other_level = 0;
   signed char other_value = 0;
-  unsigned other = find_literal_to_watch (solver, clause, lit,
+  unsigned other = find_literal_to_watch (ring, clause, lit,
                                            &other_value, &other_level);
 #define SUBSUME_LARGE_CLAUSE(CLAUSE) \
 do { \
-  if (subsumed_large_clause (solver, clause)) \
+  if (subsumed_large_clause (ring, clause)) \
     { \
-      dereference_clause (solver, clause); \
+      dereference_clause (ring, clause); \
       return false; \
     } \
 } while (0)
@@ -2945,12 +2945,12 @@ do { \
     {
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
-      really_import_large_clause (solver, clause, lit, other);
+      really_import_large_clause (ring, clause, lit, other);
       return false;
     }
 
-  unsigned lit_pos = solver->trail.pos[IDX (lit)];
-  unsigned other_pos = solver->trail.pos[IDX (other)];
+  unsigned lit_pos = ring->trail.pos[IDX (lit)];
+  unsigned other_pos = ring->trail.pos[IDX (other)];
 
   if (lit_value < 0 && \
       (other_value >= 0 || \
@@ -2960,8 +2960,8 @@ do { \
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (repropagate first watch %s)",
 		 LOGLIT (lit));
-      force_to_repropagate (solver, lit);
-      really_import_large_clause (solver, clause, lit, other);
+      force_to_repropagate (ring, lit);
+      really_import_large_clause (ring, clause, lit, other);
       return true;
     }
 
@@ -2973,30 +2973,30 @@ do { \
   SUBSUME_LARGE_CLAUSE (clause);
   LOGCLAUSE (clause, "importing (repropagate second watch %s)",
 	     LOGLIT (other));
-  force_to_repropagate (solver, other);
-  really_import_large_clause (solver, clause, lit, other);
+  force_to_repropagate (ring, other);
+  really_import_large_clause (ring, clause, lit, other);
   return true;
 }
 
 static bool
-import_shared (struct solver * solver)
+import_shared (struct ring * ring)
 {
-  if (!solver->pool)
+  if (!ring->pool)
     return false;
-  if (import_units (solver))
+  if (import_units (ring))
     return true;
-  struct ruler * ruler = solver->ruler;
-  size_t solvers = SIZE (ruler->solvers);
-  assert (solvers <= UINT_MAX);
-  assert (solvers > 1);
-  unsigned id = random_modulo (solver, solvers-1) + solver->id + 1;
-  if (id >= solvers)
-    id -= solvers;
-  assert (id < solvers);
-  assert (id != solver->id);
-  struct solver * src = ruler->solvers.begin[id];
+  struct ruler * ruler = ring->ruler;
+  size_t rings = SIZE (ruler->rings);
+  assert (rings <= UINT_MAX);
+  assert (rings > 1);
+  unsigned id = random_modulo (ring, rings-1) + ring->id + 1;
+  if (id >= rings)
+    id -= rings;
+  assert (id < rings);
+  assert (id != ring->id);
+  struct ring * src = ruler->rings.begin[id];
   assert (src->pool);
-  struct pool * pool = src->pool + solver->id;
+  struct pool * pool = src->pool + ring->id;
   struct clause * volatile * end = pool->share + SIZE_SHARED;
   struct clause * clause = 0;
   for (struct clause * volatile * p = pool->share; !clause && p != end; p++)
@@ -3007,8 +3007,8 @@ import_shared (struct solver * solver)
   if (!clause)
     return false;
   if (binary_pointer (clause))
-    return import_binary (solver, clause);
-  return import_large_clause (solver, clause);
+    return import_binary (ring, clause);
+  return import_large_clause (ring, clause);
 }
 
 /*------------------------------------------------------------------------*/
@@ -3027,16 +3027,16 @@ bump_reason (struct watch *watch)
 }
 
 static bool
-minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
+minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
 {
-  assert (solver->values[lit] < 0);
+  assert (ring->values[lit] < 0);
   if (depth >= MINIMIZE_DEPTH)
     return false;
   unsigned idx = IDX (lit);
-  struct variable *v = solver->variables + idx;
+  struct variable *v = ring->variables + idx;
   if (!v->level)
     return true;
-  if (!solver->used[v->level])
+  if (!ring->used[v->level])
     return false;
   if (v->poison)
     return false;
@@ -3054,20 +3054,20 @@ minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
     {
       assert (lit_pointer (reason) == not_lit);
       unsigned other = other_pointer (reason);
-      res = minimize_literal (solver, other, depth);
+      res = minimize_literal (ring, other, depth);
     }
   else
     {
       struct clause *clause = reason->clause;
       for (all_literals_in_clause (other, clause))
-	if (other != not_lit && !minimize_literal (solver, other, depth))
+	if (other != not_lit && !minimize_literal (ring, other, depth))
 	  res = false;
     }
   if (res)
     v->minimize = true;
   else
     v->poison = true;
-  PUSH (solver->analyzed, idx);
+  PUSH (ring->analyzed, idx);
   return res;
 }
 
@@ -3075,7 +3075,7 @@ minimize_literal (struct solver *solver, unsigned lit, unsigned depth)
 do { \
   if (OTHER == uip) \
     break; \
-  assert (solver->values[OTHER] < 0); \
+  assert (ring->values[OTHER] < 0); \
   unsigned OTHER_IDX = IDX (OTHER); \
   struct variable *V = variables + OTHER_IDX; \
   unsigned OTHER_LEVEL = V->level; \
@@ -3095,15 +3095,15 @@ do { \
 } while (0)
 
 static size_t
-shrink_clause (struct solver * solver)
+shrink_clause (struct ring * ring)
 {
   LOGTMP ("trying to shrink");
 
-  struct variable * variables = solver->variables;
-  struct unsigneds * analyzed = &solver->analyzed;
-  struct trail * trail = &solver->trail;
+  struct variable * variables = ring->variables;
+  struct unsigneds * analyzed = &ring->analyzed;
+  struct trail * trail = &ring->trail;
 
-  struct unsigneds *clause = &solver->clause;
+  struct unsigneds *clause = &ring->clause;
   unsigned *begin = clause->begin;
   unsigned *end = clause->end;
 
@@ -3117,7 +3117,7 @@ shrink_clause (struct solver * solver)
       unsigned lit = *p;
       unsigned idx = IDX (lit);
       struct variable * v = variables + idx;
-      assert (v->level < solver->level);
+      assert (v->level < ring->level);
       if (!v->level)
 	continue;
       if (level == INVALID)
@@ -3169,7 +3169,7 @@ shrink_clause (struct solver * solver)
   unsigned idx = IDX (uip);
   struct variable * v = variables + idx;
   if (!v->seen)
-    bump_variable_score (solver, idx);
+    bump_variable_score (ring, idx);
 #endif
   unsigned not_uip = NOT (uip);
   clause->begin[1] = not_uip;
@@ -3182,17 +3182,17 @@ shrink_clause (struct solver * solver)
 }
 
 static size_t
-minimize_clause (struct solver * solver)
+minimize_clause (struct ring * ring)
 {
   LOGTMP ("trying to minimize clause");
-  struct unsigneds *clause = &solver->clause;
+  struct unsigneds *clause = &ring->clause;
   unsigned *begin = clause->begin, *q = begin + 1;
   unsigned *end = clause->end;
   size_t minimized = 0;
   for (unsigned *p = q; p != end; p++)
     {
       unsigned lit = *q++ = *p;
-      if (!minimize_literal (solver, lit, 0))
+      if (!minimize_literal (ring, lit, 0))
 	continue;
       LOG ("minimized literal %s", LOGLIT (lit));
       minimized++;
@@ -3203,64 +3203,64 @@ minimize_clause (struct solver * solver)
 }
 
 static void
-shrink_or_minimize_clause (struct solver *solver, unsigned glue)
+shrink_or_minimize_clause (struct ring *ring, unsigned glue)
 {
-  size_t deduced = SIZE (solver->clause);
+  size_t deduced = SIZE (ring->clause);
 
   size_t minimized = 0;
   size_t shrunken = 0;
 
   if (glue == 1 && deduced > 2)
-    shrunken = shrink_clause (solver);
+    shrunken = shrink_clause (ring);
 
   if (glue && !shrunken && deduced > 2)
-    minimized = minimize_clause (solver);
+    minimized = minimize_clause (ring);
 
-  size_t learned = SIZE (solver->clause);
+  size_t learned = SIZE (ring->clause);
   assert (learned + minimized + shrunken == deduced);
 
-  solver->statistics.learned.clauses++;
+  ring->statistics.learned.clauses++;
   if (learned == 1)
-    solver->statistics.learned.units++;
+    ring->statistics.learned.units++;
   else if (learned == 2)
-    solver->statistics.learned.binary++;
+    ring->statistics.learned.binary++;
   else if (glue == 1)
-    solver->statistics.learned.glue1++;
+    ring->statistics.learned.glue1++;
   else if (glue <= TIER1_GLUE_LIMIT)
-    solver->statistics.learned.tier1++;
+    ring->statistics.learned.tier1++;
   else if (glue <= TIER2_GLUE_LIMIT)
-    solver->statistics.learned.tier2++;
+    ring->statistics.learned.tier2++;
   else
-    solver->statistics.learned.tier3++;
+    ring->statistics.learned.tier3++;
 
-  solver->statistics.literals.learned += learned;
-  solver->statistics.literals.minimized += minimized;
-  solver->statistics.literals.shrunken += shrunken;
-  solver->statistics.literals.deduced += deduced;
+  ring->statistics.literals.learned += learned;
+  ring->statistics.literals.minimized += minimized;
+  ring->statistics.literals.shrunken += shrunken;
+  ring->statistics.literals.deduced += deduced;
 
   LOG ("minimized %zu literals out of %zu", minimized, deduced);
   LOG ("shrunken %zu literals out of %zu", shrunken, deduced);
 }
 
 static void
-bump_reason_side_literal (struct solver *solver, unsigned lit)
+bump_reason_side_literal (struct ring *ring, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  struct variable *v = solver->variables + idx;
+  struct variable *v = ring->variables + idx;
   if (!v->level)
     return;
   if (v->seen)
     return;
   v->seen = true;
   if (!v->poison && !v->minimize && !v->shrinkable)
-    PUSH (solver->analyzed, idx);
-  bump_variable_score (solver, idx);
+    PUSH (ring->analyzed, idx);
+  bump_variable_score (ring, idx);
 }
 
 static void
-bump_reason_side_literals (struct solver *solver)
+bump_reason_side_literals (struct ring *ring)
 {
-  for (all_elements_on_stack (unsigned, lit, solver->clause))
+  for (all_elements_on_stack (unsigned, lit, ring->clause))
     {
       struct variable *v = VAR (lit);
       if (!v->level)
@@ -3272,7 +3272,7 @@ bump_reason_side_literals (struct solver *solver)
       if (binary_pointer (reason))
 	{
 	  assert (NOT (lit) == lit_pointer (reason));
-	  bump_reason_side_literal (solver, other_pointer (reason));
+	  bump_reason_side_literal (ring, other_pointer (reason));
 	}
       else
 	{
@@ -3280,7 +3280,7 @@ bump_reason_side_literals (struct solver *solver)
 	  const unsigned not_lit = NOT (lit);
 	  for (all_literals_in_clause (other, clause))
 	    if (other != not_lit)
-	      bump_reason_side_literal (solver, other);
+	      bump_reason_side_literal (ring, other);
 	}
     }
 }
@@ -3289,7 +3289,7 @@ bump_reason_side_literals (struct solver *solver)
 do { \
   if (OTHER == uip) \
     break; \
-  assert (solver->values[OTHER] < 0); \
+  assert (ring->values[OTHER] < 0); \
   unsigned OTHER_IDX = IDX (OTHER); \
   struct variable *V = variables + OTHER_IDX; \
   unsigned OTHER_LEVEL = V->level; \
@@ -3299,7 +3299,7 @@ do { \
     break; \
   V->seen = true; \
   PUSH (*analyzed, OTHER_IDX); \
-  bump_variable_score (solver, OTHER_IDX); \
+  bump_variable_score (ring, OTHER_IDX); \
   if (OTHER_LEVEL == level) \
     { \
       open++; \
@@ -3317,33 +3317,33 @@ do { \
 } while (0)
 
 static bool
-analyze (struct solver *solver, struct watch *reason)
+analyze (struct ring *ring, struct watch *reason)
 {
-  assert (!solver->inconsistent);
+  assert (!ring->inconsistent);
 #if 0
   for (all_variables (v))
     assert (!v->seen), assert (!v->poison), assert (!v->minimize),
     assert (!v->shrinkable);
 #endif
-  if (!solver->level)
+  if (!ring->level)
     {
-      set_inconsistent (solver,
+      set_inconsistent (ring,
 			"conflict on ruler-level produces empty clause");
-      trace_add_empty (&solver->buffer);
+      trace_add_empty (&ring->buffer);
       return false;
     }
-  struct unsigneds *clause = &solver->clause;
-  struct unsigneds *analyzed = &solver->analyzed;
-  struct unsigneds *levels = &solver->levels;
+  struct unsigneds *clause = &ring->clause;
+  struct unsigneds *analyzed = &ring->analyzed;
+  struct unsigneds *levels = &ring->levels;
   assert (EMPTY (*clause));
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
-  bool *used = solver->used;
-  struct variable *variables = solver->variables;
-  struct trail *trail = &solver->trail;
+  bool *used = ring->used;
+  struct variable *variables = ring->variables;
+  struct trail *trail = &ring->trail;
   unsigned *t = trail->end;
   PUSH (*clause, INVALID);
-  const unsigned level = solver->level;
+  const unsigned level = ring->level;
   unsigned uip = INVALID, jump = 0, glue = 0, open = 0;
   for (;;)
     {
@@ -3363,7 +3363,7 @@ analyze (struct solver *solver, struct watch *reason)
 	}
       do
 	{
-	  assert (t > solver->trail.begin);
+	  assert (t > ring->trail.begin);
 	  uip = *--t;
 	}
       while (!VAR (uip)->seen);
@@ -3373,33 +3373,33 @@ analyze (struct solver *solver, struct watch *reason)
       assert (reason);
     }
   LOG ("back jump level %u", jump);
-  struct averages *averages = solver->averages + solver->stable;
+  struct averages *averages = ring->averages + ring->stable;
   update_average (&averages->level, SLOW_ALPHA, jump);
   LOG ("glucose level (LBD) %u", glue);
   update_average (&averages->glue.slow, SLOW_ALPHA, glue);
   update_average (&averages->glue.fast, FAST_ALPHA, glue);
-  unsigned assigned = SIZE (solver->trail);
-  double filled = percent (assigned, solver->size);
+  unsigned assigned = SIZE (ring->trail);
+  double filled = percent (assigned, ring->size);
   LOG ("assigned %u variables %.0f%% filled", assigned, filled);
   update_average (&averages->trail, SLOW_ALPHA, filled);
   unsigned *literals = clause->begin;
   const unsigned not_uip = NOT (uip);
   literals[0] = not_uip;
   LOGTMP ("first UIP %s", LOGLIT (uip));
-  shrink_or_minimize_clause (solver, glue);
-  bump_reason_side_literals (solver);
-  bump_score_increment (solver);
-  backtrack (solver, level - 1);
-  update_best_and_target_phases (solver);
+  shrink_or_minimize_clause (ring, glue);
+  bump_reason_side_literals (ring);
+  bump_score_increment (ring);
+  backtrack (ring, level - 1);
+  update_best_and_target_phases (ring);
   if (jump < level - 1)
-    backtrack (solver, jump);
+    backtrack (ring, jump);
   unsigned size = SIZE (*clause);
   assert (size);
   if (size == 1)
     {
-      assign_unit (solver, not_uip);
-      solver->iterating = true;
-      trace_add_unit (&solver->buffer, not_uip);
+      assign_unit (ring, not_uip);
+      ring->iterating = true;
+      trace_add_unit (&ring->buffer, not_uip);
     }
   else
     {
@@ -3408,9 +3408,9 @@ analyze (struct solver *solver, struct watch *reason)
       if (size == 2)
 	{
 	  assert (VAR (other)->level == jump);
-	  learned = new_local_binary_clause (solver, true, not_uip, other);
-          trace_add_binary (&solver->buffer, not_uip, other);
-	  export_binary (solver, learned);
+	  learned = new_local_binary_clause (ring, true, not_uip, other);
+          trace_add_binary (&ring->buffer, not_uip, other);
+	  export_binary (ring, learned);
 	}
       else
 	{
@@ -3427,17 +3427,17 @@ analyze (struct solver *solver, struct watch *reason)
 	    new_large_clause (size, literals, true, glue);
 	  LOGCLAUSE (clause, "new");
           learned =
-	    watch_first_two_literals_in_large_clause (solver, clause);
+	    watch_first_two_literals_in_large_clause (ring, clause);
 	  assert (!binary_pointer (learned));
-	  trace_add_clause (&solver->buffer, clause);
+	  trace_add_clause (&ring->buffer, clause);
 	  if (glue == 1)
-	    export_glue1_clause (solver, clause);
+	    export_glue1_clause (ring, clause);
 	  else if (glue <= TIER1_GLUE_LIMIT)
-	    export_tier1_clause (solver, clause);
+	    export_tier1_clause (ring, clause);
 	  else if (glue <= TIER2_GLUE_LIMIT)
-	    export_tier2_clause (solver, clause);
+	    export_tier2_clause (ring, clause);
 	}
-      assign_with_reason (solver, not_uip, learned);
+      assign_with_reason (ring, not_uip, learned);
     }
   CLEAR (*clause);
 
@@ -3456,10 +3456,10 @@ analyze (struct solver *solver, struct watch *reason)
 }
 
 static signed char
-decide_phase (struct solver *solver, struct variable *v)
+decide_phase (struct ring *ring, struct variable *v)
 {
   signed char phase = 0;
-  if (solver->stable)
+  if (ring->stable)
     phase = v->target;
   if (!phase)
     phase = v->saved;
@@ -3479,19 +3479,19 @@ gcd (unsigned a, unsigned b)
 }
 
 static unsigned
-random_decision (struct solver * solver)
+random_decision (struct ring * ring)
 {
-  assert (solver->unassigned);
+  assert (ring->unassigned);
 
-  signed char *values = solver->values;
-  unsigned size = solver->size;
+  signed char *values = ring->values;
+  unsigned size = ring->size;
 
-  unsigned idx = random_modulo (solver, size);
+  unsigned idx = random_modulo (ring, size);
   unsigned lit = LIT (idx);
 
   if (values[lit])
     {
-      unsigned delta = random_modulo (solver, size);
+      unsigned delta = random_modulo (ring, size);
       while (gcd (delta, size) != 1)
 	if (++delta == size)
 	  delta = 1;
@@ -3510,12 +3510,12 @@ random_decision (struct solver * solver)
 }
 
 static unsigned
-best_score_decision (struct solver * solver)
+best_score_decision (struct ring * ring)
 {
-  assert (solver->unassigned);
+  assert (ring->unassigned);
 
-  signed char *values = solver->values;
-  struct queue *queue = &solver->queue;
+  signed char *values = ring->values;
+  struct queue *queue = &ring->queue;
   struct node *nodes = queue->nodes;
 
   assert (queue->root);
@@ -3525,14 +3525,14 @@ best_score_decision (struct solver * solver)
     {
       struct node *ruler = queue->root;
       assert (ruler);
-      assert (ruler - nodes < solver->size);
+      assert (ruler - nodes < ring->size);
       idx = ruler - nodes;
       lit = LIT (idx);
       if (!values[lit])
 	break;
       pop_queue (queue, ruler);
     }
-  assert (idx < solver->size);
+  assert (idx < ring->size);
 
   LOG ("best score decision %s score %g",
        LOGVAR (idx), nodes[idx].score);
@@ -3541,43 +3541,43 @@ best_score_decision (struct solver * solver)
 }
 
 static void
-decide (struct solver *solver)
+decide (struct ring *ring)
 {
-  struct context * context = solver->statistics.contexts;
-  context += solver->context;
+  struct context * context = ring->statistics.contexts;
+  context += ring->context;
   uint64_t decisions = context->decisions++;
 
   unsigned idx;
-  if (solver->id && decisions < RANDOM_DECISIONS)
-    idx = random_decision (solver);
+  if (ring->id && decisions < RANDOM_DECISIONS)
+    idx = random_decision (ring);
   else
-    idx = best_score_decision (solver);
+    idx = best_score_decision (ring);
 
-  struct variable *v = solver->variables + idx;
-  signed char phase = decide_phase (solver, v);
+  struct variable *v = ring->variables + idx;
+  signed char phase = decide_phase (ring, v);
   unsigned lit = LIT (idx);
   if (phase < 0)
     lit = NOT (lit);
 
-  solver->level++;
-  assign_decision (solver, lit);
+  ring->level++;
+  assign_decision (ring, lit);
 }
 
 static void
-report (struct solver *solver, char type)
+report (struct ring *ring, char type)
 {
   if (verbosity < 0)
     return;
 
-  struct statistics *s = &solver->statistics;
-  struct averages *a = solver->averages + solver->stable;
+  struct statistics *s = &ring->statistics;
+  struct averages *a = ring->averages + ring->stable;
 
   acquire_message_lock ();
 
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
-  unsigned active = solver->size - s->fixed;
+  unsigned active = ring->size - s->fixed;
 
   static volatile uint64_t reported;
   if (!(atomic_fetch_add (&reported, 1) % 20))
@@ -3588,7 +3588,7 @@ report (struct solver *solver, char type)
 	 " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
 	 a->level.value, s->reductions, s->restarts, conflicts,
 	 s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
-	 active, percent (active, solver->size));
+	 active, percent (active, ring->size));
 
   fflush (stdout);
 
@@ -3596,14 +3596,14 @@ report (struct solver *solver, char type)
 }
 
 static bool
-restarting (struct solver *solver)
+restarting (struct ring *ring)
 {
-  if (!solver->level)
+  if (!ring->level)
     return false;
-  struct limits *l = &solver->limits;
-  if (!solver->stable)
+  struct limits *l = &ring->limits;
+  if (!ring->stable)
     {
-      struct averages *a = solver->averages;
+      struct averages *a = ring->averages;
       if (a->glue.fast.value <= RESTART_MARGIN * a->glue.slow.value)
 	return false;
     }
@@ -3611,19 +3611,19 @@ restarting (struct solver *solver)
 }
 
 static void
-restart (struct solver *solver)
+restart (struct ring *ring)
 {
-  struct statistics *statistics = &solver->statistics;
+  struct statistics *statistics = &ring->statistics;
   statistics->restarts++;
-  verbose (solver, "restart %" PRIu64 " at %" PRIu64 " conflicts",
+  verbose (ring, "restart %" PRIu64 " at %" PRIu64 " conflicts",
 	   statistics->restarts, SEARCH_CONFLICTS);
-  update_best_and_target_phases (solver);
-  backtrack (solver, 0);
-  struct limits *limits = &solver->limits;
+  update_best_and_target_phases (ring);
+  backtrack (ring, 0);
+  struct limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS;
-  if (solver->stable)
+  if (ring->stable)
     {
-      struct reluctant *reluctant = &solver->reluctant;
+      struct reluctant *reluctant = &ring->reluctant;
       uint64_t u = reluctant->u, v = reluctant->v;
       if ((u & -u) == v)
 	u++, v = 1;
@@ -3634,14 +3634,14 @@ restart (struct solver *solver)
     }
   else
     limits->restart += FOCUSED_RESTART_INTERVAL;
-  verbose (solver, "next restart limit at %" PRIu64 " conflicts",
+  verbose (ring, "next restart limit at %" PRIu64 " conflicts",
 	   limits->restart);
   if (verbosity > 0)
-    report (solver, 'r');
+    report (ring, 'r');
 }
 
 static void
-mark_reasons (struct solver *solver)
+mark_reasons (struct ring *ring)
 {
   for (all_literals_on_trail_with_reason (lit))
     {
@@ -3656,7 +3656,7 @@ mark_reasons (struct solver *solver)
 }
 
 static void
-unmark_reasons (struct solver *solver)
+unmark_reasons (struct ring *ring)
 {
   for (all_literals_on_trail_with_reason (lit))
     {
@@ -3671,12 +3671,12 @@ unmark_reasons (struct solver *solver)
 }
 
 static void
-mark_satisfied_clauses_as_garbage (struct solver *solver)
+mark_satisfied_clauses_as_garbage (struct ring *ring)
 {
   size_t marked = 0;
-  signed char *values = solver->values;
-  struct variable *variables = solver->variables;
-  for (all_watches (watch, solver->watches))
+  signed char *values = ring->values;
+  struct variable *variables = ring->variables;
+  for (all_watches (watch, ring->watches))
     {
       if (watch->garbage)
 	continue;
@@ -3698,15 +3698,15 @@ mark_satisfied_clauses_as_garbage (struct solver *solver)
       watch->garbage = true;
       marked++;
     }
-  solver->last.fixed = solver->statistics.fixed;
-  verbose (solver, "marked %zu satisfied clauses as garbage %.0f%%",
-	   marked, percent (marked, SIZE (solver->watches)));
+  ring->last.fixed = ring->statistics.fixed;
+  verbose (ring, "marked %zu satisfied clauses as garbage %.0f%%",
+	   marked, percent (marked, SIZE (ring->watches)));
 }
 
 static void
-gather_reduce_candidates (struct solver *solver, struct watches *candidates)
+gather_reduce_candidates (struct ring *ring, struct watches *candidates)
 {
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, ring->watches))
     {
       if (watch->garbage)
 	continue;
@@ -3723,9 +3723,9 @@ gather_reduce_candidates (struct solver *solver, struct watches *candidates)
 	}
       PUSH (*candidates, watch);
     }
-  verbose (solver, "gathered %zu reduce candidates clauses %.0f%%",
+  verbose (ring, "gathered %zu reduce candidates clauses %.0f%%",
 	   SIZE (*candidates),
-	   percent (SIZE (*candidates), solver->statistics.redundant));
+	   percent (SIZE (*candidates), ring->statistics.redundant));
 }
 
 static void
@@ -3750,7 +3750,7 @@ sort_reduce_candidates (struct watches *candidates)
 }
 
 static void
-mark_reduce_candidates_as_garbage (struct solver *solver,
+mark_reduce_candidates_as_garbage (struct ring *ring,
 				   struct watches *candidates)
 {
   size_t size = SIZE (*candidates);
@@ -3764,17 +3764,17 @@ mark_reduce_candidates_as_garbage (struct solver *solver,
       if (++reduced == target)
 	break;
     }
-  verbose (solver, "reduced %zu clauses %.0f%%",
+  verbose (ring, "reduced %zu clauses %.0f%%",
 	   reduced, percent (reduced, size));
 }
 
 static void
-flush_references (struct solver *solver, bool fixed)
+flush_references (struct ring *ring, bool fixed)
 {
   size_t flushed = 0;
-  signed char *values = solver->values;
-  struct variable *variables = solver->variables;
-  for (all_solver_literals (lit))
+  signed char *values = ring->values;
+  struct variable *variables = ring->variables;
+  for (all_ring_literals (lit))
     {
       signed char lit_value = values[lit];
       if (lit_value > 0)
@@ -3806,8 +3806,8 @@ flush_references (struct solver *solver, bool fixed)
 		  if (lit < other)
 		    {
 		      bool redundant = redundant_pointer (watch);
-		      dec_clauses (solver, redundant);
-		      trace_delete_binary (&solver->buffer, lit, other);
+		      dec_clauses (ring, redundant);
+		      trace_delete_binary (&ring->buffer, lit, other);
 		    }
 		  flushed++;
 		  q--;
@@ -3827,13 +3827,13 @@ flush_references (struct solver *solver, bool fixed)
       SHRINK_STACK (*watches);
     }
   assert (!(flushed  & 1));
-  verbose (solver, "flushed %zu garbage watches from watch lists", flushed);
+  verbose (ring, "flushed %zu garbage watches from watch lists", flushed);
 }
 
 static void
-flush_watches (struct solver *solver)
+flush_watches (struct ring *ring)
 {
-  struct watches *watches = &solver->watches;
+  struct watches *watches = &ring->watches;
   struct watch **begin = watches->begin, **q = begin;
   struct watch **end = watches->end;
   size_t flushed = 0, deleted = 0;
@@ -3845,12 +3845,12 @@ flush_watches (struct solver *solver)
 	continue;
       if (watch->reason)
 	continue;
-      delete_watch (solver, watch);
+      delete_watch (ring, watch);
       flushed++;
       q--;
     }
   watches->end = q;
-  verbose (solver,
+  verbose (ring,
 	   "flushed %zu garbage watched and deleted %zu clauses %.0f%%",
 	   flushed, deleted, percent (deleted, flushed));
 }
@@ -3858,12 +3858,12 @@ flush_watches (struct solver *solver)
 #ifndef NDEBUG
 
 static void
-check_clause_statistics (struct solver * solver)
+check_clause_statistics (struct ring * ring)
 {
   size_t redundant = 0;
   size_t irredundant = 0;
 
-  for (all_solver_literals (lit))
+  for (all_ring_literals (lit))
     {
       struct references * watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
@@ -3886,7 +3886,7 @@ check_clause_statistics (struct solver * solver)
 	  irredundant++;
     }
 
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, ring->watches))
     {
       assert (!binary_pointer (watch));
       struct clause * clause = watch->clause;
@@ -3898,7 +3898,7 @@ check_clause_statistics (struct solver * solver)
 	irredundant++;
     }
 
-  struct statistics *statistics = &solver->statistics;
+  struct statistics *statistics = &ring->statistics;
   assert (statistics->redundant == redundant);
   assert (statistics->irredundant == irredundant);
 }
@@ -3910,73 +3910,73 @@ check_clause_statistics (struct solver * solver)
 #endif
 
 static bool
-reducing (struct solver *solver)
+reducing (struct ring *ring)
 {
-  return solver->limits.reduce < SEARCH_CONFLICTS;
+  return ring->limits.reduce < SEARCH_CONFLICTS;
 }
 
 static void
-reduce (struct solver *solver)
+reduce (struct ring *ring)
 {
-  check_clause_statistics (solver);
-  struct statistics *statistics = &solver->statistics;
-  struct limits *limits = &solver->limits;
+  check_clause_statistics (ring);
+  struct statistics *statistics = &ring->statistics;
+  struct limits *limits = &ring->limits;
   statistics->reductions++;
-  verbose (solver, "reduction %" PRIu64 " at %" PRIu64 " conflicts",
+  verbose (ring, "reduction %" PRIu64 " at %" PRIu64 " conflicts",
 	   statistics->reductions, SEARCH_CONFLICTS);
-  mark_reasons (solver);
+  mark_reasons (ring);
   struct watches candidates;
   INIT (candidates);
-  bool fixed = solver->last.fixed != solver->statistics.fixed;
+  bool fixed = ring->last.fixed != ring->statistics.fixed;
   if (fixed)
-    mark_satisfied_clauses_as_garbage (solver);
-  gather_reduce_candidates (solver, &candidates);
+    mark_satisfied_clauses_as_garbage (ring);
+  gather_reduce_candidates (ring, &candidates);
   sort_reduce_candidates (&candidates);
-  mark_reduce_candidates_as_garbage (solver, &candidates);
+  mark_reduce_candidates_as_garbage (ring, &candidates);
   RELEASE (candidates);
-  flush_references (solver, fixed);
-  flush_watches (solver);
-  check_clause_statistics (solver);
-  unmark_reasons (solver);
+  flush_references (ring, fixed);
+  flush_watches (ring);
+  check_clause_statistics (ring);
+  unmark_reasons (ring);
   limits->reduce = SEARCH_CONFLICTS;
   limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
-  verbose (solver, "next reduce limit at %" PRIu64 " conflicts",
+  verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
 	   limits->reduce);
-  report (solver, '-');
+  report (ring, '-');
 }
 
 static void
-switch_to_focused_mode (struct solver *solver)
+switch_to_focused_mode (struct ring *ring)
 {
-  assert (solver->stable);
-  report (solver, ']');
+  assert (ring->stable);
+  report (ring, ']');
   STOP (stable);
-  solver->stable = false;
+  ring->stable = false;
   START (focused);
-  report (solver, '{');
-  struct limits *limits = &solver->limits;
+  report (ring, '{');
+  struct limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS + FOCUSED_RESTART_INTERVAL;
 }
 
 static void
-switch_to_stable_mode (struct solver *solver)
+switch_to_stable_mode (struct ring *ring)
 {
-  assert (!solver->stable);
-  report (solver, '}');
+  assert (!ring->stable);
+  report (ring, '}');
   STOP (focused);
-  solver->stable = true;
+  ring->stable = true;
   START (stable);
-  report (solver, '[');
-  struct limits *limits = &solver->limits;
+  report (ring, '[');
+  struct limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS + STABLE_RESTART_INTERVAL;
-  solver->reluctant.u = solver->reluctant.v = 1;
+  ring->reluctant.u = ring->reluctant.v = 1;
 }
 
 static bool
-switching_mode (struct solver *solver)
+switching_mode (struct ring *ring)
 {
-  struct limits *l = &solver->limits;
-  if (solver->statistics.switched)
+  struct limits *l = &ring->limits;
+  if (ring->statistics.switched)
     return SEARCH_TICKS > l->mode;
   else
     return SEARCH_CONFLICTS > l->mode;
@@ -3990,24 +3990,24 @@ square (uint64_t n)
 }
 
 static void
-switch_mode (struct solver *solver)
+switch_mode (struct ring *ring)
 {
-  struct statistics *s = &solver->statistics;
-  struct intervals *i = &solver->intervals;
-  struct limits *l = &solver->limits;
+  struct statistics *s = &ring->statistics;
+  struct intervals *i = &ring->intervals;
+  struct limits *l = &ring->limits;
   if (!s->switched++)
     {
       i->mode = SEARCH_TICKS;
-      verbose (solver, "determined mode switching ticks interval %" PRIu64,
+      verbose (ring, "determined mode switching ticks interval %" PRIu64,
 	       i->mode);
     }
-  if (solver->stable)
-    switch_to_focused_mode (solver);
+  if (ring->stable)
+    switch_to_focused_mode (ring);
   else
-    switch_to_stable_mode (solver);
-  swap_scores (solver);
+    switch_to_stable_mode (ring);
+  swap_scores (ring);
   l->mode = SEARCH_TICKS + square (s->switched / 2 + 1) * i->mode;
-  verbose (solver, "next mode switching limit at %" PRIu64 " ticks", l->mode);
+  verbose (ring, "next mode switching limit at %" PRIu64 " ticks", l->mode);
 }
 
 struct doubles
@@ -4244,11 +4244,11 @@ shrink_set (struct set * set)
 }
 
 static void *
-random_set (struct solver * solver, struct set * set)
+random_set (struct ring * ring, struct set * set)
 {
   assert (set->size);
   size_t allocated = set->allocated;
-  size_t pos = random_modulo (solver, allocated);
+  size_t pos = random_modulo (ring, allocated);
   void ** table = set->table;
   void * res = table[pos];
   while (!res || res == DELETED)
@@ -4262,7 +4262,7 @@ random_set (struct solver * solver, struct set * set)
 
 struct walker
 {
-  struct solver *solver;
+  struct ring *ring;
   struct counters *occurrences;
   struct counter *counters;
   struct set unsatisfied;
@@ -4285,7 +4285,7 @@ struct walker
 
 #define WOG(...) \
 do { \
-  struct solver * solver = walker->solver; \
+  struct ring * ring = walker->ring; \
   LOG (__VA_ARGS__); \
 } while (0)
 
@@ -4296,12 +4296,12 @@ do { \
 #endif
 
 static size_t
-count_irredundant_non_garbage_clauses (struct solver *solver,
+count_irredundant_non_garbage_clauses (struct ring *ring,
 				       struct clause **last_ptr)
 {
   size_t res = 0;
   struct clause *last = 0;
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, ring->watches))
     {
       assert (!binary_pointer (watch));
       if (watch->garbage)
@@ -4353,10 +4353,10 @@ initialize_break_table (struct walker *walker, double length)
 {
   double epsilon = 1;
   unsigned maxbreak = 0;
-  struct solver *solver = walker->solver;
-  uint64_t walked = solver->statistics.walked;
+  struct ring *ring = walker->ring;
+  uint64_t walked = ring->statistics.walked;
   const double base = (walked & 1) ? 2.0 : interpolate_base (length);
-  verbose (solver, "propability exponential sample base %.2f", base);
+  verbose (ring, "propability exponential sample base %.2f", base);
   assert (base > 1);
   for (;;)
     {
@@ -4384,13 +4384,13 @@ min_max_tag_pointer (bool redundant, unsigned first, unsigned second)
 static double
 connect_counters (struct walker *walker, struct clause *last)
 {
-  struct solver *solver = walker->solver;
-  signed char *values = solver->values;
+  struct ring *ring = walker->ring;
+  signed char *values = ring->values;
   struct counter *p = walker->counters;
   double sum_lengths = 0;
   size_t clauses = 0;
   uint64_t ticks = 1;
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, ring->watches))
     {
       ticks++;
       if (watch->garbage)
@@ -4425,7 +4425,7 @@ connect_counters (struct walker *walker, struct clause *last)
       if (clause == last)
 	break;
     }
-  for (all_solver_literals (lit))
+  for (all_ring_literals (lit))
     {
       if (values[lit] >= 0)
 	continue;
@@ -4447,29 +4447,29 @@ connect_counters (struct walker *walker, struct clause *last)
       ticks += cache_lines (p, binaries);
     }
   double average_length = average (sum_lengths, clauses);
-  verbose (solver, "average clause length %.2f", average_length);
-  very_verbose (solver, "connecting counters took %" PRIu64 " extra ticks",
+  verbose (ring, "average clause length %.2f", average_length);
+  very_verbose (ring, "connecting counters took %" PRIu64 " extra ticks",
 		ticks);
   walker->extra += ticks;
   return average_length;
 }
 
 static void
-warming_up_saved_phases (struct solver *solver)
+warming_up_saved_phases (struct ring *ring)
 {
-  assert (!solver->level);
-  assert (solver->trail.propagate == solver->trail.end);
+  assert (!ring->level);
+  assert (ring->trail.propagate == ring->trail.end);
   uint64_t decisions = 0, conflicts = 0;
-  while (solver->unassigned)
+  while (ring->unassigned)
     {
       decisions++;
-      decide (solver);
-      if (!propagate (solver, false))
+      decide (ring);
+      if (!propagate (ring, false))
 	conflicts++;
     }
-  if (solver->level)
-    backtrack (solver, 0);
-  verbose (solver,
+  if (ring->level)
+    backtrack (ring, 0);
+  verbose (ring,
 	   "warmed-up phases with %" PRIu64 " decisions and %" PRIu64
 	   " conflicts", decisions, conflicts);
 }
@@ -4477,14 +4477,14 @@ warming_up_saved_phases (struct solver *solver)
 static void
 import_decisions (struct walker *walker)
 {
-  struct solver *solver = walker->solver;
-  assert (solver->context == WALK_CONTEXT);
-  uint64_t saved = solver->statistics.contexts[WALK_CONTEXT].ticks;
-  warming_up_saved_phases (solver);
-  uint64_t extra = solver->statistics.contexts[WALK_CONTEXT].ticks - saved;
+  struct ring *ring = walker->ring;
+  assert (ring->context == WALK_CONTEXT);
+  uint64_t saved = ring->statistics.contexts[WALK_CONTEXT].ticks;
+  warming_up_saved_phases (ring);
+  uint64_t extra = ring->statistics.contexts[WALK_CONTEXT].ticks - saved;
   walker->extra += extra;
-  very_verbose (solver, "warming up needed %" PRIu64 " extra ticks", extra);
-  signed char *values = solver->values;
+  very_verbose (ring, "warming up needed %" PRIu64 " extra ticks", extra);
+  signed char *values = ring->values;
   unsigned pos = 0, neg = 0, ignored = 0;
   signed char *p = values;
   for (all_variables (v))
@@ -4504,17 +4504,17 @@ import_decisions (struct walker *walker)
       *p++ = phase;
       *p++ = -phase;
     }
-  assert (p == values + 2 * solver->size);
-  verbose (solver, "imported %u positive %u negative decisions (%u ignored)",
+  assert (p == values + 2 * ring->size);
+  verbose (ring, "imported %u positive %u negative decisions (%u ignored)",
 	   pos, neg, ignored);
 }
 
 static void
-fix_values_after_local_search (struct solver *solver)
+fix_values_after_local_search (struct ring *ring)
 {
-  signed char *values = solver->values;
-  memset (values, 0, 2 * solver->size);
-  for (all_elements_on_stack (unsigned, lit, solver->trail))
+  signed char *values = ring->values;
+  memset (values, 0, 2 * ring->size);
+  for (all_elements_on_stack (unsigned, lit, ring->trail))
     {
       values[lit] = 1;
       values[NOT (lit)] = -1;
@@ -4525,16 +4525,16 @@ fix_values_after_local_search (struct solver *solver)
 static void
 set_walking_limits (struct walker *walker)
 {
-  struct solver *solver = walker->solver;
-  struct statistics *statistics = &solver->statistics;
-  struct last *last = &solver->last;
+  struct ring *ring = walker->ring;
+  struct statistics *statistics = &ring->statistics;
+  struct last *last = &ring->last;
   uint64_t search = statistics->contexts[SEARCH_CONTEXT].ticks;
   uint64_t walk = statistics->contexts[WALK_CONTEXT].ticks;
   uint64_t ticks = search - last->walk;
   uint64_t extra = walker->extra;
   uint64_t effort = extra + WALK_EFFORT * ticks;
   walker->limit = walk + effort;
-  very_verbose (solver, "walking effort %" PRIu64 " ticks = "
+  very_verbose (ring, "walking effort %" PRIu64 " ticks = "
 		"%" PRIu64 " + %g * %" PRIu64
 		" = %" PRIu64 " + %g * (%" PRIu64 " - %" PRIu64 ")",
 		effort, extra, (double) WALK_EFFORT, ticks,
@@ -4542,10 +4542,10 @@ set_walking_limits (struct walker *walker)
 }
 
 static void
-disconnect_references (struct solver * solver, struct watches * saved)
+disconnect_references (struct ring * ring, struct watches * saved)
 {
   size_t disconnected = 0;
-  for (all_solver_literals (lit))
+  for (all_ring_literals (lit))
     {
       struct references * watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
@@ -4563,16 +4563,16 @@ disconnect_references (struct solver * solver, struct watches * saved)
 }
 
 static void
-reconnect_watches (struct solver * solver, struct watches * saved)
+reconnect_watches (struct ring * ring, struct watches * saved)
 {
   size_t reconnected = 0;
-  for (all_watches (watch, solver->watches))
+  for (all_watches (watch, ring->watches))
     {
       assert (!binary_pointer (watch));
       unsigned * literals = watch->clause->literals;
       watch->sum = literals[0] ^ literals[1];
-      watch_literal (solver, literals[0], watch);
-      watch_literal (solver, literals[1], watch);
+      watch_literal (ring, literals[0], watch);
+      watch_literal (ring, literals[1], watch);
       reconnected++;
     }
   for (all_watches (lit_watch, *saved))
@@ -4582,30 +4582,30 @@ reconnect_watches (struct solver * solver, struct watches * saved)
       unsigned lit = lit_pointer (lit_watch);
       unsigned other = other_pointer (lit_watch);
       struct watch * other_watch = tag_pointer (true, other, lit);
-      watch_literal (solver, lit, lit_watch);
-      watch_literal (solver, other, other_watch);
+      watch_literal (ring, lit, lit_watch);
+      watch_literal (ring, other, other_watch);
     }
-  very_verbose (solver, "reconnected %zu clauses", reconnected);
-  solver->trail.propagate = solver->trail.begin;
+  very_verbose (ring, "reconnected %zu clauses", reconnected);
+  ring->trail.propagate = ring->trail.begin;
 }
 
 static struct walker *
-new_walker (struct solver *solver)
+new_walker (struct ring *ring)
 {
   struct clause *last = 0;
-  size_t clauses = count_irredundant_non_garbage_clauses (solver, &last);
+  size_t clauses = count_irredundant_non_garbage_clauses (ring, &last);
 
-  verbose (solver, "local search over %zu clauses %.0f%%", clauses,
-	   percent (clauses, solver->statistics.irredundant));
+  verbose (ring, "local search over %zu clauses %.0f%%", clauses,
+	   percent (clauses, ring->statistics.irredundant));
 
   struct walker * walker = allocate_and_clear_block (sizeof *walker);
   
-  disconnect_references (solver, &walker->saved);
+  disconnect_references (ring, &walker->saved);
 
-  walker->solver = solver;
+  walker->ring = ring;
   walker->counters =
     allocate_and_clear_array (clauses, sizeof *walker->counters);
-  walker->occurrences = (struct counters *) solver->references;
+  walker->occurrences = (struct counters *) ring->references;
 
   import_decisions (walker);
   double length = connect_counters (walker, last);
@@ -4613,7 +4613,7 @@ new_walker (struct solver *solver)
   initialize_break_table (walker, length);
 
   walker->initial = walker->minimum = walker->unsatisfied.size;
-  verbose (solver, "initially %zu clauses unsatisfied", walker->minimum);
+  verbose (ring, "initially %zu clauses unsatisfied", walker->minimum);
 
   return walker;
 }
@@ -4621,15 +4621,15 @@ new_walker (struct solver *solver)
 static void
 delete_walker (struct walker *walker)
 {
-  struct solver *solver = walker->solver;
+  struct ring *ring = walker->ring;
   free (walker->counters);
   free (walker->unsatisfied.table);
   RELEASE (walker->literals);
   RELEASE (walker->trail);
   RELEASE (walker->scores);
   RELEASE (walker->breaks);
-  release_references (solver);
-  reconnect_watches (solver, &walker->saved);
+  release_references (ring);
+  reconnect_watches (ring, &walker->saved);
   RELEASE (walker->saved);
   free (walker);
 }
@@ -4637,8 +4637,8 @@ delete_walker (struct walker *walker)
 static unsigned
 break_count (struct walker *walker, unsigned lit)
 {
-  struct solver * solver = walker->solver;
-  signed char * values = solver->values;
+  struct ring * ring = walker->ring;
+  signed char * values = ring->values;
   unsigned not_lit = NOT (lit);
   assert (values[not_lit] > 0);
   unsigned res = 0;
@@ -4660,7 +4660,7 @@ break_count (struct walker *walker, unsigned lit)
       if (counter->count == 1)
 	res++;
     }
-  solver->statistics.contexts[WALK_CONTEXT].ticks += ticks;
+  ring->statistics.contexts[WALK_CONTEXT].ticks += ticks;
   return res;
 }
 
@@ -4682,8 +4682,8 @@ static void
 save_all_values (struct walker *walker)
 {
   assert (walker->best == INVALID);
-  struct solver *solver = walker->solver;
-  signed char *p = solver->values;
+  struct ring *ring = walker->ring;
+  signed char *p = ring->values;
   for (all_variables (v))
     {
       signed char value = *p;
@@ -4702,8 +4702,8 @@ save_walker_trail (struct walker *walker, bool keep)
   unsigned *best = begin + walker->best;
   unsigned *end = walker->trail.end;
   assert (best <= end);
-  struct solver *solver = walker->solver;
-  struct variable *variables = solver->variables;
+  struct ring *ring = walker->ring;
+  struct variable *variables = ring->variables;
   for (unsigned *p = begin; p != best; p++)
     {
       unsigned lit = *p;
@@ -4724,16 +4724,16 @@ save_walker_trail (struct walker *walker, bool keep)
 static void
 save_final_minimum (struct walker *walker)
 {
-  struct solver *solver = walker->solver;
+  struct ring *ring = walker->ring;
 
   if (walker->minimum == walker->initial)
     {
-      verbose (solver, "minimum number of unsatisfied clauses %zu unchanged",
+      verbose (ring, "minimum number of unsatisfied clauses %zu unchanged",
 	       walker->minimum);
       return;
     }
 
-  verbose (solver, "saving improved assignment of %zu unsatisfied clauses",
+  verbose (ring, "saving improved assignment of %zu unsatisfied clauses",
 	   walker->minimum);
 
   if (walker->best && walker->best != INVALID)
@@ -4745,10 +4745,10 @@ push_flipped (struct walker *walker, unsigned flipped)
 {
   if (walker->best == INVALID)
     return;
-  struct solver *solver = walker->solver;
+  struct ring *ring = walker->ring;
   struct unsigneds *trail = &walker->trail;
   size_t size = SIZE (*trail);
-  unsigned limit = solver->size / 4 + 1;
+  unsigned limit = ring->size / 4 + 1;
   if (size < limit)
     PUSH (*trail, flipped);
   else if (walker->best)
@@ -4766,7 +4766,7 @@ push_flipped (struct walker *walker, unsigned flipped)
 static void
 new_minimium (struct walker *walker, unsigned unsatisfied)
 {
-  very_verbose (walker->solver,
+  very_verbose (walker->ring,
 		"new minimum %u of unsatisfied clauses after %" PRIu64
 		" flips", unsatisfied, walker->flips);
   walker->minimum = unsatisfied;
@@ -4792,8 +4792,8 @@ update_minimum (struct walker *walker, unsigned lit)
 static void
 make_literal (struct walker *walker, unsigned lit)
 {
-  struct solver *solver = walker->solver;
-  signed char * values = solver->values;
+  struct ring *ring = walker->ring;
+  signed char * values = ring->values;
   assert (values[lit] > 0);
   uint64_t ticks = 1;
   struct counters * counters = &COUNTERS (lit);
@@ -4821,14 +4821,14 @@ make_literal (struct walker *walker, unsigned lit)
 	  }
       ticks += cache_lines (p, binaries);
     }
-  solver->statistics.contexts[WALK_CONTEXT].ticks += ticks;
+  ring->statistics.contexts[WALK_CONTEXT].ticks += ticks;
 }
 
 static void
 break_literal (struct walker *walker, unsigned lit)
 {
-  struct solver *solver = walker->solver;
-  signed char * values = solver->values;
+  struct ring *ring = walker->ring;
+  signed char * values = ring->values;
   assert (values[lit] < 0);
   uint64_t ticks = 1;
   struct counters *counters = &COUNTERS (lit);
@@ -4858,16 +4858,16 @@ break_literal (struct walker *walker, unsigned lit)
 	  }
       ticks += cache_lines (p, binaries);
     }
-  solver->statistics.contexts[WALK_CONTEXT].ticks += ticks;
+  ring->statistics.contexts[WALK_CONTEXT].ticks += ticks;
 }
 
 static void
 flip_literal (struct walker *walker, unsigned lit)
 {
-  struct solver *solver = walker->solver;
-  signed char *values = solver->values;
+  struct ring *ring = walker->ring;
+  signed char *values = ring->values;
   assert (values[lit] < 0);
-  solver->statistics.flips++;
+  ring->statistics.flips++;
   walker->flips++;
   unsigned not_lit = NOT (lit);
   values[lit] = 1, values[not_lit] = -1;
@@ -4882,8 +4882,8 @@ pick_literal_to_flip (struct walker *walker,
   assert (EMPTY (walker->literals));
   assert (EMPTY (walker->scores));
 
-  struct solver *solver = walker->solver;
-  signed char *values = solver->values;
+  struct ring *ring = walker->ring;
+  signed char *values = ring->values;
 
   unsigned res = INVALID;
   double total = 0, score = -1;
@@ -4902,7 +4902,7 @@ pick_literal_to_flip (struct walker *walker,
       res = lit;
     }
 
-  double random = random_double (solver);
+  double random = random_double (ring);
   assert (0 <= random), assert (random < 1);
   double threshold = random * total;
 
@@ -4937,8 +4937,8 @@ static void
 walking_step (struct walker *walker)
 {
   struct set *unsatisfied = &walker->unsatisfied;
-  struct solver * solver = walker->solver;
-  struct counter * counter = random_set (solver, unsatisfied);
+  struct ring * ring = walker->ring;
+  struct counter * counter = random_set (ring, unsatisfied);
   unsigned lit;
   if (binary_pointer (counter))
     {
@@ -4964,47 +4964,47 @@ walking_step (struct walker *walker)
 static void
 walking_loop (struct walker *walker)
 {
-  struct solver *solver = walker->solver;
-  uint64_t *ticks = &solver->statistics.contexts[WALK_CONTEXT].ticks;
+  struct ring *ring = walker->ring;
+  uint64_t *ticks = &ring->statistics.contexts[WALK_CONTEXT].ticks;
   uint64_t limit = walker->limit;
   while (walker->minimum && *ticks <= limit)
     walking_step (walker);
 }
 
 static void
-local_search (struct solver *solver)
+local_search (struct ring *ring)
 {
   STOP_SEARCH_AND_START (walk);
-  assert (solver->context == SEARCH_CONTEXT);
-  solver->context = WALK_CONTEXT;
-  solver->statistics.walked++;
-  if (solver->level)
-    backtrack (solver, 0);
-  if (solver->last.fixed != solver->statistics.fixed)
-    mark_satisfied_clauses_as_garbage (solver);
-  struct walker * walker = new_walker (solver);
+  assert (ring->context == SEARCH_CONTEXT);
+  ring->context = WALK_CONTEXT;
+  ring->statistics.walked++;
+  if (ring->level)
+    backtrack (ring, 0);
+  if (ring->last.fixed != ring->statistics.fixed)
+    mark_satisfied_clauses_as_garbage (ring);
+  struct walker * walker = new_walker (ring);
   walking_loop (walker);
   save_final_minimum (walker);
-  verbose (solver, "walker flipped %" PRIu64 " literals", walker->flips);
+  verbose (ring, "walker flipped %" PRIu64 " literals", walker->flips);
   delete_walker (walker);
-  fix_values_after_local_search (solver);
-  solver->last.walk = SEARCH_TICKS;
-  assert (solver->context == WALK_CONTEXT);
-  solver->context = SEARCH_CONTEXT;
+  fix_values_after_local_search (ring);
+  ring->last.walk = SEARCH_TICKS;
+  assert (ring->context == WALK_CONTEXT);
+  ring->context = SEARCH_CONTEXT;
   STOP_AND_START_SEARCH (walk);
 }
 
 static char
-rephase_walk (struct solver *solver)
+rephase_walk (struct ring *ring)
 {
-  local_search (solver);
+  local_search (ring);
   for (all_variables (v))
     v->target = v->saved;
   return 'W';
 }
 
 static char
-rephase_best (struct solver *solver)
+rephase_best (struct ring *ring)
 {
   for (all_variables (v))
     v->target = v->saved = v->best;
@@ -5012,7 +5012,7 @@ rephase_best (struct solver *solver)
 }
 
 static char
-rephase_inverted (struct solver *solver)
+rephase_inverted (struct ring *ring)
 {
   for (all_variables (v))
     v->target = v->saved = -INITIAL_PHASE;
@@ -5020,7 +5020,7 @@ rephase_inverted (struct solver *solver)
 }
 
 static char
-rephase_original (struct solver *solver)
+rephase_original (struct ring *ring)
 {
   for (all_variables (v))
     v->target = v->saved = INITIAL_PHASE;
@@ -5028,14 +5028,14 @@ rephase_original (struct solver *solver)
 }
 
 static bool
-rephasing (struct solver *solver)
+rephasing (struct ring *ring)
 {
-  return solver->stable && SEARCH_CONFLICTS > solver->limits.rephase;
+  return ring->stable && SEARCH_CONFLICTS > ring->limits.rephase;
 }
 
 // *INDENT-OFF*
 
-static char (*schedule[])(struct solver *) =
+static char (*schedule[])(struct ring *) =
 {
   rephase_original, rephase_best, rephase_walk,
   rephase_inverted, rephase_best, rephase_walk,
@@ -5044,94 +5044,94 @@ static char (*schedule[])(struct solver *) =
 // *INDENT-ON*
 
 static void
-rephase (struct solver *solver)
+rephase (struct ring *ring)
 {
-  if (solver->level)
-    backtrack (solver, 0);
-  struct statistics *statistics = &solver->statistics;
-  struct limits *limits = &solver->limits;
+  if (ring->level)
+    backtrack (ring, 0);
+  struct statistics *statistics = &ring->statistics;
+  struct limits *limits = &ring->limits;
   uint64_t rephased = ++statistics->rephased;
   size_t size_schedule = sizeof schedule / sizeof *schedule;
-  char type = schedule[rephased % size_schedule] (solver);
-  verbose (solver, "resetting number of target assigned %u", solver->target);
-  solver->target = 0;
+  char type = schedule[rephased % size_schedule] (ring);
+  verbose (ring, "resetting number of target assigned %u", ring->target);
+  ring->target = 0;
   if (type == 'B')
     {
-      verbose (solver, "resetting number of best assigned %u", solver->best);
-      solver->best = 0;
+      verbose (ring, "resetting number of best assigned %u", ring->best);
+      ring->best = 0;
     }
   limits->rephase = SEARCH_CONFLICTS;
   limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
-  verbose (solver, "next rephase limit at %" PRIu64 " conflicts",
+  verbose (ring, "next rephase limit at %" PRIu64 " conflicts",
 	   limits->rephase);
-  report (solver, type);
+  report (ring, type);
 }
 
 static void
-iterate (struct solver *solver)
+iterate (struct ring *ring)
 {
-  assert (solver->iterating);
-  assert (!solver->level);
-  struct trail * trail = &solver->trail;
+  assert (ring->iterating);
+  assert (!ring->level);
+  struct trail * trail = &ring->trail;
   assert (trail->end == trail->propagate);
   assert (trail->iterate < trail->propagate);
   size_t new_units = trail->propagate - trail->iterate;
-  very_verbose (solver, "iterating %zu units", new_units);
-  solver->iterating = false;
-  report (solver, 'i');
-  export_units (solver);
+  very_verbose (ring, "iterating %zu units", new_units);
+  ring->iterating = false;
+  report (ring, 'i');
+  export_units (ring);
   trail->iterate = trail->propagate;
 }
 
 static void
-start_search (struct solver *solver)
+start_search (struct ring *ring)
 {
   START (search);
-  assert (!solver->stable);
+  assert (!ring->stable);
   START (focused);
-  report (solver, '{');
+  report (ring, '{');
 }
 
 static void
-stop_search (struct solver *solver, int res)
+stop_search (struct ring *ring, int res)
 {
-  if (solver->stable)
+  if (ring->stable)
     {
-      report (solver, ']');
+      report (ring, ']');
       STOP (stable);
     }
   else
     {
-      report (solver, '}');
+      report (ring, '}');
       STOP (focused);
     }
   if (res == 10)
-    report (solver, '1');
+    report (ring, '1');
   else if (res == 20)
-    report (solver, '0');
+    report (ring, '0');
   else
-    report (solver, '?');
+    report (ring, '?');
   STOP (search);
 }
 
 static bool
-conflict_limit_hit (struct solver *solver)
+conflict_limit_hit (struct ring *ring)
 {
-  long limit = solver->limits.conflicts;
+  long limit = ring->limits.conflicts;
   if (limit < 0)
     return false;
   uint64_t conflicts = SEARCH_CONFLICTS;
   if (conflicts < (unsigned long) limit)
     return false;
-  verbose (solver, "conflict limit %ld hit at %" PRIu64 " conflicts", limit,
+  verbose (ring, "conflict limit %ld hit at %" PRIu64 " conflicts", limit,
 	   conflicts);
   return true;
 }
 
 static bool
-terminate_solver (struct solver * solver)
+terminate_ring (struct ring * ring)
 {
-  struct ruler * ruler = solver->ruler;
+  struct ruler * ruler = ring->ruler;
 #ifdef NFASTPATH
   if (pthread_mutex_lock (&ruler->locks.terminate))
     fatal_error ("failed to acquire terminate lock");
@@ -5145,59 +5145,59 @@ terminate_solver (struct solver * solver)
 }
 
 static int
-solve (struct solver *solver)
+solve (struct ring *ring)
 {
-  start_search (solver);
-  int res = solver->inconsistent ? 20 : 0;
+  start_search (ring);
+  int res = ring->inconsistent ? 20 : 0;
   while (!res)
     {
-      struct watch *conflict = propagate (solver, true);
+      struct watch *conflict = propagate (ring, true);
       if (conflict)
 	{
-	  if (!analyze (solver, conflict))
+	  if (!analyze (ring, conflict))
 	    res = 20;
 	}
-      else if (!solver->unassigned)
-	set_satisfied (solver), res = 10;
-      else if (solver->iterating)
-	iterate (solver);
-      else if (terminate_solver (solver))
+      else if (!ring->unassigned)
+	set_satisfied (ring), res = 10;
+      else if (ring->iterating)
+	iterate (ring);
+      else if (terminate_ring (ring))
 	break;
 #if 0
-      else if (!solver->statistics.walked)
-	local_search (solver);
+      else if (!ring->statistics.walked)
+	local_search (ring);
 #endif
 #if 0
-      else if (!solver->statistics.reductions)
-	reduce (solver);
+      else if (!ring->statistics.reductions)
+	reduce (ring);
 #endif
-      else if (conflict_limit_hit (solver))
+      else if (conflict_limit_hit (ring))
 	break;
-      else if (reducing (solver))
-	reduce (solver);
-      else if (restarting (solver))
-	restart (solver);
-      else if (switching_mode (solver))
-	switch_mode (solver);
-      else if (rephasing (solver))
-	rephase (solver);
-      else if (!import_shared (solver))
-	decide (solver);
-      else if (solver->inconsistent)
+      else if (reducing (ring))
+	reduce (ring);
+      else if (restarting (ring))
+	restart (ring);
+      else if (switching_mode (ring))
+	switch_mode (ring);
+      else if (rephasing (ring))
+	rephase (ring);
+      else if (!import_shared (ring))
+	decide (ring);
+      else if (ring->inconsistent)
 	res = 20;
     }
-  stop_search (solver, res);
+  stop_search (ring, res);
   return res;
 }
 
 static void *
 solve_routine (void *ptr)
 {
-  struct solver *solver = ptr;
-  int res = solve (solver);
-  assert (solver->status == res);
+  struct ring *ring = ptr;
+  int res = solve (ring);
+  assert (ring->status == res);
   (void) res;
-  return solver;
+  return ring;
 }
 
 /*------------------------------------------------------------------------*/
@@ -5443,26 +5443,26 @@ parse_options (int argc, char **argv, struct options *opts)
 }
 
 static void
-set_limits (struct solver *solver, long long conflicts)
+set_limits (struct ring *ring, long long conflicts)
 {
-  if (solver->inconsistent)
+  if (ring->inconsistent)
     return;
-  assert (!solver->stable);
+  assert (!ring->stable);
   assert (!SEARCH_CONFLICTS);
-  struct limits *limits = &solver->limits;
+  struct limits *limits = &ring->limits;
   limits->mode = MODE_INTERVAL;
   limits->reduce = REDUCE_INTERVAL;
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
-  verbose (solver, "reduce interval of %" PRIu64 " conflict", limits->reduce);
-  verbose (solver, "restart interval of %" PRIu64 " conflict",
+  verbose (ring, "reduce interval of %" PRIu64 " conflict", limits->reduce);
+  verbose (ring, "restart interval of %" PRIu64 " conflict",
 	   limits->restart);
-  verbose (solver, "initial mode switching interval of %" PRIu64 " conflicts",
+  verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
 	   limits->mode);
   if (conflicts >= 0)
     {
       limits->conflicts = conflicts;
-      message (solver, "conflict limit set to %lld conflicts", conflicts);
+      message (ring, "conflict limit set to %lld conflicts", conflicts);
     }
 }
 
@@ -5587,8 +5587,8 @@ parse_dimacs_file ()
     }
   struct ruler *ruler = new_ruler (variables);
 #if 0
-  struct solver *solver = new_solver (ruler);
-  signed char *marked = solver->marks;
+  struct ring *ring = new_ring (ruler);
+  signed char *marked = ring->marks;
 #endif
   signed char * marked = allocate_and_clear_block (variables);
   struct unsigneds clause;
@@ -5761,9 +5761,9 @@ print_unsigned_literal (signed char *values, unsigned unsigned_lit)
 }
 
 static void
-print_witness (struct solver *solver)
+print_witness (struct ring *ring)
 {
-  signed char *values = solver->values;
+  signed char *values = ring->values;
   for (all_indices (idx))
     print_unsigned_literal (values, LIT (idx));
   print_signed_literal (0);
@@ -5774,17 +5774,17 @@ print_witness (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static void
-start_cloning_solver (struct solver *first, unsigned clone)
+start_cloning_ring (struct ring *first, unsigned clone)
 {
   struct ruler * ruler = first->ruler;
   assert (ruler->threads);
   pthread_t * thread = ruler->threads + clone;
-  if (pthread_create (thread, 0, clone_solver, first))
+  if (pthread_create (thread, 0, clone_ring, first))
     fatal_error ("failed to create cloning thread %u", clone);
 }
 
 static void
-stop_cloning_solver (struct solver *first, unsigned clone)
+stop_cloning_ring (struct ring *first, unsigned clone)
 {
   struct ruler * ruler = first->ruler;
   pthread_t * thread = ruler->threads + clone;
@@ -5793,25 +5793,25 @@ stop_cloning_solver (struct solver *first, unsigned clone)
 }
 
 static void
-clone_solvers (struct ruler * ruler, unsigned threads)
+clone_rings (struct ruler * ruler, unsigned threads)
 {
   assert (threads > 1);
   double before = 0;
   if (verbosity >= 0)
     {
       before = current_resident_set_size () / (double) (1 << 20);
-      printf ("c cloning %u solvers to support %u solver threads\n",
+      printf ("c cloning %u rings to support %u ring threads\n",
 	      threads - 1, threads);
       fflush (stdout);
     }
   ruler->threads = allocate_array (threads, sizeof *ruler->threads);
-  struct solver * first = first_solver (ruler);
+  struct ring * first = first_ring (ruler);
   init_pool (first, threads);
   for (unsigned i = 1; i != threads; i++)
-    start_cloning_solver (first, i);
+    start_cloning_ring (first, i);
   for (unsigned i = 1; i != threads; i++)
-    stop_cloning_solver (first, i);
-  assert (SIZE (ruler->solvers) == threads);
+    stop_cloning_ring (first, i);
+  assert (SIZE (ruler->rings) == threads);
   if (verbosity >= 0)
     {
       double after = current_resident_set_size () / (double) (1 << 20);
@@ -5822,83 +5822,83 @@ clone_solvers (struct ruler * ruler, unsigned threads)
 }
 
 static void
-set_limits_of_all_solvers (struct ruler * ruler, long long conflicts)
+set_limits_of_all_rings (struct ruler * ruler, long long conflicts)
 {
-  for (all_solvers (solver))
-    set_limits (solver, conflicts);
+  for (all_rings (ring))
+    set_limits (ring, conflicts);
 }
 
 static void
-start_running_solver (struct solver *solver)
+start_running_ring (struct ring *ring)
 {
-  struct ruler * ruler = solver->ruler;
+  struct ruler * ruler = ring->ruler;
   assert (ruler->threads);
-  pthread_t * thread = ruler->threads + solver->id;
-  if (pthread_create (thread, 0, solve_routine, solver))
-    fatal_error ("failed to create solving thread %u", solver->id);
+  pthread_t * thread = ruler->threads + ring->id;
+  if (pthread_create (thread, 0, solve_routine, ring))
+    fatal_error ("failed to create solving thread %u", ring->id);
 }
 
 static void
-stop_running_solver (struct solver *solver)
+stop_running_ring (struct ring *ring)
 {
-  struct ruler * ruler = solver->ruler;
+  struct ruler * ruler = ring->ruler;
   assert (ruler->threads);
-  pthread_t * thread = ruler->threads + solver->id;
+  pthread_t * thread = ruler->threads + ring->id;
   if (pthread_join (*thread, 0))
-    fatal_error ("failed to join solving thread %u", solver->id);
+    fatal_error ("failed to join solving thread %u", ring->id);
 }
 
 static void
-run_solvers (struct ruler * ruler)
+run_rings (struct ruler * ruler)
 {
-  size_t threads = SIZE (ruler->solvers);
+  size_t threads = SIZE (ruler->rings);
   if (threads > 1)
     {
       if (verbosity >= 0)
 	{
-	  printf ("c starting and running %zu solver threads\n", threads);
+	  printf ("c starting and running %zu ring threads\n", threads);
 	  fflush (stdout);
 	}
 
-      for (all_solvers (solver))
-	start_running_solver (solver);
+      for (all_rings (ring))
+	start_running_ring (ring);
 
-      for (all_solvers (solver))
-	stop_running_solver (solver);
+      for (all_rings (ring))
+	stop_running_ring (ring);
     }
   else
     {
       if (verbosity >= 0)
 	{
-	  printf ("c running single solver in main thread\n");
+	  printf ("c running single ring in main thread\n");
 	  fflush (stdout);
 	}
-      struct solver * solver = first_solver (ruler);
-      solve_routine (solver);
+      struct ring * ring = first_ring (ruler);
+      solve_routine (ring);
     }
 }
 
 static void *
-detach_and_delete_solver (void * ptr)
+detach_and_delete_ring (void * ptr)
 {
-  struct solver * solver = ptr;
-  detach_solver (solver);
-  delete_solver (solver);
-  return solver;
+  struct ring * ring = ptr;
+  detach_ring (ring);
+  delete_ring (ring);
+  return ring;
 }
 
 static void
-start_detaching_and_deleting_solver (struct solver *solver)
+start_detaching_and_deleting_ring (struct ring *ring)
 {
-  struct ruler * ruler = solver->ruler;
+  struct ruler * ruler = ring->ruler;
   assert (ruler->threads);
-  pthread_t * thread = ruler->threads + solver->id;
-  if (pthread_create (thread, 0, detach_and_delete_solver, solver))
-    fatal_error ("failed to create deletion thread %u", solver->id);
+  pthread_t * thread = ruler->threads + ring->id;
+  if (pthread_create (thread, 0, detach_and_delete_ring, ring))
+    fatal_error ("failed to create deletion thread %u", ring->id);
 }
 
 static void
-stop_detaching_and_deleting_solver (struct ruler * ruler, unsigned id)
+stop_detaching_and_deleting_ring (struct ruler * ruler, unsigned id)
 {
   assert (ruler->threads);
   pthread_t * thread = ruler->threads + id;
@@ -5907,37 +5907,37 @@ stop_detaching_and_deleting_solver (struct ruler * ruler, unsigned id)
 }
 
 static void
-detach_and_delete_solvers (struct ruler * ruler)
+detach_and_delete_rings (struct ruler * ruler)
 {
-  size_t threads = SIZE (ruler->solvers);
+  size_t threads = SIZE (ruler->rings);
   if (threads > 1)
     {
       if (verbosity > 0)
 	{
-	  printf ("c deleting %zu solvers in parallel\n", threads);
+	  printf ("c deleting %zu rings in parallel\n", threads);
 	  fflush (stdout);
 	}
 #if 1
-      for (all_solvers (solver))
-	start_detaching_and_deleting_solver (solver);
+      for (all_rings (ring))
+	start_detaching_and_deleting_ring (ring);
 
       for (unsigned i = 0; i != threads; i++)
-	stop_detaching_and_deleting_solver (ruler, i);
+	stop_detaching_and_deleting_ring (ruler, i);
 #else
-      for (all_solvers (solver))
-      detach_and_delete_solver (solver);
+      for (all_rings (ring))
+      detach_and_delete_ring (ring);
 #endif
     }
   else
     {
       if (verbosity > 0)
 	{
-	  printf ("c deleting single solver in main thread\n");
+	  printf ("c deleting single ring in main thread\n");
 	  fflush (stdout);
 	}
 
-      struct solver * solver = first_solver (ruler);
-      detach_and_delete_solver (solver);
+      struct ring * ring = first_ring (ruler);
+      detach_and_delete_ring (ring);
     }
 }
 
@@ -6069,9 +6069,9 @@ set_signal_handlers (unsigned seconds)
 #ifndef NDEBUG
 
 static void
-check_witness (struct solver *solver)
+check_witness (struct ring *ring)
 {
-  signed char *values = solver->values;
+  signed char *values = ring->values;
   size_t clauses = 0;
   for (unsigned *c = original.begin, *p; c != original.end; c = p + 1)
     {
@@ -6096,8 +6096,8 @@ check_witness (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
-#define begin_profiles ((struct profile *)(&solver->profiles))
-#define end_profiles (&solver->profiles.total)
+#define begin_profiles ((struct profile *)(&ring->profiles))
+#define end_profiles (&ring->profiles.total)
 
 #define all_profiles(PROFILE) \
 struct profile * PROFILE = begin_profiles, \
@@ -6116,14 +6116,14 @@ flush_profile (double time, struct profile *profile)
 }
 
 static double
-flush_profiles (struct solver *solver)
+flush_profiles (struct ring *ring)
 {
   double time = current_time ();
   for (all_profiles (profile))
     if (profile->start >= 0)
       flush_profile (time, profile);
 
-  flush_profile (time, &solver->profiles.total);
+  flush_profile (time, &ring->profiles.total);
   return time;
 }
 
@@ -6142,10 +6142,10 @@ cmp_profiles (struct profile *a, struct profile *b)
 }
 
 static void
-print_profiles (struct solver *solver)
+print_profiles (struct ring *ring)
 {
-  flush_profiles (solver);
-  double total = solver->profiles.total.time;
+  flush_profiles (ring);
+  double total = ring->profiles.total.time;
   struct profile *prev = 0;
   fputs ("c\n", stdout);
   for (;;)
@@ -6167,12 +6167,12 @@ print_profiles (struct solver *solver)
 }
 
 static void
-print_solver_statistics (struct solver *solver)
+print_ring_statistics (struct ring *ring)
 {
-  print_profiles (solver);
-  double search = solver->profiles.search.time;
-  double walk = solver->profiles.total.time;
-  struct statistics *s = &solver->statistics;
+  print_profiles (ring);
+  double search = ring->profiles.search.time;
+  double walk = ring->profiles.total.time;
+  struct statistics *s = &ring->statistics;
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
   uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;
   uint64_t propagations = s->contexts[SEARCH_CONTEXT].propagations;
@@ -6181,7 +6181,7 @@ print_solver_statistics (struct solver *solver)
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "decisions:",
 	  decisions, average (decisions, search));
   PRINTLN ("%-21s %17u %13.2f %% variables", "fixed-variables:",
-	  s->fixed, percent (s->fixed, solver->size));
+	  s->fixed, percent (s->fixed, ring->size));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	  "flips:", s->flips, average (s->flips, 1e3 * walk));
 
@@ -6220,7 +6220,7 @@ print_solver_statistics (struct solver *solver)
 	  "  learned-tier3:", s->learned.tier3,
 	  percent (s->learned.tier3, s->learned.clauses));
 
-  if (solver->pool)
+  if (ring->pool)
     {
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	      "imported-clauses:", s->imported.clauses,
@@ -6283,9 +6283,9 @@ print_ruler_statistics (struct ruler *ruler)
   if (verbosity < 0)
     return;
 
-  for (all_solvers (solver))
+  for (all_rings (ring))
     {
-      print_solver_statistics (solver);
+      print_ring_statistics (ring);
       printf ("c\n");
     }
 
@@ -6294,7 +6294,7 @@ print_ruler_statistics (struct ruler *ruler)
   double memory = maximum_resident_set_size () / (double) (1 << 20);
 
   printf ("c %-30s %23.2f %%\n", "utilization:",
-          percent (process / SIZE (ruler->solvers),  total));
+          percent (process / SIZE (ruler->rings),  total));
   printf ("c %-30s %23.2f seconds\n", "process-time:", process);
   printf ("c %-30s %23.2f seconds\n", "wall-clock-time:", total);
   printf ("c %-30s %23.2f MB\n", "maximum-resident-set-size:", memory);
@@ -6366,11 +6366,11 @@ main (int argc, char **argv)
   ruler = parse_dimacs_file ();
   clone_ruler (ruler);
   if (options.threads > 1)
-    clone_solvers (ruler, options.threads);
-  set_limits_of_all_solvers (ruler, options.conflicts);
+    clone_rings (ruler, options.threads);
+  set_limits_of_all_rings (ruler, options.conflicts);
   set_signal_handlers (options.seconds);
-  run_solvers (ruler);
-  struct solver *winner = (struct solver*) ruler->winner;
+  run_rings (ruler);
+  struct ring *winner = (struct ring*) ruler->winner;
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();
   close_proof ();
@@ -6394,7 +6394,7 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   print_ruler_statistics (ruler);
-  detach_and_delete_solvers (ruler);
+  detach_and_delete_rings (ruler);
   delete_ruler (ruler);
 #ifndef NDEBUG
   RELEASE (original);
