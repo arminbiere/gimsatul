@@ -495,7 +495,6 @@ struct root
   struct solver * volatile winner;
   volatile signed char * values;
   struct unsigneds * watches;
-  size_t binaries;
   struct units units;
 #ifdef LOGGING
   volatile uint64_t ids;
@@ -1398,6 +1397,13 @@ delete_root (struct root *root)
   free (root);
 }
 
+static struct solver *
+first_solver (struct root * root)
+{
+  assert (!EMPTY (root->solvers));
+  return root->solvers.begin[0];
+}
+
 static void
 push_solver (struct root *root, struct solver *solver)
 {
@@ -1804,6 +1810,10 @@ watch_first_two_literals_in_large_clause (struct solver * solver,
 static void
 push_root_binary (struct root * root, unsigned lit, unsigned other)
 {
+#ifdef LOGGING
+  struct solver * solver = first_solver (root);
+  LOGBINARY (true, lit, other, "root watching %s in", LOGLIT (other));
+#endif
   struct unsigneds * binaries = &BINARIES (lit);
   if (!EMPTY (*binaries))
     {
@@ -1815,15 +1825,13 @@ push_root_binary (struct root * root, unsigned lit, unsigned other)
 }
 
 static void
-new_global_binary_clause (struct solver *solver, bool redundant,
+new_root_binary_clause (struct solver *solver, bool redundant,
 			  unsigned lit, unsigned other)
 {
   struct root *root = solver->root;
   LOGBINARY (redundant, lit, other, "new global");
   push_root_binary (root, lit, other);
   push_root_binary (root, other, lit);
-  inc_clauses (solver, false);
-  root->binaries++;
 }
 
 static struct watch *
@@ -1897,20 +1905,6 @@ delete_watch (struct solver *solver, struct watch *watch)
   dec_clauses (solver, clause->redundant);
   dereference_clause (solver, clause);
   free (watch);
-}
-
-/*------------------------------------------------------------------------*/
-
-static struct solver *
-first_solver (struct root * root)
-{
-  assert (!EMPTY (root->solvers));
-  return root->solvers.begin[0];
-}
-
-static void
-init_root_watches (struct root *root)
-{
 }
 
 /*------------------------------------------------------------------------*/
@@ -2039,6 +2033,31 @@ set_satisfied (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static void
+share_root_binaries (struct solver * solver)
+{
+  struct root * root = solver->root;
+
+  size_t watched = 0;
+
+  for (all_root_literals (lit))
+    {
+      struct unsigneds * binaries = &BINARIES (lit);
+      struct references * watches = &REFERENCES (lit);
+      if (EMPTY (*binaries))
+	assert (!watches->binaries);
+      else
+	{
+	  watched += SIZE (*binaries) - 1;
+	  watches->binaries = binaries->begin;
+	}
+    }
+  assert (!(watched & 1));
+  size_t binaries = watched/2;
+  solver->statistics.irredundant += binaries;
+  very_verbose (solver, "sharing %zu global binary clauses", binaries);
+}
+
+static void
 clone_clauses (struct solver *dst, struct solver *src)
 {
   struct solver *solver = dst;
@@ -2060,21 +2079,6 @@ clone_clauses (struct solver *dst, struct solver *src)
     }
   very_verbose (solver, "cloned %u units", units);
 
-  struct root * root = src->root;
-  assert (root == dst->root);
-
-  for (all_root_literals (lit))
-    {
-      struct unsigneds * binaries = &BINARIES (lit);
-      struct references * watches = &REFERENCES (lit);
-      watches->binaries = EMPTY (*binaries) ? 0 : binaries->begin;
-    }
-
-  assert (!dst->statistics.irredundant);
-  size_t binaries = root->binaries;
-  dst->statistics.irredundant += binaries;
-  very_verbose (solver, "sharing %zu global binary clauses", binaries);
-
   size_t shared = 0;
   for (all_watches (src_watch, src->watches))
     {
@@ -2092,6 +2096,7 @@ clone_solver (void * ptr)
 {
   struct solver * src = ptr;
   struct solver *solver = new_solver (src->root);
+  share_root_binaries (solver);
   clone_clauses (solver, src);
   init_pool (solver, src->threads);
   return solver;
@@ -4154,7 +4159,7 @@ do { \
 
 #endif
 
-#define OCCURRENCES(LIT) (walker->occurrences[LIT])
+#define COUNTERS(LIT) (walker->occurrences[LIT])
 
 static size_t
 count_irredundant_non_garbage_clauses (struct solver *solver,
@@ -4290,7 +4295,7 @@ connect_counters (struct walker *walker, struct clause *last)
     {
       if (values[lit] >= 0)
 	continue;
-      struct counters * counters = &OCCURRENCES (lit);
+      struct counters * counters = &COUNTERS (lit);
       ticks++;
       unsigned * binaries = counters->binaries;
       if (!binaries)
@@ -4510,7 +4515,7 @@ break_count (struct walker *walker, unsigned lit)
   unsigned not_lit = NOT (lit);
   assert (values[not_lit] > 0);
   unsigned res = 0;
-  struct counters * counters = &OCCURRENCES (not_lit);
+  struct counters * counters = &COUNTERS (not_lit);
   unsigned * binaries = counters->binaries;
   uint64_t ticks = 1;
   if (binaries)
@@ -4664,7 +4669,7 @@ make_literal (struct walker *walker, unsigned lit)
   signed char * values = solver->values;
   assert (values[lit] > 0);
   uint64_t ticks = 1;
-  struct counters * counters = &OCCURRENCES (lit);
+  struct counters * counters = &COUNTERS (lit);
   for (all_counters (counter, *counters))
     {
       ticks++;
@@ -4699,7 +4704,7 @@ break_literal (struct walker *walker, unsigned lit)
   signed char * values = solver->values;
   assert (values[lit] < 0);
   uint64_t ticks = 1;
-  struct counters *counters = &OCCURRENCES (lit);
+  struct counters *counters = &COUNTERS (lit);
   for (all_counters (counter, *counters))
     {
       ticks++;
@@ -5536,8 +5541,8 @@ parse_dimacs_file ()
 		    assign_unit (solver, unit);
 		}
 	      else if (size == 2)
-		new_global_binary_clause (solver, false,
-					  literals[0], literals[1]);
+		new_root_binary_clause (solver, false,
+				        literals[0], literals[1]);
 	      else
 		new_large_clause (solver, size, literals, false, 0);
 	    }
@@ -5636,9 +5641,7 @@ stop_cloning_solver (struct solver *first, unsigned clone)
 static void
 clone_solvers (struct root * root, unsigned threads)
 {
-  assert (threads);
-  if (threads == 1)
-    return;
+  assert (threads > 1);
   double before = 0;
   if (verbosity >= 0)
     {
@@ -6207,8 +6210,9 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   root = parse_dimacs_file ();
-  init_root_watches (root);
-  clone_solvers (root, options.threads);
+  share_root_binaries (first_solver (root));
+  if (options.threads > 1)
+    clone_solvers (root, options.threads);
   set_limits_of_all_solvers (root, options.conflicts);
   set_signal_handlers (options.seconds);
   run_solvers (root);
