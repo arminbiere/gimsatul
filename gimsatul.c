@@ -1623,6 +1623,13 @@ release_pool (struct ring *ring)
 }
 
 static void
+release_binaries (struct ring * ring)
+{
+  for (all_ring_literals (lit))
+    free (REFERENCES (lit).binaries);
+}
+
+static void
 delete_ring (struct ring *ring)
 {
   verbose (ring, "delete ring[%u]", ring->id);
@@ -1634,6 +1641,8 @@ delete_ring (struct ring *ring)
   RELEASE (ring->levels);
   RELEASE (ring->buffer);
   release_references (ring);
+  if (!ring->id)
+    release_binaries (ring);
   free (ring->references);
   release_watches (ring);
   free (ring->queue.nodes);
@@ -2143,8 +2152,6 @@ static void
 share_ring_binaries (struct ring *dst, struct ring *src)
 {
   struct ring *ring = dst;
-  assert (first_ring (ruler) == src);
-  assert (src->ruler == ruler);
   assert (!src->id);
 
   for (all_ring_literals (lit))
