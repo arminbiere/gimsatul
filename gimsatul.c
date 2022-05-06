@@ -89,6 +89,9 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
+#define SINGLE_SIDED_OCCURRENCE_LIMIT 100
+#define DOUBLE_SIDED_OCCURRENCE_LIMIT 1000
+
 /*------------------------------------------------------------------------*/
 
 #define IDX(LIT) ((LIT) >> 1)
@@ -224,8 +227,13 @@ do { \
   NODE != END_ ## NODE; \
   ++NODE
 
-#define all_indices(IDX) \
+#define all_ring_indices(IDX) \
   unsigned IDX = 0, END_ ## IDX = ring->size; \
+  IDX != END_ ## IDX; \
+  ++IDX
+
+#define all_ruler_indices(IDX) \
+  unsigned IDX = 0, END_ ## IDX = ruler->size; \
   IDX != END_ ## IDX; \
   ++IDX
 
@@ -512,6 +520,7 @@ struct ruler
   pthread_t *threads;
   struct ring *volatile winner;
   volatile signed char *values;
+  signed char *marks;
   struct clauses *occurrences;
   size_t original_binaries;
   struct clauses clauses;
@@ -1487,6 +1496,7 @@ new_ruler (size_t size)
 #endif
   ruler->size = size;
   ruler->values = allocate_and_clear_block (2 * size);
+  ruler->marks = allocate_and_clear_block (size);
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
@@ -1516,6 +1526,7 @@ delete_ruler (struct ruler *ruler)
   RELEASE (ruler->buffer);
   release_occurrences (ruler);
   free ((void *) ruler->values);
+  free (ruler->marks);
   free (ruler->units.begin);
   free (ruler->threads);
   free (ruler);
@@ -2224,6 +2235,66 @@ delete_satisfied_large_ruler_clauses (struct ruler * ruler)
   very_verbose (0, "finally deleted %zu large clauses", deleted);
 }
 
+static bool
+propagate_and_flush_ruler_units (struct ruler * ruler)
+{
+  if (ruler->inconsistent)
+    return false;
+  if (ruler->units.propagate == ruler->units.end)
+    return true;
+  ruler_propagate (ruler);
+  if (ruler->inconsistent)
+    return false;
+  mark_satisfied_ruler_clauses (ruler);
+  flush_satisfied_ruler_watches (ruler);
+  delete_satisfied_large_ruler_clauses (ruler);
+  assert (!ruler->inconsistent);
+  return true;
+}
+
+static bool
+try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
+{
+  unsigned pivot = LIT (idx);
+  unsigned not_pivot = NOT (pivot);
+  struct clauses * pos_clauses = &OCCURENCES (pivot);
+  struct clauses * neg_clauses = &OCCURENCES (not_pivot);
+  size_t neg_size = SIZE (*neg_clauses);
+  size_t pos_size = SIZE (*pos_clauses);
+  if (!neg_size)
+    return true;
+  if (!pos_size)
+    return true;
+  if (pos_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
+    return false;
+  if (neg_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
+    return false;
+  size_t limit = pos_size * neg_size;
+  size_t resolvents = 0;
+  if (limit > DOUBLE_SIDED_OCCURRENCE_LIMIT)
+    return false;
+  signed char * marks = ruler->marks;
+  for (all_clauses (pos_clause, *pos_clauses))
+    {
+      mark_clause (marks, pos_clause);
+      for (all_clauses (neg_clause, *neg_clauses))
+	if (can_resolve_clause (marks, neg_clause, not_pivot))
+	  if (resolvents++ == limit)
+	    break;
+      unmark_clause (marks, pos_clause);
+    }
+  return resolvents <= limit;
+}
+
+static bool
+bounded_variable_elimination (struct ruler * ruler)
+{
+  for (all_ruler_indices (idx))
+    if (try_to_deliminate_variable (ruler, idx))
+      eliminate_variable (ruler, idx);
+  return true;
+}
+
 static void
 simplify_ruler (struct ruler * ruler)
 {
@@ -2232,13 +2303,18 @@ simplify_ruler (struct ruler * ruler)
   START (ruler, simplifying);
   for (all_clauses (clause, ruler->clauses))
     connect_large_clause (ruler, clause);
-  ruler_propagate (ruler);
-  if (!ruler->inconsistent)
-    {
-      mark_satisfied_ruler_clauses (ruler);
-      flush_satisfied_ruler_watches (ruler);
-      delete_satisfied_large_ruler_clauses (ruler);
-    }
+  size_t before = SIZE (ruler->clauses) + ruler->original_binaries;
+  if (propagate_and_flush_ruler_units (ruler))
+    if (bounded_variable_elimination (ruler))
+      if (propagate_and_flush_ruler_units (ruler))
+	bounded_variable_elimination (ruler);
+  size_t after = SIZE (ruler->clauses) + ruler->original_binaries;
+  assert (after <= before);
+  size_t removed_clauses = before - after;
+  size_t removed_variables = SIZE (ruler->units);
+  message (0, "simplified %zu clauses %.0f%% and %zu variables %.0f%%",
+           removed_clauses, percent (removed_clauses, before),
+           removed_variables, percent (removed_variables, ruler->size));
   STOP (ruler, simplifying);
 }
 
@@ -5863,11 +5939,7 @@ parse_dimacs_file ()
     }
   struct ruler *ruler = new_ruler (variables);
   START (ruler, parsing);
-#if 0
-  struct ring *ring = new_ring (ruler);
-  signed char *marked = ring->marks;
-#endif
-  signed char *marked = allocate_and_clear_block (variables);
+  signed char *marked = ruler->marks;
   struct unsigneds clause;
   INIT (clause);
   int signed_lit = 0, parsed = 0;
@@ -5987,7 +6059,6 @@ parse_dimacs_file ()
   if (dimacs.close == 2)
     pclose (dimacs.file);
   RELEASE (clause);
-  free (marked);
   STOP (ruler, parsing);
   return ruler;
 }
@@ -6032,7 +6103,7 @@ static void
 print_witness (struct ring *ring)
 {
   signed char *values = ring->values;
-  for (all_indices (idx))
+  for (all_ring_indices (idx))
     print_unsigned_literal (values, LIT (idx));
   print_signed_literal (0);
   if (buffered)
