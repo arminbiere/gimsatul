@@ -95,8 +95,9 @@ static const char * usage =
 #define VAR(LIT) (solver->variables + IDX (LIT))
 
 #define REFERENCES(LIT) (solver->references[LIT])
-#define BINARIES(LIT) (root->binaries[LIT])
-#define OCCS(LIT) (walker->occs[LIT])
+#define OCCURENCES(LIT) (root->occurrences[LIT])
+#define COUNTERS(LIT) (walker->occurrences[LIT])
+
 
 #define MAX_THREADS \
   ((size_t) 1 << 8*sizeof ((struct clause *) 0)->shared)
@@ -184,17 +185,22 @@ do { \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
-#define all_watches(ELEM,WATCHES) \
-  struct watch ** P_ ## ELEM = (WATCHES).begin, \
-               ** END_ ## ELEM = (WATCHES).end, * ELEM; \
+#define all_pointers_on_stack(TYPE,ELEM,STACK) \
+  TYPE ** P_ ## ELEM = (STACK).begin, ** END_ ## ELEM = (STACK).end, * ELEM; \
   (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
   ++P_ ## ELEM
 
+#define all_watches(ELEM,WATCHES) \
+  all_pointers_on_stack (struct watch, ELEM, WATCHES)
+
+#define all_clauses(ELEM,CLAUSES) \
+  all_pointers_on_stack (struct clause, ELEM, CLAUSES)
+
 #define all_counters(ELEM,COUNTERS) \
-  struct counter ** P_ ## ELEM = (COUNTERS).begin, \
-               ** END_ ## ELEM = (COUNTERS).end, * ELEM; \
-  (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
-  ++P_ ## ELEM
+  all_pointers_on_stack (struct counter, ELEM, COUNTERS)
+
+#define all_solvers(SOLVER) \
+  all_pointers_on_stack(struct solver, SOLVER, root->solvers)
 
 #define all_variables(VAR) \
   struct variable * VAR = solver->variables, \
@@ -240,12 +246,6 @@ do { \
   * END_ ## AVG = (struct average*) ((char*) AVG + sizeof solver->averages); \
   AVG != END_ ## AVG; \
   ++AVG
-
-#define all_solvers(SOLVER) \
-  struct solver ** P_ ## SOLVER = root->solvers.begin, \
-                ** END_ ## SOLVER = root->solvers.end, * SOLVER; \
-  (P_ ## SOLVER != END_ ## SOLVER) && ((SOLVER) = *P_ ## SOLVER, true); \
-  ++P_ ## SOLVER
 
 /*------------------------------------------------------------------------*/
 
@@ -489,17 +489,16 @@ struct root
 {
   unsigned size;
   volatile bool terminate;
+  bool inconsistent;
   struct locks locks;
   struct solvers solvers;
   pthread_t * threads;
   struct solver * volatile winner;
   volatile signed char * values;
-  struct unsigneds * binaries;
+  struct clauses * occurrences;
+  struct clauses clauses;
+  struct buffer buffer;
   struct units units;
-#ifdef LOGGING
-  volatile uint64_t ids;
-#endif
-
 };
 
 #define BINARY_SHARED 0
@@ -543,15 +542,15 @@ struct solver
   struct queue queue;
   struct unsigneds clause;
   struct unsigneds analyzed;
-  struct buffer buffer;
   struct trail trail;
-  struct last last;
   struct limits limits;
+  struct buffer buffer;
   struct intervals intervals;
   struct averages averages[2];
   struct reluctant reluctant;
   struct statistics statistics;
   struct profiles profiles;
+  struct last last;
   uint64_t random;
 };
 
@@ -745,6 +744,9 @@ print_line_without_acquiring_lock (struct solver * solver, const char * fmt, ...
 }
 
 static int verbosity;
+#ifdef LOGGING
+static volatile uint64_t clause_ids;
+#endif
 
 #define PRINTLN(...) \
   print_line_without_acquiring_lock (solver, __VA_ARGS__)
@@ -845,9 +847,36 @@ logvar (struct solver *solver, unsigned idx)
   return res;
 }
 
-#define LOGVAR(...) logvar (solver, __VA_ARGS__)
+static const char *
+roglit (struct root *root, unsigned unsigned_lit)
+{
+  char *res = next_loglitbuf ();
+  int signed_lit = export_literal (unsigned_lit);
+  sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
+  signed char value = root->values[unsigned_lit];
+  if (value)
+    sprintf (res + strlen (res), "=%d", (int) value);
+  assert (strlen (res) + 1 < sizeof *loglitbuf);
+  return res;
+}
+
+#if 0
+static const char *
+rogvar (struct root *root, unsigned idx)
+{
+  unsigned lit = LIT (idx);
+  const char *tmp = roglit (root, lit);
+  char *res = next_loglitbuf ();
+  sprintf (res, "variable %u(%u) (literal %s)", idx, idx + 1, tmp);
+  return res;
+}
+#endif
 
 #define LOGLIT(...) loglit (solver, __VA_ARGS__)
+#define LOGVAR(...) logvar (solver, __VA_ARGS__)
+
+#define ROGLIT(...) roglit (root, __VA_ARGS__)
+#define ROGVAR(...) rogvar (root, __VA_ARGS__)
 
 #define LOGPREFIX(...) \
   if (verbosity < INT_MAX) \
@@ -857,7 +886,7 @@ logvar (struct solver *solver, unsigned idx)
   printf ("LOG %u ", solver->level); \
   printf (__VA_ARGS__)
 
-#define LOGSUFFIX(...) \
+#define LOGSUFFIX() \
   fputc ('\n', stdout); \
   fflush (stdout); \
   release_message_lock ()
@@ -895,8 +924,8 @@ do { \
     printf (" redundant glue %u", (CLAUSE)->glue); \
   else \
     printf (" irredundant"); \
-  printf (" size %u clause[%" PRIu64 "] %p", \
-          (CLAUSE)->size, (uint64_t) (CLAUSE)->id, (void*) CLAUSE); \
+  printf (" size %u clause[%" PRIu64 "]", \
+          (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
   for (all_literals_in_clause (LIT, (CLAUSE))) \
     printf (" %s", LOGLIT (LIT)); \
   LOGSUFFIX (); \
@@ -915,6 +944,53 @@ do { \
     LOGCLAUSE ((WATCH)->clause, __VA_ARGS__); \
 } while (0)
 
+#define ROGPREFIX(...) \
+  if (verbosity < INT_MAX) \
+    break; \
+  acquire_message_lock (); \
+  printf ("cr LOG - "); \
+  printf (__VA_ARGS__)
+
+#define ROGSUFFIX LOGSUFFIX
+
+#define ROG(...) \
+do { \
+  ROGPREFIX (__VA_ARGS__); \
+  ROGSUFFIX (); \
+} while (0)
+
+
+#define LOG(...) \
+do { \
+  LOGPREFIX (__VA_ARGS__); \
+  LOGSUFFIX (); \
+} while (0)
+
+#define ROGBINARY(REDUNDANT,LIT,OTHER, ...) \
+do { \
+  ROGPREFIX (__VA_ARGS__); \
+  if ((REDUNDANT)) \
+    printf (" redundant"); \
+  else \
+    printf (" irredundant"); \
+  printf (" binary clause %s %s", ROGLIT (LIT), ROGLIT (OTHER)); \
+  ROGSUFFIX (); \
+} while (0)
+
+#define ROGCLAUSE(CLAUSE, ...) \
+do { \
+  ROGPREFIX (__VA_ARGS__); \
+  if ((CLAUSE)->redundant) \
+    printf (" redundant glue %u", (CLAUSE)->glue); \
+  else \
+    printf (" irredundant"); \
+  printf (" size %u clause[%" PRIu64 "]", \
+          (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
+  for (all_literals_in_clause (LIT, (CLAUSE))) \
+    printf (" %s", ROGLIT (LIT)); \
+  ROGSUFFIX (); \
+} while (0)
+
 #else
 
 #define LOG(...) do { } while (0)
@@ -922,6 +998,10 @@ do { \
 #define LOGBINARY(...) do { } while (0)
 #define LOGCLAUSE(...) do { } while (0)
 #define LOGWATCH(...) do { } while (0)
+
+#define ROG(...) do { } while (0)
+#define ROGBINARY(...) do { } while (0)
+#define ROGCLAUSE(...) do { } while (0)
 
 #endif
 
@@ -1374,10 +1454,21 @@ new_root (size_t size)
 #endif
   root->size = size;
   root->values = allocate_and_clear_block (2*size);
-  root->binaries = allocate_and_clear_array (2*size, sizeof *root->binaries);
+  root->occurrences =
+    allocate_and_clear_array (2*size, sizeof *root->occurrences);
   root->units.begin = allocate_array (size, sizeof (unsigned));
   root->units.end = root->units.begin;
   return root;
+}
+
+static void
+release_occurrences (struct root * root)
+{
+  if (!root->occurrences)
+    return;
+  for (all_root_literals (lit))
+    RELEASE (OCCURENCES (lit));
+  free (root->occurrences);
 }
 
 static void
@@ -1388,9 +1479,8 @@ delete_root (struct root *root)
     assert (!solver);
 #endif
   RELEASE (root->solvers);
-  for (all_root_literals (lit))
-    RELEASE (BINARIES (lit));
-  free (root->binaries);
+  RELEASE (root->buffer);
+  release_occurrences (root);
   free ((void*) root->values);
   free (root->units.begin);
   free (root->threads);
@@ -1611,10 +1701,9 @@ ascii_proof_line (struct buffer *buffer, size_t size, unsigned *literals)
 }
 
 static inline void
-trace_add_literals (struct solver *solver, size_t size, unsigned * literals)
+trace_add_literals (struct buffer * buffer, size_t size, unsigned * literals)
 {
   assert (proof.file);
-  struct buffer *buffer = &solver->buffer;
   assert (EMPTY (*buffer));
   if (binary_proof_format)
     {
@@ -1628,57 +1717,41 @@ trace_add_literals (struct solver *solver, size_t size, unsigned * literals)
 }
 
 static inline void
-trace_add_empty (struct solver * solver)
+trace_add_empty (struct buffer * buffer)
 {
   if (proof.file)
-    trace_add_literals (solver, 0, 0);
+    trace_add_literals (buffer, 0, 0);
 }
 
 static inline void
-trace_add_unit (struct solver * solver, unsigned unit)
+trace_add_unit (struct buffer * buffer, unsigned unit)
 {
   if (proof.file)
-    trace_add_literals (solver, 1, &unit);
+    trace_add_literals (buffer, 1, &unit);
 }
 
 static inline void
-trace_add_binary (struct solver * solver, unsigned lit, unsigned other)
+trace_add_binary (struct buffer * buffer, unsigned lit, unsigned other)
 {
   if (!proof.file)
     return;
   unsigned literals[2] = { lit, other };
-  trace_add_literals (solver, 2, literals);
+  trace_add_literals (buffer, 2, literals);
 }
 
 static inline void
-trace_add_clause (struct solver * solver, struct clause * clause)
+trace_add_clause (struct buffer * buffer, struct clause * clause)
 {
   if (proof.file)
-    trace_add_literals (solver, clause->size, clause->literals);
+    trace_add_literals (buffer, clause->size, clause->literals);
 }
 
-#if 0
-
 static inline void
-trace_add_temporary (struct solver * solver)
-{
-  if (!proof.file)
-    return;
-  struct unsigneds * clause = &solver->clause;
-  unsigned * literals = clause->begin;
-  size_t size = SIZE (*clause);
-  trace_add_literals (solver, size, literals);
-}
-
-#endif
-
-static inline void
-trace_delete_literals (struct solver *solver,
+trace_delete_literals (struct buffer *buffer,
                        size_t size, unsigned * literals)
 {
   if (!proof.file)
     return;
-  struct buffer *buffer = &solver->buffer;
   assert (EMPTY (*buffer));
   PUSH (*buffer, 'd');
   if (binary_proof_format)
@@ -1693,19 +1766,19 @@ trace_delete_literals (struct solver *solver,
 }
 
 static inline void
-trace_delete_binary (struct solver * solver, unsigned lit, unsigned other)
+trace_delete_binary (struct buffer * buffer, unsigned lit, unsigned other)
 {
   if (!proof.file)
     return;
   unsigned literals[2] = { lit, other };
-  trace_delete_literals (solver, 2, literals);
+  trace_delete_literals (buffer, 2, literals);
 }
 
 static inline void
-trace_delete_clause (struct solver * solver, struct clause * clause)
+trace_delete_clause (struct buffer * buffer, struct clause * clause)
 {
   if (proof.file)
-    trace_delete_literals (solver, clause->size, clause->literals);
+    trace_delete_literals (buffer, clause->size, clause->literals);
 }
 
 static void
@@ -1758,7 +1831,7 @@ inc_clauses (struct solver *solver, bool redundant)
 }
 
 static struct watch *
-new_large_clause_watch (struct solver *solver, struct clause *clause)
+watch_large_clause (struct solver *solver, struct clause *clause)
 {
   assert (clause->size > 2);
   bool redundant = clause->redundant;
@@ -1784,7 +1857,7 @@ new_large_clause_watch (struct solver *solver, struct clause *clause)
 static struct watch *
 watch_literals_in_large_clause (struct solver * solver,
                                 struct clause * clause,
-				unsigned first, unsigned second)
+			        unsigned first, unsigned second)
 {
 #ifndef NDEBUG
   assert (first != second);
@@ -1797,7 +1870,7 @@ watch_literals_in_large_clause (struct solver * solver,
     found_second |= (lit == second);
   assert (found_second);
 #endif
-  struct watch * watch = new_large_clause_watch (solver, clause);
+  struct watch * watch = watch_large_clause (solver, clause);
   watch->sum = first ^ second;
   watch_literal (solver, first, watch);
   watch_literal (solver, second, watch);
@@ -1809,32 +1882,23 @@ watch_first_two_literals_in_large_clause (struct solver * solver,
                                           struct clause * clause)
 {
   unsigned *lits = clause->literals;
-  return watch_literals_in_large_clause (solver, clause, lits[0], lits[1]);
+  return watch_literals_in_large_clause (solver, clause,
+                                         lits[0], lits[1]);
 }
 
 static void
 push_root_binary (struct root * root, unsigned lit, unsigned other)
 {
-#ifdef LOGGING
-  struct solver * solver = first_solver (root);
-  LOGBINARY (true, lit, other, "root watching %s in", LOGLIT (other));
-#endif
-  struct unsigneds * binaries = &BINARIES (lit);
-  if (!EMPTY (*binaries))
-    {
-      unsigned tmp = POP (*binaries);
-      assert (tmp == INVALID), (void) tmp;
-    }
-  PUSH (*binaries, other);
-  PUSH (*binaries, INVALID);
+  ROGBINARY (false, lit, other, "watching %s in", ROGLIT (lit));
+  struct clauses * clauses = &OCCURENCES (lit);
+  struct clause * watch_lit = tag_pointer (false, lit, other);
+  PUSH (*clauses, watch_lit);
 }
 
 static void
-new_root_binary_clause (struct solver *solver, bool redundant,
-			  unsigned lit, unsigned other)
+new_root_binary_clause (struct root *root, unsigned lit, unsigned other)
 {
-  struct root *root = solver->root;
-  LOGBINARY (redundant, lit, other, "new global");
+  ROGBINARY (false, lit, other, "new root");
   push_root_binary (root, lit, other);
   push_root_binary (root, other, lit);
 }
@@ -1852,16 +1916,15 @@ new_local_binary_clause (struct solver *solver, bool redundant,
   return watch_lit;
 }
 
-static struct watch *
-new_large_clause (struct solver *solver, size_t size, unsigned *literals,
-		  bool redundant, unsigned glue)
+static struct clause *
+new_large_clause (size_t size, unsigned *literals,
+                  bool redundant, unsigned glue)
 {
   assert (2 <= size);
-  assert (size <= solver->size);
   size_t bytes = size * sizeof (unsigned);
   struct clause *clause = allocate_block (sizeof *clause + bytes);
 #ifdef LOGGING
-  clause->id = atomic_fetch_add (&solver->root->ids, 1);
+  clause->id = atomic_fetch_add (&clause_ids, 1);
 #endif
   if (glue > MAX_GLUE)
     glue = MAX_GLUE;
@@ -1870,15 +1933,14 @@ new_large_clause (struct solver *solver, size_t size, unsigned *literals,
   clause->shared = 0;
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
-  LOGCLAUSE (clause, "new");
-  return watch_first_two_literals_in_large_clause (solver, clause);
+  return clause;
 }
 
 static void
 really_delete_clause (struct solver *solver, struct clause *clause)
 {
   LOGCLAUSE (clause, "delete");
-  trace_delete_clause (solver, clause);
+  trace_delete_clause (&solver->buffer, clause);
   free (clause);
 }
 
@@ -2038,31 +2100,98 @@ set_satisfied (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static void
-share_root_binaries (struct solver * solver, bool shrink)
+copy_root_units (struct solver * solver)
 {
   struct root * root = solver->root;
+  assert (first_solver (root) == solver);
+  assert (!solver->id);
+  size_t units = 0;
+  for (all_elements_on_stack (unsigned, unit, root->units))
+    assign_unit (solver, unit), units++;
+  very_verbose (solver, "copied %zu units", units);
+  solver->trail.export = solver->trail.iterate = solver->trail.end;
+}
 
+static void
+copy_root_binaries (struct solver * solver)
+{
+  struct root * root = solver->root;
+  assert (first_solver (root) == solver);
+  assert (!solver->id);
   size_t watched = 0;
 
   for (all_root_literals (lit))
     {
-      struct unsigneds * binaries = &BINARIES (lit);
-      struct references * watches = &REFERENCES (lit);
-      if (shrink)
-	SHRINK_STACK (*binaries);
-      if (EMPTY (*binaries))
-	assert (!watches->binaries);
-      else
-	{
-	  watched += SIZE (*binaries) - 1;
-	  watches->binaries = binaries->begin;
-	}
+      struct clauses * occurrences = &OCCURENCES (lit);
+      struct references * references = &REFERENCES (lit);
+      size_t size = 0;
+      for (all_clauses (clause, *occurrences))
+	if (binary_pointer (clause))
+	  size++;
+      unsigned * binaries = allocate_array (size + 1, sizeof *binaries);
+      unsigned * b = references->binaries = binaries;
+      for (all_clauses (clause, *occurrences))
+	if (binary_pointer (clause))
+	  *b++ = other_pointer (clause);
+      assert (binaries + size == b);
+      *b = INVALID;
+      RELEASE (*occurrences);
+      watched += size;
     }
   assert (!(watched & 1));
-  size_t binaries = watched/2;
-  solver->statistics.irredundant += binaries;
-  very_verbose (solver, "sharing %zu global binary clauses", binaries);
+  size_t copied = watched/2;
+  solver->statistics.irredundant += copied;
+  very_verbose (solver, "copied %zu binary clauses", copied);
 }
+
+static void
+share_solver_binaries (struct solver * dst, struct solver * src)
+{
+  struct solver * solver = dst;
+  struct root * root = solver->root;
+  assert (first_solver (root) == src);
+  assert (src->root == root);
+  assert (!src->id);
+  size_t watched = 0;
+
+  for (all_solver_literals (lit))
+    {
+      struct references * src_references = src->references + lit;
+      struct references * dst_references = dst->references + lit;
+      dst_references->binaries = src_references->binaries;
+    }
+  assert (!(watched & 1));
+
+  size_t shared = src->statistics.irredundant;
+  solver->statistics.irredundant += shared;
+  very_verbose (solver, "shared %zu binary clauses", shared);
+}
+
+static void
+transfer_and_own_root_clauses (struct solver * solver)
+{
+  struct root * root = solver->root;
+  assert (first_solver (root) == solver);
+  assert (!solver->id);
+  size_t transferred = 0;
+  for (all_clauses (clause, root->clauses))
+    watch_first_two_literals_in_large_clause (solver, clause);
+  RELEASE (root->clauses);
+  very_verbose (solver, "transferred %zu large clauses", transferred);
+}
+
+static void
+clone_root (struct root * root)
+{
+  struct solver * solver = new_solver (root);
+  if (root->inconsistent)
+    set_inconsistent (solver, "copied empty clause");
+  copy_root_units (solver);
+  copy_root_binaries (solver);
+  transfer_and_own_root_clauses (solver);
+}
+
+/*------------------------------------------------------------------------*/
 
 static void
 clone_clauses (struct solver *dst, struct solver *src)
@@ -2103,7 +2232,7 @@ clone_solver (void * ptr)
 {
   struct solver * src = ptr;
   struct solver *solver = new_solver (src->root);
-  share_root_binaries (solver, false);
+  share_solver_binaries (solver, src);
   clone_clauses (solver, src);
   init_pool (solver, src->threads);
   return solver;
@@ -2450,7 +2579,7 @@ import_units (struct solver * solver)
       if (value < 0)
 	{
 	  set_inconsistent (solver, "imported falsified unit");
-	  trace_add_empty (solver);
+	  trace_add_empty (&solver->buffer);
 	  imported = INVALID;
 	  break;
 	}
@@ -2557,7 +2686,7 @@ really_import_binary_clause (struct solver * solver,
                              unsigned lit, unsigned other)
 {
   (void) new_local_binary_clause (solver, true, lit, other);
-  trace_add_binary (solver, lit, other);
+  trace_add_binary (&solver->buffer, lit, other);
   solver->statistics.imported.binary++;
   solver->statistics.imported.clauses++;
 }
@@ -3203,7 +3332,7 @@ analyze (struct solver *solver, struct watch *reason)
     {
       set_inconsistent (solver,
 			"conflict on root-level produces empty clause");
-      trace_add_empty (solver);
+      trace_add_empty (&solver->buffer);
       return false;
     }
   struct unsigneds *clause = &solver->clause;
@@ -3273,7 +3402,7 @@ analyze (struct solver *solver, struct watch *reason)
     {
       assign_unit (solver, not_uip);
       solver->iterating = true;
-      trace_add_unit (solver, not_uip);
+      trace_add_unit (&solver->buffer, not_uip);
     }
   else
     {
@@ -3283,7 +3412,7 @@ analyze (struct solver *solver, struct watch *reason)
 	{
 	  assert (VAR (other)->level == jump);
 	  learned = new_local_binary_clause (solver, true, not_uip, other);
-          trace_add_binary (solver, not_uip, other);
+          trace_add_binary (&solver->buffer, not_uip, other);
 	  export_binary (solver, learned);
 	}
       else
@@ -3297,10 +3426,13 @@ analyze (struct solver *solver, struct watch *reason)
 	      literals[1] = replacement;
 	      *p = other;
 	    }
-	  learned = new_large_clause (solver, size, literals, true, glue);
+	  struct clause * clause =
+	    new_large_clause (size, literals, true, glue);
+	  LOGCLAUSE (clause, "new");
+          learned =
+	    watch_first_two_literals_in_large_clause (solver, clause);
 	  assert (!binary_pointer (learned));
-	  struct clause * clause = learned->clause;
-	  trace_add_clause (solver, clause);
+	  trace_add_clause (&solver->buffer, clause);
 	  if (glue == 1)
 	    export_glue1_clause (solver, clause);
 	  else if (glue <= TIER1_GLUE_LIMIT)
@@ -3678,7 +3810,7 @@ flush_references (struct solver *solver, bool fixed)
 		    {
 		      bool redundant = redundant_pointer (watch);
 		      dec_clauses (solver, redundant);
-		      trace_delete_binary (solver, lit, other);
+		      trace_delete_binary (&solver->buffer, lit, other);
 		    }
 		  flushed++;
 		  q--;
@@ -4165,8 +4297,6 @@ do { \
 #define WOG(...) do { } while (0)
 
 #endif
-
-#define COUNTERS(LIT) (walker->occurrences[LIT])
 
 static size_t
 count_irredundant_non_garbage_clauses (struct solver *solver,
@@ -5179,7 +5309,8 @@ parse_options (int argc, char **argv, struct options *opts)
 	  printf (usage, (size_t) MAX_THREADS);
 	  exit (0);
 	}
-      else if (!strcmp (opt, "-l") || !strcmp (opt, "--log") || !strcmp (opt, "logging"))
+      else if (!strcmp (opt, "-l") ||
+	       !strcmp (opt, "--log") || !strcmp (opt, "logging"))
 #ifdef LOGGING
 	verbosity = INT_MAX;
 #else
@@ -5458,11 +5589,15 @@ parse_dimacs_file ()
       fflush (stdout);
     }
   struct root *root = new_root (variables);
+#if 0
   struct solver *solver = new_solver (root);
   signed char *marked = solver->marks;
+#endif
+  signed char * marked = allocate_and_clear_block (variables);
+  struct unsigneds clause;
+  INIT (clause);
   int signed_lit = 0, parsed = 0;
   bool trivial = false;
-  struct unsigneds *clause = &solver->clause;
   for (;;)
     {
       ch = next_char ();
@@ -5504,12 +5639,12 @@ parse_dimacs_file ()
 #endif
 	  if (mark == -sign)
 	    {
-	      LOG ("skipping trivial clause");
+	      ROG ("skipping trivial clause");
 	      trivial = true;
 	    }
 	  else if (!mark)
 	    {
-	      PUSH (*clause, unsigned_lit);
+	      PUSH (clause, unsigned_lit);
 	      marked[idx] = sign;
 	    }
 	  else
@@ -5521,36 +5656,56 @@ parse_dimacs_file ()
 	  PUSH (original, INVALID);
 #endif
 	  parsed++;
-	  unsigned *literals = clause->begin;
-	  if (!solver->inconsistent && !trivial)
+	  unsigned *literals = clause.begin;
+	  if (!root->inconsistent && !trivial)
 	    {
-	      const size_t size = SIZE (*clause);
-	      assert (size <= solver->size);
+	      const size_t size = SIZE (clause);
+	      assert (size <= root->size);
 	      if (!size)
-		set_inconsistent (solver, "found empty original clause");
+		{
+		  assert (!root->inconsistent);
+		  very_verbose (0, "%s", "found empty original clause");
+		  root->inconsistent = true;
+		}
 	      else if (size == 1)
 		{
-		  const unsigned unit = *clause->begin;
-		  const signed char value = solver->values[unit];
+		  const unsigned unit = *clause.begin;
+		  const signed char value = root->values[unit];
 		  if (value < 0)
 		    {
-		      set_inconsistent (solver, "found inconsistent unit");
-		      trace_add_empty (solver);
+		      assert (!root->inconsistent);
+		      very_verbose (0, "found inconsistent unit");
+		      root->inconsistent = true;
+		      trace_add_empty (&root->buffer);
 		    }
 		  else if (!value)
-		    assign_unit (solver, unit);
+		    {
+		      unsigned not_unit = NOT (unit);
+		      assert (!root->values[unit]);
+		      assert (!root->values[not_unit]);
+		      root->values[unit] = 1;
+		      root->values[not_unit] = -1;
+		      assert (root->units.end <
+		              root->units.begin + root->size);
+		      *root->units.end++ = unit;
+		      ROG ("assign %s unit", ROGLIT (unit));
+		    }
 		}
 	      else if (size == 2)
-		new_root_binary_clause (solver, false,
-				        literals[0], literals[1]);
+		new_root_binary_clause (root, literals[0], literals[1]);
 	      else
-		new_large_clause (solver, size, literals, false, 0);
+		{
+		  struct clause * large_clause =
+		    new_large_clause (size, literals, false, 0);
+		  ROGCLAUSE (large_clause, "new");
+		  PUSH (root->clauses, large_clause);
+		}
 	    }
 	  else
 	    trivial = false;
-	  for (all_elements_on_stack (unsigned, unsigned_lit, *clause))
+	  for (all_elements_on_stack (unsigned, unsigned_lit, clause))
 	      marked[IDX (unsigned_lit)] = 0;
-	  CLEAR (*clause);
+	  CLEAR (clause);
 	}
       if (ch == 'c')
 	goto SKIP_BODY_COMMENT;
@@ -5567,6 +5722,8 @@ parse_dimacs_file ()
     fclose (dimacs.file);
   if (dimacs.close == 2)
     pclose (dimacs.file);
+  RELEASE (clause);
+  free (marked);
   return root;
 }
 
@@ -6210,7 +6367,7 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   root = parse_dimacs_file ();
-  share_root_binaries (first_solver (root), true);
+  clone_root (root);
   if (options.threads > 1)
     clone_solvers (root, options.threads);
   set_limits_of_all_solvers (root, options.conflicts);
