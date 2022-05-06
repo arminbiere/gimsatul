@@ -95,7 +95,7 @@ static const char * usage =
 #define VAR(LIT) (solver->variables + IDX (LIT))
 
 #define REFERENCES(LIT) (solver->references[LIT])
-#define OCCURENCES(LIT) (root->occurrences[LIT])
+#define OCCURENCES(LIT) (ruler->occurrences[LIT])
 #define COUNTERS(LIT) (walker->occurrences[LIT])
 
 
@@ -200,7 +200,7 @@ do { \
   all_pointers_on_stack (struct counter, ELEM, COUNTERS)
 
 #define all_solvers(SOLVER) \
-  all_pointers_on_stack(struct solver, SOLVER, root->solvers)
+  all_pointers_on_stack(struct solver, SOLVER, ruler->solvers)
 
 #define all_variables(VAR) \
   struct variable * VAR = solver->variables, \
@@ -230,8 +230,8 @@ do { \
   LIT != END_ ## LIT; \
   ++LIT
 
-#define all_root_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*root->size; \
+#define all_ruler_literals(LIT) \
+  unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
   LIT != END_ ## LIT; \
   ++LIT
 
@@ -485,7 +485,7 @@ struct locks
 #endif
 };
 
-struct root
+struct ruler
 {
   unsigned size;
   volatile bool terminate;
@@ -519,7 +519,7 @@ struct solver
 {
   unsigned id;
   unsigned threads;
-  struct root *root;
+  struct ruler *ruler;
   struct pool * pool;
   volatile int status;
   unsigned * units;
@@ -848,12 +848,12 @@ logvar (struct solver *solver, unsigned idx)
 }
 
 static const char *
-roglit (struct root *root, unsigned unsigned_lit)
+roglit (struct ruler *ruler, unsigned unsigned_lit)
 {
   char *res = next_loglitbuf ();
   int signed_lit = export_literal (unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
-  signed char value = root->values[unsigned_lit];
+  signed char value = ruler->values[unsigned_lit];
   if (value)
     sprintf (res + strlen (res), "=%d", (int) value);
   assert (strlen (res) + 1 < sizeof *loglitbuf);
@@ -862,10 +862,10 @@ roglit (struct root *root, unsigned unsigned_lit)
 
 #if 0
 static const char *
-rogvar (struct root *root, unsigned idx)
+rogvar (struct ruler *ruler, unsigned idx)
 {
   unsigned lit = LIT (idx);
-  const char *tmp = roglit (root, lit);
+  const char *tmp = roglit (ruler, lit);
   char *res = next_loglitbuf ();
   sprintf (res, "variable %u(%u) (literal %s)", idx, idx + 1, tmp);
   return res;
@@ -875,8 +875,8 @@ rogvar (struct root *root, unsigned idx)
 #define LOGLIT(...) loglit (solver, __VA_ARGS__)
 #define LOGVAR(...) logvar (solver, __VA_ARGS__)
 
-#define ROGLIT(...) roglit (root, __VA_ARGS__)
-#define ROGVAR(...) rogvar (root, __VA_ARGS__)
+#define ROGLIT(...) roglit (ruler, __VA_ARGS__)
+#define ROGVAR(...) rogvar (ruler, __VA_ARGS__)
 
 #define LOGPREFIX(...) \
   if (verbosity < INT_MAX) \
@@ -1198,15 +1198,15 @@ dequeue_node (struct node *node)
 static void
 pop_queue (struct queue *queue, struct node *node)
 {
-  struct node *root = queue->root;
+  struct node *ruler = queue->root;
   struct node *child = node->child;
-  if (root == node)
+  if (ruler == node)
     queue->root = collapse_node (child);
   else
     {
       dequeue_node (node);
       struct node *collapsed = collapse_node (child);
-      queue->root = merge_nodes (root, collapsed);
+      queue->root = merge_nodes (ruler, collapsed);
     }
   assert (!queue_contains (queue, node));
 }
@@ -1219,13 +1219,13 @@ update_queue (struct queue *queue, struct node *node, double new_score)
   if (old_score == new_score)
     return;
   node->score = new_score;
-  struct node *root = queue->root;
-  if (root == node)
+  struct node *ruler = queue->root;
+  if (ruler == node)
     return;
   if (!node->prev)
     return;
   dequeue_node (node);
-  queue->root = merge_nodes (root, node);
+  queue->root = merge_nodes (ruler, node);
 }
 
 static void
@@ -1442,96 +1442,96 @@ init_profiles (struct solver *solver)
 
 /*------------------------------------------------------------------------*/
 
-static struct root *
-new_root (size_t size)
+static struct ruler *
+new_ruler (size_t size)
 {
-  struct root *root = allocate_and_clear_block (sizeof *root);
-  pthread_mutex_init (&root->locks.units, 0);
-  pthread_mutex_init (&root->locks.solvers, 0);
+  struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
+  pthread_mutex_init (&ruler->locks.units, 0);
+  pthread_mutex_init (&ruler->locks.solvers, 0);
 #ifdef NFASTPATH
-  pthread_mutex_init (&root->locks.terminate, 0);
-  pthread_mutex_init (&root->locks.winner, 0);
+  pthread_mutex_init (&ruler->locks.terminate, 0);
+  pthread_mutex_init (&ruler->locks.winner, 0);
 #endif
-  root->size = size;
-  root->values = allocate_and_clear_block (2*size);
-  root->occurrences =
-    allocate_and_clear_array (2*size, sizeof *root->occurrences);
-  root->units.begin = allocate_array (size, sizeof (unsigned));
-  root->units.end = root->units.begin;
-  return root;
+  ruler->size = size;
+  ruler->values = allocate_and_clear_block (2*size);
+  ruler->occurrences =
+    allocate_and_clear_array (2*size, sizeof *ruler->occurrences);
+  ruler->units.begin = allocate_array (size, sizeof (unsigned));
+  ruler->units.end = ruler->units.begin;
+  return ruler;
 }
 
 static void
-release_occurrences (struct root * root)
+release_occurrences (struct ruler * ruler)
 {
-  if (!root->occurrences)
+  if (!ruler->occurrences)
     return;
-  for (all_root_literals (lit))
+  for (all_ruler_literals (lit))
     RELEASE (OCCURENCES (lit));
-  free (root->occurrences);
+  free (ruler->occurrences);
 }
 
 static void
-delete_root (struct root *root)
+delete_ruler (struct ruler *ruler)
 {
 #ifndef NDEBUG
   for (all_solvers (solver))
     assert (!solver);
 #endif
-  RELEASE (root->solvers);
-  RELEASE (root->buffer);
-  release_occurrences (root);
-  free ((void*) root->values);
-  free (root->units.begin);
-  free (root->threads);
-  free (root);
+  RELEASE (ruler->solvers);
+  RELEASE (ruler->buffer);
+  release_occurrences (ruler);
+  free ((void*) ruler->values);
+  free (ruler->units.begin);
+  free (ruler->threads);
+  free (ruler);
 }
 
 static struct solver *
-first_solver (struct root * root)
+first_solver (struct ruler * ruler)
 {
-  assert (!EMPTY (root->solvers));
-  return root->solvers.begin[0];
+  assert (!EMPTY (ruler->solvers));
+  return ruler->solvers.begin[0];
 }
 
 static void
-push_solver (struct root *root, struct solver *solver)
+push_solver (struct ruler *ruler, struct solver *solver)
 {
-  if (pthread_mutex_lock (&root->locks.solvers))
+  if (pthread_mutex_lock (&ruler->locks.solvers))
     fatal_error ("failed to acquire solvers lock while pushing solver");
-  size_t id = SIZE (root->solvers); 
+  size_t id = SIZE (ruler->solvers); 
   assert (id < MAX_THREADS);
   solver->id = id;
-  PUSH (root->solvers, solver);
+  PUSH (ruler->solvers, solver);
   solver->random = solver->id;
-  solver->root = root;
-  solver->units = root->units.begin;
-  if (pthread_mutex_unlock (&root->locks.solvers))
+  solver->ruler = ruler;
+  solver->units = ruler->units.begin;
+  if (pthread_mutex_unlock (&ruler->locks.solvers))
     fatal_error ("failed to release solvers lock while pushing solver");
 }
 
 static void
 detach_solver (struct solver *solver)
 {
-  struct root * root = solver->root;
-  if (pthread_mutex_lock (&root->locks.solvers))
+  struct ruler * ruler = solver->ruler;
+  if (pthread_mutex_lock (&ruler->locks.solvers))
     fatal_error ("failed to acquire solvers lock while detaching solver");
-  assert (solver->id < SIZE (root->solvers));
-  assert (root->solvers.begin[solver->id] == solver);
-  root->solvers.begin[solver->id] = 0;
-  if (pthread_mutex_unlock (&root->locks.solvers))
+  assert (solver->id < SIZE (ruler->solvers));
+  assert (ruler->solvers.begin[solver->id] == solver);
+  ruler->solvers.begin[solver->id] = 0;
+  if (pthread_mutex_unlock (&ruler->locks.solvers))
     fatal_error ("failed to release solverfs lock while detaching solver");
 }
 
 /*------------------------------------------------------------------------*/
 
 static struct solver *
-new_solver (struct root *root)
+new_solver (struct ruler *ruler)
 {
-  unsigned size = root->size;
+  unsigned size = ruler->size;
   assert (size < (1u << 30));
   struct solver *solver = allocate_and_clear_block (sizeof *solver);
-  push_solver (root, solver);
+  push_solver (ruler, solver);
   solver->size = size;
   verbose (solver, "new solver[%u] of size %u", solver->id, size);
   solver->values = allocate_and_clear_block (2 * size);
@@ -1887,7 +1887,7 @@ watch_first_two_literals_in_large_clause (struct solver * solver,
 }
 
 static void
-push_root_binary (struct root * root, unsigned lit, unsigned other)
+push_ruler_binary (struct ruler * ruler, unsigned lit, unsigned other)
 {
   ROGBINARY (false, lit, other, "watching %s in", ROGLIT (lit));
   struct clauses * clauses = &OCCURENCES (lit);
@@ -1896,11 +1896,11 @@ push_root_binary (struct root * root, unsigned lit, unsigned other)
 }
 
 static void
-new_root_binary_clause (struct root *root, unsigned lit, unsigned other)
+new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
 {
-  ROGBINARY (false, lit, other, "new root");
-  push_root_binary (root, lit, other);
-  push_root_binary (root, other, lit);
+  ROGBINARY (false, lit, other, "new ruler");
+  push_ruler_binary (ruler, lit, other);
+  push_ruler_binary (ruler, other, lit);
 }
 
 static struct watch *
@@ -2042,19 +2042,19 @@ static void
 set_winner (struct solver *solver)
 {
   volatile struct solver *winner;
-  struct root *root = solver->root;
+  struct ruler *ruler = solver->ruler;
   bool winning;
 #ifndef NFASTPATH
   winner = 0;
-  winning = atomic_compare_exchange_strong (&root->winner, &winner, solver);
+  winning = atomic_compare_exchange_strong (&ruler->winner, &winner, solver);
 #else
-  if (pthread_mutex_lock (&root->locks.winner))
+  if (pthread_mutex_lock (&ruler->locks.winner))
     fatal_error ("failed to acquire winner lock");
-  winner = root->winner;
+  winner = ruler->winner;
   winning = !winner;
   if (winning)
-    root->winner = solver;
-  if (pthread_mutex_unlock (&root->locks.winner))
+    ruler->winner = solver;
+  if (pthread_mutex_unlock (&ruler->locks.winner))
     fatal_error ("failed to release winner lock");
 #endif
   if (!winning)
@@ -2064,12 +2064,12 @@ set_winner (struct solver *solver)
       return;
     }
 #ifndef NFASTPATH
-  (void) atomic_exchange (&root->terminate, true);
+  (void) atomic_exchange (&ruler->terminate, true);
 #else
-  if (pthread_mutex_lock (&root->locks.terminate))
+  if (pthread_mutex_lock (&ruler->locks.terminate))
     fatal_error ("failed to acquire terminate lock");
-  root->terminate = true;
-  if (pthread_mutex_unlock (&root->locks.terminate))
+  ruler->terminate = true;
+  if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
 #endif
   verbose (solver, "winning solver[%u] with status %d",
@@ -2100,27 +2100,27 @@ set_satisfied (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static void
-copy_root_units (struct solver * solver)
+copy_ruler_units (struct solver * solver)
 {
-  struct root * root = solver->root;
-  assert (first_solver (root) == solver);
+  struct ruler * ruler = solver->ruler;
+  assert (first_solver (ruler) == solver);
   assert (!solver->id);
   size_t units = 0;
-  for (all_elements_on_stack (unsigned, unit, root->units))
+  for (all_elements_on_stack (unsigned, unit, ruler->units))
     assign_unit (solver, unit), units++;
   very_verbose (solver, "copied %zu units", units);
   solver->trail.export = solver->trail.iterate = solver->trail.end;
 }
 
 static void
-copy_root_binaries (struct solver * solver)
+copy_ruler_binaries (struct solver * solver)
 {
-  struct root * root = solver->root;
-  assert (first_solver (root) == solver);
+  struct ruler * ruler = solver->ruler;
+  assert (first_solver (ruler) == solver);
   assert (!solver->id);
   size_t watched = 0;
 
-  for (all_root_literals (lit))
+  for (all_ruler_literals (lit))
     {
       struct clauses * occurrences = &OCCURENCES (lit);
       struct references * references = &REFERENCES (lit);
@@ -2148,9 +2148,9 @@ static void
 share_solver_binaries (struct solver * dst, struct solver * src)
 {
   struct solver * solver = dst;
-  struct root * root = solver->root;
-  assert (first_solver (root) == src);
-  assert (src->root == root);
+  struct ruler * ruler = solver->ruler;
+  assert (first_solver (ruler) == src);
+  assert (src->ruler == ruler);
   assert (!src->id);
   size_t watched = 0;
 
@@ -2168,27 +2168,27 @@ share_solver_binaries (struct solver * dst, struct solver * src)
 }
 
 static void
-transfer_and_own_root_clauses (struct solver * solver)
+transfer_and_own_ruler_clauses (struct solver * solver)
 {
-  struct root * root = solver->root;
-  assert (first_solver (root) == solver);
+  struct ruler * ruler = solver->ruler;
+  assert (first_solver (ruler) == solver);
   assert (!solver->id);
   size_t transferred = 0;
-  for (all_clauses (clause, root->clauses))
+  for (all_clauses (clause, ruler->clauses))
     watch_first_two_literals_in_large_clause (solver, clause);
-  RELEASE (root->clauses);
+  RELEASE (ruler->clauses);
   very_verbose (solver, "transferred %zu large clauses", transferred);
 }
 
 static void
-clone_root (struct root * root)
+clone_ruler (struct ruler * ruler)
 {
-  struct solver * solver = new_solver (root);
-  if (root->inconsistent)
+  struct solver * solver = new_solver (ruler);
+  if (ruler->inconsistent)
     set_inconsistent (solver, "copied empty clause");
-  copy_root_units (solver);
-  copy_root_binaries (solver);
-  transfer_and_own_root_clauses (solver);
+  copy_ruler_units (solver);
+  copy_ruler_binaries (solver);
+  transfer_and_own_ruler_clauses (solver);
 }
 
 /*------------------------------------------------------------------------*/
@@ -2231,7 +2231,7 @@ static void *
 clone_solver (void * ptr)
 {
   struct solver * src = ptr;
-  struct solver *solver = new_solver (src->root);
+  struct solver *solver = new_solver (src->ruler);
   share_solver_binaries (solver, src);
   clone_clauses (solver, src);
   init_pool (solver, src->threads);
@@ -2506,9 +2506,9 @@ export_units (struct solver * solver)
   if (solver->threads < 2)
     return;
   assert (!solver->level);
-  struct root * root = solver->root;
+  struct ruler * ruler = solver->ruler;
   struct trail * trail = &solver->trail;
-  volatile signed char * values = root->values;
+  volatile signed char * values = ruler->values;
   unsigned * end = trail->end;
   bool locked = false;
   while (trail->export != end)
@@ -2520,7 +2520,7 @@ export_units (struct solver * solver)
 #endif
       if (!locked)
 	{
-	  if (pthread_mutex_lock (&root->locks.units))
+	  if (pthread_mutex_lock (&ruler->locks.units))
 	    fatal_error ("failed to acquire unit lock");
 	  locked = true;
 	}
@@ -2532,7 +2532,7 @@ export_units (struct solver * solver)
       very_verbose (solver, "exporting unit %d", export_literal (unit));
       unsigned not_unit = NOT (unit);
       assert (!values[not_unit]);
-      *root->units.end++ = unit;
+      *ruler->units.end++ = unit;
       values[not_unit] = -1;
       values[unit] = 1;
 
@@ -2540,7 +2540,7 @@ export_units (struct solver * solver)
       solver->statistics.exported.units++;
     }
 
-  if (locked && pthread_mutex_unlock (&root->locks.units))
+  if (locked && pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
 }
 
@@ -2548,18 +2548,18 @@ static bool
 import_units (struct solver * solver)
 {
   assert (solver->pool);
-  struct root * root = solver->root;
+  struct ruler * ruler = solver->ruler;
 #ifndef NFASTPATH
-  if (solver->units == root->units.end)
+  if (solver->units == ruler->units.end)
     return false;
 #endif
   struct variable * variables = solver->variables;
   signed char * values = solver->values;
   unsigned level = solver->level;
   unsigned imported = 0;
-  if (pthread_mutex_lock (&root->locks.units))
+  if (pthread_mutex_lock (&ruler->locks.units))
     fatal_error ("failed to acquire unit lock");
-  while (solver->units != root->units.end)
+  while (solver->units != ruler->units.end)
     {
       unsigned unit = *solver->units++;
       LOG ("trying to import unit %s", LOGLIT (unit));
@@ -2591,7 +2591,7 @@ import_units (struct solver * solver)
       assert (!solver->level);
       assign_unit (solver, unit);
     }
-  if (pthread_mutex_unlock (&root->locks.units))
+  if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
   return imported;
 }
@@ -2988,8 +2988,8 @@ import_shared (struct solver * solver)
     return false;
   if (import_units (solver))
     return true;
-  struct root * root = solver->root;
-  size_t solvers = SIZE (root->solvers);
+  struct ruler * ruler = solver->ruler;
+  size_t solvers = SIZE (ruler->solvers);
   assert (solvers <= UINT_MAX);
   assert (solvers > 1);
   unsigned id = random_modulo (solver, solvers-1) + solver->id + 1;
@@ -2997,7 +2997,7 @@ import_shared (struct solver * solver)
     id -= solvers;
   assert (id < solvers);
   assert (id != solver->id);
-  struct solver * src = root->solvers.begin[id];
+  struct solver * src = ruler->solvers.begin[id];
   assert (src->pool);
   struct pool * pool = src->pool + solver->id;
   struct clause * volatile * end = pool->share + SIZE_SHARED;
@@ -3331,7 +3331,7 @@ analyze (struct solver *solver, struct watch *reason)
   if (!solver->level)
     {
       set_inconsistent (solver,
-			"conflict on root-level produces empty clause");
+			"conflict on ruler-level produces empty clause");
       trace_add_empty (&solver->buffer);
       return false;
     }
@@ -3526,14 +3526,14 @@ best_score_decision (struct solver * solver)
   unsigned lit, idx;
   for (;;)
     {
-      struct node *root = queue->root;
-      assert (root);
-      assert (root - nodes < solver->size);
-      idx = root - nodes;
+      struct node *ruler = queue->root;
+      assert (ruler);
+      assert (ruler - nodes < solver->size);
+      idx = ruler - nodes;
       lit = LIT (idx);
       if (!values[lit])
 	break;
-      pop_queue (queue, root);
+      pop_queue (queue, ruler);
     }
   assert (idx < solver->size);
 
@@ -5134,14 +5134,14 @@ conflict_limit_hit (struct solver *solver)
 static bool
 terminate_solver (struct solver * solver)
 {
-  struct root * root = solver->root;
+  struct ruler * ruler = solver->ruler;
 #ifdef NFASTPATH
-  if (pthread_mutex_lock (&root->locks.terminate))
+  if (pthread_mutex_lock (&ruler->locks.terminate))
     fatal_error ("failed to acquire terminate lock");
 #endif
-  bool res = root->terminate;
+  bool res = ruler->terminate;
 #ifdef NFASTPATH
-  if (pthread_mutex_unlock (&root->locks.terminate))
+  if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
 #endif
   return res;
@@ -5554,7 +5554,7 @@ parse_int (int *res_ptr, int prev, int *next)
 static struct unsigneds original;
 #endif
 
-static struct root *
+static struct ruler *
 parse_dimacs_file ()
 {
   int ch;
@@ -5588,9 +5588,9 @@ parse_dimacs_file ()
       printf ("c\nc parsed header with %d variables\n", variables);
       fflush (stdout);
     }
-  struct root *root = new_root (variables);
+  struct ruler *ruler = new_ruler (variables);
 #if 0
-  struct solver *solver = new_solver (root);
+  struct solver *solver = new_solver (ruler);
   signed char *marked = solver->marks;
 #endif
   signed char * marked = allocate_and_clear_block (variables);
@@ -5657,48 +5657,48 @@ parse_dimacs_file ()
 #endif
 	  parsed++;
 	  unsigned *literals = clause.begin;
-	  if (!root->inconsistent && !trivial)
+	  if (!ruler->inconsistent && !trivial)
 	    {
 	      const size_t size = SIZE (clause);
-	      assert (size <= root->size);
+	      assert (size <= ruler->size);
 	      if (!size)
 		{
-		  assert (!root->inconsistent);
+		  assert (!ruler->inconsistent);
 		  very_verbose (0, "%s", "found empty original clause");
-		  root->inconsistent = true;
+		  ruler->inconsistent = true;
 		}
 	      else if (size == 1)
 		{
 		  const unsigned unit = *clause.begin;
-		  const signed char value = root->values[unit];
+		  const signed char value = ruler->values[unit];
 		  if (value < 0)
 		    {
-		      assert (!root->inconsistent);
+		      assert (!ruler->inconsistent);
 		      very_verbose (0, "found inconsistent unit");
-		      root->inconsistent = true;
-		      trace_add_empty (&root->buffer);
+		      ruler->inconsistent = true;
+		      trace_add_empty (&ruler->buffer);
 		    }
 		  else if (!value)
 		    {
 		      unsigned not_unit = NOT (unit);
-		      assert (!root->values[unit]);
-		      assert (!root->values[not_unit]);
-		      root->values[unit] = 1;
-		      root->values[not_unit] = -1;
-		      assert (root->units.end <
-		              root->units.begin + root->size);
-		      *root->units.end++ = unit;
+		      assert (!ruler->values[unit]);
+		      assert (!ruler->values[not_unit]);
+		      ruler->values[unit] = 1;
+		      ruler->values[not_unit] = -1;
+		      assert (ruler->units.end <
+		              ruler->units.begin + ruler->size);
+		      *ruler->units.end++ = unit;
 		      ROG ("assign %s unit", ROGLIT (unit));
 		    }
 		}
 	      else if (size == 2)
-		new_root_binary_clause (root, literals[0], literals[1]);
+		new_ruler_binary_clause (ruler, literals[0], literals[1]);
 	      else
 		{
 		  struct clause * large_clause =
 		    new_large_clause (size, literals, false, 0);
 		  ROGCLAUSE (large_clause, "new");
-		  PUSH (root->clauses, large_clause);
+		  PUSH (ruler->clauses, large_clause);
 		}
 	    }
 	  else
@@ -5724,7 +5724,7 @@ parse_dimacs_file ()
     pclose (dimacs.file);
   RELEASE (clause);
   free (marked);
-  return root;
+  return ruler;
 }
 
 /*------------------------------------------------------------------------*/
@@ -5779,9 +5779,9 @@ print_witness (struct solver *solver)
 static void
 start_cloning_solver (struct solver *first, unsigned clone)
 {
-  struct root * root = first->root;
-  assert (root->threads);
-  pthread_t * thread = root->threads + clone;
+  struct ruler * ruler = first->ruler;
+  assert (ruler->threads);
+  pthread_t * thread = ruler->threads + clone;
   if (pthread_create (thread, 0, clone_solver, first))
     fatal_error ("failed to create cloning thread %u", clone);
 }
@@ -5789,14 +5789,14 @@ start_cloning_solver (struct solver *first, unsigned clone)
 static void
 stop_cloning_solver (struct solver *first, unsigned clone)
 {
-  struct root * root = first->root;
-  pthread_t * thread = root->threads + clone;
+  struct ruler * ruler = first->ruler;
+  pthread_t * thread = ruler->threads + clone;
   if (pthread_join (*thread, 0))
     fatal_error ("failed to join cloning thread %u", clone);
 }
 
 static void
-clone_solvers (struct root * root, unsigned threads)
+clone_solvers (struct ruler * ruler, unsigned threads)
 {
   assert (threads > 1);
   double before = 0;
@@ -5807,14 +5807,14 @@ clone_solvers (struct root * root, unsigned threads)
 	      threads - 1, threads);
       fflush (stdout);
     }
-  root->threads = allocate_array (threads, sizeof *root->threads);
-  struct solver * first = first_solver (root);
+  ruler->threads = allocate_array (threads, sizeof *ruler->threads);
+  struct solver * first = first_solver (ruler);
   init_pool (first, threads);
   for (unsigned i = 1; i != threads; i++)
     start_cloning_solver (first, i);
   for (unsigned i = 1; i != threads; i++)
     stop_cloning_solver (first, i);
-  assert (SIZE (root->solvers) == threads);
+  assert (SIZE (ruler->solvers) == threads);
   if (verbosity >= 0)
     {
       double after = current_resident_set_size () / (double) (1 << 20);
@@ -5825,7 +5825,7 @@ clone_solvers (struct root * root, unsigned threads)
 }
 
 static void
-set_limits_of_all_solvers (struct root * root, long long conflicts)
+set_limits_of_all_solvers (struct ruler * ruler, long long conflicts)
 {
   for (all_solvers (solver))
     set_limits (solver, conflicts);
@@ -5834,9 +5834,9 @@ set_limits_of_all_solvers (struct root * root, long long conflicts)
 static void
 start_running_solver (struct solver *solver)
 {
-  struct root * root = solver->root;
-  assert (root->threads);
-  pthread_t * thread = root->threads + solver->id;
+  struct ruler * ruler = solver->ruler;
+  assert (ruler->threads);
+  pthread_t * thread = ruler->threads + solver->id;
   if (pthread_create (thread, 0, solve_routine, solver))
     fatal_error ("failed to create solving thread %u", solver->id);
 }
@@ -5844,17 +5844,17 @@ start_running_solver (struct solver *solver)
 static void
 stop_running_solver (struct solver *solver)
 {
-  struct root * root = solver->root;
-  assert (root->threads);
-  pthread_t * thread = root->threads + solver->id;
+  struct ruler * ruler = solver->ruler;
+  assert (ruler->threads);
+  pthread_t * thread = ruler->threads + solver->id;
   if (pthread_join (*thread, 0))
     fatal_error ("failed to join solving thread %u", solver->id);
 }
 
 static void
-run_solvers (struct root * root)
+run_solvers (struct ruler * ruler)
 {
-  size_t threads = SIZE (root->solvers);
+  size_t threads = SIZE (ruler->solvers);
   if (threads > 1)
     {
       if (verbosity >= 0)
@@ -5876,7 +5876,7 @@ run_solvers (struct root * root)
 	  printf ("c running single solver in main thread\n");
 	  fflush (stdout);
 	}
-      struct solver * solver = first_solver (root);
+      struct solver * solver = first_solver (ruler);
       solve_routine (solver);
     }
 }
@@ -5893,26 +5893,26 @@ detach_and_delete_solver (void * ptr)
 static void
 start_detaching_and_deleting_solver (struct solver *solver)
 {
-  struct root * root = solver->root;
-  assert (root->threads);
-  pthread_t * thread = root->threads + solver->id;
+  struct ruler * ruler = solver->ruler;
+  assert (ruler->threads);
+  pthread_t * thread = ruler->threads + solver->id;
   if (pthread_create (thread, 0, detach_and_delete_solver, solver))
     fatal_error ("failed to create deletion thread %u", solver->id);
 }
 
 static void
-stop_detaching_and_deleting_solver (struct root * root, unsigned id)
+stop_detaching_and_deleting_solver (struct ruler * ruler, unsigned id)
 {
-  assert (root->threads);
-  pthread_t * thread = root->threads + id;
+  assert (ruler->threads);
+  pthread_t * thread = ruler->threads + id;
   if (pthread_join (*thread, 0))
     fatal_error ("failed to join deletion thread %u", id);
 }
 
 static void
-detach_and_delete_solvers (struct root * root)
+detach_and_delete_solvers (struct ruler * ruler)
 {
-  size_t threads = SIZE (root->solvers);
+  size_t threads = SIZE (ruler->solvers);
   if (threads > 1)
     {
       if (verbosity > 0)
@@ -5925,7 +5925,7 @@ detach_and_delete_solvers (struct root * root)
 	start_detaching_and_deleting_solver (solver);
 
       for (unsigned i = 0; i != threads; i++)
-	stop_detaching_and_deleting_solver (root, i);
+	stop_detaching_and_deleting_solver (ruler, i);
 #else
       for (all_solvers (solver))
       detach_and_delete_solver (solver);
@@ -5939,7 +5939,7 @@ detach_and_delete_solvers (struct root * root)
 	  fflush (stdout);
 	}
 
-      struct solver * solver = first_solver (root);
+      struct solver * solver = first_solver (ruler);
       detach_and_delete_solver (solver);
     }
 }
@@ -5950,7 +5950,7 @@ static volatile int caught_signal;
 static volatile bool catching_signals;
 static volatile bool catching_alarm;
 
-static struct root *root;
+static struct ruler *ruler;
 
 #define SIGNALS \
 SIGNAL(SIGABRT) \
@@ -5994,7 +5994,7 @@ reset_signal_handlers (void)
   reset_alarm_handler ();
 }
 
-static void print_root_statistics (struct root *);
+static void print_ruler_statistics (struct ruler *);
 
 static void
 caught_message (int sig)
@@ -6022,7 +6022,7 @@ catch_signal (int sig)
     return;
   caught_message (sig);
   reset_signal_handlers ();
-  print_root_statistics (root);
+  print_ruler_statistics (ruler);
   raise (sig);
 }
 
@@ -6037,8 +6037,8 @@ catch_alarm (int sig)
   if (verbosity > 0)
     caught_message (sig);
   reset_alarm_handler ();
-  assert (root);
-  root->terminate = true;
+  assert (ruler);
+  ruler->terminate = true;
   caught_signal = 0;
 }
 
@@ -6281,7 +6281,7 @@ print_solver_statistics (struct solver *solver)
 }
 
 static void
-print_root_statistics (struct root *root)
+print_ruler_statistics (struct ruler *ruler)
 {
   if (verbosity < 0)
     return;
@@ -6297,7 +6297,7 @@ print_root_statistics (struct root *root)
   double memory = maximum_resident_set_size () / (double) (1 << 20);
 
   printf ("c %-30s %23.2f %%\n", "utilization:",
-          percent (process / SIZE (root->solvers),  total));
+          percent (process / SIZE (ruler->solvers),  total));
   printf ("c %-30s %23.2f seconds\n", "process-time:", process);
   printf ("c %-30s %23.2f seconds\n", "wall-clock-time:", total);
   printf ("c %-30s %23.2f MB\n", "maximum-resident-set-size:", memory);
@@ -6366,14 +6366,14 @@ main (int argc, char **argv)
 	      binary_proof_format ? "binary" : "ASCII", proof.path);
       fflush (stdout);
     }
-  root = parse_dimacs_file ();
-  clone_root (root);
+  ruler = parse_dimacs_file ();
+  clone_ruler (ruler);
   if (options.threads > 1)
-    clone_solvers (root, options.threads);
-  set_limits_of_all_solvers (root, options.conflicts);
+    clone_solvers (ruler, options.threads);
+  set_limits_of_all_solvers (ruler, options.conflicts);
   set_signal_handlers (options.seconds);
-  run_solvers (root);
-  struct solver *winner = (struct solver*) root->winner;
+  run_solvers (ruler);
+  struct solver *winner = (struct solver*) ruler->winner;
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();
   close_proof ();
@@ -6396,9 +6396,9 @@ main (int argc, char **argv)
 	print_witness (winner);
       fflush (stdout);
     }
-  print_root_statistics (root);
-  detach_and_delete_solvers (root);
-  delete_root (root);
+  print_ruler_statistics (ruler);
+  detach_and_delete_solvers (ruler);
+  delete_ruler (ruler);
 #ifndef NDEBUG
   RELEASE (original);
 #endif
