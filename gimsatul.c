@@ -287,7 +287,8 @@ struct clause
 #endif
   atomic_ushort shared;
   unsigned char glue;
-  bool redundant;
+  bool redundant:1;
+  bool garbage:1;
   unsigned size;
   unsigned literals[];
 };
@@ -487,6 +488,7 @@ struct rings
 struct units
 {
   unsigned *begin;
+  unsigned *propagate;
   unsigned *volatile end;
 };
 
@@ -1488,7 +1490,7 @@ new_ruler (size_t size)
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
-  ruler->units.end = ruler->units.begin;
+  ruler->units.propagate = ruler->units.end = ruler->units.begin;
   init_ruler_profiles (ruler);
   return ruler;
 }
@@ -1553,6 +1555,30 @@ detach_ring (struct ring *ring)
   ruler->rings.begin[ring->id] = 0;
   if (pthread_mutex_unlock (&ruler->locks.rings))
     fatal_error ("failed to release ringfs lock while detaching ring");
+}
+
+/*------------------------------------------------------------------------*/
+
+static void
+connect_large_clause (struct ruler * ruler, struct clause * clause)
+{
+  assert (!binary_pointer (clause));
+  for (all_literals_in_clause (lit, clause))
+    PUSH (OCCURENCES (lit), clause);
+}
+
+static void
+assign_ruler_unit (struct ruler * ruler, unsigned unit)
+{
+  signed char * values = (signed char*) ruler->values;
+  unsigned not_unit = NOT (unit);
+  assert (!values[unit]);
+  assert (!values[not_unit]);
+  values[unit] = 1;
+  values[not_unit] = -1;
+  assert (ruler->units.end < ruler->units.begin + ruler->size);
+  *ruler->units.end++ = unit;
+  ROG ("assign %s unit", ROGLIT (unit));
 }
 
 /*------------------------------------------------------------------------*/
@@ -1816,7 +1842,7 @@ trace_delete_binary (struct buffer *buffer, unsigned lit, unsigned other)
 static inline void
 trace_delete_clause (struct buffer *buffer, struct clause *clause)
 {
-  if (proof.file)
+  if (proof.file && !clause->garbage)
     trace_delete_literals (buffer, clause->size, clause->literals);
 }
 
@@ -1834,16 +1860,6 @@ close_proof (void)
 	      proof.path, proof.lines);
       fflush (stdout);
     }
-}
-
-/*------------------------------------------------------------------------*/
-
-static void
-connect_large_clause (struct ruler * ruler, struct clause * clause)
-{
-  assert (!binary_pointer (clause));
-  for (all_literals_in_clause (lit, clause))
-    PUSH (OCCURENCES (lit), clause);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1946,7 +1962,7 @@ push_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 static void
 new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
 {
-  ROGBINARY (false, lit, other, "new ruler");
+  ROGBINARY (false, lit, other, "new");
   push_ruler_binary (ruler, lit, other);
   push_ruler_binary (ruler, other, lit);
   ruler->original_binaries++;
@@ -1961,7 +1977,7 @@ new_local_binary_clause (struct ring *ring, bool redundant,
   struct watch *watch_other = tag_pointer (redundant, other, lit);
   watch_literal (ring, lit, watch_lit);
   watch_literal (ring, other, watch_other);
-  LOGBINARY (redundant, lit, other, "new local");
+  LOGBINARY (redundant, lit, other, "new");
   return watch_lit;
 }
 
@@ -1979,6 +1995,7 @@ new_large_clause (size_t size, unsigned *literals,
     glue = MAX_GLUE;
   clause->glue = glue;
   clause->redundant = redundant;
+  clause->garbage = false;
   clause->shared = 0;
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
@@ -2024,6 +2041,210 @@ delete_watch (struct ring *ring, struct watch *watch)
 /*------------------------------------------------------------------------*/
 
 static void
+ruler_propagate (struct ruler * ruler)
+{
+  assert (!ruler->inconsistent);
+  struct units * units = &ruler->units;
+  unsigned * propagate = units->begin;
+  signed char * values = (signed char*) ruler->values;
+  size_t garbage = 0;
+  while (!ruler->inconsistent && propagate != units->end)
+    {
+      unsigned lit = *propagate++;
+      ROG ("propagating unit %s", ROGLIT (lit));
+      unsigned not_lit = NOT (lit);
+      struct clauses * clauses = &OCCURENCES (not_lit);
+      for (all_clauses (clause, *clauses))
+	{
+	  bool satisfied = false;
+	  unsigned unit = INVALID;
+	  unsigned non_false = 0;
+	  if (binary_pointer (clause))
+	    {
+	      assert (lit_pointer (clause) == not_lit);
+	      unsigned other = other_pointer (clause);
+	      signed char value = values[other];
+	      if (value > 0)
+		continue;
+	      if (value < 0)
+		{
+	          ROGBINARY (false, not_lit, other, "conflict");
+		  goto CONFLICT;
+		}
+	      ROGBINARY (false,
+	                 not_lit, other, "unit %s forcing", ROGLIT (other));
+	      trace_add_unit (&ruler->buffer, other);
+	      assign_ruler_unit (ruler, other);
+	      continue;
+	    }
+	  if (clause->garbage)
+	    continue;
+	  for (all_literals_in_clause (other, clause))
+	    {
+	      signed char value = values[other];
+	      if (value > 0)
+		{
+		  satisfied = true;
+		  break;
+		}
+	      if (value < 0)
+		continue;
+	      if (non_false++)
+		break;
+	      unit = other;
+	    }
+	  if (!satisfied && !non_false)
+	    {
+	      ROGCLAUSE (clause, "conflict");
+	    CONFLICT:
+	      assert (!ruler->inconsistent);
+	      verbose (0, "%s", "propagation yields inconsistency");
+	      ruler->inconsistent = true;
+	      trace_add_empty (&ruler->buffer);
+	      break;
+	    }
+	  if (!satisfied && non_false == 1)
+	    {
+	      ROGCLAUSE (clause, "unit %s forcing", ROGLIT (unit));
+	      assert (unit != INVALID);
+	      trace_add_unit (&ruler->buffer, unit);
+	      assign_ruler_unit (ruler, unit);
+	      satisfied = true;
+	    }
+	  if (satisfied)
+	    {
+	      ROGCLAUSE (clause, "marking satisfied garbage");
+	      trace_delete_clause (&ruler->buffer, clause);
+	      clause->garbage = true;
+	      garbage++;
+	    }
+	}
+    }
+  very_verbose (0, "marked %zu garbage clause during propagation", garbage);
+}
+
+static void
+mark_satisfied_ruler_clauses (struct ruler * ruler)
+{
+  signed char * values = (signed char*) ruler->values;
+  size_t marked = 0;
+  for (all_clauses (clause, ruler->clauses))
+    {
+      if (clause->garbage)
+	continue;
+      bool satisfied = false;
+      for (all_literals_in_clause (lit, clause))
+	{
+	  signed char value = values[lit];
+	  if (value > 0)
+	    {
+	      satisfied = true;
+	      break;
+	    }
+	}
+      if (satisfied)
+	{
+	  ROGCLAUSE (clause, "marking satisfied garbage");
+	  trace_delete_clause (&ruler->buffer, clause);
+	  clause->garbage = true;
+	  marked++;
+	}
+    }
+  very_verbose (0, "found additionally %zu large garbage clause", marked);
+}
+
+static void
+flush_satisfied_ruler_watches (struct ruler * ruler)
+{
+  signed char * values = (signed char*) ruler->values;
+  size_t flushed = 0;
+  size_t deleted = 0;
+  for (all_ruler_literals (lit))
+    {
+      signed char lit_value = values[lit];
+      struct clauses * clauses = &OCCURENCES (lit);
+      struct clause ** begin = clauses->begin, ** q = begin;
+      struct clause ** end = clauses->end, ** p = q;
+      while (p != end)
+	{
+	  struct clause * clause = *q++ = *p++;
+	  if (binary_pointer (clause))
+	    {
+	      assert (lit_pointer (clause) == lit);
+	      unsigned other = other_pointer (clause);
+	      signed char other_value = values[other];
+	      if (other_value > 0 || lit_value > 0)
+		{
+		  if (other < lit)
+		    {
+		      ROGBINARY (false, lit, other, "deleting satisfied");
+		      trace_delete_binary (&ruler->buffer, lit, other);
+		      deleted++;
+		    }
+		  flushed++;
+		  q--;
+		}
+	      else
+		{
+		  assert (!lit_value);
+		  assert (!other_value);
+		}
+	    }
+	  else if (clause->garbage)
+	    {
+	      flushed++;
+	      q--;
+	    }
+	}
+      clauses->end = q;
+    }
+  very_verbose (0, "flushed %zu garbage watches", flushed);
+  very_verbose (0, "deleted %zu satisfied binary clauses", deleted);
+  assert (deleted <= ruler->original_binaries);
+  ruler->original_binaries -= deleted;
+}
+
+static void
+delete_satisfied_large_ruler_clauses (struct ruler * ruler)
+{
+  struct clauses * clauses = &ruler->clauses;
+  struct clause ** begin = clauses->begin, ** q = begin;
+  struct clause ** end = clauses->end, ** p = q;
+  size_t deleted = 0;
+  while (p != end)
+    {
+      struct clause * clause = *q++ = *p++;
+      if (!clause->garbage)
+	continue;
+      ROGCLAUSE (clause, "finally deleting");
+      free (clause);
+      q--;
+    }
+  clauses->end = q;
+  very_verbose (0, "finally deleted %zu large clauses", deleted);
+}
+
+static void
+simplify_ruler (struct ruler * ruler)
+{
+  if (ruler->inconsistent)
+    return;
+  START (ruler, simplifying);
+  for (all_clauses (clause, ruler->clauses))
+    connect_large_clause (ruler, clause);
+  ruler_propagate (ruler);
+  if (!ruler->inconsistent)
+    {
+      mark_satisfied_ruler_clauses (ruler);
+      flush_satisfied_ruler_watches (ruler);
+      delete_satisfied_large_ruler_clauses (ruler);
+    }
+  STOP (ruler, simplifying);
+}
+
+/*------------------------------------------------------------------------*/
+
+static void
 assign (struct ring *ring, unsigned lit, struct watch *reason)
 {
   const unsigned not_lit = NOT (lit);
@@ -2045,6 +2266,8 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   v->level = level;
   if (!level)
     {
+      if (reason)
+	trace_add_unit (&ring->buffer, lit);
       v->reason = 0;
       ring->statistics.fixed++;
     }
@@ -2067,7 +2290,7 @@ assign_with_reason (struct ring *ring, unsigned lit, struct watch *reason)
 }
 
 static void
-assign_unit (struct ring *ring, unsigned unit)
+assign_ring_unit (struct ring *ring, unsigned unit)
 {
   assert (!ring->level);
   assign (ring, unit, 0);
@@ -2153,7 +2376,7 @@ copy_ruler_units (struct ring *ring)
   assert (!ring->id);
   size_t units = 0;
   for (all_elements_on_stack (unsigned, unit, ruler->units))
-      assign_unit (ring, unit), units++;
+      assign_ring_unit (ring, unit), units++;
   very_verbose (ring, "copied %zu units", units);
   ring->trail.export = ring->trail.iterate = ring->trail.end;
 }
@@ -2253,7 +2476,7 @@ clone_clauses (struct ring *dst, struct ring *src)
   for (all_elements_on_stack (unsigned, lit, src->trail))
     {
       LOG ("cloning unit %s", LOGLIT (lit));
-      assign_unit (ring, lit);
+      assign_ring_unit (ring, lit);
       units++;
     }
   very_verbose (ring, "cloned %u units", units);
@@ -2573,12 +2796,14 @@ export_units (struct ring *ring)
 	continue;
 
       very_verbose (ring, "exporting unit %d", export_literal (unit));
+      assign_ruler_unit (ruler, unit);
+#if 0
       unsigned not_unit = NOT (unit);
       assert (!values[not_unit]);
       *ruler->units.end++ = unit;
       values[not_unit] = -1;
       values[unit] = 1;
-
+#endif
       ring->statistics.exported.clauses++;
       ring->statistics.exported.units++;
     }
@@ -2632,7 +2857,7 @@ import_units (struct ring *ring)
 	  level = 0;
 	}
       assert (!ring->level);
-      assign_unit (ring, unit);
+      assign_ring_unit (ring, unit);
     }
   if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
@@ -3440,9 +3665,9 @@ analyze (struct ring *ring, struct watch *reason)
   assert (size);
   if (size == 1)
     {
-      assign_unit (ring, not_uip);
-      ring->iterating = true;
       trace_add_unit (&ring->buffer, not_uip);
+      assign_ring_unit (ring, not_uip);
+      ring->iterating = true;
     }
   else
     {
@@ -5728,17 +5953,7 @@ parse_dimacs_file ()
 		      trace_add_empty (&ruler->buffer);
 		    }
 		  else if (!value)
-		    {
-		      unsigned not_unit = NOT (unit);
-		      assert (!ruler->values[unit]);
-		      assert (!ruler->values[not_unit]);
-		      ruler->values[unit] = 1;
-		      ruler->values[not_unit] = -1;
-		      assert (ruler->units.end <
-			      ruler->units.begin + ruler->size);
-		      *ruler->units.end++ = unit;
-		      ROG ("assign %s unit", ROGLIT (unit));
-		    }
+		    assign_ruler_unit (ruler, unit);
 		}
 	      else if (size == 2)
 		new_ruler_binary_clause (ruler, literals[0], literals[1]);
@@ -6452,17 +6667,6 @@ check_types (void)
       printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
       printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
     }
-}
-
-/*------------------------------------------------------------------------*/
-
-static void
-simplify_ruler (struct ruler * ruler)
-{
-  START (ruler, simplifying);
-  for (all_clauses (clause, ruler->clauses))
-    connect_large_clause (ruler, clause);
-  STOP (ruler, simplifying);
 }
 
 /*------------------------------------------------------------------------*/
