@@ -2148,11 +2148,9 @@ static void
 share_solver_binaries (struct solver * dst, struct solver * src)
 {
   struct solver * solver = dst;
-  struct ruler * ruler = solver->ruler;
   assert (first_solver (ruler) == src);
   assert (src->ruler == ruler);
   assert (!src->id);
-  size_t watched = 0;
 
   for (all_solver_literals (lit))
     {
@@ -2160,7 +2158,6 @@ share_solver_binaries (struct solver * dst, struct solver * src)
       struct references * dst_references = dst->references + lit;
       dst_references->binaries = src_references->binaries;
     }
-  assert (!(watched & 1));
 
   size_t shared = src->statistics.irredundant;
   solver->statistics.irredundant += shared;
