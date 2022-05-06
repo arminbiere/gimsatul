@@ -95,6 +95,7 @@ static const char * usage =
 #define VAR(LIT) (solver->variables + IDX (LIT))
 
 #define REFERENCES(LIT) (solver->references[LIT])
+#define BINARIES(LIT) (root->watches[LIT])
 #define OCCS(LIT) (walker->occs[LIT])
 
 #define MAX_THREADS \
@@ -218,8 +219,13 @@ do { \
   IDX != END_ ## IDX; \
   ++IDX
 
-#define all_literals(LIT) \
+#define all_solver_literals(LIT) \
   unsigned LIT = 0, END_ ## LIT = 2*solver->size; \
+  LIT != END_ ## LIT; \
+  ++LIT
+
+#define all_root_literals(LIT) \
+  unsigned LIT = 0, END_ ## LIT = 2*root->size; \
   LIT != END_ ## LIT; \
   ++LIT
 
@@ -488,10 +494,9 @@ struct root
   pthread_t * threads;
   struct solver * volatile winner;
   volatile signed char * values;
-  struct unsigneds binlits;
+  struct unsigneds * watches;
   size_t binaries;
   struct units units;
-  unsigned *watches;
 #ifdef LOGGING
   volatile uint64_t ids;
 #endif
@@ -754,7 +759,10 @@ message (struct solver *solver, const char *fmt, ...)
   if (verbosity < 0)
     return;
   acquire_message_lock ();
-  printf (prefix_format, solver->id);
+  if (solver)
+    printf (prefix_format, solver->id);
+  else
+    fputs ("c ", stdout);
   va_list ap;
   va_start (ap, fmt);
   vprintf (fmt, ap);
@@ -1367,6 +1375,7 @@ new_root (size_t size)
 #endif
   root->size = size;
   root->values = allocate_and_clear_block (2*size);
+  root->watches = allocate_and_clear_array (2*size, sizeof *root->watches);
   root->units.begin = allocate_array (size, sizeof (unsigned));
   root->units.end = root->units.begin;
   return root;
@@ -1380,11 +1389,12 @@ delete_root (struct root *root)
     assert (!solver);
 #endif
   RELEASE (root->solvers);
-  RELEASE (root->binlits);
+  for (all_root_literals (lit))
+    RELEASE (BINARIES (lit));
+  free (root->watches);
   free ((void*) root->values);
   free (root->units.begin);
   free (root->threads);
-  free (root->watches);
   free (root);
 }
 
@@ -1456,7 +1466,7 @@ new_solver (struct root *root)
 static void
 release_watches (struct solver *solver)
 {
-  for (all_literals (lit))
+  for (all_solver_literals (lit))
     free (REFERENCES (lit).begin);
   free (solver->references);
 
@@ -1792,14 +1802,26 @@ watch_first_two_literals_in_large_clause (struct solver * solver,
 }
 
 static void
+push_root_binary (struct root * root, unsigned lit, unsigned other)
+{
+  struct unsigneds * binaries = &BINARIES (lit);
+  if (!EMPTY (*binaries))
+    {
+      unsigned tmp = POP (*binaries);
+      assert (tmp == INVALID), (void) tmp;
+    }
+  PUSH (*binaries, other);
+  PUSH (*binaries, INVALID);
+}
+
+static void
 new_global_binary_clause (struct solver *solver, bool redundant,
 			  unsigned lit, unsigned other)
 {
   struct root *root = solver->root;
-  struct unsigneds *binlits = &root->binlits;
-  PUSH (*binlits, lit);
-  PUSH (*binlits, other);
   LOGBINARY (redundant, lit, other, "new global");
+  push_root_binary (root, lit, other);
+  push_root_binary (root, other, lit);
   inc_clauses (solver, false);
   root->binaries++;
 }
@@ -1889,82 +1911,6 @@ first_solver (struct root * root)
 static void
 init_root_watches (struct root *root)
 {
-  struct solver * solver = first_solver (root);
-  long *counts = allocate_and_clear_array (2 * root->size, sizeof *counts);
-  struct unsigneds *binlits = &root->binlits;
-  unsigned *begin = binlits->begin;
-  unsigned *end = binlits->end;
-  for (unsigned *p = begin; p != end; p += 2)
-    counts[p[0]]++, counts[p[1]]++;
-  long size = 0;
-  for (all_literals (lit))
-    {
-      long count = counts[lit];
-      if (count)
-	{
-	  assert (count < LONG_MAX);
-	  assert (count + 1 <= LONG_MAX - size);
-	  size += count;
-	  counts[lit] = size++;
-	}
-      else
-	counts[lit] = -1;
-    }
-  unsigned *global_watches = allocate_array (size, sizeof *global_watches);
-  root->watches = global_watches;
-  for (all_literals (lit))
-    if (counts[lit] >= 0)
-      global_watches[counts[lit]] = INVALID;
-  {
-    unsigned *p = end;
-    while (p != begin)
-      {
-	unsigned lit = *--p;
-	assert (p != begin);
-	unsigned other = *--p;
-	long count_lit = counts[lit];
-	long count_other = counts[other];
-	assert (count_lit > 0), counts[lit] = --count_lit;
-	assert (count_other > 0), counts[other] = --count_other;
-	global_watches[count_lit] = other;
-	global_watches[count_other] = lit;
-      }
-  }
-  assert (root->binaries == SIZE (root->binlits)/2);
-  RELEASE (root->binlits);
-  for (all_literals (lit))
-    {
-      long count = counts[lit];
-      struct references *lit_watches = &REFERENCES (lit);
-      if (count >= 0)
-	{
-	  lit_watches->binaries = global_watches + count;
-	  assert (lit_watches->binaries);
-	}
-      else
-	assert (!lit_watches->binaries);
-    }
-  free (counts);
-#ifdef LOGGING
-  for (all_literals (lit))
-    {
-      unsigned *binaries = REFERENCES (lit).binaries;
-      LOGPREFIX ("global binary watches of %s:", LOGLIT (lit));
-      if (binaries)
-	{
-	  for (unsigned *p = binaries, other; (other = *p) != INVALID; p++)
-	    printf (" %s", LOGLIT (other));
-	}
-      else
-	printf (" none");
-      LOGSUFFIX ();
-    }
-#endif
-  if (verbosity >= 0)
-    {
-      printf ("c need %ld global binary clause watches\n", size);
-      fflush (stdout);
-    }
 }
 
 /*------------------------------------------------------------------------*/
@@ -2114,33 +2060,20 @@ clone_clauses (struct solver *dst, struct solver *src)
     }
   very_verbose (solver, "cloned %u units", units);
 
-  assert (src->root == dst->root);
-  assert (!dst->statistics.irredundant);
-  dst->statistics.irredundant += dst->root->binaries;
-  very_verbose (solver, "sharing %zu global binary clauses",
-                src->root->binaries);
+  struct root * root = src->root;
+  assert (root == dst->root);
 
-  struct references *src_references = src->references;
-  struct references *dst_references = dst->references;
-  size_t copied_binary_watch_lists = 0;
-  for (all_literals (lit))
+  for (all_root_literals (lit))
     {
-      struct references *src_watches = src_references + lit;
-      struct references *dst_watches = dst_references + lit;
-      assert (EMPTY (*dst_watches));
-      unsigned *src_binaries = src_watches->binaries;
-      if (src_binaries)
-	{
-	  dst_watches->binaries = src_binaries;
-	  copied_binary_watch_lists++;
-	}
-#ifndef NDEBUG
-      for (all_watches (src_watch, *src_watches))
-	assert (!binary_pointer (src_watch));
-#endif
+      struct unsigneds * binaries = &BINARIES (lit);
+      struct references * watches = &REFERENCES (lit);
+      watches->binaries = EMPTY (*binaries) ? 0 : binaries->begin;
     }
-  very_verbose (solver, "cloned %zu global binary watch lists",
-		copied_binary_watch_lists);
+
+  assert (!dst->statistics.irredundant);
+  size_t binaries = root->binaries;
+  dst->statistics.irredundant += binaries;
+  very_verbose (solver, "sharing %zu global binary clauses", binaries);
 
   size_t shared = 0;
   for (all_watches (src_watch, src->watches))
@@ -2151,7 +2084,7 @@ clone_clauses (struct solver *dst, struct solver *src)
       watch_first_two_literals_in_large_clause (solver, clause);
       shared++;
     }
-  very_verbose (solver, "cloned %zu large clauses", shared);
+  very_verbose (solver, "sharing %zu large clauses", shared);
 }
 
 static void *
@@ -3700,7 +3633,7 @@ flush_references (struct solver *solver, bool fixed)
   size_t flushed = 0;
   signed char *values = solver->values;
   struct variable *variables = solver->variables;
-  for (all_literals (lit))
+  for (all_solver_literals (lit))
     {
       signed char lit_value = values[lit];
       if (lit_value > 0)
@@ -3789,7 +3722,7 @@ check_clause_statistics (struct solver * solver)
   size_t redundant = 0;
   size_t irredundant = 0;
 
-  for (all_literals (lit))
+  for (all_solver_literals (lit))
     {
       struct references * watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
@@ -4353,7 +4286,7 @@ connect_counters (struct walker *walker, struct clause *last)
       if (clause == last)
 	break;
     }
-  for (all_literals (lit))
+  for (all_solver_literals (lit))
     {
       if (values[lit] >= 0)
 	continue;
@@ -4473,7 +4406,7 @@ static void
 disconnect_references (struct solver * solver, struct watches * saved)
 {
   size_t disconnected = 0;
-  for (all_literals (lit))
+  for (all_solver_literals (lit))
     {
       struct references * watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
@@ -4493,7 +4426,7 @@ disconnect_references (struct solver * solver, struct watches * saved)
 static void
 release_references (struct solver * solver)
 {
-  for (all_literals (lit))
+  for (all_solver_literals (lit))
     RELEASE (REFERENCES (lit));
 }
 
