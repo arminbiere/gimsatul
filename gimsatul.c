@@ -95,7 +95,7 @@ static const char * usage =
 #define VAR(LIT) (solver->variables + IDX (LIT))
 
 #define REFERENCES(LIT) (solver->references[LIT])
-#define BINARIES(LIT) (root->watches[LIT])
+#define BINARIES(LIT) (root->binaries[LIT])
 #define OCCS(LIT) (walker->occs[LIT])
 
 #define MAX_THREADS \
@@ -494,7 +494,7 @@ struct root
   pthread_t * threads;
   struct solver * volatile winner;
   volatile signed char * values;
-  struct unsigneds * watches;
+  struct unsigneds * binaries;
   struct units units;
 #ifdef LOGGING
   volatile uint64_t ids;
@@ -1374,7 +1374,7 @@ new_root (size_t size)
 #endif
   root->size = size;
   root->values = allocate_and_clear_block (2*size);
-  root->watches = allocate_and_clear_array (2*size, sizeof *root->watches);
+  root->binaries = allocate_and_clear_array (2*size, sizeof *root->binaries);
   root->units.begin = allocate_array (size, sizeof (unsigned));
   root->units.end = root->units.begin;
   return root;
@@ -1390,7 +1390,7 @@ delete_root (struct root *root)
   RELEASE (root->solvers);
   for (all_root_literals (lit))
     RELEASE (BINARIES (lit));
-  free (root->watches);
+  free (root->binaries);
   free ((void*) root->values);
   free (root->units.begin);
   free (root->threads);
@@ -1472,10 +1472,6 @@ new_solver (struct root *root)
 static void
 release_watches (struct solver *solver)
 {
-  for (all_solver_literals (lit))
-    free (REFERENCES (lit).begin);
-  free (solver->references);
-
   for (all_watches (watch, solver->watches))
     {
       assert (!binary_pointer (watch));
@@ -1498,6 +1494,13 @@ init_pool (struct solver * solver, unsigned threads)
 {
   solver->threads = threads;
   solver->pool = allocate_and_clear_array (threads, sizeof *solver->pool);
+}
+
+static void
+release_references (struct solver * solver)
+{
+  for (all_solver_literals (lit))
+    RELEASE (REFERENCES (lit));
 }
 
 static void
@@ -1540,6 +1543,8 @@ delete_solver (struct solver *solver)
   free (solver->trail.pos);
   RELEASE (solver->levels);
   RELEASE (solver->buffer);
+  release_references (solver);
+  free (solver->references);
   release_watches (solver);
   free (solver->queue.nodes);
   free (solver->queue.scores);
@@ -2033,7 +2038,7 @@ set_satisfied (struct solver *solver)
 /*------------------------------------------------------------------------*/
 
 static void
-share_root_binaries (struct solver * solver)
+share_root_binaries (struct solver * solver, bool shrink)
 {
   struct root * root = solver->root;
 
@@ -2043,6 +2048,8 @@ share_root_binaries (struct solver * solver)
     {
       struct unsigneds * binaries = &BINARIES (lit);
       struct references * watches = &REFERENCES (lit);
+      if (shrink)
+	SHRINK_STACK (*binaries);
       if (EMPTY (*binaries))
 	assert (!watches->binaries);
       else
@@ -2096,7 +2103,7 @@ clone_solver (void * ptr)
 {
   struct solver * src = ptr;
   struct solver *solver = new_solver (src->root);
-  share_root_binaries (solver);
+  share_root_binaries (solver, false);
   clone_clauses (solver, src);
   init_pool (solver, src->threads);
   return solver;
@@ -4429,13 +4436,6 @@ disconnect_references (struct solver * solver, struct watches * saved)
 }
 
 static void
-release_references (struct solver * solver)
-{
-  for (all_solver_literals (lit))
-    RELEASE (REFERENCES (lit));
-}
-
-static void
 reconnect_watches (struct solver * solver, struct watches * saved)
 {
   size_t reconnected = 0;
@@ -6210,7 +6210,7 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   root = parse_dimacs_file ();
-  share_root_binaries (first_solver (root));
+  share_root_binaries (first_solver (root), true);
   if (options.threads > 1)
     clone_solvers (root, options.threads);
   set_limits_of_all_solvers (root, options.conflicts);
