@@ -2346,20 +2346,38 @@ can_resolve_clause (struct ruler * ruler, signed char * marks,
                     struct clause * clause, unsigned except)
 {
   signed char * values = (signed char*) ruler->values;
-  for (all_literals_in_clause (lit, clause))
+  if (binary_pointer (clause))
     {
-      if (lit == except)
-	continue;
-      signed char value = values[lit];
-      if (value > 0)
+      unsigned other = other_pointer (clause);
+      signed char value = values[other];
+      if (value)
 	return false;
-      if (value < 0)
-	continue;
-      signed char mark = marked_literal (marks, lit);
-      if (mark < 0)
+      signed char mark = marked_literal (marks, other);
+      if (mark)
 	return false;
+      return true;
     }
-  return true;
+  else
+    {
+      unsigned resolved_literals = 0;
+      for (all_literals_in_clause (lit, clause))
+	{
+	  if (lit == except)
+	    continue;
+	  signed char value = values[lit];
+	  if (value > 0)
+	    return false;
+	  if (value < 0)
+	    continue;
+	  signed char mark = marked_literal (marks, lit);
+	  if (mark < 0)
+	    return false;
+	  if (mark > 0)
+	    continue;
+	  resolved_literals++;
+	}
+      return resolved_literals;
+    }
 }
 
 static bool
@@ -2386,8 +2404,8 @@ try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
   size_t limit = pos_size + neg_size;
   if (limit > DOUBLE_SIDED_OCCURRENCE_LIMIT)
     return false;
-  ROG ("trying to eliminate %s with %zu + %zu clauses",
-       ROGVAR (idx), pos_size, neg_size);
+  ROG ("trying to eliminate %s occurring in %zu = %zu + %zu clauses",
+       ROGVAR (idx), limit, pos_size, neg_size);
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
@@ -2423,7 +2441,7 @@ try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
     ROG ("resolvent limit %zu exceeded", limit);
   else
     ROG ("number of resolvents %zu stays below limit %zu",
-         resolcents, limit);
+         resolvents, limit);
             
   return resolvents <= limit;
 }
