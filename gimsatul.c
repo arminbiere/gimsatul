@@ -89,6 +89,7 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
+#define VARIABLE_ELIMINATION_ROUNDS 2
 #define SINGLE_SIDED_OCCURRENCE_LIMIT 100
 #define DOUBLE_SIDED_OCCURRENCE_LIMIT 1000
 #define ANTECEDENT_SIZE_LIMIT 1000
@@ -523,8 +524,11 @@ struct ruler
   volatile signed char *values;
   signed char *marks;
   struct clauses *occurrences;
-  size_t original_binaries;
+  size_t irredundant_binaries;
+  size_t irredundant_garbage;
   struct clauses clauses;
+  struct unsigneds resolvent;
+  struct unsigneds extension;
   struct units units;
   struct buffer buffer;
   struct ruler_profiles profiles;
@@ -1533,6 +1537,7 @@ delete_ruler (struct ruler *ruler)
 #endif
   RELEASE (ruler->rings);
   RELEASE (ruler->buffer);
+  RELEASE (ruler->extension);
   release_occurrences (ruler);
   free ((void *) ruler->values);
   free (ruler->marks);
@@ -1985,7 +1990,7 @@ new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
   ROGBINARY (false, lit, other, "new");
   push_ruler_binary (ruler, lit, other);
   push_ruler_binary (ruler, other, lit);
-  ruler->original_binaries++;
+  ruler->irredundant_binaries++;
 }
 
 static struct watch *
@@ -2220,8 +2225,8 @@ flush_satisfied_ruler_watches (struct ruler * ruler)
     }
   very_verbose (0, "flushed %zu garbage watches", flushed);
   very_verbose (0, "deleted %zu satisfied binary clauses", deleted);
-  assert (deleted <= ruler->original_binaries);
-  ruler->original_binaries -= deleted;
+  assert (deleted <= ruler->irredundant_binaries);
+  ruler->irredundant_binaries -= deleted;
 }
 
 static void
@@ -2244,21 +2249,20 @@ delete_satisfied_large_ruler_clauses (struct ruler * ruler)
   very_verbose (0, "finally deleted %zu large clauses", deleted);
 }
 
-static bool
+static void
 propagate_and_flush_ruler_units (struct ruler * ruler)
 {
   if (ruler->inconsistent)
-    return false;
+    return;
   if (ruler->units.propagate == ruler->units.end)
-    return true;
+    return;
   ruler_propagate (ruler);
   if (ruler->inconsistent)
-    return false;
+    return;
   mark_satisfied_ruler_clauses (ruler);
   flush_satisfied_ruler_watches (ruler);
   delete_satisfied_large_ruler_clauses (ruler);
   assert (!ruler->inconsistent);
-  return true;
 }
 
 static bool
@@ -2342,10 +2346,11 @@ unmark_clause (signed char * marks, struct clause * clause, unsigned except)
 }
 
 static bool
-can_resolve_clause (struct ruler * ruler, signed char * marks,
+can_resolve_clause (struct ruler * ruler,
                     struct clause * clause, unsigned except)
 {
   signed char * values = (signed char*) ruler->values;
+  signed char * marks = ruler->marks;
   if (binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
@@ -2381,7 +2386,7 @@ can_resolve_clause (struct ruler * ruler, signed char * marks,
 }
 
 static bool
-try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
+can_eliminate_variable (struct ruler * ruler, unsigned idx)
 {
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
@@ -2393,10 +2398,6 @@ try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
   size_t pos_size = SIZE (*pos_clauses);
   if (!neg_size && !pos_size)
     return false;
-  if (!neg_size)
-    return true;
-  if (!pos_size)
-    return true;
   if (pos_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
     return false;
   if (neg_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
@@ -2412,29 +2413,28 @@ try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
       SWAP (pos_clauses, neg_clauses);
     }
   size_t resolvents = 0;
-  signed char * marks = ruler->marks;
   for (all_clauses (pos_clause, *pos_clauses))
     {
       if (clause_with_too_many_occurrences (ruler, pos_clause, pivot))
 	{
 	  return false;
 	}
-      mark_clause (marks, pos_clause, pivot);
+      mark_clause (ruler->marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
 	{
 	  if (clause_with_too_many_occurrences (ruler,
 	                                        neg_clause, not_pivot))
 	    {
-	      unmark_clause (marks, pos_clause, pivot);
+	      unmark_clause (ruler->marks, pos_clause, pivot);
 	      return false;
 	    }
-	  if (can_resolve_clause (ruler, marks, neg_clause, not_pivot))
+	  if (can_resolve_clause (ruler, neg_clause, not_pivot))
 	    if (resolvents++ == limit)
 	      {
 		break;
 	      }
 	}
-      unmark_clause (marks, pos_clause, pivot);
+      unmark_clause (ruler->marks, pos_clause, pivot);
     }
 
   if (resolvents <= limit)
@@ -2446,19 +2446,203 @@ try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
   return resolvents <= limit;
 }
 
-static void
-eliminate_variable (struct ruler * ruler, unsigned idx)
+static bool
+add_first_antecedent_literals (struct ruler * ruler,
+                               struct clause * clause, unsigned pivot)
 {
-  ROG ("now really eliminating %s", ROGVAR (idx));
+  ROGCLAUSE (clause, "1st %s antecedent", ROGLIT (pivot));
+  signed char * values = (signed char*) ruler->values;
+  struct unsigneds * resolvent = &ruler->resolvent;
+  if (binary_pointer (clause))
+    {
+      unsigned other = other_pointer (clause);
+      signed char value = values[other];
+      if (value > 0)
+	return false;
+      PUSH (*resolvent, other);
+      return true;
+    }
+  else
+    {
+      for (all_literals_in_clause (lit, clause))
+	{
+	  if (lit == pivot)
+	    continue;
+	  signed char value = values[lit];
+	  if (value > 0)
+	    return false;
+	  if (value < 0)
+	    continue;
+	  PUSH (*resolvent, lit);
+	}
+      return true;
+    }
 }
 
 static bool
-bounded_variable_elimination (struct ruler * ruler)
+add_second_antecedent_literals (struct ruler * ruler,
+                                struct clause * clause, unsigned not_pivot)
+{
+  ROGCLAUSE (clause, "1nd %s antecedent", ROGLIT (not_pivot));
+  signed char * values = (signed char*) ruler->values;
+  signed char * marks = ruler->marks;
+  struct unsigneds * resolvent = &ruler->resolvent;
+  if (binary_pointer (clause))
+    {
+      unsigned other = other_pointer (clause);
+      signed char value = values[other];
+      if (value > 0)
+	return false;
+      if (value < 0)
+	return true;
+      signed char mark = marked_literal (marks, other);
+      if (mark < 0)
+	return false;
+      if (mark > 0)
+	return true;
+      PUSH (*resolvent, other);
+      return true;
+    }
+  else
+    {
+      for (all_literals_in_clause (lit, clause))
+	{
+	  if (lit == not_pivot)
+	    continue;
+	  signed char value = values[lit];
+	  if (value > 0)
+	    return false;
+	  if (value < 0)
+	    continue;
+	  signed char mark = marked_literal (marks, lit);
+	  if (mark < 0)
+	    return false;
+	  if (mark > 0)
+	    continue;
+	  PUSH (*resolvent, lit);
+	}
+      return true;
+    }
+}
+
+static void
+add_resolvent (struct ruler * ruler)
+{
+  struct unsigneds * resolvent = &ruler->resolvent;
+  size_t size = SIZE (*resolvent);
+  if (!size)
+    {
+      ROG ("empty resolvent");
+    }
+}
+
+static void
+disconnect_literal (struct ruler * ruler,
+                    unsigned lit, struct clause * clause)
+{
+}
+
+static void
+disconnect_and_delete_clause (struct ruler * ruler,
+                              struct clause * clause, unsigned lit)
+{
+  if (binary_pointer (clause))
+    {
+      assert (lit == lit_pointer (clause));
+      bool redundant = redundant_pointer (clause);
+      unsigned other = other_pointer (clause);
+      struct clause * other_clause = tag_pointer (redundant, other, lit);
+      disconnect_literal (ruler, other, other_clause);
+      assert (ruler->irredundant_binaries);
+      ruler->irredundant_binaries--;
+      ROGBINARY (redundant, lit, other, "disconnected and deleted");
+    }
+  else
+    {
+      for (all_literals_in_clause (other, clause))
+	  if (other != lit)
+	    disconnect_literal (ruler, other, clause);
+      ROGCLAUSE (clause, "disconnected and marking garbage");
+    }
+}
+
+static void
+disconnect_and_delete_clauses (struct ruler * ruler,
+                               struct clauses * clauses, unsigned except)
+{
+  ROG ("disconnecting and deleting clauses with %s", ROGLIT (except));
+  for (all_clauses (clause, *clauses))
+      disconnect_and_delete_clause (ruler, clause, except);
+  RELEASE (*clauses);
+}
+
+static void
+eliminate_variable (struct ruler * ruler, unsigned idx)
+{
+  unsigned pivot = LIT (idx);
+  if (ruler->values[pivot])
+    return;
+  ROG ("adding resolvents on %s", ROGVAR (idx));
+  unsigned not_pivot = NOT (pivot);
+  struct clauses * pos_clauses = &OCCURENCES (pivot);
+  struct clauses * neg_clauses = &OCCURENCES (not_pivot);
+  size_t neg_size = SIZE (*neg_clauses);
+  size_t pos_size = SIZE (*pos_clauses);
+  if (pos_size > neg_size)
+    {
+      SWAP (pivot, not_pivot);
+      SWAP (pos_size, neg_size);
+      SWAP (pos_clauses, neg_clauses);
+    }
+  size_t resolvents = 0;
+  signed char * marks = ruler->marks;
+  for (all_clauses (pos_clause, *pos_clauses))
+    {
+      mark_clause (marks, pos_clause, pivot);
+      for (all_clauses (neg_clause, *neg_clauses))
+	{
+	  assert (EMPTY (ruler->resolvent));
+	  if (add_first_antecedent_literals (ruler, pos_clause, pivot) &&
+	      add_second_antecedent_literals (ruler, neg_clause, not_pivot))
+	    {
+	      add_resolvent (ruler),
+	      resolvents++;
+	    }
+	  CLEAR (ruler->resolvent);
+	}
+      unmark_clause (marks, pos_clause, pivot);
+      if (ruler->inconsistent)
+	break;
+    }
+  ROG ("added %zu resolvents on %s", resolvents, ROGVAR (idx));
+  if (ruler->inconsistent)
+    return;
+  ROG ("adding %zu clauses with %s to extension stack",
+       pos_size, ROGLIT (pivot));
+  struct unsigneds * extension = &ruler->extension;
+  for (all_clauses (clause, *pos_clauses))
+    {
+      PUSH (*extension, pivot);
+      for (all_literals_in_clause (lit, clause))
+	if (lit != pivot)
+	  PUSH (*extension, pivot);
+    }
+  ROG ("adding unit clauses with %s to extension stack",
+       ROGLIT (not_pivot));
+  PUSH (*extension, INVALID);
+  disconnect_and_delete_clauses (ruler, pos_clauses, pivot);
+  disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
+}
+
+static void
+eliminate_variables (struct ruler * ruler)
 {
   for (all_ruler_indices (idx))
-    if (try_to_deliminate_variable (ruler, idx))
+    if (ruler->inconsistent)
+      break;
+    else if (can_eliminate_variable (ruler, idx))
       eliminate_variable (ruler, idx);
-  return true;
+  RELEASE (ruler->resolvent);
 }
 
 static void
@@ -2469,12 +2653,14 @@ simplify_ruler (struct ruler * ruler)
   START (ruler, simplifying);
   for (all_clauses (clause, ruler->clauses))
     connect_large_clause (ruler, clause);
-  size_t before = SIZE (ruler->clauses) + ruler->original_binaries;
-  if (propagate_and_flush_ruler_units (ruler))
-    if (bounded_variable_elimination (ruler))
-      if (propagate_and_flush_ruler_units (ruler))
-	bounded_variable_elimination (ruler);
-  size_t after = SIZE (ruler->clauses) + ruler->original_binaries;
+  size_t before = SIZE (ruler->clauses) + ruler->irredundant_binaries;
+  propagate_and_flush_ruler_units (ruler);
+  for (unsigned round = 0; round != VARIABLE_ELIMINATION_ROUNDS; round++)
+    {
+      eliminate_variables (ruler);
+      propagate_and_flush_ruler_units (ruler);
+    }
+  size_t after = SIZE (ruler->clauses) + ruler->irredundant_binaries;
   assert (after <= before);
   size_t removed_clauses = before - after;
   size_t removed_variables = SIZE (ruler->units);
@@ -2653,7 +2839,7 @@ copy_ruler_binaries (struct ring *ring)
   size_t copied = watched / 2;
   ring->statistics.irredundant += copied;
   very_verbose (ring, "copied %zu binary clauses", copied);
-  assert (copied == ruler->original_binaries);
+  assert (copied == ruler->irredundant_binaries);
 }
 
 static void
@@ -2669,7 +2855,7 @@ share_ring_binaries (struct ring *dst, struct ring *src)
       dst_references->binaries = src_references->binaries;
     }
 
-  size_t shared = src->ruler->original_binaries;
+  size_t shared = src->ruler->irredundant_binaries;
   ring->statistics.irredundant += shared;
   very_verbose (ring, "shared %zu binary clauses", shared);
 }
