@@ -298,6 +298,7 @@ struct clause
   unsigned char glue;
   bool redundant:1;
   bool garbage:1;
+  bool dirty:1;
   unsigned size;
   unsigned literals[];
 };
@@ -2190,12 +2191,12 @@ static void
 mark_satisfied_ruler_clauses (struct ruler * ruler)
 {
   signed char * values = (signed char*) ruler->values;
-  size_t marked = 0;
+  size_t marked_satisfied = 0, marked_dirty = 0;
   for (all_clauses (clause, ruler->clauses))
     {
       if (clause->garbage)
 	continue;
-      bool satisfied = false;
+      bool satisfied = false, dirty = false;
       for (all_literals_in_clause (lit, clause))
 	{
 	  signed char value = values[lit];
@@ -2204,6 +2205,8 @@ mark_satisfied_ruler_clauses (struct ruler * ruler)
 	      satisfied = true;
 	      break;
 	    }
+	  if (!dirty && value < 0)
+	    dirty = true;
 	}
       if (satisfied)
 	{
@@ -2211,14 +2214,23 @@ mark_satisfied_ruler_clauses (struct ruler * ruler)
 	  trace_delete_clause (&ruler->buffer, clause);
 	  ruler->statistics.garbage++;
 	  clause->garbage = true;
-	  marked++;
+	  marked_satisfied++;
+	}
+      else if (dirty)
+	{
+	  ROGCLAUSE (clause, "marking dirty");
+	  assert (!clause->dirty);
+	  clause->dirty = true;
+	  marked_dirty++;
 	}
     }
-  very_verbose (0, "found additionally %zu large garbage clause", marked);
+  very_verbose (0,
+     "found %zu additional large satisfied clauses and marked %zu dirty",
+     marked_satisfied, marked_dirty);
 }
 
 static void
-flush_satisfied_ruler_watches (struct ruler * ruler)
+flush_satisfied_ruler_occurrences (struct ruler * ruler)
 {
   signed char * values = (signed char*) ruler->values;
   size_t flushed = 0;
@@ -2260,7 +2272,13 @@ flush_satisfied_ruler_watches (struct ruler * ruler)
 	      q--;
 	    }
 	}
-      clauses->end = q;
+      if (lit_value)
+	{
+	  flushed += q - begin;
+	  RELEASE (*clauses);
+	}
+      else
+	clauses->end = q;
     }
   very_verbose (0, "flushed %zu garbage watches", flushed);
   very_verbose (0, "deleted %zu satisfied binary clauses", deleted);
@@ -2272,21 +2290,69 @@ static void
 delete_large_garbage_ruler_clauses (struct ruler * ruler)
 {
   struct clauses * clauses = &ruler->clauses;
-  struct clause ** begin = clauses->begin, ** q = begin;
-  struct clause ** end = clauses->end, ** p = q;
-  size_t deleted = 0;
-  while (p != end)
+  struct clause ** begin_clauses = clauses->begin, ** q = begin_clauses;
+  struct clause ** end_clauses = clauses->end, ** p = q;
+  size_t deleted = 0, shrunken = 0;
+  signed char * values = (signed char*) ruler->values;
+  struct unsigneds remove;
+  INIT (remove);
+  while (p != end_clauses)
     {
       struct clause * clause = *q++ = *p++;
-      if (!clause->garbage)
-	continue;
-      ROGCLAUSE (clause, "finally deleting");
-      free (clause);
-      deleted++;
-      q--;
+      if (clause->garbage)
+	{
+	  ROGCLAUSE (clause, "finally deleting");
+	  free (clause);
+	  deleted++;
+	  q--;
+	}
+      else if (clause->dirty)
+	{
+	  assert (EMPTY (remove));
+	  shrunken++;
+	  ROGCLAUSE (clause, "shrinking dirty");
+	  unsigned * literals = clause->literals;
+	  unsigned old_size = clause->size;
+	  assert (old_size > 2);
+	  unsigned * end_literals = literals + old_size;
+	  unsigned * l = literals, * k = l;
+	  while (l != end_literals)
+	    {
+	      unsigned lit = *k++ = *l++;
+	      signed char value = values[lit];
+	      assert (value <= 0);
+	      if (proof.file)
+		PUSH (remove, lit);
+	      if (value < 0)
+		k--;
+	    }
+	  size_t new_size = k - literals;
+	  assert (1 < new_size);
+	  assert (new_size < old_size);
+	  clause->size = new_size;
+	  ROGCLAUSE (clause, "shrunken dirty");
+	  if (proof.file)
+	    {
+	      assert (old_size == SIZE (remove));
+	      trace_add_clause (&ruler->buffer, clause);
+	      trace_delete_literals (&ruler->buffer, old_size, remove.begin);
+	      CLEAR (remove);
+	    }
+	  if (2 < new_size)
+	    continue;
+	  unsigned lit = literals[0];
+	  unsigned other = literals[1];
+	  ROGCLAUSE (clause, "deleting shrunken dirty");
+	  new_ruler_binary_clause (ruler, lit, other);
+	  free (clause);
+	  q--;
+	}
     }
   clauses->end = q;
+  if (proof.file)
+    RELEASE (remove);
   very_verbose (0, "finally deleted %zu large garbage clauses", deleted);
+  very_verbose (0, "shrunken %zu dirty clauses", shrunken);
 }
 
 static void
@@ -2302,7 +2368,7 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
   if (last->fixed != ruler->statistics.fixed)
     {
       mark_satisfied_ruler_clauses (ruler);
-      flush_satisfied_ruler_watches (ruler);
+      flush_satisfied_ruler_occurrences (ruler);
     }
   if (last->fixed != ruler->statistics.fixed ||
       last->garbage != ruler->statistics.garbage)
@@ -2983,6 +3049,8 @@ set_satisfied (struct ring *ring)
 
 /*------------------------------------------------------------------------*/
 
+#if 0
+
 static void
 copy_ruler_units (struct ring *ring)
 {
@@ -2991,6 +3059,8 @@ copy_ruler_units (struct ring *ring)
   signed char * ring_values = ring->values;
   memcpy (ring_values, ruler_values, 2*ring->size);
 }
+
+#endif
 
 static void
 copy_ruler_binaries (struct ring *ring)
@@ -3079,7 +3149,9 @@ clone_ruler (struct ruler *ruler)
     set_inconsistent (ring, "copied empty clause");
   else
     {
+#if 0
       copy_ruler_units (ring);
+#endif
       copy_ruler_binaries (ring);
       transfer_and_own_ruler_clauses (ring);
     }
@@ -4568,7 +4640,7 @@ unmark_reasons (struct ring *ring)
 }
 
 static void
-mark_satisfied_clauses_as_garbage (struct ring *ring)
+mark_satisfied_ring_clauses_as_garbage (struct ring *ring)
 {
   size_t marked = 0;
   signed char *values = ring->values;
@@ -4834,7 +4906,7 @@ reduce (struct ring *ring)
   INIT (candidates);
   bool fixed = ring->last.fixed != ring->statistics.fixed;
   if (fixed)
-    mark_satisfied_clauses_as_garbage (ring);
+    mark_satisfied_ring_clauses_as_garbage (ring);
   gather_reduce_candidates (ring, &candidates);
   sort_reduce_candidates (&candidates);
   mark_reduce_candidates_as_garbage (ring, &candidates);
@@ -5885,7 +5957,7 @@ local_search (struct ring *ring)
   if (ring->level)
     backtrack (ring, 0);
   if (ring->last.fixed != ring->statistics.fixed)
-    mark_satisfied_clauses_as_garbage (ring);
+    mark_satisfied_ring_clauses_as_garbage (ring);
   struct walker *walker = new_walker (ring);
   walking_loop (walker);
   save_final_minimum (walker);
