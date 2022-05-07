@@ -2707,6 +2707,7 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   struct unsigneds * extension = &ruler->extension;
   for (all_clauses (clause, *pos_clauses))
     {
+      PUSH (*extension, INVALID);
       PUSH (*extension, pivot);
       if (binary_pointer (clause))
 	{
@@ -2720,11 +2721,11 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 	      PUSH (*extension, pivot);
 	}
     }
+#if 0
+  ROG ("adding unit %s to extension stack", ROGLIT (not_pivot));
   PUSH (*extension, INVALID);
-  ROG ("adding unit clauses with %s to extension stack",
-       ROGLIT (not_pivot));
   PUSH (*extension, not_pivot);
-  PUSH (*extension, INVALID);
+#endif
   disconnect_and_delete_clauses (ruler, pos_clauses, pivot);
   disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
 }
@@ -6565,8 +6566,64 @@ print_unsigned_literal (signed char *values, unsigned unsigned_lit)
 }
 
 static void
+extend_witness (struct ring * ring)
+{
+  LOG ("extending witness");
+  struct ruler * ruler = ring->ruler;
+  bool * eliminated = ruler->eliminated;
+  signed char * values = ring->values;
+  for (all_ring_indices (idx))
+    {
+      unsigned lit = LIT (idx);
+      unsigned not_lit = NOT (lit);
+      if (!eliminated [idx])
+	{ 
+	  assert (values[lit]);
+	  assert (values[not_lit]);
+	  continue;
+	}
+      values[lit] = INITIAL_PHASE;
+      values[not_lit] = -INITIAL_PHASE;
+    }
+  struct unsigneds * extension = &ruler->extension;
+  unsigned * begin = extension->begin;
+  unsigned * p = extension->end;
+  unsigned pivot = INVALID;
+  bool satisfied = false;
+  size_t flipped = 0;
+  while (p != begin)
+    {
+      unsigned lit = *--p;
+      if (lit == INVALID)
+	{
+	  if (!satisfied)
+	    {
+	      LOG ("flipping %s", LOGLIT (pivot));
+	      assert (pivot != INVALID);
+	      unsigned not_pivot = NOT (pivot);
+	      assert (values[pivot] < 0);
+	      assert (values[not_pivot] > 0);
+	      values[pivot] = 1;
+	      values[not_pivot] = -1;
+	      flipped++;
+	    }
+	  satisfied = false;
+	}
+      else if (!satisfied)
+	{
+	  signed char value = values[lit];
+	  if (value > 0)
+	    satisfied = true;
+	}
+      pivot = lit;
+    }
+  verbose (ring, "flipped %zu literals", flipped);
+}
+
+static void
 print_witness (struct ring *ring)
 {
+  extend_witness (ring);
   signed char *values = ring->values;
   for (all_ring_indices (idx))
     print_unsigned_literal (values, LIT (idx));
