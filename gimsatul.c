@@ -3007,7 +3007,7 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   unsigned idx = IDX (lit);
 
 #if 1
-  assert (!ring->ruler->values[lit]);
+  assert (ring->active[idx]);
   assert (!ring->ruler->eliminated[idx]);
 #endif
 
@@ -4540,12 +4540,13 @@ random_decision (struct ring *ring)
   assert (ring->unassigned);
 
   signed char *values = ring->values;
+  bool * active = ring->active;
   unsigned size = ring->size;
 
   unsigned idx = random_modulo (ring, size);
   unsigned lit = LIT (idx);
 
-  if (values[lit])
+  if (!active[idx] || values[lit])
     {
       unsigned delta = random_modulo (ring, size);
       while (gcd (delta, size) != 1)
@@ -4559,7 +4560,7 @@ random_decision (struct ring *ring)
 	    idx -= size;
 	  lit = LIT (idx);
 	}
-      while (values[lit]);
+      while (!active[idx] || values[lit]);
     }
 
   LOG ("random decision %s", LOGVAR (idx));
