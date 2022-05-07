@@ -280,7 +280,7 @@ struct buffer
   unsigned char *begin, *end, *allocated;
 };
 
-struct trail
+struct ring_trail
 {
   unsigned *begin, *end, *pos;
   unsigned *propagate, *iterate;
@@ -591,7 +591,7 @@ struct ring
   struct queue queue;
   struct unsigneds clause;
   struct unsigneds analyzed;
-  struct trail trail;
+  struct ring_trail trail;
   struct limits limits;
   struct buffer buffer;
   struct intervals intervals;
@@ -1642,7 +1642,7 @@ new_ring (struct ruler *ruler)
   assert (sizeof (bool) == 1);
   ring->used = allocate_and_clear_block (size);
   ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
-  struct trail *trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
   trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
   trail->export = trail->propagate = trail->iterate = trail->begin;
   trail->pos = allocate_array (size, sizeof *trail->pos);
@@ -2804,6 +2804,9 @@ eliminate_variables (struct ruler * ruler)
       {
 	eliminate_variable (ruler, idx);
 	res++;
+#if 1
+	break;
+#endif
       }
   RELEASE (ruler->resolvent);
   return res;
@@ -2834,6 +2837,9 @@ simplify_ruler (struct ruler * ruler)
 	  break;
 	}
       propagate_and_flush_ruler_units (ruler);
+#if 1
+	break;
+#endif
     }
   if (ruler->inconsistent)
     message (0, "simplification produced empty clause");
@@ -2884,7 +2890,7 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   else
     v->reason = reason;
 
-  struct trail *trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
   size_t pos = trail->end - trail->begin;
   assert (pos < ring->size);
   trail->pos[idx] = pos;
@@ -3144,7 +3150,7 @@ static struct watch *
 ring_propagate (struct ring *ring, bool search)
 {
   assert (!ring->inconsistent);
-  struct trail *trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
   struct watch *conflict = 0;
   signed char *values = ring->values;
   uint64_t ticks = 0, propagations = 0;
@@ -3323,7 +3329,7 @@ static void
 backtrack (struct ring *ring, unsigned new_level)
 {
   assert (ring->level > new_level);
-  struct trail *trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;
   while (t != trail->begin)
     {
@@ -3396,7 +3402,7 @@ export_units (struct ring *ring)
     return;
   assert (!ring->level);
   struct ruler *ruler = ring->ruler;
-  struct trail *trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
   volatile signed char *values = ruler->values;
   unsigned *end = trail->end;
   bool locked = false;
@@ -3992,7 +3998,7 @@ shrink_clause (struct ring *ring)
 
   struct variable *variables = ring->variables;
   struct unsigneds *analyzed = &ring->analyzed;
-  struct trail *trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
 
   struct unsigneds *clause = &ring->clause;
   unsigned *begin = clause->begin;
@@ -4231,7 +4237,7 @@ analyze (struct ring *ring, struct watch *reason)
   assert (EMPTY (*levels));
   bool *used = ring->used;
   struct variable *variables = ring->variables;
-  struct trail *trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;
   PUSH (*clause, INVALID);
   const unsigned level = ring->level;
@@ -5971,7 +5977,7 @@ iterate (struct ring *ring)
 {
   assert (ring->iterating);
   assert (!ring->level);
-  struct trail *trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
   assert (trail->end == trail->propagate);
   assert (trail->iterate < trail->propagate);
   size_t new_units = trail->propagate - trail->iterate;
