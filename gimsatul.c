@@ -458,6 +458,7 @@ struct statistics
   } literals;
 
   unsigned fixed;
+  unsigned eliminated;
 
   size_t irredundant;
   size_t redundant;
@@ -2654,12 +2655,22 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   for (all_clauses (clause, *pos_clauses))
     {
       PUSH (*extension, pivot);
-      for (all_literals_in_clause (lit, clause))
-	if (lit != pivot)
-	  PUSH (*extension, pivot);
+      if (binary_pointer (clause))
+	{
+	  unsigned other = other_pointer (clause);
+	  PUSH (*extension, other);
+	}
+      else
+	{
+	  for (all_literals_in_clause (lit, clause))
+	    if (lit != pivot)
+	      PUSH (*extension, pivot);
+	}
     }
+  PUSH (*extension, INVALID);
   ROG ("adding unit clauses with %s to extension stack",
        ROGLIT (not_pivot));
+  PUSH (*extension, not_pivot);
   PUSH (*extension, INVALID);
   disconnect_and_delete_clauses (ruler, pos_clauses, pivot);
   disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
@@ -4305,7 +4316,7 @@ report (struct ring *ring, char type)
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
-  unsigned active = ring->size - s->fixed;
+  unsigned active = ring->size - s->fixed - s->eliminated;
 
   static volatile uint64_t reported;
   if (!(atomic_fetch_add (&reported, 1) % 20))
