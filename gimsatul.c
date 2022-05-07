@@ -2364,6 +2364,7 @@ can_resolve_clause (struct ruler * ruler,
     }
   else
     {
+      assert (!clause->garbage);
       unsigned resolved_literals = 0;
       for (all_literals_in_clause (lit, clause))
 	{
@@ -2476,6 +2477,7 @@ add_first_antecedent_literals (struct ruler * ruler,
     }
   else
     {
+      assert (!clause->garbage);
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == pivot)
@@ -2517,6 +2519,7 @@ add_second_antecedent_literals (struct ruler * ruler,
     }
   else
     {
+      assert (!clause->garbage);
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == not_pivot)
@@ -2552,6 +2555,21 @@ static void
 disconnect_literal (struct ruler * ruler,
                     unsigned lit, struct clause * clause)
 {
+  struct clauses * clauses = &OCCURENCES (lit);
+  struct clause ** begin = clauses->begin, ** q = begin;
+  struct clause ** end = clauses->end, ** p = q;
+  while (p != end)
+    {
+      struct clause * other_clause = *q++ = *p++;
+      if (other_clause != clause)
+	continue;
+      q--;
+      break;
+    }
+  while (p != end)
+    *q++ = *p++;
+  assert (clauses->end != q);
+  clauses->end = q;
 }
 
 static void
@@ -2571,10 +2589,11 @@ disconnect_and_delete_clause (struct ruler * ruler,
     }
   else
     {
+      ROGCLAUSE (clause, "disconnecting and marking garbage");
+      clause->garbage = true;
       for (all_literals_in_clause (other, clause))
 	  if (other != lit)
 	    disconnect_literal (ruler, other, clause);
-      ROGCLAUSE (clause, "disconnected and marking garbage");
     }
 }
 
