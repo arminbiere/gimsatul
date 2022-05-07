@@ -2764,7 +2764,7 @@ simplify_ruler (struct ruler * ruler)
 	}
       else
 	{
-	  message (0, "no variable eliminated variables in round %u", round);
+	  message (0, "no variable eliminated in round %u", round);
 	  break;
 	}
       propagate_and_flush_ruler_units (ruler);
