@@ -222,11 +222,17 @@ do { \
   P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
   ++ P_ ## LIT
 
-#define all_nodes(NODE) \
+#define all_active_and_inactive_nodes(NODE) \
   struct node * NODE = ring->queue.nodes, \
               * END_ ## NODE = (NODE) + ring->size; \
   NODE != END_ ## NODE; \
   ++NODE
+
+#define all_active_nodes(NODE) \
+  struct node * NODE = first_active_node (ring), \
+              * END_ ## NODE = ring->queue.nodes + ring->size; \
+  NODE != END_ ## NODE; \
+  NODE = next_active_node (ring, NODE)
 
 #define all_ring_indices(IDX) \
   unsigned IDX = 0, END_ ## IDX = ring->size; \
@@ -585,6 +591,7 @@ struct ring
   bool *used;
   signed char *values;
   signed char *marks;
+  bool *active;
   struct variable *variables;
   struct watches watches;
   struct references *references;
@@ -1256,15 +1263,15 @@ dequeue_node (struct node *node)
 static void
 pop_queue (struct queue *queue, struct node *node)
 {
-  struct node *ruler = queue->root;
+  struct node *root = queue->root;
   struct node *child = node->child;
-  if (ruler == node)
+  if (root == node)
     queue->root = collapse_node (child);
   else
     {
       dequeue_node (node);
       struct node *collapsed = collapse_node (child);
-      queue->root = merge_nodes (ruler, collapsed);
+      queue->root = merge_nodes (root, collapsed);
     }
   assert (!queue_contains (queue, node));
 }
@@ -1277,13 +1284,13 @@ update_queue (struct queue *queue, struct node *node, double new_score)
   if (old_score == new_score)
     return;
   node->score = new_score;
-  struct node *ruler = queue->root;
-  if (ruler == node)
+  struct node *root = queue->root;
+  if (root == node)
     return;
   if (!node->prev)
     return;
   dequeue_node (node);
-  queue->root = merge_nodes (ruler, node);
+  queue->root = merge_nodes (root, node);
 }
 
 static void
@@ -1332,21 +1339,61 @@ bump_score_increment (struct ring *ring)
     rescale_variable_scores (ring);
 }
 
+static struct node *
+first_active_node (struct ring * ring)
+{
+  struct queue *queue = &ring->queue;
+  struct node * nodes = queue->nodes;
+  struct node * end = nodes + ring->size;
+  struct node * res = nodes;
+  bool * active = ring->active;
+  while (res != end)
+    {
+      unsigned idx = res - nodes;
+      if (active [idx])
+	return res;
+      res++;
+    }
+  return res;
+}
+
+static struct node *
+next_active_node (struct ring * ring, struct node * node)
+{
+  struct queue *queue = &ring->queue;
+  struct node * nodes = queue->nodes;
+  struct node * end = nodes + ring->size;
+  assert (nodes <= node);
+  assert (node < end);
+  struct node * res = node + 1; 
+  bool * active = ring->active;
+  while (res != end)
+    {
+      unsigned idx = res - nodes;
+      if (active [idx])
+	return res;
+      res++;
+    }
+  return res;
+}
+
 static void
 swap_scores (struct ring *ring)
 {
   struct queue *queue = &ring->queue;
-  double *s = queue->scores;
-  for (all_nodes (node))
+  struct node * nodes = queue->nodes;
+  double *scores = queue->scores;
+  for (all_active_nodes (node))
     {
       double tmp = node->score;
+      unsigned idx = node - nodes;
+      double * s = scores + idx;
       node->score = *s;
       node->child = node->prev = node->next = 0;
-      *s++ = tmp;
+      *s = tmp;
     }
-  assert (s == queue->scores + ring->size);
   queue->root = 0;
-  for (all_nodes (node))
+  for (all_active_nodes (node))
     push_queue (queue, node);
   double tmp = queue->increment[0];
   queue->increment[0] = queue->increment[1];
@@ -1651,6 +1698,7 @@ new_ring (struct ruler *ruler)
   ring->references =
     allocate_and_clear_array (sizeof (struct references), 2 * size);
   assert (sizeof (bool) == 1);
+  ring->active = allocate_and_clear_block (size);
   ring->used = allocate_and_clear_block (size);
   ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
   struct ring_trail *trail = &ring->trail;
@@ -1664,7 +1712,7 @@ new_ring (struct ruler *ruler)
   bool * eliminated = ruler->eliminated;
   unsigned active = 0;
   signed char * ruler_values = (signed char*) ruler->values;
-  for (all_nodes (node))
+  for (all_active_and_inactive_nodes (node))
     {
       size_t idx = node - queue->nodes;
       assert (idx < size);
@@ -1680,6 +1728,7 @@ new_ring (struct ruler *ruler)
 	  continue;
 	}
       LOG ("enqueuing active %s", LOGVAR (idx));
+      ring->active[idx] = true;
       push_queue (queue, node);
       active++;
     }
@@ -1782,6 +1831,7 @@ delete_ring (struct ring *ring)
   free (ring->variables);
   free (ring->values);
   free (ring->marks);
+  free (ring->active);
   free (ring->used);
   free (ring);
 }
@@ -2891,7 +2941,7 @@ eliminate_variables (struct ruler * ruler)
       {
 	eliminate_variable (ruler, idx);
 	res++;
-#if 1
+#if 0
 	break;
 #endif
       }
@@ -2924,7 +2974,7 @@ simplify_ruler (struct ruler * ruler)
 	  break;
 	}
       propagate_and_flush_ruler_units (ruler);
-#if 1
+#if 0
 	break;
 #endif
     }
@@ -2951,6 +3001,11 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   const unsigned not_lit = NOT (lit);
   unsigned idx = IDX (lit);
 
+#if 1
+  assert (!ring->ruler->values[lit]);
+  assert (!ring->ruler->eliminated[idx]);
+#endif
+
   assert (idx < ring->size);
   assert (!ring->values[lit]);
   assert (!ring->values[not_lit]);
@@ -2973,6 +3028,8 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
       ring->statistics.fixed++;
       assert (ring->statistics.active);
       ring->statistics.active--;
+      assert (ring->active[idx]);
+      ring->active[idx] = false;
     }
   else
     v->reason = reason;
