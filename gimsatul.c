@@ -2472,8 +2472,6 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
 static bool
 literal_with_too_many_occurrences (struct ruler * ruler, unsigned lit)
 {
-  if (ruler->values[lit])
-    return false;
   struct clauses * clauses = &OCCURENCES (lit);
   size_t size = SIZE (*clauses);
   bool res = size > OCCURRENCE_LIMIT;
@@ -2961,7 +2959,7 @@ simplify_ruler (struct ruler * ruler)
   START (ruler, simplifying);
   if (verbosity >= 0)
     {
-      printf ("c\nc simplying formula before cloning\n");
+      printf ("c\nc simplifying formula before cloning\n");
       fflush (stdout);
     }
   for (all_clauses (clause, ruler->clauses))
