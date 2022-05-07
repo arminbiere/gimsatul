@@ -524,9 +524,9 @@ struct ruler
   struct ring *volatile winner;
   volatile signed char *values;
   signed char *marks;
+  bool *eliminated;
   struct clauses *occurrences;
   size_t irredundant_binaries;
-  size_t irredundant_garbage;
   struct clauses clauses;
   struct unsigneds resolvent;
   struct unsigneds extension;
@@ -1001,13 +1001,10 @@ do { \
   LOGSUFFIX (); \
 } while (0)
 
-#define ROGBINARY(REDUNDANT,LIT,OTHER, ...) \
+#define ROGBINARY(LIT,OTHER, ...) \
 do { \
   ROGPREFIX (__VA_ARGS__); \
-  if ((REDUNDANT)) \
-    printf (" redundant"); \
-  else \
-    printf (" irredundant"); \
+  printf (" irredundant"); \
   printf (" binary clause %s %s", ROGLIT (LIT), ROGLIT (OTHER)); \
   ROGSUFFIX (); \
 } while (0)
@@ -1016,10 +1013,10 @@ do { \
 do { \
   if (binary_pointer (CLAUSE)) \
     { \
-      bool REDUNDANT = redundant_pointer (CLAUSE); \
+      assert (!redundant_pointer (CLAUSE)); \
       unsigned LIT = lit_pointer (CLAUSE); \
       unsigned OTHER = other_pointer (CLAUSE); \
-      ROGBINARY (REDUNDANT, LIT, OTHER, __VA_ARGS__); \
+      ROGBINARY (LIT, OTHER, __VA_ARGS__); \
     } \
   else \
     { \
@@ -1511,6 +1508,8 @@ new_ruler (size_t size)
   ruler->size = size;
   ruler->values = allocate_and_clear_block (2 * size);
   ruler->marks = allocate_and_clear_block (size);
+  assert (sizeof (bool) == 1);
+  ruler->eliminated = allocate_and_clear_block (size);
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
@@ -1542,6 +1541,7 @@ delete_ruler (struct ruler *ruler)
   release_occurrences (ruler);
   free ((void *) ruler->values);
   free (ruler->marks);
+  free (ruler->eliminated);
   free (ruler->units.begin);
   free (ruler->threads);
   free (ruler);
@@ -1615,6 +1615,7 @@ new_ring (struct ruler *ruler)
   unsigned size = ruler->size;
   assert (size < (1u << 30));
   struct ring *ring = allocate_and_clear_block (sizeof *ring);
+  init_ring_profiles (ring);
   push_ring (ruler, ring);
   ring->size = size;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);
@@ -1622,6 +1623,7 @@ new_ring (struct ruler *ruler)
   ring->marks = allocate_and_clear_block (2 * size);
   ring->references =
     allocate_and_clear_array (sizeof (struct references), 2 * size);
+  assert (sizeof (bool) == 1);
   ring->used = allocate_and_clear_block (size);
   ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
   struct trail *trail = &ring->trail;
@@ -1632,10 +1634,13 @@ new_ring (struct ruler *ruler)
   queue->nodes = allocate_and_clear_array (size, sizeof *queue->nodes);
   queue->scores = allocate_and_clear_array (size, sizeof *queue->scores);
   queue->increment[0] = queue->increment[1] = 1;
+  bool * eliminated = ruler->eliminated;
+  unsigned idx = 0, active = 0;
   for (all_nodes (node))
-    push_queue (queue, node);
-  ring->unassigned = size;
-  init_ring_profiles (ring);
+    if (!eliminated[idx++])
+      push_queue (queue, node), active++;
+  ring->statistics.eliminated = size - active;
+  ring->unassigned = active;
   for (all_averages (a))
     a->exp = 1.0;
   ring->limits.conflicts = -1;
@@ -1795,7 +1800,8 @@ ascii_proof_line (struct buffer *buffer, size_t size, unsigned *literals)
 static inline void
 trace_add_literals (struct buffer *buffer, size_t size, unsigned *literals)
 {
-  assert (proof.file);
+  if (!proof.file)
+    return;
   assert (EMPTY (*buffer));
   if (binary_proof_format)
     {
@@ -1979,7 +1985,7 @@ watch_first_two_literals_in_large_clause (struct ring *ring,
 static void
 push_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 {
-  ROGBINARY (false, lit, other, "watching %s in", ROGLIT (lit));
+  ROGBINARY (lit, other, "watching %s in", ROGLIT (lit));
   struct clauses *clauses = &OCCURENCES (lit);
   struct clause *watch_lit = tag_pointer (false, lit, other);
   PUSH (*clauses, watch_lit);
@@ -1988,7 +1994,7 @@ push_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 static void
 new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
 {
-  ROGBINARY (false, lit, other, "new");
+  ROGBINARY (lit, other, "new");
   push_ruler_binary (ruler, lit, other);
   push_ruler_binary (ruler, other, lit);
   ruler->irredundant_binaries++;
@@ -2094,11 +2100,10 @@ ruler_propagate (struct ruler * ruler)
 		continue;
 	      if (value < 0)
 		{
-	          ROGBINARY (false, not_lit, other, "conflict");
+	          ROGBINARY (not_lit, other, "conflict");
 		  goto CONFLICT;
 		}
-	      ROGBINARY (false,
-	                 not_lit, other, "unit %s forcing", ROGLIT (other));
+	      ROGBINARY (not_lit, other, "unit %s forcing", ROGLIT (other));
 	      trace_add_unit (&ruler->buffer, other);
 	      assign_ruler_unit (ruler, other);
 	      continue;
@@ -2203,7 +2208,7 @@ flush_satisfied_ruler_watches (struct ruler * ruler)
 		{
 		  if (other < lit)
 		    {
-		      ROGBINARY (false, lit, other, "deleting satisfied");
+		      ROGBINARY (lit, other, "deleting satisfied");
 		      trace_delete_binary (&ruler->buffer, lit, other);
 		      deleted++;
 		    }
@@ -2472,9 +2477,13 @@ add_first_antecedent_literals (struct ruler * ruler,
       unsigned other = other_pointer (clause);
       signed char value = values[other];
       if (value > 0)
-	return false;
+	{
+	  ROG ("1st antecedent %s satisfied", ROGLIT (other));
+	  return false;
+	}
+      if (value < 0)
+	return true;
       PUSH (*resolvent, other);
-      return true;
     }
   else
     {
@@ -2485,20 +2494,23 @@ add_first_antecedent_literals (struct ruler * ruler,
 	    continue;
 	  signed char value = values[lit];
 	  if (value > 0)
-	    return false;
+	    {
+	      ROG ("1st antecedent %s satisfied", ROGLIT (lit));
+	      return false;
+	    }
 	  if (value < 0)
 	    continue;
 	  PUSH (*resolvent, lit);
 	}
-      return true;
     }
+  return true;
 }
 
 static bool
 add_second_antecedent_literals (struct ruler * ruler,
                                 struct clause * clause, unsigned not_pivot)
 {
-  ROGCLAUSE (clause, "1nd %s antecedent", ROGLIT (not_pivot));
+  ROGCLAUSE (clause, "2nd %s antecedent", ROGLIT (not_pivot));
   signed char * values = (signed char*) ruler->values;
   signed char * marks = ruler->marks;
   struct unsigneds * resolvent = &ruler->resolvent;
@@ -2507,12 +2519,18 @@ add_second_antecedent_literals (struct ruler * ruler,
       unsigned other = other_pointer (clause);
       signed char value = values[other];
       if (value > 0)
-	return false;
+	{
+	  ROG ("2nd antecedent %s satisfied", ROGLIT (other));
+	  return false;
+	}
       if (value < 0)
 	return true;
       signed char mark = marked_literal (marks, other);
       if (mark < 0)
-	return false;
+	{
+	  ROG ("2nd antecedent tautological through %s", ROGLIT (other));
+	  return false;
+	}
       if (mark > 0)
 	return true;
       PUSH (*resolvent, other);
@@ -2527,12 +2545,18 @@ add_second_antecedent_literals (struct ruler * ruler,
 	    continue;
 	  signed char value = values[lit];
 	  if (value > 0)
-	    return false;
+	    {
+	      ROG ("2nd antecedent %s satisfied", ROGLIT (lit));
+	      return false;
+	    }
 	  if (value < 0)
 	    continue;
 	  signed char mark = marked_literal (marks, lit);
 	  if (mark < 0)
-	    return false;
+	    {
+	      ROG ("2nd antecedent tautological through %s", ROGLIT (lit));
+	      return false;
+	    }
 	  if (mark > 0)
 	    continue;
 	  PUSH (*resolvent, lit);
@@ -2544,11 +2568,34 @@ add_second_antecedent_literals (struct ruler * ruler,
 static void
 add_resolvent (struct ruler * ruler)
 {
+  assert (!ruler->inconsistent);
   struct unsigneds * resolvent = &ruler->resolvent;
+  unsigned * literals = resolvent->begin;
   size_t size = SIZE (*resolvent);
+  trace_add_literals (&ruler->buffer, size, literals);
   if (!size)
     {
-      ROG ("empty resolvent");
+      very_verbose (0, "%s", "empty resolvent");
+      ruler->inconsistent = true;
+    }
+  else if (size == 1)
+    {
+      const unsigned unit = literals[0];
+      ROG ("unit resolvent %s", ROGLIT (unit));
+      assign_ruler_unit (ruler, unit);
+    }
+  else if (size == 2)
+    {
+      unsigned lit = literals[0];
+      unsigned other = literals[1];
+      new_ruler_binary_clause (ruler, lit, other);
+    }
+  else
+    {
+      assert (size > 2);
+      struct clause *clause = new_large_clause (size, literals, false, 0);
+      connect_large_clause (ruler, clause);
+      ROGCLAUSE (clause, "new");
     }
 }
 
@@ -2580,17 +2627,19 @@ disconnect_and_delete_clause (struct ruler * ruler,
   if (binary_pointer (clause))
     {
       assert (lit == lit_pointer (clause));
-      bool redundant = redundant_pointer (clause);
+      assert (!redundant_pointer (clause));
       unsigned other = other_pointer (clause);
-      struct clause * other_clause = tag_pointer (redundant, other, lit);
+      struct clause * other_clause = tag_pointer (false, other, lit);
       disconnect_literal (ruler, other, other_clause);
       assert (ruler->irredundant_binaries);
       ruler->irredundant_binaries--;
-      ROGBINARY (redundant, lit, other, "disconnected and deleted");
+      ROGBINARY (lit, other, "disconnected and deleted");
+      trace_delete_binary (&ruler->buffer, lit, other);
     }
   else
     {
       ROGCLAUSE (clause, "disconnecting and marking garbage");
+      trace_delete_clause (&ruler->buffer, clause);
       clause->garbage = true;
       for (all_literals_in_clause (other, clause))
 	  if (other != lit)
@@ -2615,6 +2664,8 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   if (ruler->values[pivot])
     return;
   ROG ("adding resolvents on %s", ROGVAR (idx));
+  assert (!ruler->eliminated[idx]);
+  ruler->eliminated[idx] = true;
   unsigned not_pivot = NOT (pivot);
   struct clauses * pos_clauses = &OCCURENCES (pivot);
   struct clauses * neg_clauses = &OCCURENCES (not_pivot);
@@ -2641,6 +2692,8 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 	      resolvents++;
 	    }
 	  CLEAR (ruler->resolvent);
+	  if (ruler->inconsistent)
+	    break;
 	}
       unmark_clause (marks, pos_clause, pivot);
       if (ruler->inconsistent)
@@ -2676,15 +2729,17 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
 }
 
-static void
+static unsigned
 eliminate_variables (struct ruler * ruler)
 {
+  unsigned res = 0;
   for (all_ruler_indices (idx))
     if (ruler->inconsistent)
       break;
     else if (can_eliminate_variable (ruler, idx))
-      eliminate_variable (ruler, idx);
+      eliminate_variable (ruler, idx), res++;
   RELEASE (ruler->resolvent);
+  return res;
 }
 
 static void
@@ -2697,18 +2752,34 @@ simplify_ruler (struct ruler * ruler)
     connect_large_clause (ruler, clause);
   size_t before = SIZE (ruler->clauses) + ruler->irredundant_binaries;
   propagate_and_flush_ruler_units (ruler);
-  for (unsigned round = 0; round != VARIABLE_ELIMINATION_ROUNDS; round++)
+  unsigned total_eliminated = 0;
+  for (unsigned round = 1; round <= VARIABLE_ELIMINATION_ROUNDS; round++)
     {
-      eliminate_variables (ruler);
+      unsigned eliminated = eliminate_variables (ruler);
+      if (eliminated)
+	{
+	  message (0, "eliminated %u variables in round %u", eliminated, round);
+	  total_eliminated += eliminated;
+	}
+      else
+	{
+	  message (0, "no variable eliminated variables in round %u", round);
+	  break;
+	}
       propagate_and_flush_ruler_units (ruler);
     }
-  size_t after = SIZE (ruler->clauses) + ruler->irredundant_binaries;
-  assert (after <= before);
-  size_t removed_clauses = before - after;
-  size_t removed_variables = SIZE (ruler->units);
-  message (0, "simplified %zu clauses %.0f%% and %zu variables %.0f%%",
-           removed_clauses, percent (removed_clauses, before),
-           removed_variables, percent (removed_variables, ruler->size));
+  if (ruler->inconsistent)
+    message (0, "simplification produced empty clause");
+  else
+    {
+      size_t after = SIZE (ruler->clauses) + ruler->irredundant_binaries;
+      assert (after <= before);
+      size_t removed_clauses = before - after;
+      size_t removed_variables = SIZE (ruler->units) + total_eliminated;
+      message (0, "simplified %zu clauses %.0f%% and %zu variables %.0f%%",
+	       removed_clauses, percent (removed_clauses, before),
+	       removed_variables, percent (removed_variables, ruler->size));
+    }
   STOP (ruler, simplifying);
 }
 
@@ -7128,6 +7199,7 @@ check_types (void)
 
   if (verbosity > 0)
     {
+      fputs ("c\n", stdout);
       printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
       printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
       printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
