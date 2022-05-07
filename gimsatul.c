@@ -90,8 +90,7 @@ static const char * usage =
 #define CACHE_LINE_SIZE 128
 
 #define VARIABLE_ELIMINATION_ROUNDS 2
-#define SINGLE_SIDED_OCCURRENCE_LIMIT 100
-#define DOUBLE_SIDED_OCCURRENCE_LIMIT 1000
+#define OCCURRENCE_LIMIT 100
 #define ANTECEDENT_SIZE_LIMIT 1000
 
 /*------------------------------------------------------------------------*/
@@ -2269,8 +2268,6 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
 {
   if (ruler->inconsistent)
     return;
-  if (ruler->units.propagate == ruler->units.end)
-    return;
   ruler_propagate (ruler);
   if (ruler->inconsistent)
     return;
@@ -2287,7 +2284,11 @@ literal_with_too_many_occurrences (struct ruler * ruler, unsigned lit)
     return false;
   struct clauses * clauses = &OCCURENCES (lit);
   size_t size = SIZE (*clauses);
-  return size > SINGLE_SIDED_OCCURRENCE_LIMIT;
+  bool res = size > OCCURRENCE_LIMIT;
+  if (res)
+    ROG ("literal %s occurs %zu times (limit %zu)",
+         ROGLIT (lit), size, (size_t) OCCURRENCE_LIMIT);
+  return res;
 }
 
 static bool
@@ -2430,13 +2431,24 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   flush_garbage_clauses (neg_clauses);
   size_t neg_size = SIZE (*neg_clauses);
   size_t pos_size = SIZE (*pos_clauses);
-  if (pos_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
-    return false;
-  if (neg_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
-    return false;
   size_t limit = pos_size + neg_size;
-  if (limit > DOUBLE_SIDED_OCCURRENCE_LIMIT)
-    return false;
+  ROG ("trying next elimination candidate %s "
+       "with %zu = %zu + %zu occurrences", ROGVAR (idx),
+       pos_size, neg_size, limit);
+  if (pos_size > OCCURRENCE_LIMIT)
+    {
+      ROG ("pivot literal %s occurs %zu times (limit %zu)",
+           ROGLIT (pivot), pos_size,
+	   (size_t) OCCURRENCE_LIMIT);
+      return false;
+    }
+  if (neg_size > OCCURRENCE_LIMIT)
+    {
+      ROG ("negative pivot literal %s occurs %zu times (limit %zu)",
+           ROGLIT (not_pivot),neg_size,
+	   (size_t) OCCURRENCE_LIMIT);
+      return false;
+    }
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
