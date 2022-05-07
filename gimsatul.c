@@ -892,7 +892,6 @@ roglit (struct ruler *ruler, unsigned unsigned_lit)
   return res;
 }
 
-#if 0
 static const char *
 rogvar (struct ruler *ruler, unsigned idx)
 {
@@ -902,7 +901,6 @@ rogvar (struct ruler *ruler, unsigned idx)
   sprintf (res, "variable %u(%u) (literal %s)", idx, idx + 1, tmp);
   return res;
 }
-#endif
 
 #define LOGLIT(...) loglit (ring, __VA_ARGS__)
 #define LOGVAR(...) logvar (ring, __VA_ARGS__)
@@ -2276,7 +2274,7 @@ literal_with_too_many_occurrences (struct ruler * ruler, unsigned lit)
 static bool
 clause_with_too_many_occurrences (struct ruler * ruler,
                                   struct clause * clause,
-				  unsigned lit)
+				  unsigned except)
 {
   if (binary_pointer (clause))
     {
@@ -2288,7 +2286,7 @@ clause_with_too_many_occurrences (struct ruler * ruler,
     return false;
 
   for (all_literals_in_clause (other, clause))
-      if (other != lit &&
+      if (other != except &&
 	  literal_with_too_many_occurrences (ruler, other))
 	return true;
 
@@ -2315,30 +2313,32 @@ static signed char
 marked_literal (signed char * marks, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  int res = marks[idx];
+  signed char res = marks[idx];
   if (SGN (lit))
     res = -res;
   return res;
 }
 
 static void
-mark_clause (signed char * marks, struct clause * clause)
+mark_clause (signed char * marks, struct clause * clause, unsigned except)
 {
   if (binary_pointer (clause))
     mark_literal (marks, other_pointer (clause));
   else
     for (all_literals_in_clause (other, clause))
-      mark_literal (marks, other);
+      if (other != except)
+	mark_literal (marks, other);
 }
 
 static void
-unmark_clause (signed char * marks, struct clause * clause)
+unmark_clause (signed char * marks, struct clause * clause, unsigned except)
 {
   if (binary_pointer (clause))
     unmark_literal (marks, other_pointer (clause));
   else
     for (all_literals_in_clause (other, clause))
-      unmark_literal (marks, other);
+      if (other != except)
+	unmark_literal (marks, other);
 }
 
 static bool
@@ -2383,9 +2383,11 @@ try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
     return false;
   if (neg_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
     return false;
-  size_t limit = pos_size * neg_size;
+  size_t limit = pos_size + neg_size;
   if (limit > DOUBLE_SIDED_OCCURRENCE_LIMIT)
     return false;
+  ROG ("trying to eliminate %s with %zu + %zu clauses",
+       ROGVAR (idx), pos_size, neg_size);
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
@@ -2399,27 +2401,37 @@ try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
 	{
 	  return false;
 	}
-      mark_clause (marks, pos_clause);
+      mark_clause (marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
 	{
 	  if (clause_with_too_many_occurrences (ruler,
 	                                        neg_clause, not_pivot))
 	    {
-	      unmark_clause (marks, pos_clause);
+	      unmark_clause (marks, pos_clause, pivot);
 	      return false;
 	    }
-	  ROGCLAUSE (pos_clause, "first antecedent");
-	  ROGCLAUSE (neg_clause, "second antecedent");
 	  if (can_resolve_clause (ruler, marks, neg_clause, not_pivot))
 	    if (resolvents++ == limit)
 	      {
-		ROG ("too many resolvents");
 		break;
 	      }
 	}
-      unmark_clause (marks, pos_clause);
+      unmark_clause (marks, pos_clause, pivot);
     }
+
+  if (resolvents <= limit)
+    ROG ("resolvent limit %zu exceeded", limit);
+  else
+    ROG ("number of resolvents %zu stays below limit %zu",
+         resolcents, limit);
+            
   return resolvents <= limit;
+}
+
+static void
+eliminate_variable (struct ruler * ruler, unsigned idx)
+{
+  ROG ("now really eliminating %s", ROGVAR (idx));
 }
 
 static bool
