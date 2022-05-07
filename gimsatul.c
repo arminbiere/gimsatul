@@ -456,8 +456,8 @@ struct ring_statistics
     uint64_t shrunken;
   } literals;
 
+  unsigned active;
   unsigned fixed;
-  unsigned eliminated;
 
   size_t irredundant;
   size_t redundant;
@@ -1575,14 +1575,14 @@ push_ring (struct ruler *ruler, struct ring *ring)
   if (pthread_mutex_lock (&ruler->locks.rings))
     fatal_error ("failed to acquire rings lock while pushing ring");
   size_t id = SIZE (ruler->rings);
-  assert (id < MAX_THREADS);
-  ring->id = id;
   PUSH (ruler->rings, ring);
-  ring->random = ring->id;
-  ring->ruler = ruler;
-  ring->units = ruler->units.begin;
   if (pthread_mutex_unlock (&ruler->locks.rings))
     fatal_error ("failed to release rings lock while pushing ring");
+  assert (id < MAX_THREADS);
+  ring->id = id;
+  ring->random = ring->id;
+  ring->ruler = ruler;
+  ring->units = ruler->units.end;
 }
 
 static void
@@ -1651,12 +1651,29 @@ new_ring (struct ruler *ruler)
   queue->scores = allocate_and_clear_array (size, sizeof *queue->scores);
   queue->increment[0] = queue->increment[1] = 1;
   bool * eliminated = ruler->eliminated;
-  unsigned idx = 0, active = 0;
+  unsigned active = 0;
+  signed char * ruler_values = (signed char*) ruler->values;
   for (all_nodes (node))
-    if (!eliminated[idx++])
-      push_queue (queue, node), active++;
-  ring->statistics.eliminated = size - active;
-  ring->unassigned = active;
+    {
+      size_t idx = node - queue->nodes;
+      assert (idx < size);
+      if (eliminated[idx])
+	{
+	  LOG ("skipping eliminated %s", LOGVAR (idx));
+	  continue;
+	}
+      unsigned lit = LIT (idx);
+      if (ruler_values[lit])
+	{
+	  LOG ("skipping simplification-fixed %s", LOGVAR (idx));
+	  continue;
+	}
+      LOG ("enqueuing active %s", LOGVAR (idx));
+      push_queue (queue, node);
+      active++;
+    }
+  ring->statistics.active = ring->unassigned = active;
+  LOG ("enqueued in total %u active variables", active);
   for (all_averages (a))
     a->exp = 1.0;
   ring->limits.conflicts = -1;
@@ -2001,7 +2018,6 @@ watch_first_two_literals_in_large_clause (struct ring *ring,
 static void
 connect_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 {
-  ROGBINARY (lit, other, "connecting %s in", ROGLIT (lit));
   struct clauses *clauses = &OCCURENCES (lit);
   struct clause *watch_lit = tag_pointer (false, lit, other);
   PUSH (*clauses, watch_lit);
@@ -2267,6 +2283,7 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	continue;
       ROGCLAUSE (clause, "finally deleting");
       free (clause);
+      deleted++;
       q--;
     }
   clauses->end = q;
@@ -2322,7 +2339,11 @@ clause_with_too_many_occurrences (struct ruler * ruler,
     }
 
   if (clause->size > ANTECEDENT_SIZE_LIMIT)
-    return false;
+    {
+      ROGCLAUSE (clause, "antecedent size %zu exceeded by",
+                 (size_t) ANTECEDENT_SIZE_LIMIT);
+      return false;
+    }
 
   for (all_literals_in_clause (other, clause))
       if (other != except &&
@@ -2390,17 +2411,18 @@ can_resolve_clause (struct ruler * ruler,
     {
       unsigned other = other_pointer (clause);
       signed char value = values[other];
-      if (value)
+      if (value > 0)
 	return false;
+      if (value < 0)
+	return true;
       signed char mark = marked_literal (marks, other);
-      if (mark)
+      if (mark < 0)
 	return false;
       return true;
     }
   else
     {
       assert (!clause->garbage);
-      unsigned resolved_literals = 0;
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == except)
@@ -2413,11 +2435,8 @@ can_resolve_clause (struct ruler * ruler,
 	  signed char mark = marked_literal (marks, lit);
 	  if (mark < 0)
 	    return false;
-	  if (mark > 0)
-	    continue;
-	  resolved_literals++;
 	}
-      return resolved_literals;
+	return true;
     }
 }
 
@@ -2453,7 +2472,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   size_t limit = pos_size + neg_size;
   ROG ("trying next elimination candidate %s "
        "with %zu = %zu + %zu occurrences", ROGVAR (idx),
-       pos_size, neg_size, limit);
+       limit, pos_size, neg_size);
   if (pos_size > OCCURRENCE_LIMIT)
     {
       ROG ("pivot literal %s occurs %zu times (limit %zu)",
@@ -2494,10 +2513,12 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       unmark_clause (ruler->marks, pos_clause, pivot);
     }
 
-  if (resolvents <= limit)
+  if (resolvents == limit)
+    ROG ("number of resolvents %zu matches limit %zu", resolvents, limit);
+  else if (resolvents < limit)
     ROG ("number of resolvents %zu stays below limit %zu", resolvents, limit);
   else
-    ROG ("resolvent limit %zu exceeded", limit);
+    ROG ("number of resolvents exceeds limit %zu", limit);
             
   return resolvents <= limit;
 }
@@ -2783,9 +2804,6 @@ eliminate_variables (struct ruler * ruler)
       {
 	eliminate_variable (ruler, idx);
 	res++;
-#if 1
-	break;
-#endif
       }
   RELEASE (ruler->resolvent);
   return res;
@@ -2816,9 +2834,6 @@ simplify_ruler (struct ruler * ruler)
 	  break;
 	}
       propagate_and_flush_ruler_units (ruler);
-#if 1
-      break;
-#endif
     }
   if (ruler->inconsistent)
     message (0, "simplification produced empty clause");
@@ -2863,6 +2878,8 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
 	trace_add_unit (&ring->buffer, lit);
       v->reason = 0;
       ring->statistics.fixed++;
+      assert (ring->statistics.active);
+      ring->statistics.active--;
     }
   else
     v->reason = reason;
@@ -2965,13 +2982,9 @@ static void
 copy_ruler_units (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
-  assert (first_ring (ruler) == ring);
-  assert (!ring->id);
-  size_t units = 0;
-  for (all_elements_on_stack (unsigned, unit, ruler->units))
-      assign_ring_unit (ring, unit), units++;
-  very_verbose (ring, "copied %zu units", units);
-  ring->trail.export = ring->trail.iterate = ring->trail.end;
+  signed char * ruler_values = (signed char *) ruler->values;
+  signed char * ring_values = ring->values;
+  memcpy (ring_values, ruler_values, 2*ring->size);
 }
 
 static void
@@ -4456,7 +4469,7 @@ report (struct ring *ring, char type)
   double t = wall_clock_time ();
   double m = current_resident_set_size () / (double) (1 << 20);
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
-  unsigned active = ring->size - s->fixed - s->eliminated;
+  unsigned active = s->active;
 
   static volatile uint64_t reported;
   if (!(atomic_fetch_add (&reported, 1) % 20))
@@ -6638,21 +6651,33 @@ extend_witness (struct ring * ring)
 {
   LOG ("extending witness");
   struct ruler * ruler = ring->ruler;
+#ifndef NDEBUG
   bool * eliminated = ruler->eliminated;
-  signed char * values = ring->values;
+#endif
+  signed char * ring_values = ring->values;
+  signed char * ruler_values = (signed char*) ruler->values;
   unsigned initialized = 0;
   for (all_ring_indices (idx))
     {
       unsigned lit = LIT (idx);
-      unsigned not_lit = NOT (lit);
-      if (!eliminated [idx])
-	{ 
-	  assert (values[lit]);
-	  assert (values[not_lit]);
-	  continue;
+      if (ring_values[lit])
+	continue;
+      signed char value = ruler_values[lit];
+      if (!value)
+	{
+#if 1
+	  if (!eliminated[idx])
+	    LOG ("!!!! expected unassigned %s to be eliminated !!!!",
+	         LOGVAR (idx));
+#endif
+	  assert (eliminated[idx]);
+	  value = INITIAL_PHASE;
 	}
-      values[lit] = INITIAL_PHASE;
-      values[not_lit] = -INITIAL_PHASE;
+      else
+	assert (!eliminated[idx]);
+      unsigned not_lit = NOT (lit);
+      ring_values[lit] = value;
+      ring_values[not_lit] = -value;
       initialized++;
     }
   LOG ("initialized %u unassigned/eliminated variables", initialized);
@@ -6673,17 +6698,17 @@ extend_witness (struct ring * ring)
 	      LOG ("flipping %s", LOGLIT (pivot));
 	      assert (pivot != INVALID);
 	      unsigned not_pivot = NOT (pivot);
-	      assert (values[pivot] < 0);
-	      assert (values[not_pivot] > 0);
-	      values[pivot] = 1;
-	      values[not_pivot] = -1;
+	      assert (ring_values[pivot] < 0);
+	      assert (ring_values[not_pivot] > 0);
+	      ring_values[pivot] = 1;
+	      ring_values[not_pivot] = -1;
 	      flipped++;
 	    }
 	  satisfied = false;
 	}
       else if (!satisfied)
 	{
-	  signed char value = values[lit];
+	  signed char value = ring_values[lit];
 	  if (value > 0)
 	    satisfied = true;
 	}
@@ -7168,7 +7193,7 @@ print_ring_statistics (struct ring *ring)
 	   conflicts, average (conflicts, search));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "decisions:",
 	   decisions, average (decisions, search));
-  PRINTLN ("%-21s %17u %13.2f %% variables", "fixed-variables:",
+  PRINTLN ("%-21s %17u %13.2f %% variables", "solving-fixed:",
 	   s->fixed, percent (s->fixed, ring->size));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
@@ -7286,9 +7311,10 @@ print_ruler_statistics (struct ruler *ruler)
   struct ruler_statistics * s = &ruler->statistics;
 
   unsigned variables = ruler->size;
+
   printf ("c %-22s %17u %13.2f %% variables\n", "eliminated:",
           s->eliminated, percent (s->eliminated, variables));
-  printf ("c %-22s %17u %13.2f %% variables\n", "fixed:",
+  printf ("c %-22s %17u %13.2f %% variables\n", "simplification-fixed:",
           s->fixed, percent (s->fixed, variables));
 
   printf ("c\n");
