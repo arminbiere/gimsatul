@@ -2385,6 +2385,20 @@ can_resolve_clause (struct ruler * ruler,
     }
 }
 
+static void
+flush_garbage_clauses (struct clauses * clauses)
+{
+  struct clause ** begin = clauses->begin, ** q = begin;
+  struct clause ** end = clauses->end, ** p = q;
+  while (p != end)
+    {
+      struct clause * clause = *q++ = *p++;
+      if (!binary_pointer (clause) && clause->garbage)
+	q--;
+    }
+  clauses->end = q;
+}
+
 static bool
 can_eliminate_variable (struct ruler * ruler, unsigned idx)
 {
@@ -2394,6 +2408,8 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   unsigned not_pivot = NOT (pivot);
   struct clauses * pos_clauses = &OCCURENCES (pivot);
   struct clauses * neg_clauses = &OCCURENCES (not_pivot);
+  flush_garbage_clauses (pos_clauses);
+  flush_garbage_clauses (neg_clauses);
   size_t neg_size = SIZE (*neg_clauses);
   size_t pos_size = SIZE (*pos_clauses);
   if (!neg_size && !pos_size)
@@ -2416,9 +2432,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   for (all_clauses (pos_clause, *pos_clauses))
     {
       if (clause_with_too_many_occurrences (ruler, pos_clause, pivot))
-	{
-	  return false;
-	}
+	return false;
       mark_clause (ruler->marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
 	{
@@ -2430,9 +2444,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 	    }
 	  if (can_resolve_clause (ruler, neg_clause, not_pivot))
 	    if (resolvents++ == limit)
-	      {
-		break;
-	      }
+	      break;
 	}
       unmark_clause (ruler->marks, pos_clause, pivot);
     }
