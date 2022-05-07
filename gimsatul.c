@@ -90,8 +90,8 @@ static const char * usage =
 #define CACHE_LINE_SIZE 128
 
 #define VARIABLE_ELIMINATION_ROUNDS 2
-#define OCCURRENCE_LIMIT 100
-#define ANTECEDENT_SIZE_LIMIT 1000
+#define OCCURRENCE_LIMIT 1000
+#define ANTECEDENT_SIZE_LIMIT 100
 
 /*------------------------------------------------------------------------*/
 
@@ -2498,7 +2498,7 @@ clause_with_too_many_occurrences (struct ruler * ruler,
     {
       ROGCLAUSE (clause, "antecedent size %zu exceeded by",
                  (size_t) ANTECEDENT_SIZE_LIMIT);
-      return false;
+      return true;
     }
 
   for (all_literals_in_clause (other, clause))
@@ -2579,6 +2579,7 @@ can_resolve_clause (struct ruler * ruler,
   else
     {
       assert (!clause->garbage);
+      assert (clause->size <= ANTECEDENT_SIZE_LIMIT);
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == except)
@@ -2651,6 +2652,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       SWAP (pos_clauses, neg_clauses);
     }
   size_t resolvents = 0;
+  bool first = true;
   for (all_clauses (pos_clause, *pos_clauses))
     {
       if (clause_with_too_many_occurrences (ruler, pos_clause, pivot))
@@ -2658,8 +2660,9 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       mark_clause (ruler->marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
 	{
-	  if (clause_with_too_many_occurrences (ruler,
-	                                        neg_clause, not_pivot))
+	  if (first && clause_with_too_many_occurrences (ruler,
+	                                                 neg_clause,
+							 not_pivot))
 	    {
 	      unmark_clause (ruler->marks, pos_clause, pivot);
 	      return false;
@@ -2667,6 +2670,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 	  if (can_resolve_clause (ruler, neg_clause, not_pivot))
 	    if (resolvents++ == limit)
 	      break;
+	  first = false;
 	}
       unmark_clause (ruler->marks, pos_clause, pivot);
     }
