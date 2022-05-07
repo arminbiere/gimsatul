@@ -2955,6 +2955,11 @@ simplify_ruler (struct ruler * ruler)
   if (ruler->inconsistent)
     return;
   START (ruler, simplifying);
+  if (verbosity >= 0)
+    {
+      printf ("c\nc simplying formula before cloning\n");
+      fflush (stdout);
+    }
   for (all_clauses (clause, ruler->clauses))
     connect_large_clause (ruler, clause);
   size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
@@ -3222,7 +3227,11 @@ transfer_and_own_ruler_clauses (struct ring *ring)
 static void
 clone_ruler (struct ruler *ruler)
 {
-  message (0, "cloning first ring from ruler");
+  if (verbosity >= 0)
+    {
+      printf ("c\nc cloning first ring solver\n");
+      fflush (stdout);
+    }
   struct ring *ring = new_ring (ruler);
   if (ruler->inconsistent)
     set_inconsistent (ring, "copied empty clause");
@@ -6609,6 +6618,11 @@ static struct unsigneds original;
 static struct ruler *
 parse_dimacs_file ()
 {
+  if (verbosity >= 0)
+    {
+      printf ("c\nc parsing DIMACS file '%s'\n", dimacs.path);
+      fflush (stdout);
+    }
   int ch;
   while ((ch = next_char ()) == 'c')
     {
@@ -6637,7 +6651,7 @@ parse_dimacs_file ()
     goto INVALID_HEADER;
   if (verbosity >= 0)
     {
-      printf ("c\nc parsed header with %d variables\n", variables);
+      printf ("c parsed 'p cnf %d %d' header\n", variables, expected);
       fflush (stdout);
     }
   struct ruler *ruler = new_ruler (variables);
@@ -6750,18 +6764,17 @@ parse_dimacs_file ()
 	goto SKIP_BODY_COMMENT;
     }
   assert (parsed == expected);
-  if (verbosity >= 0)
-    {
-      printf ("c parsed 'p cnf %d %d' DIMACS file '%s'\n",
-	      variables, parsed, dimacs.path);
-      fflush (stdout);
-    }
   assert (dimacs.file);
   if (dimacs.close == 1)
     fclose (dimacs.file);
   if (dimacs.close == 2)
     pclose (dimacs.file);
   RELEASE (clause);
+  if (verbosity >= 0)
+    {
+      printf ("c parsed all %d clauses\n", parsed);
+      fflush (stdout);
+    }
   STOP (ruler, parsing);
   return ruler;
 }
@@ -6975,7 +6988,7 @@ run_rings (struct ruler *ruler)
     {
       if (verbosity >= 0)
 	{
-	  printf ("c starting and running %zu ring threads\n", threads);
+	  printf ("c\nc starting and running %zu ring threads\n", threads);
 	  fflush (stdout);
 	}
 
@@ -6989,7 +7002,7 @@ run_rings (struct ruler *ruler)
     {
       if (verbosity >= 0)
 	{
-	  printf ("c running single ring in main thread\n");
+	  printf ("c\nc running single ring in main thread\n");
 	  fflush (stdout);
 	}
       struct ring *ring = first_ring (ruler);
