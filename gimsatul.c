@@ -2632,6 +2632,7 @@ add_resolvent (struct ruler * ruler)
       assert (size > 2);
       struct clause *clause = new_large_clause (size, literals, false, 0);
       connect_large_clause (ruler, clause);
+      PUSH (ruler->clauses, clause);
       ROGCLAUSE (clause, "new");
     }
 }
@@ -3058,9 +3059,12 @@ clone_ruler (struct ruler *ruler)
   struct ring *ring = new_ring (ruler);
   if (ruler->inconsistent)
     set_inconsistent (ring, "copied empty clause");
-  copy_ruler_units (ring);
-  copy_ruler_binaries (ring);
-  transfer_and_own_ruler_clauses (ring);
+  else
+    {
+      copy_ruler_units (ring);
+      copy_ruler_binaries (ring);
+      transfer_and_own_ruler_clauses (ring);
+    }
 }
 
 /*------------------------------------------------------------------------*/
