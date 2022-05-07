@@ -419,7 +419,7 @@ struct ruler_profiles
   struct profile total;
 };
 
-struct last
+struct ring_last
 {
   unsigned fixed;
   uint64_t walk;
@@ -512,10 +512,17 @@ struct locks
 #endif
 };
 
+struct ruler_last
+{
+  unsigned fixed;
+  uint64_t garbage;
+};
+
 struct ruler_statistics
 {
   unsigned fixed;
   unsigned eliminated;
+  uint64_t garbage;
   unsigned binaries;
   unsigned clauses;
 };
@@ -540,6 +547,7 @@ struct ruler
   struct buffer buffer;
   struct ruler_profiles profiles;
   struct ruler_statistics statistics;
+  struct ruler_last last;
 };
 
 #define BINARY_SHARED 0
@@ -591,7 +599,7 @@ struct ring
   struct reluctant reluctant;
   struct ring_statistics statistics;
   struct ring_profiles profiles;
-  struct last last;
+  struct ring_last last;
   uint64_t random;
 };
 
@@ -2154,6 +2162,7 @@ ruler_propagate (struct ruler * ruler)
 	    {
 	      ROGCLAUSE (clause, "marking satisfied garbage");
 	      trace_delete_clause (&ruler->buffer, clause);
+	      ruler->statistics.garbage++;
 	      clause->garbage = true;
 	      garbage++;
 	    }
@@ -2185,6 +2194,7 @@ mark_satisfied_ruler_clauses (struct ruler * ruler)
 	{
 	  ROGCLAUSE (clause, "marking satisfied garbage");
 	  trace_delete_clause (&ruler->buffer, clause);
+	  ruler->statistics.garbage++;
 	  clause->garbage = true;
 	  marked++;
 	}
@@ -2244,7 +2254,7 @@ flush_satisfied_ruler_watches (struct ruler * ruler)
 }
 
 static void
-delete_satisfied_large_ruler_clauses (struct ruler * ruler)
+delete_large_garbage_ruler_clauses (struct ruler * ruler)
 {
   struct clauses * clauses = &ruler->clauses;
   struct clause ** begin = clauses->begin, ** q = begin;
@@ -2260,7 +2270,7 @@ delete_satisfied_large_ruler_clauses (struct ruler * ruler)
       q--;
     }
   clauses->end = q;
-  very_verbose (0, "finally deleted %zu large clauses", deleted);
+  very_verbose (0, "finally deleted %zu large garbage clauses", deleted);
 }
 
 static void
@@ -2268,12 +2278,21 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
 {
   if (ruler->inconsistent)
     return;
-  ruler_propagate (ruler);
+  if (ruler->units.propagate != ruler->units.end)
+    ruler_propagate (ruler);
   if (ruler->inconsistent)
     return;
-  mark_satisfied_ruler_clauses (ruler);
-  flush_satisfied_ruler_watches (ruler);
-  delete_satisfied_large_ruler_clauses (ruler);
+  struct ruler_last * last = &ruler->last;
+  if (last->fixed != ruler->statistics.fixed)
+    {
+      mark_satisfied_ruler_clauses (ruler);
+      flush_satisfied_ruler_watches (ruler);
+    }
+  if (last->fixed != ruler->statistics.fixed ||
+      last->garbage != ruler->statistics.garbage)
+    delete_large_garbage_ruler_clauses (ruler);
+  last->fixed = ruler->statistics.fixed;
+  last->garbage = ruler->statistics.garbage;
   assert (!ruler->inconsistent);
 }
 
@@ -2658,6 +2677,7 @@ disconnect_and_delete_clause (struct ruler * ruler,
     {
       ROGCLAUSE (clause, "disconnecting and marking garbage");
       trace_delete_clause (&ruler->buffer, clause);
+      ruler->statistics.garbage++;
       clause->garbage = true;
       for (all_literals_in_clause (other, clause))
 	  if (other != lit)
@@ -2964,7 +2984,16 @@ copy_ruler_binaries (struct ring *ring)
       unsigned *b = references->binaries = binaries;
       for (all_clauses (clause, *occurrences))
 	if (binary_pointer (clause))
-	  *b++ = other_pointer (clause);
+	  {
+	    assert (lit_pointer (clause) == lit);
+	    assert (!redundant_pointer (clause));
+	    unsigned other = other_pointer (clause);
+#ifdef LOGGING
+	    if (other < lit)
+	      LOGBINARY (false, lit, other , "copying");
+#endif
+	    *b++ = other;
+	  }
       assert (binaries + size == b);
       *b = INVALID;
       RELEASE (*occurrences);
@@ -3003,7 +3032,12 @@ transfer_and_own_ruler_clauses (struct ring *ring)
   assert (!ring->id);
   size_t transferred = 0;
   for (all_clauses (clause, ruler->clauses))
-    watch_first_two_literals_in_large_clause (ring, clause);
+    {
+      LOGCLAUSE (clause, "transferring");
+      assert (!clause->garbage);
+      watch_first_two_literals_in_large_clause (ring, clause);
+      transferred++;
+    }
   RELEASE (ruler->clauses);
   very_verbose (ring, "transferred %zu large clauses", transferred);
 }
@@ -5367,7 +5401,7 @@ set_walking_limits (struct walker *walker)
 {
   struct ring *ring = walker->ring;
   struct ring_statistics *statistics = &ring->statistics;
-  struct last *last = &ring->last;
+  struct ring_last *last = &ring->last;
   uint64_t search = statistics->contexts[SEARCH_CONTEXT].ticks;
   uint64_t walk = statistics->contexts[WALK_CONTEXT].ticks;
   uint64_t ticks = search - last->walk;
