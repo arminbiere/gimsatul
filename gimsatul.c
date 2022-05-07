@@ -91,6 +91,7 @@ static const char * usage =
 
 #define SINGLE_SIDED_OCCURRENCE_LIMIT 100
 #define DOUBLE_SIDED_OCCURRENCE_LIMIT 1000
+#define ANTECEDENT_SIZE_LIMIT 1000
 
 /*------------------------------------------------------------------------*/
 
@@ -1010,16 +1011,26 @@ do { \
 
 #define ROGCLAUSE(CLAUSE, ...) \
 do { \
-  ROGPREFIX (__VA_ARGS__); \
-  if ((CLAUSE)->redundant) \
-    printf (" redundant glue %u", (CLAUSE)->glue); \
+  if (binary_pointer (CLAUSE)) \
+    { \
+      bool REDUNDANT = redundant_pointer (CLAUSE); \
+      unsigned LIT = lit_pointer (CLAUSE); \
+      unsigned OTHER = other_pointer (CLAUSE); \
+      ROGBINARY (REDUNDANT, LIT, OTHER, __VA_ARGS__); \
+    } \
   else \
-    printf (" irredundant"); \
-  printf (" size %u clause[%" PRIu64 "]", \
-          (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
-  for (all_literals_in_clause (LIT, (CLAUSE))) \
-    printf (" %s", ROGLIT (LIT)); \
-  ROGSUFFIX (); \
+    { \
+      ROGPREFIX (__VA_ARGS__); \
+      if ((CLAUSE)->redundant) \
+	printf (" redundant glue %u", (CLAUSE)->glue); \
+      else \
+	printf (" irredundant"); \
+      printf (" size %u clause[%" PRIu64 "]", \
+	      (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
+      for (all_literals_in_clause (LIT, (CLAUSE))) \
+	printf (" %s", ROGLIT (LIT)); \
+      ROGSUFFIX (); \
+    } \
 } while (0)
 
 #else
@@ -2253,14 +2264,117 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
 }
 
 static bool
+literal_with_too_many_occurrences (struct ruler * ruler, unsigned lit)
+{
+  if (ruler->values[lit])
+    return false;
+  struct clauses * clauses = &OCCURENCES (lit);
+  size_t size = SIZE (*clauses);
+  return size > SINGLE_SIDED_OCCURRENCE_LIMIT;
+}
+
+static bool
+clause_with_too_many_occurrences (struct ruler * ruler,
+                                  struct clause * clause,
+				  unsigned lit)
+{
+  if (binary_pointer (clause))
+    {
+      unsigned other = other_pointer (clause);
+      return literal_with_too_many_occurrences (ruler, other);
+    }
+
+  if (clause->size > ANTECEDENT_SIZE_LIMIT)
+    return false;
+
+  for (all_literals_in_clause (other, clause))
+      if (other != lit &&
+	  literal_with_too_many_occurrences (ruler, other))
+	return true;
+
+  return false;
+}
+
+static void
+mark_literal (signed char * marks, unsigned lit)
+{
+  unsigned idx = IDX (lit);
+  assert (!marks[idx]);
+  marks[idx] = SGN (lit) ? -1 : 1;
+}
+
+static void
+unmark_literal (signed char * marks, unsigned lit)
+{
+  unsigned idx = IDX (lit);
+  assert (marks[idx]);
+  marks[idx] = 0;
+}
+
+static signed char
+marked_literal (signed char * marks, unsigned lit)
+{
+  unsigned idx = IDX (lit);
+  int res = marks[idx];
+  if (SGN (lit))
+    res = -res;
+  return res;
+}
+
+static void
+mark_clause (signed char * marks, struct clause * clause)
+{
+  if (binary_pointer (clause))
+    mark_literal (marks, other_pointer (clause));
+  else
+    for (all_literals_in_clause (other, clause))
+      mark_literal (marks, other);
+}
+
+static void
+unmark_clause (signed char * marks, struct clause * clause)
+{
+  if (binary_pointer (clause))
+    unmark_literal (marks, other_pointer (clause));
+  else
+    for (all_literals_in_clause (other, clause))
+      unmark_literal (marks, other);
+}
+
+static bool
+can_resolve_clause (struct ruler * ruler, signed char * marks,
+                    struct clause * clause, unsigned except)
+{
+  signed char * values = (signed char*) ruler->values;
+  for (all_literals_in_clause (lit, clause))
+    {
+      if (lit == except)
+	continue;
+      signed char value = values[lit];
+      if (value > 0)
+	return false;
+      if (value < 0)
+	continue;
+      signed char mark = marked_literal (marks, lit);
+      if (mark < 0)
+	return false;
+    }
+  return true;
+}
+
+static bool
 try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
 {
   unsigned pivot = LIT (idx);
+  if (ruler->values[pivot])
+    return false;
   unsigned not_pivot = NOT (pivot);
   struct clauses * pos_clauses = &OCCURENCES (pivot);
   struct clauses * neg_clauses = &OCCURENCES (not_pivot);
   size_t neg_size = SIZE (*neg_clauses);
   size_t pos_size = SIZE (*pos_clauses);
+  if (!neg_size && !pos_size)
+    return false;
   if (!neg_size)
     return true;
   if (!pos_size)
@@ -2270,17 +2384,39 @@ try_to_deliminate_variable (struct ruler * ruler, unsigned idx)
   if (neg_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
     return false;
   size_t limit = pos_size * neg_size;
-  size_t resolvents = 0;
   if (limit > DOUBLE_SIDED_OCCURRENCE_LIMIT)
     return false;
+  if (pos_size > neg_size)
+    {
+      SWAP (pivot, not_pivot);
+      SWAP (pos_clauses, neg_clauses);
+    }
+  size_t resolvents = 0;
   signed char * marks = ruler->marks;
   for (all_clauses (pos_clause, *pos_clauses))
     {
+      if (clause_with_too_many_occurrences (ruler, pos_clause, pivot))
+	{
+	  return false;
+	}
       mark_clause (marks, pos_clause);
       for (all_clauses (neg_clause, *neg_clauses))
-	if (can_resolve_clause (marks, neg_clause, not_pivot))
-	  if (resolvents++ == limit)
-	    break;
+	{
+	  if (clause_with_too_many_occurrences (ruler,
+	                                        neg_clause, not_pivot))
+	    {
+	      unmark_clause (marks, pos_clause);
+	      return false;
+	    }
+	  ROGCLAUSE (pos_clause, "first antecedent");
+	  ROGCLAUSE (neg_clause, "second antecedent");
+	  if (can_resolve_clause (ruler, marks, neg_clause, not_pivot))
+	    if (resolvents++ == limit)
+	      {
+		ROG ("too many resolvents");
+		break;
+	      }
+	}
       unmark_clause (marks, pos_clause);
     }
   return resolvents <= limit;
