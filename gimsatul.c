@@ -438,7 +438,7 @@ struct context
 #define WALK_CONTEXT 1
 #define SIZE_CONTEXTS 2
 
-struct statistics
+struct ring_statistics
 {
   uint64_t flips;
   uint64_t reductions;
@@ -513,6 +513,14 @@ struct locks
 #endif
 };
 
+struct ruler_statistics
+{
+  unsigned fixed;
+  unsigned eliminated;
+  unsigned binaries;
+  unsigned clauses;
+};
+
 struct ruler
 {
   unsigned size;
@@ -526,13 +534,13 @@ struct ruler
   signed char *marks;
   bool *eliminated;
   struct clauses *occurrences;
-  size_t irredundant_binaries;
   struct clauses clauses;
   struct unsigneds resolvent;
   struct unsigneds extension;
   struct units units;
   struct buffer buffer;
   struct ruler_profiles profiles;
+  struct ruler_statistics statistics;
 };
 
 #define BINARY_SHARED 0
@@ -582,7 +590,7 @@ struct ring
   struct intervals intervals;
   struct averages averages[2];
   struct reluctant reluctant;
-  struct statistics statistics;
+  struct ring_statistics statistics;
   struct ring_profiles profiles;
   struct last last;
   uint64_t random;
@@ -1605,6 +1613,7 @@ assign_ruler_unit (struct ruler * ruler, unsigned unit)
   assert (ruler->units.end < ruler->units.begin + ruler->size);
   *ruler->units.end++ = unit;
   ROG ("assign %s unit", ROGLIT (unit));
+  ruler->statistics.fixed++;
 }
 
 /*------------------------------------------------------------------------*/
@@ -1997,7 +2006,7 @@ new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
   ROGBINARY (lit, other, "new");
   push_ruler_binary (ruler, lit, other);
   push_ruler_binary (ruler, other, lit);
-  ruler->irredundant_binaries++;
+  ruler->statistics.binaries++;
 }
 
 static struct watch *
@@ -2231,8 +2240,8 @@ flush_satisfied_ruler_watches (struct ruler * ruler)
     }
   very_verbose (0, "flushed %zu garbage watches", flushed);
   very_verbose (0, "deleted %zu satisfied binary clauses", deleted);
-  assert (deleted <= ruler->irredundant_binaries);
-  ruler->irredundant_binaries -= deleted;
+  assert (deleted <= ruler->statistics.binaries);
+  ruler->statistics.binaries -= deleted;
 }
 
 static void
@@ -2409,6 +2418,8 @@ flush_garbage_clauses (struct clauses * clauses)
 static bool
 can_eliminate_variable (struct ruler * ruler, unsigned idx)
 {
+  if (ruler->eliminated[idx])
+    return false;
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return false;
@@ -2419,8 +2430,6 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   flush_garbage_clauses (neg_clauses);
   size_t neg_size = SIZE (*neg_clauses);
   size_t pos_size = SIZE (*pos_clauses);
-  if (!neg_size && !pos_size)
-    return false;
   if (pos_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
     return false;
   if (neg_size > SINGLE_SIDED_OCCURRENCE_LIMIT)
@@ -2428,8 +2437,6 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   size_t limit = pos_size + neg_size;
   if (limit > DOUBLE_SIDED_OCCURRENCE_LIMIT)
     return false;
-  ROG ("trying to eliminate %s occurring in %zu = %zu + %zu clauses",
-       ROGVAR (idx), limit, pos_size, neg_size);
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
@@ -2457,10 +2464,9 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
     }
 
   if (resolvents <= limit)
-    ROG ("resolvent limit %zu exceeded", limit);
+    ROG ("number of resolvents %zu stays below limit %zu", resolvents, limit);
   else
-    ROG ("number of resolvents %zu stays below limit %zu",
-         resolvents, limit);
+    ROG ("resolvent limit %zu exceeded", limit);
             
   return resolvents <= limit;
 }
@@ -2631,8 +2637,8 @@ disconnect_and_delete_clause (struct ruler * ruler,
       unsigned other = other_pointer (clause);
       struct clause * other_clause = tag_pointer (false, other, lit);
       disconnect_literal (ruler, other, other_clause);
-      assert (ruler->irredundant_binaries);
-      ruler->irredundant_binaries--;
+      assert (ruler->statistics.binaries);
+      ruler->statistics.binaries--;
       ROGBINARY (lit, other, "disconnected and deleted");
       trace_delete_binary (&ruler->buffer, lit, other);
     }
@@ -2663,9 +2669,11 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return;
-  ROG ("adding resolvents on %s", ROGVAR (idx));
+  ROG ("eliminating %s", ROGVAR (idx));
   assert (!ruler->eliminated[idx]);
   ruler->eliminated[idx] = true;
+  ruler->statistics.eliminated++;
+  ROG ("adding resolvents on %s", ROGVAR (idx));
   unsigned not_pivot = NOT (pivot);
   struct clauses * pos_clauses = &OCCURENCES (pivot);
   struct clauses * neg_clauses = &OCCURENCES (not_pivot);
@@ -2707,6 +2715,9 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   struct unsigneds * extension = &ruler->extension;
   for (all_clauses (clause, *pos_clauses))
     {
+      ROGCLAUSE (clause,
+        "pushing with witness literal %s on extension stack",
+	ROGLIT (pivot));
       PUSH (*extension, INVALID);
       PUSH (*extension, pivot);
       if (binary_pointer (clause))
@@ -2718,14 +2729,12 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 	{
 	  for (all_literals_in_clause (lit, clause))
 	    if (lit != pivot)
-	      PUSH (*extension, pivot);
+	      PUSH (*extension, lit);
 	}
     }
-#if 0
-  ROG ("adding unit %s to extension stack", ROGLIT (not_pivot));
+  ROG ("pushing unit %s to extension stack", ROGLIT (not_pivot));
   PUSH (*extension, INVALID);
   PUSH (*extension, not_pivot);
-#endif
   disconnect_and_delete_clauses (ruler, pos_clauses, pivot);
   disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
 }
@@ -2751,7 +2760,7 @@ simplify_ruler (struct ruler * ruler)
   START (ruler, simplifying);
   for (all_clauses (clause, ruler->clauses))
     connect_large_clause (ruler, clause);
-  size_t before = SIZE (ruler->clauses) + ruler->irredundant_binaries;
+  size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
   propagate_and_flush_ruler_units (ruler);
   unsigned total_eliminated = 0;
   for (unsigned round = 1; round <= VARIABLE_ELIMINATION_ROUNDS; round++)
@@ -2773,7 +2782,7 @@ simplify_ruler (struct ruler * ruler)
     message (0, "simplification produced empty clause");
   else
     {
-      size_t after = SIZE (ruler->clauses) + ruler->irredundant_binaries;
+      size_t after = SIZE (ruler->clauses) + ruler->statistics.binaries;
       assert (after <= before);
       size_t removed_clauses = before - after;
       size_t removed_variables = SIZE (ruler->units) + total_eliminated;
@@ -2953,7 +2962,7 @@ copy_ruler_binaries (struct ring *ring)
   size_t copied = watched / 2;
   ring->statistics.irredundant += copied;
   very_verbose (ring, "copied %zu binary clauses", copied);
-  assert (copied == ruler->irredundant_binaries);
+  assert (copied == ruler->statistics.binaries);
 }
 
 static void
@@ -2969,7 +2978,7 @@ share_ring_binaries (struct ring *dst, struct ring *src)
       dst_references->binaries = src_references->binaries;
     }
 
-  size_t shared = src->ruler->irredundant_binaries;
+  size_t shared = src->ruler->statistics.binaries;
   ring->statistics.irredundant += shared;
   very_verbose (ring, "shared %zu binary clauses", shared);
 }
@@ -3660,7 +3669,7 @@ really_import_large_clause (struct ring *ring, struct clause *clause,
   (void) watch_literals_in_large_clause (ring, clause, first, second);
   unsigned glue = clause->glue;
   assert (clause->redundant);
-  struct statistics *statistics = &ring->statistics;
+  struct ring_statistics *statistics = &ring->statistics;
   if (glue == 1)
     statistics->imported.glue1++;
   else if (glue <= TIER1_GLUE_LIMIT)
@@ -4380,7 +4389,7 @@ report (struct ring *ring, char type)
   if (verbosity < 0)
     return;
 
-  struct statistics *s = &ring->statistics;
+  struct ring_statistics *s = &ring->statistics;
   struct averages *a = ring->averages + ring->stable;
 
   acquire_message_lock ();
@@ -4424,7 +4433,7 @@ restarting (struct ring *ring)
 static void
 restart (struct ring *ring)
 {
-  struct statistics *statistics = &ring->statistics;
+  struct ring_statistics *statistics = &ring->statistics;
   statistics->restarts++;
   verbose (ring, "restart %" PRIu64 " at %" PRIu64 " conflicts",
 	   statistics->restarts, SEARCH_CONFLICTS);
@@ -4709,7 +4718,7 @@ check_clause_statistics (struct ring *ring)
 	irredundant++;
     }
 
-  struct statistics *statistics = &ring->statistics;
+  struct ring_statistics *statistics = &ring->statistics;
   assert (statistics->redundant == redundant);
 #if 1
   if (statistics->irredundant != irredundant)
@@ -4738,7 +4747,7 @@ static void
 reduce (struct ring *ring)
 {
   check_clause_statistics (ring);
-  struct statistics *statistics = &ring->statistics;
+  struct ring_statistics *statistics = &ring->statistics;
   struct limits *limits = &ring->limits;
   statistics->reductions++;
   verbose (ring, "reduction %" PRIu64 " at %" PRIu64 " conflicts",
@@ -4811,7 +4820,7 @@ square (uint64_t n)
 static void
 switch_mode (struct ring *ring)
 {
-  struct statistics *s = &ring->statistics;
+  struct ring_statistics *s = &ring->statistics;
   struct intervals *i = &ring->intervals;
   struct limits *l = &ring->limits;
   if (!s->switched++)
@@ -5345,7 +5354,7 @@ static void
 set_walking_limits (struct walker *walker)
 {
   struct ring *ring = walker->ring;
-  struct statistics *statistics = &ring->statistics;
+  struct ring_statistics *statistics = &ring->statistics;
   struct last *last = &ring->last;
   uint64_t search = statistics->contexts[SEARCH_CONTEXT].ticks;
   uint64_t walk = statistics->contexts[WALK_CONTEXT].ticks;
@@ -5866,7 +5875,7 @@ rephase (struct ring *ring)
 {
   if (ring->level)
     backtrack (ring, 0);
-  struct statistics *statistics = &ring->statistics;
+  struct ring_statistics *statistics = &ring->statistics;
   struct limits *limits = &ring->limits;
   uint64_t rephased = ++statistics->rephased;
   size_t size_schedule = sizeof schedule / sizeof *schedule;
@@ -6623,7 +6632,6 @@ extend_witness (struct ring * ring)
 static void
 print_witness (struct ring *ring)
 {
-  extend_witness (ring);
   signed char *values = ring->values;
   for (all_ring_indices (idx))
     print_unsigned_literal (values, LIT (idx));
@@ -6958,6 +6966,10 @@ check_witness (struct ring *ring)
     }
 }
 
+#else
+
+#define check_witness(...) do { } while (0)
+
 #endif
 
 /*------------------------------------------------------------------------*/
@@ -7085,7 +7097,7 @@ print_ring_statistics (struct ring *ring)
   print_ring_profiles (ring);
   double search = ring->profiles.search.time;
   double walk = ring->profiles.solving.time;
-  struct statistics *s = &ring->statistics;
+  struct ring_statistics *s = &ring->statistics;
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
   uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;
   uint64_t propagations = s->contexts[SEARCH_CONTEXT].propagations;
@@ -7298,9 +7310,8 @@ main (int argc, char **argv)
     }
   else if (res == 10)
     {
-#ifndef NDEBUG
+      extend_witness (winner);
       check_witness (winner);
-#endif
       if (verbosity >= 0)
 	printf ("c\n");
       printf ("s SATISFIABLE\n");
