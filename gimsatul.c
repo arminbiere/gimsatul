@@ -1999,9 +1999,9 @@ watch_first_two_literals_in_large_clause (struct ring *ring,
 }
 
 static void
-push_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
+connect_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 {
-  ROGBINARY (lit, other, "watching %s in", ROGLIT (lit));
+  ROGBINARY (lit, other, "connecting %s in", ROGLIT (lit));
   struct clauses *clauses = &OCCURENCES (lit);
   struct clause *watch_lit = tag_pointer (false, lit, other);
   PUSH (*clauses, watch_lit);
@@ -2011,8 +2011,8 @@ static void
 new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
 {
   ROGBINARY (lit, other, "new");
-  push_ruler_binary (ruler, lit, other);
-  push_ruler_binary (ruler, other, lit);
+  connect_ruler_binary (ruler, lit, other);
+  connect_ruler_binary (ruler, other, lit);
   ruler->statistics.binaries++;
 }
 
@@ -2779,7 +2779,13 @@ eliminate_variables (struct ruler * ruler)
     if (ruler->inconsistent)
       break;
     else if (can_eliminate_variable (ruler, idx))
-      eliminate_variable (ruler, idx), res++;
+      {
+	eliminate_variable (ruler, idx);
+	res++;
+#if 1
+	break;
+#endif
+      }
   RELEASE (ruler->resolvent);
   return res;
 }
@@ -2809,6 +2815,9 @@ simplify_ruler (struct ruler * ruler)
 	  break;
 	}
       propagate_and_flush_ruler_units (ruler);
+#if 1
+      break;
+#endif
     }
   if (ruler->inconsistent)
     message (0, "simplification produced empty clause");
@@ -6627,6 +6636,7 @@ extend_witness (struct ring * ring)
   struct ruler * ruler = ring->ruler;
   bool * eliminated = ruler->eliminated;
   signed char * values = ring->values;
+  unsigned initialized = 0;
   for (all_ring_indices (idx))
     {
       unsigned lit = LIT (idx);
@@ -6639,13 +6649,16 @@ extend_witness (struct ring * ring)
 	}
       values[lit] = INITIAL_PHASE;
       values[not_lit] = -INITIAL_PHASE;
+      initialized++;
     }
+  LOG ("initialized %u unassigned/eliminated variables", initialized);
   struct unsigneds * extension = &ruler->extension;
   unsigned * begin = extension->begin;
   unsigned * p = extension->end;
   unsigned pivot = INVALID;
   bool satisfied = false;
   size_t flipped = 0;
+  LOG ("going through extension stack of size %zu", (size_t)(p - begin));
   while (p != begin)
     {
       unsigned lit = *--p;
@@ -7265,6 +7278,16 @@ print_ruler_statistics (struct ruler *ruler)
   double process = process_time ();
   double total = current_time () - start_time;
   double memory = maximum_resident_set_size () / (double) (1 << 20);
+
+  struct ruler_statistics * s = &ruler->statistics;
+
+  unsigned variables = ruler->size;
+  printf ("c %-22s %17u %13.2f %% variables\n", "eliminated:",
+          s->eliminated, percent (s->eliminated, variables));
+  printf ("c %-22s %17u %13.2f %% variables\n", "fixed:",
+          s->fixed, percent (s->fixed, variables));
+
+  printf ("c\n");
 
   printf ("c %-30s %23.2f %%\n", "utilization:",
 	  percent (process / SIZE (ruler->rings), total));
