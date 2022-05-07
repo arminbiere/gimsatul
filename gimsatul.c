@@ -2303,21 +2303,25 @@ static void
 disconnect_literal (struct ruler * ruler,
                     unsigned lit, struct clause * clause)
 {
+  ROGCLAUSE (clause, "disconnecting %s from", ROGLIT (lit));
   struct clauses * clauses = &OCCURENCES (lit);
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
   while (p != end)
     {
       struct clause * other_clause = *q++ = *p++;
-      if (other_clause != clause)
-	continue;
-      q--;
-      break;
+      if (other_clause == clause)
+	{
+	  q--;
+	  break;
+	}
     }
   while (p != end)
     *q++ = *p++;
-  assert (clauses->end != q);
+  assert (q + 1 == p);
   clauses->end = q;
+  if (EMPTY (*clauses))
+    RELEASE (*clauses);
 }
 
 static void
@@ -2377,6 +2381,7 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	    continue;
 	  unsigned lit = literals[0];
 	  unsigned other = literals[1];
+	  disconnect_literal (ruler, lit, clause);
 	  disconnect_literal (ruler, other, clause);
 	  ROGCLAUSE (clause, "deleting shrunken dirty");
 	  new_ruler_binary_clause (ruler, lit, other);
@@ -2566,7 +2571,9 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   unsigned not_pivot = NOT (pivot);
   struct clauses * pos_clauses = &OCCURENCES (pivot);
   struct clauses * neg_clauses = &OCCURENCES (not_pivot);
+  ROG ("flushing garbage clasues of %s", ROGLIT (pivot));
   flush_garbage_clauses (pos_clauses);
+  ROG ("flushing garbage clasues of %s", ROGLIT (not_pivot));
   flush_garbage_clauses (neg_clauses);
   size_t neg_size = SIZE (*neg_clauses);
   size_t pos_size = SIZE (*pos_clauses);
