@@ -495,7 +495,7 @@ struct rings
   struct ring **begin, **end, **allocated;
 };
 
-struct units
+struct ruler_trail
 {
   unsigned *begin;
   unsigned *propagate;
@@ -543,7 +543,7 @@ struct ruler
   struct clauses clauses;
   struct unsigneds resolvent;
   struct unsigneds extension;
-  struct units units;
+  struct ruler_trail units;
   struct buffer buffer;
   struct ruler_profiles profiles;
   struct ruler_statistics statistics;
@@ -2108,13 +2108,12 @@ static void
 ruler_propagate (struct ruler * ruler)
 {
   assert (!ruler->inconsistent);
-  struct units * units = &ruler->units;
-  unsigned * propagate = units->begin;
+  struct ruler_trail * units = &ruler->units;
   signed char * values = (signed char*) ruler->values;
   size_t garbage = 0;
-  while (!ruler->inconsistent && propagate != units->end)
+  while (!ruler->inconsistent && units->propagate != units->end)
     {
-      unsigned lit = *propagate++;
+      unsigned lit = *units->propagate++;
       ROG ("propagating unit %s", ROGLIT (lit));
       unsigned not_lit = NOT (lit);
       struct clauses * clauses = &OCCURENCES (not_lit);
