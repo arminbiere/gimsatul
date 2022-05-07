@@ -1545,6 +1545,15 @@ release_occurrences (struct ruler *ruler)
 }
 
 static void
+release_clauses (struct ruler * ruler)
+{
+  for (all_clauses (clause, ruler->clauses))
+    if (!binary_pointer (clause))
+      free (clause);
+  RELEASE (ruler->clauses);
+}
+
+static void
 delete_ruler (struct ruler *ruler)
 {
 #ifndef NDEBUG
@@ -1555,6 +1564,7 @@ delete_ruler (struct ruler *ruler)
   RELEASE (ruler->buffer);
   RELEASE (ruler->extension);
   release_occurrences (ruler);
+  release_clauses (ruler);
   free ((void *) ruler->values);
   free (ruler->marks);
   free (ruler->eliminated);
@@ -1958,6 +1968,8 @@ static struct watch *
 watch_large_clause (struct ring *ring, struct clause *clause)
 {
   assert (clause->size > 2);
+  assert (!clause->garbage);
+  assert (!clause->dirty);
   bool redundant = clause->redundant;
   unsigned glue = clause->glue;
   struct watch *watch = allocate_block (sizeof *watch);
@@ -2061,6 +2073,7 @@ new_large_clause (size_t size, unsigned *literals,
   clause->glue = glue;
   clause->redundant = redundant;
   clause->garbage = false;
+  clause->dirty = false;
   clause->shared = 0;
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
@@ -2287,6 +2300,27 @@ flush_satisfied_ruler_occurrences (struct ruler * ruler)
 }
 
 static void
+disconnect_literal (struct ruler * ruler,
+                    unsigned lit, struct clause * clause)
+{
+  struct clauses * clauses = &OCCURENCES (lit);
+  struct clause ** begin = clauses->begin, ** q = begin;
+  struct clause ** end = clauses->end, ** p = q;
+  while (p != end)
+    {
+      struct clause * other_clause = *q++ = *p++;
+      if (other_clause != clause)
+	continue;
+      q--;
+      break;
+    }
+  while (p != end)
+    *q++ = *p++;
+  assert (clauses->end != q);
+  clauses->end = q;
+}
+
+static void
 delete_large_garbage_ruler_clauses (struct ruler * ruler)
 {
   struct clauses * clauses = &ruler->clauses;
@@ -2330,6 +2364,7 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	  assert (1 < new_size);
 	  assert (new_size < old_size);
 	  clause->size = new_size;
+	  clause->dirty = false;
 	  ROGCLAUSE (clause, "shrunken dirty");
 	  if (proof.file)
 	    {
@@ -2342,6 +2377,7 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	    continue;
 	  unsigned lit = literals[0];
 	  unsigned other = literals[1];
+	  disconnect_literal (ruler, other, clause);
 	  ROGCLAUSE (clause, "deleting shrunken dirty");
 	  new_ruler_binary_clause (ruler, lit, other);
 	  free (clause);
@@ -2721,27 +2757,6 @@ add_resolvent (struct ruler * ruler)
       PUSH (ruler->clauses, clause);
       ROGCLAUSE (clause, "new");
     }
-}
-
-static void
-disconnect_literal (struct ruler * ruler,
-                    unsigned lit, struct clause * clause)
-{
-  struct clauses * clauses = &OCCURENCES (lit);
-  struct clause ** begin = clauses->begin, ** q = begin;
-  struct clause ** end = clauses->end, ** p = q;
-  while (p != end)
-    {
-      struct clause * other_clause = *q++ = *p++;
-      if (other_clause != clause)
-	continue;
-      q--;
-      break;
-    }
-  while (p != end)
-    *q++ = *p++;
-  assert (clauses->end != q);
-  clauses->end = q;
 }
 
 static void
@@ -4296,7 +4311,7 @@ analyze (struct ring *ring, struct watch *reason)
   if (!ring->level)
     {
       set_inconsistent (ring,
-			"conflict on ruler-level produces empty clause");
+			"conflict on root-level produces empty clause");
       trace_add_empty (&ring->buffer);
       return false;
     }
@@ -6743,9 +6758,11 @@ extend_witness (struct ring * ring)
       if (!value)
 	{
 #if 1
+#ifndef NDEBUG
 	  if (!eliminated[idx])
 	    LOG ("!!!! expected unassigned %s to be eliminated !!!!",
 	         LOGVAR (idx));
+#endif
 #endif
 	  assert (eliminated[idx]);
 	  value = INITIAL_PHASE;
