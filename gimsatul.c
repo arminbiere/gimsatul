@@ -93,8 +93,8 @@ static const char * usage =
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
-#define SUBSUMPTION_TICKS_LIMIT 1000
-#define ELIMINATION_TICKS_LIMIT 1000
+#define SUBSUMPTION_TICKS_LIMIT 400
+#define ELIMINATION_TICKS_LIMIT 400
 
 /*------------------------------------------------------------------------*/
 
@@ -2446,6 +2446,7 @@ disconnect_literal (struct ruler * ruler,
   struct clauses * clauses = &OCCURRENCES (lit);
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
+  ruler->statistics.ticks.elimination += 1 + cache_lines (end, begin);
   while (p != end)
     {
       struct clause * other_clause = *q++ = *p++;
@@ -2563,6 +2564,7 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
 static bool
 literal_with_too_many_occurrences (struct ruler * ruler, unsigned lit)
 {
+  ruler->statistics.ticks.elimination++;
   struct clauses * clauses = &OCCURRENCES (lit);
   size_t size = SIZE (*clauses);
   bool res = size > OCCURRENCE_LIMIT;
@@ -2667,6 +2669,7 @@ can_resolve_clause (struct ruler * ruler,
     }
   else
     {
+      ruler->statistics.ticks.elimination++;
       assert (!clause->garbage);
       assert (clause->size <= CLAUSE_SIZE_LIMIT);
       for (all_literals_in_clause (lit, clause))
@@ -2691,12 +2694,17 @@ actual_occurrences (struct clauses * clauses)
 {
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
+  uint64_t ticks = 1 + cache_lines (end, begin);
   while (p != end)
     {
       struct clause * clause = *q++ = *p++;
-      if (!binary_pointer (clause) && clause->garbage)
+      if (binary_pointer (clause))
+	continue;
+      ticks++;
+      if (clause->garbage)
 	q--;
     }
+
   clauses->end = q;
   return q - begin;
 }
@@ -2757,8 +2765,10 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       return false;
 
   size_t resolvents = 0;
+  uint64_t ticks = 1;
   for (all_clauses (pos_clause, *pos_clauses))
     {
+      ticks++;
       mark_clause (ruler->marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
 	if (can_resolve_clause (ruler, neg_clause, not_pivot))
@@ -2766,6 +2776,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 	    break;
       unmark_clause (ruler->marks, pos_clause, pivot);
     }
+  ruler->statistics.ticks.elimination += ticks;
 
   if (resolvents == limit)
     ROG ("number of resolvents %zu matches limit %zu", resolvents, limit);
@@ -2907,6 +2918,7 @@ add_resolvent (struct ruler * ruler)
   else
     {
       assert (size > 2);
+      ruler->statistics.ticks.elimination += size;
       struct clause *clause = new_large_clause (size, literals, false, 0);
       connect_large_clause (ruler, clause);
       mark_subsume_clause (ruler, clause);
@@ -2959,12 +2971,15 @@ connect_all_large_clauses (struct ruler * ruler)
 static size_t
 remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 {
+  ruler->statistics.ticks.subsumption++;
   struct clauses * clauses = &OCCURRENCES (lit);
+  if (SIZE (*clauses) > OCCURRENCE_LIMIT)
+    return 0;
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
   signed char * marks = ruler->marks;
   size_t removed = 0;
-  ruler->statistics.ticks.subsumption = 1 + cache_lines (end, begin);
+  ruler->statistics.ticks.subsumption += cache_lines (end, begin);
   while (p != end)
     {
       struct clause * clause = *p++;
@@ -3147,9 +3162,19 @@ flush_large_clause_references (struct ruler * ruler)
     }
 }
 
+static bool
+subsumption_ticks_limit_hit (struct ruler * ruler)
+{
+  struct ruler_statistics * statistics = &ruler->statistics;
+  struct ruler_limits * limits = &ruler->limits;
+  return statistics->ticks.subsumption > limits->subsumption;
+}
+
 static void
 subsume_clauses (struct ruler * ruler, unsigned round)
 {
+  if (subsumption_ticks_limit_hit (ruler))
+    return;
   double start_subsumption = START (ruler, subsuming);
   size_t subsumed = remove_duplicated_binaries (ruler, round);
   struct clause ** candidates;
@@ -3160,6 +3185,8 @@ subsume_clauses (struct ruler * ruler, unsigned round)
   for (struct clause ** p = candidates; p != end_candidates; p++)
     {
       subsumed += forward_subsume_large_clause (ruler, *p);
+      if (subsumption_ticks_limit_hit (ruler))
+	break;
     }
   free (candidates);
   flush_large_clause_references (ruler);
@@ -3257,9 +3284,20 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
 }
 
+static bool
+elimination_ticks_limit_hit (struct ruler * ruler)
+{
+  struct ruler_statistics * statistics = &ruler->statistics;
+  struct ruler_limits * limits = &ruler->limits;
+  return statistics->ticks.elimination > limits->elimination;
+}
+
+
 static unsigned
 eliminate_variables (struct ruler * ruler, unsigned round)
 {
+  if (elimination_ticks_limit_hit (ruler))
+    return 0;
 #if 0
   return 0;
 #endif
@@ -3272,6 +3310,8 @@ eliminate_variables (struct ruler * ruler, unsigned round)
       {
 	eliminate_variable (ruler, idx);
 	eliminated++;
+	if (elimination_ticks_limit_hit (ruler))
+	  break;;
 #if 0
 	break;
 #endif
@@ -3287,12 +3327,12 @@ static void
 set_ruler_limits (struct ruler * ruler)
 {
   ruler->limits.subsumption = 1000000*(uint64_t) ELIMINATION_TICKS_LIMIT;
-  verbose (0, "setting elimination ticks limit to %u millon ticks",
-           (unsigned) ELIMINATION_TICKS_LIMIT);
+  message (0, "setting elimination ticks limit to %" PRIu64,
+           ruler->limits.subsumption);
 
   ruler->limits.elimination = 1000000*(uint64_t) SUBSUMPTION_TICKS_LIMIT;
-  verbose (0, "setting subsumption ticks limit to %u millon ticks",
-           (unsigned) SUBSUMPTION_TICKS_LIMIT);
+  message (0, "setting subsumption ticks limit to %" PRIu64,
+           ruler->limits.elimination);
 }
 
 static void
@@ -3317,6 +3357,10 @@ simplify_ruler (struct ruler * ruler)
       unsigned eliminated = eliminate_variables (ruler, round);
       total_eliminated += eliminated;
       propagate_and_flush_ruler_units (ruler);
+      if (!eliminated)
+	break;
+      if (elimination_ticks_limit_hit (ruler))
+	break;
 #if 0
 	break;
 #endif
@@ -3333,6 +3377,12 @@ simplify_ruler (struct ruler * ruler)
 	       removed_clauses, percent (removed_clauses, before),
 	       removed_variables, percent (removed_variables, ruler->size));
     }
+
+  message (0, "subsumption ticks %" PRIu64,
+           ruler->statistics.ticks.subsumption);
+  message (0, "elimination ticks %" PRIu64,
+           ruler->statistics.ticks.elimination);
+
   double end_simplification = STOP (ruler, simplifying);
   message (0, "simplification took %.2f seconds",
            end_simplification - start_simplification);
