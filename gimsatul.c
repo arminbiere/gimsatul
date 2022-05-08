@@ -90,7 +90,7 @@ static const char * usage =
 #define CACHE_LINE_SIZE 128
 
 #define VARIABLE_ELIMINATION_ROUNDS 2
-#define OCCURRENCE_LIMIT 1000
+#define OCCURRENCE_LIMIT 10
 #define ANTECEDENT_SIZE_LIMIT 100
 
 /*------------------------------------------------------------------------*/
@@ -419,6 +419,7 @@ struct ring_profiles
 struct ruler_profiles
 {
   struct profile cloning;
+  struct profile eliminating;
   struct profile parsing;
   struct profile solving;
   struct profile simplifying;
@@ -1552,6 +1553,7 @@ static void
 init_ruler_profiles (struct ruler *ruler)
 {
   INIT_PROFILE (ruler, cloning);
+  INIT_PROFILE (ruler, eliminating);
   INIT_PROFILE (ruler, parsing);
   INIT_PROFILE (ruler, solving);
   INIT_PROFILE (ruler, simplifying);
@@ -2967,22 +2969,26 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 }
 
 static unsigned
-eliminate_variables (struct ruler * ruler)
+eliminate_variables (struct ruler * ruler, unsigned round)
 {
-  unsigned res = 0;
+  double start_round = START (ruler, eliminating);
+  unsigned eliminated = 0;
   for (all_ruler_indices (idx))
     if (ruler->inconsistent)
       break;
     else if (can_eliminate_variable (ruler, idx))
       {
 	eliminate_variable (ruler, idx);
-	res++;
+	eliminated++;
 #if 0
 	break;
 #endif
       }
   RELEASE (ruler->resolvent);
-  return res;
+  double end_round = STOP (ruler, eliminating);
+  message (0, "eliminated %u variables in round %u in %.2f seconds",
+	   eliminated, round, end_round - start_round);
+  return eliminated;
 }
 
 static void
@@ -3003,14 +3009,10 @@ simplify_ruler (struct ruler * ruler)
   unsigned total_eliminated = 0;
   for (unsigned round = 1; round <= VARIABLE_ELIMINATION_ROUNDS; round++)
     {
-      double start_round = current_time ();
-      unsigned eliminated = eliminate_variables (ruler);
-      double end_round = current_time ();
-      message (0, "eliminated %u variables in round %u in %.2f seconds",
-	       eliminated, round, end_round - start_round);
-      total_eliminated += eliminated;
+      unsigned eliminated = eliminate_variables (ruler, round);
       if (!eliminated)
 	break;
+      total_eliminated += eliminated;
       propagate_and_flush_ruler_units (ruler);
 #if 0
 	break;
