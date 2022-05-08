@@ -89,8 +89,8 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define VARIABLE_ELIMINATION_ROUNDS 5
-#define ANTECEDENT_SIZE_LIMIT 100
+#define ELIMINATION_RONDS 5
+#define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
 /*------------------------------------------------------------------------*/
@@ -178,6 +178,8 @@ do { \
   (assert (!EMPTY (STACK)), *--(STACK).end)
 
 /*------------------------------------------------------------------------*/
+
+#define MIN(A,B) ((A) < (B) ? (A) : (B))
 
 #define SWAP(A,B) \
 do { \
@@ -423,6 +425,7 @@ struct ruler_profiles
   struct profile parsing;
   struct profile solving;
   struct profile simplifying;
+  struct profile subsuming;
 
   struct profile total;
 };
@@ -529,6 +532,7 @@ struct ruler_last
 struct ruler_statistics
 {
   unsigned fixed;
+  unsigned deduplicated;
   unsigned eliminated;
   uint64_t garbage;
   unsigned binaries;
@@ -1557,6 +1561,7 @@ init_ruler_profiles (struct ruler *ruler)
   INIT_PROFILE (ruler, parsing);
   INIT_PROFILE (ruler, solving);
   INIT_PROFILE (ruler, simplifying);
+  INIT_PROFILE (ruler, subsuming);
   INIT_PROFILE (ruler, total);
   START (ruler, total);
 }
@@ -1575,7 +1580,7 @@ new_ruler (size_t size)
 #endif
   ruler->size = size;
   ruler->values = allocate_and_clear_block (2 * size);
-  ruler->marks = allocate_and_clear_block (size);
+  ruler->marks = allocate_and_clear_block (2* size);
   assert (sizeof (bool) == 1);
   ruler->eliminated = allocate_and_clear_block (size);
   ruler->eliminate = allocate_and_clear_block (size);
@@ -2520,10 +2525,10 @@ clause_with_too_many_occurrences (struct ruler * ruler,
       return literal_with_too_many_occurrences (ruler, other);
     }
 
-  if (clause->size > ANTECEDENT_SIZE_LIMIT)
+  if (clause->size > CLAUSE_SIZE_LIMIT)
     {
       ROGCLAUSE (clause, "antecedent size %zu exceeded by",
-                 (size_t) ANTECEDENT_SIZE_LIMIT);
+                 (size_t) CLAUSE_SIZE_LIMIT);
       return true;
     }
 
@@ -2605,7 +2610,7 @@ can_resolve_clause (struct ruler * ruler,
   else
     {
       assert (!clause->garbage);
-      assert (clause->size <= ANTECEDENT_SIZE_LIMIT);
+      assert (clause->size <= CLAUSE_SIZE_LIMIT);
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == except)
@@ -2860,9 +2865,9 @@ disconnect_and_delete_clause (struct ruler * ruler,
       unsigned other = other_pointer (clause);
       struct clause * other_clause = tag_pointer (false, other, lit);
       disconnect_literal (ruler, other, other_clause);
+      ROGBINARY (lit, other, "disconnected and deleted");
       assert (ruler->statistics.binaries);
       ruler->statistics.binaries--;
-      ROGBINARY (lit, other, "disconnected and deleted");
       trace_delete_binary (&ruler->buffer, lit, other);
       mark_eliminate_literal (ruler, other);
     }
@@ -2880,6 +2885,119 @@ disconnect_and_delete_clause (struct ruler * ruler,
 	  mark_eliminate_literal (ruler, other);
 	}
     }
+}
+
+static void
+connect_all_large_clauses (struct ruler * ruler)
+{
+  ROG ("connecting all large clauses");
+  for (all_clauses (clause, ruler->clauses))
+    connect_large_clause (ruler, clause);
+}
+
+static size_t
+remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
+{
+  struct clauses * clauses = &OCCURENCES (lit);
+  struct clause ** begin = clauses->begin, ** q = begin;
+  struct clause ** end = clauses->end, ** p = q;
+  signed char * marks = ruler->marks;
+  size_t removed = 0;
+  while (p != end)
+    {
+      struct clause * clause = *p++;
+      if (!binary_pointer (clause))
+	continue;
+      unsigned other = other_pointer (clause);
+      if (!marks[other])
+	{
+	  *q++ = clause;
+	  marks[other] = 1;
+	}
+      else if (other < lit)
+	{
+	  ROGBINARY (lit, other, "removed duplicated");
+	  assert (ruler->statistics.binaries);
+	  ruler->statistics.binaries--;
+	  trace_delete_binary (&ruler->buffer, lit, other);
+	  mark_eliminate_literal (ruler, other);
+	  ruler->statistics.deduplicated++;
+	  removed++;
+	}
+    }
+  clauses->end = q;
+  for (all_clauses (clause, *clauses))
+    {
+      assert (!binary_pointer (clause));
+      unsigned other = other_pointer (clause);
+      marks[other] = 0;
+    }
+  if (removed)
+    mark_eliminate_literal (ruler, lit);
+  return removed;
+}
+
+static size_t
+remove_duplicated_binaries (struct ruler * ruler, unsigned round)
+{
+  size_t removed = 0;
+  for (all_ruler_literals (lit))
+    removed += remove_duplicated_binaries_of_literal (ruler, lit);
+  verbose (0, "removed %zu duplicated binary clauses in round %u",
+           removed, round);
+  return removed;
+}
+
+static size_t
+sort_large_clauses_by_size (struct ruler * ruler,
+                            struct clause *** sorted_ptr)
+{
+  struct clauses * clauses = &ruler->clauses;
+  const size_t size_count = CLAUSE_SIZE_LIMIT + 1;
+  size_t count[size_count];
+  memset (count, 0, sizeof count);
+  for (all_clauses (clause, *clauses))
+    if (clause->size <= CLAUSE_SIZE_LIMIT)
+      count[clause->size]++;
+  size_t * c = count, * end = c + size_count;
+  size_t pos = 0, size;
+  while (c != end)
+    size = *c, *c++ = pos, pos += size;
+  size_t bytes = pos * sizeof (struct clause *);
+  struct clause **sorted = allocate_block (bytes);
+  for (all_clauses (clause, *clauses))
+    if (clause->size <= CLAUSE_SIZE_LIMIT)
+      sorted[count[clause->size]++] = clause;
+  *sorted_ptr = sorted;
+  return pos;
+}
+
+static bool
+forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
+{
+  connect_large_clause (ruler, clause);
+  return false;
+}
+
+static void
+subsume_clauses (struct ruler * ruler, unsigned round)
+{
+  double start_subsumption = START (ruler, subsuming);
+  size_t subsumed = remove_duplicated_binaries (ruler, round);
+  struct clause ** sorted;
+  size_t size_sorted = sort_large_clauses_by_size (ruler, &sorted);
+  verbose (0, "found %zu large forward subsumption candidates in round %u",
+           size_sorted, round);
+  struct clause ** end_sorted = sorted + size_sorted;
+  for (struct clause ** p = sorted; p != end_sorted; p++)
+    subsumed += forward_subsume_large_clause (ruler, *p);
+  free (sorted);
+  for (all_clauses (clause, ruler->clauses))
+    if (clause->size > CLAUSE_SIZE_LIMIT)
+      connect_large_clause (ruler, clause);
+  double end_subsumption = STOP (ruler, subsuming);
+  message (0, "subsumed %zu clauses in round %u in %.2f seconds",
+           subsumed, round, end_subsumption - start_subsumption);
 }
 
 static void
@@ -3002,13 +3120,13 @@ simplify_ruler (struct ruler * ruler)
       printf ("c\nc simplifying formula before cloning\n");
       fflush (stdout);
     }
-  for (all_clauses (clause, ruler->clauses))
-    connect_large_clause (ruler, clause);
+  connect_all_large_clauses (ruler);
   size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
   propagate_and_flush_ruler_units (ruler);
   unsigned total_eliminated = 0;
-  for (unsigned round = 1; round <= VARIABLE_ELIMINATION_ROUNDS; round++)
+  for (unsigned round = 1; round <= ELIMINATION_RONDS; round++)
     {
+      subsume_clauses (ruler, round);
       unsigned eliminated = eliminate_variables (ruler, round);
       if (!eliminated)
 	break;
@@ -7517,6 +7635,8 @@ print_ruler_statistics (struct ruler *ruler)
 
   printf ("c %-22s %17u %13.2f %% variables\n", "eliminated:",
           s->eliminated, percent (s->eliminated, variables));
+  printf ("c %-22s %17u %13s %% binary clauses\n", "deduplicated:",
+          s->deduplicated, "");
   printf ("c %-22s %17u %13.2f %% variables\n", "simplification-fixed:",
           s->fixed, percent (s->fixed, variables));
 
