@@ -3006,7 +3006,9 @@ get_subsumption_candidates (struct ruler * ruler,
   for (all_clauses (clause, *clauses))
     if (clause->size <= CLAUSE_SIZE_LIMIT && clause->subsume)
       candidates[count[clause->size]++] = clause;
+#if 0
   memset (ruler->subsume, 0, ruler->size);
+#endif
   *candidates_ptr = candidates;
   return pos;
 }
