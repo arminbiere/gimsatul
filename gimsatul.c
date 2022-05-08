@@ -1634,6 +1634,7 @@ delete_ruler (struct ruler *ruler)
   free (ruler->marks);
   free (ruler->eliminated);
   free (ruler->eliminate);
+  free (ruler->subsume);
   free (ruler->units.begin);
   free (ruler->threads);
   free (ruler);
