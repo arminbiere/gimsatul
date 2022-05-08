@@ -89,7 +89,7 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define VARIABLE_ELIMINATION_ROUNDS 100
+#define VARIABLE_ELIMINATION_ROUNDS 5
 #define ANTECEDENT_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
@@ -6561,7 +6561,7 @@ set_limits (struct ring *ring, long long conflicts)
   if (conflicts >= 0)
     {
       limits->conflicts = conflicts;
-      message (ring, "conflict limit set to %lld conflicts", conflicts);
+      verbose (ring, "conflict limit set to %lld conflicts", conflicts);
     }
 }
 
@@ -6984,13 +6984,6 @@ clone_rings (struct ruler *ruler, unsigned threads)
 }
 
 static void
-set_limits_of_all_rings (struct ruler *ruler, long long conflicts)
-{
-  for (all_rings (ring))
-    set_limits (ring, conflicts);
-}
-
-static void
 start_running_ring (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
@@ -7011,15 +7004,23 @@ stop_running_ring (struct ring *ring)
 }
 
 static void
-run_rings (struct ruler *ruler)
+run_rings (struct ruler *ruler, long long conflicts)
 {
   START (ruler, solving);
   size_t threads = SIZE (ruler->rings);
+  if (verbosity >= 0)
+    {
+      printf ("c\n");
+      if (conflicts >= 0)
+	printf ("c conflict limit %lld\n", conflicts);
+    }
+  for (all_rings (ring))
+    set_limits (ring, conflicts);
   if (threads > 1)
     {
       if (verbosity >= 0)
 	{
-	  printf ("c\nc starting and running %zu ring threads\n", threads);
+	  printf ("c starting and running %zu ring threads\n", threads);
 	  fflush (stdout);
 	}
 
@@ -7033,7 +7034,7 @@ run_rings (struct ruler *ruler)
     {
       if (verbosity >= 0)
 	{
-	  printf ("c\nc running single ring in main thread\n");
+	  printf ("c running single ring in main thread\n");
 	  fflush (stdout);
 	}
       struct ring *ring = first_ring (ruler);
@@ -7595,9 +7596,8 @@ main (int argc, char **argv)
   ruler = parse_dimacs_file ();
   simplify_ruler (ruler);
   clone_rings (ruler, options.threads);
-  set_limits_of_all_rings (ruler, options.conflicts);
   set_signal_handlers (options.seconds);
-  run_rings (ruler);
+  run_rings (ruler, options.conflicts);
   struct ring *winner = (struct ring *) ruler->winner;
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();
