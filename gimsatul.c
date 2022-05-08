@@ -91,7 +91,7 @@ static const char * usage =
 
 #define ELIMINATION_RONDS 5
 #define CLAUSE_SIZE_LIMIT 100
-#define OCCURRENCE_LIMIT 1000
+#define OCCURRENCE_LIMIT 100
 
 /*------------------------------------------------------------------------*/
 
@@ -103,7 +103,7 @@ static const char * usage =
 #define VAR(LIT) (ring->variables + IDX (LIT))
 
 #define REFERENCES(LIT) (ring->references[LIT])
-#define OCCURENCES(LIT) (ruler->occurrences[LIT])
+#define OCCURRENCES(LIT) (ruler->occurrences[LIT])
 #define COUNTERS(LIT) (walker->occurrences[LIT])
 
 
@@ -1605,7 +1605,7 @@ release_occurrences (struct ruler *ruler)
   if (!ruler->occurrences)
     return;
   for (all_ruler_literals (lit))
-    RELEASE (OCCURENCES (lit));
+    RELEASE (OCCURRENCES (lit));
   free (ruler->occurrences);
 }
 
@@ -1678,11 +1678,17 @@ detach_ring (struct ring *ring)
 /*------------------------------------------------------------------------*/
 
 static void
+connect_literal (struct ruler * ruler, unsigned lit, struct clause * clause)
+{
+  PUSH (OCCURRENCES (lit), clause);
+}
+
+static void
 connect_large_clause (struct ruler * ruler, struct clause * clause)
 {
   assert (!binary_pointer (clause));
   for (all_literals_in_clause (lit, clause))
-    PUSH (OCCURENCES (lit), clause);
+    connect_literal (ruler, lit, clause);
 }
 
 static void
@@ -2100,7 +2106,7 @@ watch_first_two_literals_in_large_clause (struct ring *ring,
 static void
 connect_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 {
-  struct clauses *clauses = &OCCURENCES (lit);
+  struct clauses *clauses = &OCCURRENCES (lit);
   struct clause *watch_lit = tag_pointer (false, lit, other);
   PUSH (*clauses, watch_lit);
 }
@@ -2228,7 +2234,7 @@ ruler_propagate (struct ruler * ruler)
       unsigned lit = *units->propagate++;
       ROG ("propagating unit %s", ROGLIT (lit));
       unsigned not_lit = NOT (lit);
-      struct clauses * clauses = &OCCURENCES (not_lit);
+      struct clauses * clauses = &OCCURRENCES (not_lit);
       for (all_clauses (clause, *clauses))
 	{
 	  bool satisfied = false;
@@ -2351,7 +2357,7 @@ flush_satisfied_ruler_occurrences (struct ruler * ruler)
   for (all_ruler_literals (lit))
     {
       signed char lit_value = values[lit];
-      struct clauses * clauses = &OCCURENCES (lit);
+      struct clauses * clauses = &OCCURRENCES (lit);
       struct clause ** begin = clauses->begin, ** q = begin;
       struct clause ** end = clauses->end, ** p = q;
       while (p != end)
@@ -2408,7 +2414,7 @@ disconnect_literal (struct ruler * ruler,
                     unsigned lit, struct clause * clause)
 {
   ROGCLAUSE (clause, "disconnecting %s from", ROGLIT (lit));
-  struct clauses * clauses = &OCCURENCES (lit);
+  struct clauses * clauses = &OCCURRENCES (lit);
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
   while (p != end)
@@ -2528,7 +2534,7 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
 static bool
 literal_with_too_many_occurrences (struct ruler * ruler, unsigned lit)
 {
-  struct clauses * clauses = &OCCURENCES (lit);
+  struct clauses * clauses = &OCCURRENCES (lit);
   size_t size = SIZE (*clauses);
   bool res = size > OCCURRENCE_LIMIT;
   if (res)
@@ -2681,8 +2687,8 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   ruler->eliminate[idx] = false;
   unsigned not_pivot = NOT (pivot);
 
-  struct clauses * pos_clauses = &OCCURENCES (pivot);
-  struct clauses * neg_clauses = &OCCURENCES (not_pivot);
+  struct clauses * pos_clauses = &OCCURRENCES (pivot);
+  struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
 
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
   size_t pos_size = actual_occurrences (pos_clauses);
@@ -2924,7 +2930,7 @@ connect_all_large_clauses (struct ruler * ruler)
 static size_t
 remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 {
-  struct clauses * clauses = &OCCURENCES (lit);
+  struct clauses * clauses = &OCCURRENCES (lit);
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
   signed char * marks = ruler->marks;
@@ -3017,13 +3023,72 @@ get_subsumption_candidates (struct ruler * ruler,
   return pos;
 }
 
+static struct clause *
+find_subsuming_clause (struct ruler * ruler, unsigned lit)
+{
+  struct clauses * clauses = &OCCURRENCES (lit);
+  size_t size_clauses = SIZE (*clauses);
+  if (size_clauses > OCCURRENCE_LIMIT)
+    return 0;
+  return 0;
+}
+
 static bool
 forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 {
   ROGCLAUSE (clause, "forward subsumed candidates");
   assert (!clause->garbage);
-  connect_large_clause (ruler, clause);
-  return false;
+  assert (clause->size <= CLAUSE_SIZE_LIMIT);
+  mark_clause (ruler->marks, clause, INVALID);
+  struct clause * subsuming = 0;
+  for (all_literals_in_clause (lit, clause))
+    if ((subsuming = find_subsuming_clause (ruler, lit)))
+      break;
+  if (subsuming)
+    {
+      ROGCLAUSE (clause, "disconnecting and marking garbage");
+      trace_delete_clause (&ruler->buffer, clause);
+      ruler->statistics.garbage++;
+      clause->garbage = true;
+    }
+  else
+    {
+      unsigned min_lit = INVALID;
+      unsigned min_size = UINT_MAX;
+      for (all_literals_in_clause (lit, clause))
+	{
+	  unsigned lit_size = SIZE (OCCURRENCES (lit));
+	  if (min_lit != INVALID && min_size <= lit_size)
+	    continue;
+	  min_lit = lit;
+	  min_size = lit_size;
+	}
+      assert (min_lit != INVALID);
+      assert (min_size != INVALID);
+      ROGCLAUSE (clause, "connecting least occurring literal %s in", ROGLIT (min_lit));
+      connect_literal (ruler, min_lit, clause);
+    }
+  unmark_clause (ruler->marks, clause, INVALID);
+  return subsuming;
+}
+
+static void
+flush_large_clause_references (struct ruler * ruler)
+{
+  ROG ("flushing all partial large clauses occurrences");
+  for (all_ruler_literals (lit))
+    {
+      struct clauses * clauses = &OCCURRENCES (lit);
+      struct clause ** begin = clauses->begin, ** q = begin;
+      struct clause ** end = clauses->end, ** p = q;
+      while (p != end)
+	{
+	  struct clause * clause = *p++;
+	  if (binary_pointer (clause))
+	    *q++ = clause;
+	}
+      clauses->end = q;
+    }
 }
 
 static void
@@ -3039,8 +3104,9 @@ subsume_clauses (struct ruler * ruler, unsigned round)
   for (struct clause ** p = candidates; p != end_candidates; p++)
     subsumed += forward_subsume_large_clause (ruler, *p);
   free (candidates);
+  flush_large_clause_references (ruler);
   for (all_clauses (clause, ruler->clauses))
-    if (!clause->subsume)
+    if (!clause->garbage)
       connect_large_clause (ruler, clause);
   double end_subsumption = STOP (ruler, subsuming);
   message (0, "subsumed %zu clauses in round %u in %.2f seconds",
@@ -3069,8 +3135,8 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   ruler->statistics.eliminated++;
   ROG ("adding resolvents on %s", ROGVAR (idx));
   unsigned not_pivot = NOT (pivot);
-  struct clauses * pos_clauses = &OCCURENCES (pivot);
-  struct clauses * neg_clauses = &OCCURENCES (not_pivot);
+  struct clauses * pos_clauses = &OCCURRENCES (pivot);
+  struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
   size_t neg_size = SIZE (*neg_clauses);
   size_t pos_size = SIZE (*pos_clauses);
   if (pos_size > neg_size)
@@ -3355,7 +3421,7 @@ copy_ruler_binaries (struct ring *ring)
 
   for (all_ruler_literals (lit))
     {
-      struct clauses *occurrences = &OCCURENCES (lit);
+      struct clauses *occurrences = &OCCURRENCES (lit);
       struct references *references = &REFERENCES (lit);
       size_t size = 0;
       for (all_clauses (clause, *occurrences))
