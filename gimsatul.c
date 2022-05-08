@@ -2978,7 +2978,6 @@ static bool
 is_subsumption_candidate (struct ruler * ruler, struct clause * clause)
 {
   bool subsume = false;
-  COVER (clause->garbage);
   if (!clause->garbage)
     {
       unsigned count = 0;
@@ -3022,6 +3021,7 @@ static bool
 forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 {
   ROGCLAUSE (clause, "forward subsumed candidates");
+  assert (!clause->garbage);
   connect_large_clause (ruler, clause);
   return false;
 }
@@ -3040,7 +3040,7 @@ subsume_clauses (struct ruler * ruler, unsigned round)
     subsumed += forward_subsume_large_clause (ruler, *p);
   free (candidates);
   for (all_clauses (clause, ruler->clauses))
-    if (clause->size > CLAUSE_SIZE_LIMIT)
+    if (clause->size > CLAUSE_SIZE_LIMIT && !clause->garbage)
       connect_large_clause (ruler, clause);
   double end_subsumption = STOP (ruler, subsuming);
   message (0, "subsumed %zu clauses in round %u in %.2f seconds",
