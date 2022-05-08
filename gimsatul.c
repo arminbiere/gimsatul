@@ -2977,12 +2977,19 @@ remove_duplicated_binaries (struct ruler * ruler, unsigned round)
 static bool
 is_subsumption_candidate (struct ruler * ruler, struct clause * clause)
 {
-  unsigned subsume = 0;
-  for (all_literals_in_clause (lit, clause))
-    if (ruler->subsume[IDX (lit)])
-      if (subsume++)
-	break;
-  return clause->subsume = (subsume > 1);
+  bool subsume = false;
+  COVER (clause->garbage);
+  if (!clause->garbage)
+    {
+      unsigned count = 0;
+      for (all_literals_in_clause (lit, clause))
+	if (ruler->subsume[IDX (lit)])
+	  if (count++)
+	    break;
+      subsume = (count > 1);
+    }
+  clause->subsume = subsume;
+  return subsume;
 }
 
 static size_t
@@ -3006,9 +3013,7 @@ get_subsumption_candidates (struct ruler * ruler,
   for (all_clauses (clause, *clauses))
     if (clause->size <= CLAUSE_SIZE_LIMIT && clause->subsume)
       candidates[count[clause->size]++] = clause;
-#if 0
   memset (ruler->subsume, 0, ruler->size);
-#endif
   *candidates_ptr = candidates;
   return pos;
 }
@@ -3205,8 +3210,10 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   unsigned idx = IDX (lit);
 
 #if 1
-  assert (ring->active[idx]);
+  if (!ring->active[idx])
+    printf ("c OOPS literal %s not actgive\n", LOGLIT (lit));
   assert (!ring->ruler->eliminated[idx]);
+  assert (ring->active[idx]);
 #endif
 
   assert (idx < ring->size);
