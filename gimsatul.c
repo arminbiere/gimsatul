@@ -3094,6 +3094,22 @@ find_subsuming_clause (struct ruler * ruler, unsigned lit)
 		  break;
 		}
 	    }
+	  else
+	    {
+	      ticks++;
+	      res = clause;
+	      for (all_literals_in_clause (other, clause))
+		{
+		  signed char mark = marked_literal (marks, other);
+		  if (mark <= 0)
+		    {
+		      res = 0;
+		      break;
+		    }
+		}
+	      if (res)
+		break;
+	    }
 	}
     }
   ruler->statistics.ticks.subsumption += ticks;
