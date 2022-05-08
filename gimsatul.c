@@ -1486,21 +1486,23 @@ tag_pointer (bool redundant, unsigned lit, unsigned other)
 
 /*------------------------------------------------------------------------*/
 
-static void
+static double
 start_profile (struct profile *profile, double time)
 {
   double volatile *p = &profile->start;
   assert (*p < 0);
   *p = time;
+  return time;
 }
 
-static void
+static double
 stop_profile (struct profile *profile, double time)
 {
   double volatile *p = &profile->start;
   double delta = time - *p;
   *p = -1;
   profile->time += delta;
+  return time;
 }
 
 #define START(OWNER,NAME) \
@@ -2988,7 +2990,7 @@ simplify_ruler (struct ruler * ruler)
 {
   if (ruler->inconsistent)
     return;
-  START (ruler, simplifying);
+  double start_simplification = START (ruler, simplifying);
   if (verbosity >= 0)
     {
       printf ("c\nc simplifying formula before cloning\n");
@@ -3001,17 +3003,14 @@ simplify_ruler (struct ruler * ruler)
   unsigned total_eliminated = 0;
   for (unsigned round = 1; round <= VARIABLE_ELIMINATION_ROUNDS; round++)
     {
+      double start_round = current_time ();
       unsigned eliminated = eliminate_variables (ruler);
-      if (eliminated)
-	{
-	  message (0, "eliminated %u variables in round %u", eliminated, round);
-	  total_eliminated += eliminated;
-	}
-      else
-	{
-	  message (0, "no variable eliminated in round %u", round);
-	  break;
-	}
+      double end_round = current_time ();
+      message (0, "eliminated %u variables in round %u in %.2f seconds",
+	       eliminated, round, end_round - start_round);
+      total_eliminated += eliminated;
+      if (!eliminated)
+	break;
       propagate_and_flush_ruler_units (ruler);
 #if 0
 	break;
@@ -3019,17 +3018,16 @@ simplify_ruler (struct ruler * ruler)
     }
   if (ruler->inconsistent)
     message (0, "simplification produced empty clause");
-  else
-    {
-      size_t after = SIZE (ruler->clauses) + ruler->statistics.binaries;
-      assert (after <= before);
-      size_t removed_clauses = before - after;
-      size_t removed_variables = SIZE (ruler->units) + total_eliminated;
-      message (0, "simplified %zu clauses %.0f%% and %zu variables %.0f%%",
-	       removed_clauses, percent (removed_clauses, before),
-	       removed_variables, percent (removed_variables, ruler->size));
-    }
-  STOP (ruler, simplifying);
+  size_t after = SIZE (ruler->clauses) + ruler->statistics.binaries;
+  assert (after <= before);
+  size_t removed_clauses = before - after;
+  size_t removed_variables = SIZE (ruler->units) + total_eliminated;
+  message (0, "simplified %zu clauses %.0f%% and %zu variables %.0f%%",
+	   removed_clauses, percent (removed_clauses, before),
+	   removed_variables, percent (removed_variables, ruler->size));
+  double end_simplification = STOP (ruler, simplifying);
+  message (0, "simplification took %.2f seconds",
+           end_simplification - start_simplification);
 }
 
 /*------------------------------------------------------------------------*/
@@ -6690,7 +6688,7 @@ parse_dimacs_file ()
       fflush (stdout);
     }
   struct ruler *ruler = new_ruler (variables);
-  START (ruler, parsing);
+  double start_parsing = START (ruler, parsing);
   signed char *marked = ruler->marks;
   struct unsigneds clause;
   INIT (clause);
@@ -6805,12 +6803,8 @@ parse_dimacs_file ()
   if (dimacs.close == 2)
     pclose (dimacs.file);
   RELEASE (clause);
-  if (verbosity >= 0)
-    {
-      printf ("c parsed all %d clauses\n", parsed);
-      fflush (stdout);
-    }
-  STOP (ruler, parsing);
+  double end_parsing = STOP (ruler, parsing);
+  message (0, "parsing took %.2f seconds", end_parsing - start_parsing);
   return ruler;
 }
 
