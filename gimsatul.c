@@ -2978,7 +2978,7 @@ static bool
 is_subsumption_candidate (struct ruler * ruler, struct clause * clause)
 {
   bool subsume = false;
-  if (!clause->garbage)
+  if (clause->size <= CLAUSE_SIZE_LIMIT && !clause->garbage)
     {
       unsigned count = 0;
       for (all_literals_in_clause (lit, clause))
@@ -3000,8 +3000,7 @@ get_subsumption_candidates (struct ruler * ruler,
   size_t count[size_count];
   memset (count, 0, sizeof count);
   for (all_clauses (clause, *clauses))
-    if (clause->size <= CLAUSE_SIZE_LIMIT &&
-        is_subsumption_candidate (ruler, clause))
+    if (is_subsumption_candidate (ruler, clause))
       count[clause->size]++;
   size_t * c = count, * end = c + size_count;
   size_t pos = 0, size;
@@ -3010,7 +3009,7 @@ get_subsumption_candidates (struct ruler * ruler,
   size_t bytes = pos * sizeof (struct clause *);
   struct clause **candidates = allocate_block (bytes);
   for (all_clauses (clause, *clauses))
-    if (clause->size <= CLAUSE_SIZE_LIMIT && clause->subsume)
+    if (clause->subsume)
       candidates[count[clause->size]++] = clause;
   memset (ruler->subsume, 0, ruler->size);
   *candidates_ptr = candidates;
@@ -3040,7 +3039,7 @@ subsume_clauses (struct ruler * ruler, unsigned round)
     subsumed += forward_subsume_large_clause (ruler, *p);
   free (candidates);
   for (all_clauses (clause, ruler->clauses))
-    if (clause->size > CLAUSE_SIZE_LIMIT && !clause->garbage)
+    if (!clause->subsume)
       connect_large_clause (ruler, clause);
   double end_subsumption = STOP (ruler, subsuming);
   message (0, "subsumed %zu clauses in round %u in %.2f seconds",
