@@ -535,6 +535,7 @@ struct ruler_statistics
   uint64_t garbage;
   unsigned binaries;
   unsigned clauses;
+  unsigned original;
   unsigned deduplicated;
   unsigned eliminated;
   unsigned fixed;
@@ -3208,16 +3209,10 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   const unsigned not_lit = NOT (lit);
   unsigned idx = IDX (lit);
 
-#if 1
-  if (!ring->active[idx])
-    printf ("c OOPS literal %s not actgive\n", LOGLIT (lit));
-  assert (!ring->ruler->eliminated[idx]);
-  assert (ring->active[idx]);
-#endif
-
   assert (idx < ring->size);
   assert (!ring->values[lit]);
   assert (!ring->values[not_lit]);
+  assert (ring->active[idx]);
 
   assert (ring->unassigned);
   ring->unassigned--;
@@ -6975,6 +6970,7 @@ parse_dimacs_file ()
   if (dimacs.close == 2)
     pclose (dimacs.file);
   RELEASE (clause);
+  ruler->statistics.original = parsed;
   double end_parsing = STOP (ruler, parsing);
   message (0, "parsing took %.2f seconds", end_parsing - start_parsing);
   return ruler;
@@ -7689,6 +7685,8 @@ print_ruler_statistics (struct ruler *ruler)
           s->eliminated, percent (s->eliminated, variables));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "deduplicated:",
           s->deduplicated, percent (s->deduplicated, s->subsumed));
+  printf ("c %-22s %17u %13.2f %% original clauses\n", "subsumed:",
+          s->subsumed, percent (s->subsumed, s->original));
   printf ("c %-22s %17u %13.2f %% variables\n", "simplification-fixed:",
           s->fixed, percent (s->fixed, variables));
 
