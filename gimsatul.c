@@ -546,6 +546,7 @@ struct ruler
   volatile signed char *values;
   signed char *marks;
   bool *eliminated;
+  bool *eliminate;
   struct clauses *occurrences;
   struct clauses clauses;
   struct unsigneds resolvent;
@@ -1573,6 +1574,8 @@ new_ruler (size_t size)
   ruler->marks = allocate_and_clear_block (size);
   assert (sizeof (bool) == 1);
   ruler->eliminated = allocate_and_clear_block (size);
+  ruler->eliminate = allocate_and_clear_block (size);
+  memset (ruler->eliminate, 1, size);
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
@@ -1615,6 +1618,7 @@ delete_ruler (struct ruler *ruler)
   free ((void *) ruler->values);
   free (ruler->marks);
   free (ruler->eliminated);
+  free (ruler->eliminate);
   free (ruler->units.begin);
   free (ruler->threads);
   free (ruler);
@@ -2169,6 +2173,20 @@ delete_watch (struct ring *ring, struct watch *watch)
 /*------------------------------------------------------------------------*/
 
 static void
+mark_eliminate_literal (struct ruler * ruler, unsigned lit)
+{
+  unsigned idx = IDX (lit);
+  ruler->eliminate[idx] = 1;
+}
+
+static void
+mark_eliminate_clause (struct ruler * ruler, struct clause * clause)
+{
+  for (all_literals_in_clause (lit, clause))
+    mark_eliminate_literal (ruler, lit);
+}
+
+static void
 ruler_propagate (struct ruler * ruler)
 {
   assert (!ruler->inconsistent);
@@ -2241,6 +2259,7 @@ ruler_propagate (struct ruler * ruler)
 	    {
 	      ROGCLAUSE (clause, "marking satisfied garbage");
 	      trace_delete_clause (&ruler->buffer, clause);
+	      mark_eliminate_clause (ruler, clause);
 	      ruler->statistics.garbage++;
 	      clause->garbage = true;
 	      garbage++;
@@ -2275,6 +2294,7 @@ mark_satisfied_ruler_clauses (struct ruler * ruler)
 	{
 	  ROGCLAUSE (clause, "marking satisfied garbage");
 	  trace_delete_clause (&ruler->buffer, clause);
+	  mark_eliminate_clause (ruler, clause);
 	  ruler->statistics.garbage++;
 	  clause->garbage = true;
 	  marked_satisfied++;
@@ -2318,6 +2338,10 @@ flush_satisfied_ruler_occurrences (struct ruler * ruler)
 		    {
 		      ROGBINARY (lit, other, "deleting satisfied");
 		      trace_delete_binary (&ruler->buffer, lit, other);
+		      if (!lit_value)
+			mark_eliminate_literal ( ruler, lit);
+		      if (!other_value)
+			mark_eliminate_literal ( ruler, other);
 		      deleted++;
 		    }
 		  flushed++;
@@ -2614,6 +2638,8 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 {
   if (ruler->eliminated[idx])
     return false;
+  if (!ruler->eliminate[idx])
+    return false;
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return false;
@@ -2630,6 +2656,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   ROG ("trying next elimination candidate %s "
        "with %zu = %zu + %zu occurrences", ROGVAR (idx),
        limit, pos_size, neg_size);
+  ruler->eliminate[idx] = false;
   if (pos_size > OCCURRENCE_LIMIT)
     {
       ROG ("pivot literal %s occurs %zu times (limit %zu)",
@@ -2833,6 +2860,7 @@ disconnect_and_delete_clause (struct ruler * ruler,
       ruler->statistics.binaries--;
       ROGBINARY (lit, other, "disconnected and deleted");
       trace_delete_binary (&ruler->buffer, lit, other);
+      mark_eliminate_literal (ruler, other);
     }
   else
     {
@@ -2841,8 +2869,12 @@ disconnect_and_delete_clause (struct ruler * ruler,
       ruler->statistics.garbage++;
       clause->garbage = true;
       for (all_literals_in_clause (other, clause))
-	  if (other != lit)
-	    disconnect_literal (ruler, other, clause);
+	{
+	  if (other == lit)
+	    continue;
+	  disconnect_literal (ruler, other, clause);
+	  mark_eliminate_literal (ruler, other);
+	}
     }
 }
 
