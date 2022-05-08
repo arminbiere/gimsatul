@@ -65,11 +65,13 @@ static const char * usage =
 
 #define FOCUSED_RESTART_INTERVAL 50
 #define MODE_INTERVAL 3e3
+
 #if 1
 #define REDUCE_INTERVAL 1e3
 #else
 #define REDUCE_INTERVAL 1
 #endif
+
 #define REPHASE_INTERVAL 1e3
 #define STABLE_RESTART_INTERVAL 500
 #define RANDOM_DECISIONS 100
@@ -3120,6 +3122,7 @@ static bool
 forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 {
   ROGCLAUSE (clause, "subsumption candidate");
+  assert (!binary_pointer (clause));
   assert (!clause->garbage);
   assert (clause->size <= CLAUSE_SIZE_LIMIT);
   mark_clause (ruler->marks, clause, INVALID);
@@ -3535,19 +3538,6 @@ set_satisfied (struct ring *ring)
 
 /*------------------------------------------------------------------------*/
 
-#if 0
-
-static void
-copy_ruler_units (struct ring *ring)
-{
-  struct ruler *ruler = ring->ruler;
-  signed char * ruler_values = (signed char *) ruler->values;
-  signed char * ring_values = ring->values;
-  memcpy (ring_values, ruler_values, 2*ring->size);
-}
-
-#endif
-
 static void
 copy_ruler_binaries (struct ring *ring)
 {
@@ -3639,9 +3629,6 @@ clone_ruler (struct ruler *ruler)
     set_inconsistent (ring, "copied empty clause");
   else
     {
-#if 0
-      copy_ruler_units (ring);
-#endif
       copy_ruler_binaries (ring);
       transfer_and_own_ruler_clauses (ring);
     }
@@ -3976,13 +3963,6 @@ export_units (struct ring *ring)
 
       very_verbose (ring, "exporting unit %d", export_literal (unit));
       assign_ruler_unit (ruler, unit);
-#if 0
-      unsigned not_unit = NOT (unit);
-      assert (!values[not_unit]);
-      *ruler->units.end++ = unit;
-      values[not_unit] = -1;
-      values[unit] = 1;
-#endif
       ring->statistics.exported.clauses++;
       ring->statistics.exported.units++;
     }
@@ -5349,14 +5329,6 @@ check_clause_statistics (struct ring *ring)
 
   struct ring_statistics *statistics = &ring->statistics;
   assert (statistics->redundant == redundant);
-#if 1
-  if (statistics->irredundant != irredundant)
-    {
-      fprintf (stderr, "ring %u: expected %zu actual %zu\n",
-	       ring->id, statistics->irredundant, irredundant);
-      fflush (stderr);
-    }
-#endif
   assert (statistics->irredundant == irredundant);
 }
 
@@ -7223,13 +7195,6 @@ extend_witness (struct ring * ring)
       signed char value = ruler_values[lit];
       if (!value)
 	{
-#if 1
-#ifndef NDEBUG
-	  if (!eliminated[idx])
-	    LOG ("!!!! expected unassigned %s to be eliminated !!!!",
-	         LOGVAR (idx));
-#endif
-#endif
 	  assert (eliminated[idx]);
 	  value = INITIAL_PHASE;
 	}
