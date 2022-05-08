@@ -2623,8 +2623,8 @@ can_resolve_clause (struct ruler * ruler,
     }
 }
 
-static void
-flush_garbage_clauses (struct clauses * clauses)
+static size_t
+actual_occurrences (struct clauses * clauses)
 {
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
@@ -2635,6 +2635,7 @@ flush_garbage_clauses (struct clauses * clauses)
 	q--;
     }
   clauses->end = q;
+  return q - begin;
 }
 
 static bool
@@ -2647,20 +2648,16 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return false;
+
+  ROG ("trying next elimination candidate %s", ROGVAR (idx));
+  ruler->eliminate[idx] = false;
   unsigned not_pivot = NOT (pivot);
+
   struct clauses * pos_clauses = &OCCURENCES (pivot);
   struct clauses * neg_clauses = &OCCURENCES (not_pivot);
-  ROG ("flushing garbage clasues of %s", ROGLIT (pivot));
-  flush_garbage_clauses (pos_clauses);
-  ROG ("flushing garbage clasues of %s", ROGLIT (not_pivot));
-  flush_garbage_clauses (neg_clauses);
-  size_t neg_size = SIZE (*neg_clauses);
-  size_t pos_size = SIZE (*pos_clauses);
-  size_t limit = pos_size + neg_size;
-  ROG ("trying next elimination candidate %s "
-       "with %zu = %zu + %zu occurrences", ROGVAR (idx),
-       limit, pos_size, neg_size);
-  ruler->eliminate[idx] = false;
+
+  ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
+  size_t pos_size = actual_occurrences (pos_clauses);
   if (pos_size > OCCURRENCE_LIMIT)
     {
       ROG ("pivot literal %s occurs %zu times (limit %zu)",
@@ -2668,6 +2665,9 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 	   (size_t) OCCURRENCE_LIMIT);
       return false;
     }
+
+  ROG ("flushing garbage clauses of %s", ROGLIT (not_pivot));
+  size_t neg_size = actual_occurrences (neg_clauses);
   if (neg_size > OCCURRENCE_LIMIT)
     {
       ROG ("negative pivot literal %s occurs %zu times (limit %zu)",
@@ -2675,17 +2675,24 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 	   (size_t) OCCURRENCE_LIMIT);
       return false;
     }
+
+  size_t limit = pos_size + neg_size;
+  ROG ("candidate %s has %zu = %zu + %zu occurrences",
+        ROGVAR (idx), limit, pos_size, neg_size);
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
       SWAP (pos_clauses, neg_clauses);
     }
+
   for (all_clauses (clause, *pos_clauses))
     if (clause_with_too_many_occurrences (ruler, clause, pivot))
       return false;
+
   for (all_clauses (clause, *neg_clauses))
     if (clause_with_too_many_occurrences (ruler, clause, not_pivot))
       return false;
+
   size_t resolvents = 0;
   for (all_clauses (pos_clause, *pos_clauses))
     {
