@@ -89,9 +89,9 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define ELIMINATION_RONDS 5
+#define ELIMINATION_RONDS 10
 #define CLAUSE_SIZE_LIMIT 100
-#define OCCURRENCE_LIMIT 100
+#define OCCURRENCE_LIMIT 1000
 
 /*------------------------------------------------------------------------*/
 
@@ -3026,17 +3026,29 @@ get_subsumption_candidates (struct ruler * ruler,
 static struct clause *
 find_subsuming_clause (struct ruler * ruler, unsigned lit)
 {
+  assert (marked_literal (ruler->marks, lit) > 0);
   struct clauses * clauses = &OCCURRENCES (lit);
   size_t size_clauses = SIZE (*clauses);
   if (size_clauses > OCCURRENCE_LIMIT)
     return 0;
+  signed char * marks = ruler->marks;
+  for (all_clauses (clause, *clauses))
+    {
+      if (binary_pointer (clause))
+	{
+	  unsigned other = other_pointer (clause);
+	  signed char mark = marked_literal (marks, other);
+	  if (mark > 0)
+	    return clause;
+	}
+    }
   return 0;
 }
 
 static bool
 forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 {
-  ROGCLAUSE (clause, "forward subsumed candidates");
+  ROGCLAUSE (clause, "subsumption candidate");
   assert (!clause->garbage);
   assert (clause->size <= CLAUSE_SIZE_LIMIT);
   mark_clause (ruler->marks, clause, INVALID);
@@ -3046,7 +3058,9 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
       break;
   if (subsuming)
     {
-      ROGCLAUSE (clause, "disconnecting and marking garbage");
+      ROGCLAUSE (subsuming, "subsuming");
+      ruler->statistics.subsumed++;
+      ROGCLAUSE (clause, "disconnecting and marking garbage subsumed");
       trace_delete_clause (&ruler->buffer, clause);
       ruler->statistics.garbage++;
       clause->garbage = true;
@@ -3065,7 +3079,9 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	}
       assert (min_lit != INVALID);
       assert (min_size != INVALID);
-      ROGCLAUSE (clause, "connecting least occurring literal %s in", ROGLIT (min_lit));
+      ROGCLAUSE (clause, "connecting least occurring literal %s "
+                         "with %u occurrences in",
+			 ROGLIT (min_lit), min_size);
       connect_literal (ruler, min_lit, clause);
     }
   unmark_clause (ruler->marks, clause, INVALID);
