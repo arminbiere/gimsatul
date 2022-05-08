@@ -531,12 +531,13 @@ struct ruler_last
 
 struct ruler_statistics
 {
-  unsigned fixed;
-  unsigned deduplicated;
-  unsigned eliminated;
   uint64_t garbage;
   unsigned binaries;
   unsigned clauses;
+  unsigned deduplicated;
+  unsigned eliminated;
+  unsigned fixed;
+  unsigned subsumed;
 };
 
 struct ruler
@@ -2922,13 +2923,14 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 	  trace_delete_binary (&ruler->buffer, lit, other);
 	  mark_eliminate_literal (ruler, other);
 	  ruler->statistics.deduplicated++;
+	  ruler->statistics.subsumed++;
 	  removed++;
 	}
     }
   clauses->end = q;
   for (all_clauses (clause, *clauses))
     {
-      assert (!binary_pointer (clause));
+      assert (binary_pointer (clause));
       unsigned other = other_pointer (clause);
       marks[other] = 0;
     }
@@ -3089,6 +3091,9 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 static unsigned
 eliminate_variables (struct ruler * ruler, unsigned round)
 {
+#if 0
+  return 0;
+#endif
   double start_round = START (ruler, eliminating);
   unsigned eliminated = 0;
   for (all_ruler_indices (idx))
@@ -3128,8 +3133,6 @@ simplify_ruler (struct ruler * ruler)
     {
       subsume_clauses (ruler, round);
       unsigned eliminated = eliminate_variables (ruler, round);
-      if (!eliminated)
-	break;
       total_eliminated += eliminated;
       propagate_and_flush_ruler_units (ruler);
 #if 0
@@ -3138,13 +3141,16 @@ simplify_ruler (struct ruler * ruler)
     }
   if (ruler->inconsistent)
     message (0, "simplification produced empty clause");
-  size_t after = SIZE (ruler->clauses) + ruler->statistics.binaries;
-  assert (after <= before);
-  size_t removed_clauses = before - after;
-  size_t removed_variables = SIZE (ruler->units) + total_eliminated;
-  message (0, "simplified %zu clauses %.0f%% and %zu variables %.0f%%",
-	   removed_clauses, percent (removed_clauses, before),
-	   removed_variables, percent (removed_variables, ruler->size));
+  else
+    {
+      size_t after = SIZE (ruler->clauses) + ruler->statistics.binaries;
+      assert (after <= before);
+      size_t removed_clauses = before - after;
+      size_t removed_variables = SIZE (ruler->units) + total_eliminated;
+      message (0, "simplified %zu clauses %.0f%% and %zu variables %.0f%%",
+	       removed_clauses, percent (removed_clauses, before),
+	       removed_variables, percent (removed_variables, ruler->size));
+    }
   double end_simplification = STOP (ruler, simplifying);
   message (0, "simplification took %.2f seconds",
            end_simplification - start_simplification);
@@ -7635,8 +7641,8 @@ print_ruler_statistics (struct ruler *ruler)
 
   printf ("c %-22s %17u %13.2f %% variables\n", "eliminated:",
           s->eliminated, percent (s->eliminated, variables));
-  printf ("c %-22s %17u %13s %% binary clauses\n", "deduplicated:",
-          s->deduplicated, "");
+  printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "deduplicated:",
+          s->deduplicated, percent (s->deduplicated, s->subsumed));
   printf ("c %-22s %17u %13.2f %% variables\n", "simplification-fixed:",
           s->fixed, percent (s->fixed, variables));
 
