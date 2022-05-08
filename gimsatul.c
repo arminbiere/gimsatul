@@ -304,9 +304,10 @@ struct clause
 #endif
   atomic_ushort shared;
   unsigned char glue;
-  bool redundant:1;
-  bool garbage:1;
   bool dirty:1;
+  bool garbage:1;
+  bool redundant:1;
+  bool subsume:1;
   unsigned size;
   unsigned literals[];
 };
@@ -553,6 +554,7 @@ struct ruler
   signed char *marks;
   bool *eliminated;
   bool *eliminate;
+  bool *subsume;
   struct clauses *occurrences;
   struct clauses clauses;
   struct unsigneds resolvent;
@@ -1585,7 +1587,9 @@ new_ruler (size_t size)
   assert (sizeof (bool) == 1);
   ruler->eliminated = allocate_and_clear_block (size);
   ruler->eliminate = allocate_and_clear_block (size);
+  ruler->subsume = allocate_and_clear_block (size);
   memset (ruler->eliminate, 1, size);
+  memset (ruler->subsume, 1, size);
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
@@ -2135,9 +2139,10 @@ new_large_clause (size_t size, unsigned *literals,
   if (glue > MAX_GLUE)
     glue = MAX_GLUE;
   clause->glue = glue;
-  clause->redundant = redundant;
   clause->garbage = false;
   clause->dirty = false;
+  clause->redundant = redundant;
+  clause->subsume = false;
   clause->shared = 0;
   clause->size = size;
   memcpy (clause->literals, literals, bytes);
@@ -2194,6 +2199,20 @@ mark_eliminate_clause (struct ruler * ruler, struct clause * clause)
 {
   for (all_literals_in_clause (lit, clause))
     mark_eliminate_literal (ruler, lit);
+}
+
+static void
+mark_subsume_literal (struct ruler * ruler, unsigned lit)
+{
+  unsigned idx = IDX (lit);
+  ruler->subsume[idx] = 1;
+}
+
+static void
+mark_subsume_clause (struct ruler * ruler, struct clause * clause)
+{
+  for (all_literals_in_clause (lit, clause))
+    mark_subsume_literal (ruler, lit);
 }
 
 static void
@@ -2469,6 +2488,8 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	  disconnect_literal (ruler, other, clause);
 	  ROGCLAUSE (clause, "deleting shrunken dirty");
 	  new_ruler_binary_clause (ruler, lit, other);
+	  mark_subsume_literal (ruler, other);
+	  mark_subsume_literal (ruler, lit);
 	  free (clause);
 	  q--;
 	}
@@ -2844,12 +2865,15 @@ add_resolvent (struct ruler * ruler)
       unsigned lit = literals[0];
       unsigned other = literals[1];
       new_ruler_binary_clause (ruler, lit, other);
+      mark_subsume_literal (ruler, other);
+      mark_subsume_literal (ruler, lit);
     }
   else
     {
       assert (size > 2);
       struct clause *clause = new_large_clause (size, literals, false, 0);
       connect_large_clause (ruler, clause);
+      mark_subsume_clause (ruler, clause);
       PUSH (ruler->clauses, clause);
       ROGCLAUSE (clause, "new");
     }
@@ -2950,33 +2974,47 @@ remove_duplicated_binaries (struct ruler * ruler, unsigned round)
   return removed;
 }
 
+static bool
+is_subsumption_candidate (struct ruler * ruler, struct clause * clause)
+{
+  unsigned subsume = 0;
+  for (all_literals_in_clause (lit, clause))
+    if (ruler->subsume[IDX (lit)])
+      if (subsume++)
+	break;
+  return clause->subsume = (subsume > 1);
+}
+
 static size_t
-sort_large_clauses_by_size (struct ruler * ruler,
-                            struct clause *** sorted_ptr)
+get_subsumption_candidates (struct ruler * ruler,
+                            struct clause *** candidates_ptr)
 {
   struct clauses * clauses = &ruler->clauses;
   const size_t size_count = CLAUSE_SIZE_LIMIT + 1;
   size_t count[size_count];
   memset (count, 0, sizeof count);
   for (all_clauses (clause, *clauses))
-    if (clause->size <= CLAUSE_SIZE_LIMIT)
+    if (clause->size <= CLAUSE_SIZE_LIMIT &&
+        is_subsumption_candidate (ruler, clause))
       count[clause->size]++;
   size_t * c = count, * end = c + size_count;
   size_t pos = 0, size;
   while (c != end)
     size = *c, *c++ = pos, pos += size;
   size_t bytes = pos * sizeof (struct clause *);
-  struct clause **sorted = allocate_block (bytes);
+  struct clause **candidates = allocate_block (bytes);
   for (all_clauses (clause, *clauses))
-    if (clause->size <= CLAUSE_SIZE_LIMIT)
-      sorted[count[clause->size]++] = clause;
-  *sorted_ptr = sorted;
+    if (clause->size <= CLAUSE_SIZE_LIMIT && clause->subsume)
+      candidates[count[clause->size]++] = clause;
+  memset (ruler->subsume, 0, ruler->size);
+  *candidates_ptr = candidates;
   return pos;
 }
 
 static bool
 forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 {
+  ROGCLAUSE (clause, "forward subsumed candidates");
   connect_large_clause (ruler, clause);
   return false;
 }
@@ -2986,14 +3024,14 @@ subsume_clauses (struct ruler * ruler, unsigned round)
 {
   double start_subsumption = START (ruler, subsuming);
   size_t subsumed = remove_duplicated_binaries (ruler, round);
-  struct clause ** sorted;
-  size_t size_sorted = sort_large_clauses_by_size (ruler, &sorted);
+  struct clause ** candidates;
+  size_t size_candidates = get_subsumption_candidates (ruler, &candidates);
   verbose (0, "found %zu large forward subsumption candidates in round %u",
-           size_sorted, round);
-  struct clause ** end_sorted = sorted + size_sorted;
-  for (struct clause ** p = sorted; p != end_sorted; p++)
+           size_candidates, round);
+  struct clause ** end_candidates = candidates + size_candidates;
+  for (struct clause ** p = candidates; p != end_candidates; p++)
     subsumed += forward_subsume_large_clause (ruler, *p);
-  free (sorted);
+  free (candidates);
   for (all_clauses (clause, ruler->clauses))
     if (clause->size > CLAUSE_SIZE_LIMIT)
       connect_large_clause (ruler, clause);
