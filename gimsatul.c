@@ -90,8 +90,8 @@ static const char * usage =
 #define CACHE_LINE_SIZE 128
 
 #define VARIABLE_ELIMINATION_ROUNDS 100
-#define OCCURRENCE_LIMIT 1000
 #define ANTECEDENT_SIZE_LIMIT 100
+#define OCCURRENCE_LIMIT 1000
 
 /*------------------------------------------------------------------------*/
 
@@ -2680,27 +2680,20 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       SWAP (pivot, not_pivot);
       SWAP (pos_clauses, neg_clauses);
     }
+  for (all_clauses (clause, *pos_clauses))
+    if (clause_with_too_many_occurrences (ruler, clause, pivot))
+      return false;
+  for (all_clauses (clause, *neg_clauses))
+    if (clause_with_too_many_occurrences (ruler, clause, not_pivot))
+      return false;
   size_t resolvents = 0;
-  bool first = true;
   for (all_clauses (pos_clause, *pos_clauses))
     {
-      if (clause_with_too_many_occurrences (ruler, pos_clause, pivot))
-	return false;
       mark_clause (ruler->marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
-	{
-	  if (first && clause_with_too_many_occurrences (ruler,
-	                                                 neg_clause,
-							 not_pivot))
-	    {
-	      unmark_clause (ruler->marks, pos_clause, pivot);
-	      return false;
-	    }
-	  if (can_resolve_clause (ruler, neg_clause, not_pivot))
-	    if (resolvents++ == limit)
-	      break;
-	  first = false;
-	}
+	if (can_resolve_clause (ruler, neg_clause, not_pivot))
+	  if (resolvents++ == limit)
+	    break;
       unmark_clause (ruler->marks, pos_clause, pivot);
     }
 
