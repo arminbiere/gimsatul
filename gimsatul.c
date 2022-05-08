@@ -89,9 +89,12 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define ELIMINATION_RONDS 10
+#define ELIMINATION_ROUNDS 10
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
+
+#define SUBSUMPTION_TICKS_LIMIT 1000
+#define ELIMINATION_TICKS_LIMIT 1000
 
 /*------------------------------------------------------------------------*/
 
@@ -372,7 +375,7 @@ struct queue
   double *scores;
 };
 
-struct limits
+struct ring_limits
 {
   uint64_t mode;
   uint64_t reduce;
@@ -530,6 +533,12 @@ struct ruler_last
   uint64_t garbage;
 };
 
+struct ruler_limits
+{
+  uint64_t elimination;
+  uint64_t subsumption;
+};
+
 struct ruler_statistics
 {
   uint64_t garbage;
@@ -540,6 +549,11 @@ struct ruler_statistics
   unsigned eliminated;
   unsigned fixed;
   unsigned subsumed;
+  struct
+  {
+    uint64_t elimination;
+    uint64_t subsumption;
+  } ticks;
 };
 
 struct ruler
@@ -564,6 +578,7 @@ struct ruler
   struct buffer buffer;
   struct ruler_profiles profiles;
   struct ruler_statistics statistics;
+  struct ruler_limits limits;
   struct ruler_last last;
 };
 
@@ -610,7 +625,7 @@ struct ring
   struct unsigneds clause;
   struct unsigneds analyzed;
   struct ring_trail trail;
-  struct limits limits;
+  struct ring_limits limits;
   struct buffer buffer;
   struct intervals intervals;
   struct averages averages[2];
@@ -687,6 +702,19 @@ current_resident_set_size (void)
   int scanned = fscanf (file, "%zu %zu", &dummy, &rss);
   fclose (file);
   return scanned == 2 ? rss * sysconf (_SC_PAGESIZE) : 0;
+}
+
+/*------------------------------------------------------------------------*/
+
+static size_t
+cache_lines (void *p, void *q)
+{
+  if (p == q)
+    return 0;
+  assert (p >= q);
+  size_t bytes = (char *) p - (char *) q;
+  size_t res = (bytes + (CACHE_LINE_SIZE - 1)) / CACHE_LINE_SIZE;
+  return res;
 }
 
 /*------------------------------------------------------------------------*/
@@ -2936,6 +2964,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
   struct clause ** end = clauses->end, ** p = q;
   signed char * marks = ruler->marks;
   size_t removed = 0;
+  ruler->statistics.ticks.subsumption = 1 + cache_lines (end, begin);
   while (p != end)
     {
       struct clause * clause = *p++;
@@ -2986,6 +3015,7 @@ static bool
 is_subsumption_candidate (struct ruler * ruler, struct clause * clause)
 {
   bool subsume = false;
+  ruler->statistics.ticks.subsumption++;
   if (clause->size <= CLAUSE_SIZE_LIMIT && !clause->garbage)
     {
       unsigned count = 0;
@@ -3004,6 +3034,7 @@ get_subsumption_candidates (struct ruler * ruler,
                             struct clause *** candidates_ptr)
 {
   struct clauses * clauses = &ruler->clauses;
+  ruler->statistics.ticks.subsumption += SIZE (*clauses);
   const size_t size_count = CLAUSE_SIZE_LIMIT + 1;
   size_t count[size_count];
   memset (count, 0, sizeof count);
@@ -3030,20 +3061,28 @@ find_subsuming_clause (struct ruler * ruler, unsigned lit)
   assert (marked_literal (ruler->marks, lit) > 0);
   struct clauses * clauses = &OCCURRENCES (lit);
   size_t size_clauses = SIZE (*clauses);
-  if (size_clauses > OCCURRENCE_LIMIT)
-    return 0;
-  signed char * marks = ruler->marks;
-  for (all_clauses (clause, *clauses))
+  struct clause * res = 0;
+  uint64_t ticks = 1;
+  if (size_clauses <= OCCURRENCE_LIMIT)
     {
-      if (binary_pointer (clause))
+      signed char * marks = ruler->marks;
+      ticks += cache_lines (clauses->end, clauses->begin);
+      for (all_clauses (clause, *clauses))
 	{
-	  unsigned other = other_pointer (clause);
-	  signed char mark = marked_literal (marks, other);
-	  if (mark > 0)
-	    return clause;
+	  if (binary_pointer (clause))
+	    {
+	      unsigned other = other_pointer (clause);
+	      signed char mark = marked_literal (marks, other);
+	      if (mark > 0)
+		{
+		  res = clause;
+		  break;
+		}
+	    }
 	}
     }
-  return 0;
+  ruler->statistics.ticks.subsumption += ticks;
+  return res;
 }
 
 static bool
@@ -3119,7 +3158,9 @@ subsume_clauses (struct ruler * ruler, unsigned round)
            size_candidates, round);
   struct clause ** end_candidates = candidates + size_candidates;
   for (struct clause ** p = candidates; p != end_candidates; p++)
-    subsumed += forward_subsume_large_clause (ruler, *p);
+    {
+      subsumed += forward_subsume_large_clause (ruler, *p);
+    }
   free (candidates);
   flush_large_clause_references (ruler);
   for (all_clauses (clause, ruler->clauses))
@@ -3243,6 +3284,18 @@ eliminate_variables (struct ruler * ruler, unsigned round)
 }
 
 static void
+set_ruler_limits (struct ruler * ruler)
+{
+  ruler->limits.subsumption = 1000000*(uint64_t) ELIMINATION_TICKS_LIMIT;
+  verbose (0, "setting elimination ticks limit to %u millon ticks",
+           (unsigned) ELIMINATION_TICKS_LIMIT);
+
+  ruler->limits.elimination = 1000000*(uint64_t) SUBSUMPTION_TICKS_LIMIT;
+  verbose (0, "setting subsumption ticks limit to %u millon ticks",
+           (unsigned) SUBSUMPTION_TICKS_LIMIT);
+}
+
+static void
 simplify_ruler (struct ruler * ruler)
 {
   if (ruler->inconsistent)
@@ -3253,11 +3306,12 @@ simplify_ruler (struct ruler * ruler)
       printf ("c\nc simplifying formula before cloning\n");
       fflush (stdout);
     }
+  set_ruler_limits (ruler);
   connect_all_large_clauses (ruler);
   size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
   propagate_and_flush_ruler_units (ruler);
   unsigned total_eliminated = 0;
-  for (unsigned round = 1; round <= ELIMINATION_RONDS; round++)
+  for (unsigned round = 1; round <= ELIMINATION_ROUNDS; round++)
     {
       subsume_clauses (ruler, round);
       unsigned eliminated = eliminate_variables (ruler, round);
@@ -3575,17 +3629,6 @@ clone_ring (void *ptr)
 }
 
 /*------------------------------------------------------------------------*/
-
-static size_t
-cache_lines (void *p, void *q)
-{
-  if (p == q)
-    return 0;
-  assert (p >= q);
-  size_t bytes = (char *) p - (char *) q;
-  size_t res = (bytes + (CACHE_LINE_SIZE - 1)) / CACHE_LINE_SIZE;
-  return res;
-}
 
 static struct watch *
 ring_propagate (struct ring *ring, bool search)
@@ -4940,7 +4983,7 @@ restarting (struct ring *ring)
 {
   if (!ring->level)
     return false;
-  struct limits *l = &ring->limits;
+  struct ring_limits *l = &ring->limits;
   if (!ring->stable)
     {
       struct averages *a = ring->averages;
@@ -4959,7 +5002,7 @@ restart (struct ring *ring)
 	   statistics->restarts, SEARCH_CONFLICTS);
   update_best_and_target_phases (ring);
   backtrack (ring, 0);
-  struct limits *limits = &ring->limits;
+  struct ring_limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS;
   if (ring->stable)
     {
@@ -5268,7 +5311,7 @@ reduce (struct ring *ring)
 {
   check_clause_statistics (ring);
   struct ring_statistics *statistics = &ring->statistics;
-  struct limits *limits = &ring->limits;
+  struct ring_limits *limits = &ring->limits;
   statistics->reductions++;
   verbose (ring, "reduction %" PRIu64 " at %" PRIu64 " conflicts",
 	   statistics->reductions, SEARCH_CONFLICTS);
@@ -5302,7 +5345,7 @@ switch_to_focused_mode (struct ring *ring)
   ring->stable = false;
   START (ring, focused);
   report (ring, '{');
-  struct limits *limits = &ring->limits;
+  struct ring_limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS + FOCUSED_RESTART_INTERVAL;
 }
 
@@ -5315,7 +5358,7 @@ switch_to_stable_mode (struct ring *ring)
   ring->stable = true;
   START (ring, stable);
   report (ring, '[');
-  struct limits *limits = &ring->limits;
+  struct ring_limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS + STABLE_RESTART_INTERVAL;
   ring->reluctant.u = ring->reluctant.v = 1;
 }
@@ -5323,7 +5366,7 @@ switch_to_stable_mode (struct ring *ring)
 static bool
 switching_mode (struct ring *ring)
 {
-  struct limits *l = &ring->limits;
+  struct ring_limits *l = &ring->limits;
   if (ring->statistics.switched)
     return SEARCH_TICKS > l->mode;
   else
@@ -5342,7 +5385,7 @@ switch_mode (struct ring *ring)
 {
   struct ring_statistics *s = &ring->statistics;
   struct intervals *i = &ring->intervals;
-  struct limits *l = &ring->limits;
+  struct ring_limits *l = &ring->limits;
   if (!s->switched++)
     {
       i->mode = SEARCH_TICKS;
@@ -6396,7 +6439,7 @@ rephase (struct ring *ring)
   if (ring->level)
     backtrack (ring, 0);
   struct ring_statistics *statistics = &ring->statistics;
-  struct limits *limits = &ring->limits;
+  struct ring_limits *limits = &ring->limits;
   uint64_t rephased = ++statistics->rephased;
   size_t size_schedule = sizeof schedule / sizeof *schedule;
   char type = schedule[rephased % size_schedule] (ring);
@@ -6791,13 +6834,13 @@ parse_options (int argc, char **argv, struct options *opts)
 }
 
 static void
-set_limits (struct ring *ring, long long conflicts)
+set_ring_limits (struct ring *ring, long long conflicts)
 {
   if (ring->inconsistent)
     return;
   assert (!ring->stable);
   assert (!SEARCH_CONFLICTS);
-  struct limits *limits = &ring->limits;
+  struct ring_limits *limits = &ring->limits;
   limits->mode = MODE_INTERVAL;
   limits->reduce = REDUCE_INTERVAL;
   limits->restart = FOCUSED_RESTART_INTERVAL;
@@ -7264,7 +7307,7 @@ run_rings (struct ruler *ruler, long long conflicts)
 	printf ("c conflict limit %lld\n", conflicts);
     }
   for (all_rings (ring))
-    set_limits (ring, conflicts);
+    set_ring_limits (ring, conflicts);
   if (threads > 1)
     {
       if (verbosity >= 0)
