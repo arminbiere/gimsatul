@@ -92,12 +92,12 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define ELIMINATION_ROUNDS 2
-#define CLAUSE_SIZE_LIMIT 1000
-#define OCCURRENCE_LIMIT 100
+#define ELIMINATION_ROUNDS 10
+#define CLAUSE_SIZE_LIMIT 100
+#define OCCURRENCE_LIMIT 1000
 
-#define SUBSUMPTION_TICKS_LIMIT 2000
-#define ELIMINATION_TICKS_LIMIT 2000
+#define SUBSUMPTION_TICKS_LIMIT 20000
+#define ELIMINATION_TICKS_LIMIT 20000
 
 /*------------------------------------------------------------------------*/
 
