@@ -2987,8 +2987,6 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 {
   ruler->statistics.ticks.subsumption++;
   struct clauses * clauses = &OCCURRENCES (lit);
-  if (SIZE (*clauses) > OCCURRENCE_LIMIT)
-    return 0;
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
   signed char * marks = ruler->marks;
