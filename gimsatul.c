@@ -3570,7 +3570,7 @@ copy_ruler_binaries (struct ring *ring)
   struct ruler *ruler = ring->ruler;
   assert (first_ring (ruler) == ring);
   assert (!ring->id);
-  size_t watched = 0;
+  size_t copied = 0;
 
   for (all_ruler_literals (lit))
     {
@@ -3588,19 +3588,17 @@ copy_ruler_binaries (struct ring *ring)
 	    assert (lit_pointer (clause) == lit);
 	    assert (!redundant_pointer (clause));
 	    unsigned other = other_pointer (clause);
-#ifdef LOGGING
 	    if (other < lit)
-	      LOGBINARY (false, lit, other , "copying");
-#endif
+	      {
+		LOGBINARY (false, lit, other , "copying");
+		copied++;
+	      }
 	    *b++ = other;
 	  }
       assert (binaries + size == b);
       *b = INVALID;
       RELEASE (*occurrences);
-      watched += size;
     }
-  assert (!(watched & 1));
-  size_t copied = watched / 2;
   ring->statistics.irredundant += copied;
   very_verbose (ring, "copied %zu binary clauses", copied);
   assert (copied == ruler->statistics.binaries);
