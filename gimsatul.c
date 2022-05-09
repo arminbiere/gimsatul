@@ -14,6 +14,7 @@ static const char * usage =
 "-l|--log[ging]   enable very verbose internal logging\n"
 #endif
 "-n|--no-witness  do not print satisfying assignments\n"
+"-O|-O1|-O2|-O3   increase simplification ticks limits by 10^<level>\n"
 "-q|--quiet       disable all additional messages\n"
 "-v|--verbose     increase verbosity\n"
 "--version        print version\n"
@@ -91,12 +92,12 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define ELIMINATION_ROUNDS 10
-#define CLAUSE_SIZE_LIMIT 100
-#define OCCURRENCE_LIMIT 1000
+#define ELIMINATION_ROUNDS 2
+#define CLAUSE_SIZE_LIMIT 1000
+#define OCCURRENCE_LIMIT 100
 
-#define SUBSUMPTION_TICKS_LIMIT 400
-#define ELIMINATION_TICKS_LIMIT 400
+#define SUBSUMPTION_TICKS_LIMIT 2000
+#define ELIMINATION_TICKS_LIMIT 2000
 
 /*------------------------------------------------------------------------*/
 
@@ -2712,6 +2713,14 @@ actual_occurrences (struct clauses * clauses)
 }
 
 static bool
+elimination_ticks_limit_hit (struct ruler * ruler)
+{
+  struct ruler_statistics * statistics = &ruler->statistics;
+  struct ruler_limits * limits = &ruler->limits;
+  return statistics->ticks.elimination > limits->elimination;
+}
+
+static bool
 can_eliminate_variable (struct ruler * ruler, unsigned idx)
 {
   if (ruler->eliminated[idx])
@@ -2767,18 +2776,21 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       return false;
 
   size_t resolvents = 0;
-  uint64_t ticks = 1;
   for (all_clauses (pos_clause, *pos_clauses))
     {
-      ticks++;
+      ruler->statistics.ticks.elimination++;
       mark_clause (ruler->marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
-	if (can_resolve_clause (ruler, neg_clause, not_pivot))
+	if (elimination_ticks_limit_hit (ruler))
+	  break;
+	else if (can_resolve_clause (ruler, neg_clause, not_pivot))
 	  if (resolvents++ == limit)
 	    break;
       unmark_clause (ruler->marks, pos_clause, pivot);
     }
-  ruler->statistics.ticks.elimination += ticks;
+
+  if (elimination_ticks_limit_hit (ruler))
+    return false;
 
   if (resolvents == limit)
     ROG ("number of resolvents %zu matches limit %zu", resolvents, limit);
@@ -3303,15 +3315,6 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
 }
 
-static bool
-elimination_ticks_limit_hit (struct ruler * ruler)
-{
-  struct ruler_statistics * statistics = &ruler->statistics;
-  struct ruler_limits * limits = &ruler->limits;
-  return statistics->ticks.elimination > limits->elimination;
-}
-
-
 static unsigned
 eliminate_variables (struct ruler * ruler, unsigned round)
 {
@@ -3325,12 +3328,12 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   for (all_ruler_indices (idx))
     if (ruler->inconsistent)
       break;
+    else if (elimination_ticks_limit_hit (ruler))
+      break;
     else if (can_eliminate_variable (ruler, idx))
       {
 	eliminate_variable (ruler, idx);
 	eliminated++;
-	if (elimination_ticks_limit_hit (ruler))
-	  break;;
 #if 0
 	break;
 #endif
@@ -3342,20 +3345,41 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   return eliminated;
 }
 
-static void
-set_ruler_limits (struct ruler * ruler)
+static uint64_t
+scale_ticks_limit (unsigned optimized, unsigned base)
 {
-  ruler->limits.subsumption = 1000000*(uint64_t) ELIMINATION_TICKS_LIMIT;
+  uint64_t res = base;
+  res *= 1e6;
+  for (unsigned i = 0; i != optimized; i++)
+    {
+      if (UINT64_MAX/10 > res)
+	res *= 10;
+      else
+	{
+	  res = UINT64_MAX;
+	  break;
+	}
+    }
+  return res;
+}
+
+static void
+set_ruler_limits (struct ruler * ruler, unsigned optimize)
+{
+  message (0, "simplification optimization level %u", optimize);
+  ruler->limits.subsumption =
+    scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
   message (0, "setting elimination ticks limit to %" PRIu64,
            ruler->limits.subsumption);
 
-  ruler->limits.elimination = 1000000*(uint64_t) SUBSUMPTION_TICKS_LIMIT;
+  ruler->limits.elimination =
+    scale_ticks_limit (optimize, SUBSUMPTION_TICKS_LIMIT);
   message (0, "setting subsumption ticks limit to %" PRIu64,
            ruler->limits.elimination);
 }
 
 static void
-simplify_ruler (struct ruler * ruler)
+simplify_ruler (struct ruler * ruler, unsigned optimize)
 {
   if (ruler->inconsistent)
     return;
@@ -3365,7 +3389,7 @@ simplify_ruler (struct ruler * ruler)
       printf ("c\nc simplifying formula before cloning\n");
       fflush (stdout);
     }
-  set_ruler_limits (ruler);
+  set_ruler_limits (ruler, optimize);
   connect_all_large_clauses (ruler);
   size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
   propagate_and_flush_ruler_units (ruler);
@@ -3397,10 +3421,12 @@ simplify_ruler (struct ruler * ruler)
 	       removed_variables, percent (removed_variables, ruler->size));
     }
 
-  message (0, "subsumption ticks %" PRIu64,
-           ruler->statistics.ticks.subsumption);
-  message (0, "elimination ticks %" PRIu64,
-           ruler->statistics.ticks.elimination);
+  message (0, "subsumption ticks used %" PRIu64 "%s",
+           ruler->statistics.ticks.subsumption,
+	   subsumption_ticks_limit_hit (ruler) ? " (limit hit)" : "");
+  message (0, "elimination ticks used %" PRIu64 "%s",
+           ruler->statistics.ticks.elimination,
+	   elimination_ticks_limit_hit (ruler) ? " (limit hit)" : "");
 
   double end_simplification = STOP (ruler, simplifying);
   message (0, "simplification took %.2f seconds",
@@ -6688,6 +6714,7 @@ struct options
   long long conflicts;
   unsigned seconds;
   unsigned threads;
+  unsigned optimize;
 };
 
 static const char *
@@ -6720,6 +6747,7 @@ parse_options (int argc, char **argv, struct options *opts)
   opts->conflicts = -1;
   opts->seconds = 0;
   opts->threads = 0;
+  opts->optimize = 0;
   const char *quiet_opt = 0;
   const char *verbose_opt = 0;
   for (int i = 1; i != argc; i++)
@@ -6743,6 +6771,15 @@ parse_options (int argc, char **argv, struct options *opts)
 #endif
       else if (!strcmp (opt, "-n") || !strcmp (opt, "--no-witness"))
 	witness = false;
+      else if (!strcmp (opt, "-O") || !strcmp (opt, "-O1"))
+	opts->optimize = 1;
+      else if (!strcmp (opt, "-O2"))
+	opts->optimize = 2;
+      else if (!strcmp (opt, "-O3"))
+	opts->optimize = 3;
+      else if (opt[0] == '-' && opt[1] == 'O')
+	die ("invalid optimization option '%s' "
+	     "(only '-O' and '-O[1-3]' supported)", opt);
       else if (!strcmp (opt, "-q") || !strcmp (opt, "--quiet"))
 	{
 	  if (quiet_opt)
@@ -6979,8 +7016,8 @@ parse_int (int *res_ptr, int prev, int *next)
 static struct unsigneds original;
 #endif
 
-static struct ruler *
-parse_dimacs_file ()
+static void
+parse_dimacs_header (int * variables_ptr, int * clauses_ptr)
 {
   if (verbosity >= 0)
     {
@@ -6996,7 +7033,7 @@ parse_dimacs_file ()
     }
   if (ch != 'p')
     parse_error ("expected 'c' or 'p'");
-  int variables, expected;
+  int variables, clauses;
   if (next_char () != ' ' ||
       next_char () != 'c' ||
       next_char () != 'n' ||
@@ -7004,7 +7041,7 @@ parse_dimacs_file ()
       next_char () != ' ' ||
       !parse_int (&variables, EOF, &ch) ||
       variables < 0 ||
-      ch != ' ' || !parse_int (&expected, EOF, &ch) || expected < 0)
+      ch != ' ' || !parse_int (&clauses, EOF, &ch) || clauses < 0)
   INVALID_HEADER:
     parse_error ("invalid 'p cnf ...' header line");
   if (variables > MAX_VAR)
@@ -7013,12 +7050,14 @@ parse_dimacs_file ()
     ch = next_char ();
   if (ch != '\n')
     goto INVALID_HEADER;
-  if (verbosity >= 0)
-    {
-      printf ("c parsed 'p cnf %d %d' header\n", variables, expected);
-      fflush (stdout);
-    }
-  struct ruler *ruler = new_ruler (variables);
+  message (0, "parsed 'p cnf %d %d' header", variables, clauses);
+  *variables_ptr = variables;
+  *clauses_ptr = clauses;
+}
+
+static void
+parse_dimacs_body (struct ruler * ruler, int variables, int expected)
+{
   double start_parsing = START (ruler, parsing);
   signed char *marked = ruler->marks;
   struct unsigneds clause;
@@ -7027,7 +7066,7 @@ parse_dimacs_file ()
   bool trivial = false;
   for (;;)
     {
-      ch = next_char ();
+      int ch = next_char ();
       if (ch == EOF)
 	{
 	  if (signed_lit)
@@ -7137,7 +7176,6 @@ parse_dimacs_file ()
   ruler->statistics.original = parsed;
   double end_parsing = STOP (ruler, parsing);
   message (0, "parsing took %.2f seconds", end_parsing - start_parsing);
-  return ruler;
 }
 
 /*------------------------------------------------------------------------*/
@@ -7507,7 +7545,8 @@ catch_signal (int sig)
     return;
   caught_message (sig);
   reset_signal_handlers ();
-  print_ruler_statistics (ruler);
+  if (ruler)
+    print_ruler_statistics (ruler);
   raise (sig);
 }
 
@@ -7920,10 +7959,13 @@ main (int argc, char **argv)
 	      binary_proof_format ? "binary" : "ASCII", proof.path);
       fflush (stdout);
     }
-  ruler = parse_dimacs_file ();
-  simplify_ruler (ruler);
-  clone_rings (ruler, options.threads);
+  int variables, clauses;
+  parse_dimacs_header (&variables, &clauses);
+  ruler = new_ruler (variables);
   set_signal_handlers (options.seconds);
+  parse_dimacs_body (ruler, variables, clauses);
+  simplify_ruler (ruler, options.optimize);
+  clone_rings (ruler, options.threads);
   run_rings (ruler, options.conflicts);
   struct ring *winner = (struct ring *) ruler->winner;
   int res = winner ? winner->status : 0;
