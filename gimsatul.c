@@ -96,8 +96,8 @@ static const char * usage =
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
-#define SUBSUMPTION_TICKS_LIMIT 20000
-#define ELIMINATION_TICKS_LIMIT 20000
+#define SUBSUMPTION_TICKS_LIMIT 200
+#define ELIMINATION_TICKS_LIMIT 200
 
 /*------------------------------------------------------------------------*/
 
@@ -2672,9 +2672,9 @@ can_resolve_clause (struct ruler * ruler,
     }
   else
     {
-      ruler->statistics.ticks.elimination++;
       assert (!clause->garbage);
       assert (clause->size <= CLAUSE_SIZE_LIMIT);
+      ruler->statistics.ticks.elimination++;
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == except)
@@ -2733,11 +2733,8 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 
   ROG ("trying next elimination candidate %s", ROGVAR (idx));
   ruler->eliminate[idx] = false;
-  unsigned not_pivot = NOT (pivot);
 
   struct clauses * pos_clauses = &OCCURRENCES (pivot);
-  struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
-
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
   size_t pos_size = actual_occurrences (pos_clauses);
   if (pos_size > OCCURRENCE_LIMIT)
@@ -2748,6 +2745,8 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       return false;
     }
 
+  unsigned not_pivot = NOT (pivot);
+  struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (not_pivot));
   size_t neg_size = actual_occurrences (neg_clauses);
   if (neg_size > OCCURRENCE_LIMIT)
@@ -2764,6 +2763,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
+      SWAP (pos_size, neg_size);
       SWAP (pos_clauses, neg_clauses);
     }
 
@@ -2776,18 +2776,35 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       return false;
 
   size_t resolvents = 0;
+  size_t resolutions = 0;
+#if 0
+  uint64_t ticks = ruler->statistics.ticks.elimination;
+#endif
+
   for (all_clauses (pos_clause, *pos_clauses))
     {
       ruler->statistics.ticks.elimination++;
       mark_clause (ruler->marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
-	if (elimination_ticks_limit_hit (ruler))
-	  break;
-	else if (can_resolve_clause (ruler, neg_clause, not_pivot))
-	  if (resolvents++ == limit)
+	{
+	  if (elimination_ticks_limit_hit (ruler))
 	    break;
+	  resolutions++;
+	  if (can_resolve_clause (ruler, neg_clause, not_pivot))
+	    if (resolvents++ == limit)
+	      break;
+	}
       unmark_clause (ruler->marks, pos_clause, pivot);
+      if (elimination_ticks_limit_hit (ruler))
+	break;
     }
+
+#if 0
+  message (0, "candidate %d has %zu = %zu + %zu occurrences took %zu resolutions %" PRIu64 " ticks total %" PRIu64,
+        export_literal (pivot), limit, pos_size, neg_size, resolutions,
+	ruler->statistics.ticks.elimination - ticks,
+	ruler->statistics.ticks.elimination);
+#endif
 
   if (elimination_ticks_limit_hit (ruler))
     return false;
@@ -3324,18 +3341,20 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   double start_round = START (ruler, eliminating);
   unsigned eliminated = 0;
   for (all_ruler_indices (idx))
-    if (ruler->inconsistent)
-      break;
-    else if (elimination_ticks_limit_hit (ruler))
-      break;
-    else if (can_eliminate_variable (ruler, idx))
-      {
-	eliminate_variable (ruler, idx);
-	eliminated++;
-#if 0
+    {
+      if (ruler->inconsistent)
 	break;
+      if (elimination_ticks_limit_hit (ruler))
+	break;
+      if (can_eliminate_variable (ruler, idx))
+	{
+	  eliminate_variable (ruler, idx);
+	  eliminated++;
+#if 0
+	  break;
 #endif
-      }
+	}
+    }
   RELEASE (ruler->resolvent);
   double end_round = STOP (ruler, eliminating);
   message (0, "eliminated %u variables in round %u in %.2f seconds",
@@ -3365,15 +3384,16 @@ static void
 set_ruler_limits (struct ruler * ruler, unsigned optimize)
 {
   message (0, "simplification optimization level %u", optimize);
-  ruler->limits.subsumption =
-    scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-  message (0, "setting elimination ticks limit to %" PRIu64,
-           ruler->limits.subsumption);
 
   ruler->limits.elimination =
+    scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
+  message (0, "setting elimination ticks limit to %" PRIu64,
+           ruler->limits.elimination);
+
+  ruler->limits.subsumption =
     scale_ticks_limit (optimize, SUBSUMPTION_TICKS_LIMIT);
   message (0, "setting subsumption ticks limit to %" PRIu64,
-           ruler->limits.elimination);
+           ruler->limits.subsumption);
 }
 
 static void
