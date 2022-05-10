@@ -3153,6 +3153,7 @@ find_subsuming_clause (struct ruler * ruler, unsigned lit,
 	    {
 	      ticks++;
 	      res = clause;
+	      assert (!clause->garbage);
 	      for (all_literals_in_clause (other, clause))
 		{
 		  signed char mark = marked_literal (marks, other);
@@ -3215,36 +3216,60 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
   assert (!clause->garbage);
   assert (clause->size <= CLAUSE_SIZE_LIMIT);
   mark_clause (ruler->marks, clause, INVALID);
+  unsigned remove = INVALID, other = INVALID;
   struct clause * subsuming = 0;
-  unsigned remove = INVALID;
   for (all_literals_in_clause (lit, clause))
     {
       subsuming = find_subsuming_clause (ruler, lit, false, &remove);
       if (subsuming)
-	break;
+	{
+	  other = lit;
+	  break;
+	}
       unsigned not_lit = NOT (lit);
       subsuming = find_subsuming_clause (ruler, not_lit, true, &remove);
       if (subsuming)
-	break;
+	{
+	  other = not_lit;
+	  break;
+	}
     }
   if (subsuming && remove == INVALID)
     {
       ROGCLAUSE (subsuming, "subsuming");
       ruler->statistics.subsumed++;
-      ROGCLAUSE (clause, "disconnecting and marking garbage subsumed");
+      ROGCLAUSE (clause, "marking garbage subsumed");
       trace_delete_clause (&ruler->buffer, clause);
       ruler->statistics.garbage++;
       clause->garbage = true;
     }
   else
     {
+      bool connect = true;
       if (subsuming && clause->size > 3)
 	{
 	  assert (remove != INVALID);
-	  ROGCLAUSE (subsuming, "resolving on %s", ROGLIT (NOT (remove)));
+	  bool self_subsuming = (clause->size == subsuming->size);
+	  if (self_subsuming)
+	    ROGCLAUSE (subsuming,
+		       "self-subsuming resolution on %s with",
+		       ROGLIT (NOT (remove)));
+	  else
+	    ROGCLAUSE (subsuming, "resolution on %s with",
+	               ROGLIT (NOT (remove)));
 	  strengthen_very_large_clause (ruler, clause, remove);
 	  ROGCLAUSE (clause, "strengthened");
 	  unmark_literal (ruler->marks, remove);
+	  if (self_subsuming)
+	    {
+	      ruler->statistics.subsumed++;
+	      ROGCLAUSE (subsuming,
+	                "disconnecting and marking garbage subsumed");
+	      disconnect_literal (ruler, other, subsuming);
+	      trace_delete_clause (&ruler->buffer, subsuming);
+	      ruler->statistics.garbage++;
+	      subsuming->garbage = true;
+	    }
 	}
 #if 0
   else if (subsuming && clause->size == 3)
@@ -3252,22 +3277,25 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
       // TODO;
     }
 #endif
-      unsigned min_lit = INVALID;
-      unsigned min_size = UINT_MAX;
-      for (all_literals_in_clause (lit, clause))
+      if (connect)
 	{
-	  unsigned lit_size = SIZE (OCCURRENCES (lit));
-	  if (min_lit != INVALID && min_size <= lit_size)
-	    continue;
-	  min_lit = lit;
-	  min_size = lit_size;
+	  unsigned min_lit = INVALID;
+	  unsigned min_size = UINT_MAX;
+	  for (all_literals_in_clause (lit, clause))
+	    {
+	      unsigned lit_size = SIZE (OCCURRENCES (lit));
+	      if (min_lit != INVALID && min_size <= lit_size)
+		continue;
+	      min_lit = lit;
+	      min_size = lit_size;
+	    }
+	  assert (min_lit != INVALID);
+	  assert (min_size != INVALID);
+	  ROGCLAUSE (clause, "connecting least occurring literal %s "
+			     "with %u occurrences in",
+			     ROGLIT (min_lit), min_size);
+	  connect_literal (ruler, min_lit, clause);
 	}
-      assert (min_lit != INVALID);
-      assert (min_size != INVALID);
-      ROGCLAUSE (clause, "connecting least occurring literal %s "
-                         "with %u occurrences in",
-			 ROGLIT (min_lit), min_size);
-      connect_literal (ruler, min_lit, clause);
     }
   unmark_clause (ruler->marks, clause, INVALID);
   return subsuming;
