@@ -92,7 +92,7 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define ELIMINATION_ROUNDS 16
+#define SIMPLIFICATION_ROUNDS 16
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
@@ -3556,7 +3556,10 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
   size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
   propagate_and_flush_ruler_units (ruler);
   unsigned total_eliminated = 0;
-  for (unsigned round = 1; round <= ELIMINATION_ROUNDS; round++)
+  assert ((UINT_MAX - 1)/(optimize + 1) >= SIMPLIFICATION_ROUNDS);
+  unsigned max_rounds = (optimize + 1) * SIMPLIFICATION_ROUNDS;
+  message (0, "running  maximum number of %u simplification rounds", max_rounds);
+  for (unsigned round = 1; round <= max_rounds; round++)
     {
       if (ruler->inconsistent)
 	break;
