@@ -92,12 +92,12 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define ELIMINATION_ROUNDS 2
-#define CLAUSE_SIZE_LIMIT 1000
-#define OCCURRENCE_LIMIT 100
+#define ELIMINATION_ROUNDS 10
+#define CLAUSE_SIZE_LIMIT 100
+#define OCCURRENCE_LIMIT 1000
 
-#define SUBSUMPTION_TICKS_LIMIT 2000
-#define ELIMINATION_TICKS_LIMIT 2000
+#define SUBSUMPTION_TICKS_LIMIT 200
+#define ELIMINATION_TICKS_LIMIT 200
 
 /*------------------------------------------------------------------------*/
 
@@ -2679,9 +2679,9 @@ can_resolve_clause (struct ruler * ruler,
     }
   else
     {
-      ruler->statistics.ticks.elimination++;
       assert (!clause->garbage);
       assert (clause->size <= CLAUSE_SIZE_LIMIT);
+      ruler->statistics.ticks.elimination++;
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == except)
@@ -2740,11 +2740,8 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 
   ROG ("trying next elimination candidate %s", ROGVAR (idx));
   ruler->eliminate[idx] = false;
-  unsigned not_pivot = NOT (pivot);
 
   struct clauses * pos_clauses = &OCCURRENCES (pivot);
-  struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
-
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
   size_t pos_size = actual_occurrences (pos_clauses);
   if (pos_size > OCCURRENCE_LIMIT)
@@ -2755,6 +2752,8 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       return false;
     }
 
+  unsigned not_pivot = NOT (pivot);
+  struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (not_pivot));
   size_t neg_size = actual_occurrences (neg_clauses);
   if (neg_size > OCCURRENCE_LIMIT)
@@ -2771,6 +2770,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
+      SWAP (pos_size, neg_size);
       SWAP (pos_clauses, neg_clauses);
     }
 
@@ -2783,18 +2783,35 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       return false;
 
   size_t resolvents = 0;
+  size_t resolutions = 0;
+#if 0
+  uint64_t ticks = ruler->statistics.ticks.elimination;
+#endif
+
   for (all_clauses (pos_clause, *pos_clauses))
     {
       ruler->statistics.ticks.elimination++;
       mark_clause (ruler->marks, pos_clause, pivot);
       for (all_clauses (neg_clause, *neg_clauses))
-	if (elimination_ticks_limit_hit (ruler))
-	  break;
-	else if (can_resolve_clause (ruler, neg_clause, not_pivot))
-	  if (resolvents++ == limit)
+	{
+	  if (elimination_ticks_limit_hit (ruler))
 	    break;
+	  resolutions++;
+	  if (can_resolve_clause (ruler, neg_clause, not_pivot))
+	    if (resolvents++ == limit)
+	      break;
+	}
       unmark_clause (ruler->marks, pos_clause, pivot);
+      if (elimination_ticks_limit_hit (ruler))
+	break;
     }
+
+#if 0
+  message (0, "candidate %d has %zu = %zu + %zu occurrences took %zu resolutions %" PRIu64 " ticks total %" PRIu64,
+        export_literal (pivot), limit, pos_size, neg_size, resolutions,
+	ruler->statistics.ticks.elimination - ticks,
+	ruler->statistics.ticks.elimination);
+#endif
 
   if (elimination_ticks_limit_hit (ruler))
     return false;
@@ -2994,8 +3011,6 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 {
   ruler->statistics.ticks.subsumption++;
   struct clauses * clauses = &OCCURRENCES (lit);
-  if (SIZE (*clauses) > OCCURRENCE_LIMIT)
-    return 0;
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
   signed char * marks = ruler->marks;
@@ -3348,18 +3363,20 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   ruler->eliminating = true;
   unsigned eliminated = 0;
   for (all_ruler_indices (idx))
-    if (ruler->inconsistent)
-      break;
-    else if (elimination_ticks_limit_hit (ruler))
-      break;
-    else if (can_eliminate_variable (ruler, idx))
-      {
-	eliminate_variable (ruler, idx);
-	eliminated++;
-#if 0
+    {
+      if (ruler->inconsistent)
 	break;
+      if (elimination_ticks_limit_hit (ruler))
+	break;
+      if (can_eliminate_variable (ruler, idx))
+	{
+	  eliminate_variable (ruler, idx);
+	  eliminated++;
+#if 0
+	  break;
 #endif
-      }
+	}
+    }
   RELEASE (ruler->resolvent);
   assert (ruler->eliminating);
   ruler->eliminating = false;
@@ -3391,15 +3408,16 @@ static void
 set_ruler_limits (struct ruler * ruler, unsigned optimize)
 {
   message (0, "simplification optimization level %u", optimize);
-  ruler->limits.subsumption =
-    scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-  message (0, "setting elimination ticks limit to %" PRIu64,
-           ruler->limits.subsumption);
 
   ruler->limits.elimination =
+    scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
+  message (0, "setting elimination ticks limit to %" PRIu64,
+           ruler->limits.elimination);
+
+  ruler->limits.subsumption =
     scale_ticks_limit (optimize, SUBSUMPTION_TICKS_LIMIT);
   message (0, "setting subsumption ticks limit to %" PRIu64,
-           ruler->limits.elimination);
+           ruler->limits.subsumption);
 }
 
 static void
@@ -3594,7 +3612,7 @@ copy_ruler_binaries (struct ring *ring)
   struct ruler *ruler = ring->ruler;
   assert (first_ring (ruler) == ring);
   assert (!ring->id);
-  size_t watched = 0;
+  size_t copied = 0;
 
   for (all_ruler_literals (lit))
     {
@@ -3612,19 +3630,17 @@ copy_ruler_binaries (struct ring *ring)
 	    assert (lit_pointer (clause) == lit);
 	    assert (!redundant_pointer (clause));
 	    unsigned other = other_pointer (clause);
-#ifdef LOGGING
 	    if (other < lit)
-	      LOGBINARY (false, lit, other , "copying");
-#endif
+	      {
+		LOGBINARY (false, lit, other , "copying");
+		copied++;
+	      }
 	    *b++ = other;
 	  }
       assert (binaries + size == b);
       *b = INVALID;
       RELEASE (*occurrences);
-      watched += size;
     }
-  assert (!(watched & 1));
-  size_t copied = watched / 2;
   ring->statistics.irredundant += copied;
   very_verbose (ring, "copied %zu binary clauses", copied);
   assert (copied == ruler->statistics.binaries);
