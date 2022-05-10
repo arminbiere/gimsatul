@@ -553,6 +553,7 @@ struct ruler_statistics
   unsigned fixed;
   unsigned strengthened;
   unsigned subsumed;
+  unsigned self_subsumed;
   struct
   {
     uint64_t elimination;
@@ -3249,7 +3250,8 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
       if (subsuming && clause->size > 3)
 	{
 	  assert (remove != INVALID);
-	  bool self_subsuming = (clause->size == subsuming->size);
+	  bool self_subsuming = !binary_pointer (subsuming) &&
+	                        (clause->size == subsuming->size);
 	  if (self_subsuming)
 	    ROGCLAUSE (subsuming,
 		       "self-subsuming resolution on %s with",
@@ -3263,6 +3265,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	  if (self_subsuming)
 	    {
 	      ruler->statistics.subsumed++;
+	      ruler->statistics.self_subsumed++;
 	      ROGCLAUSE (subsuming,
 	                "disconnecting and marking garbage subsumed");
 	      disconnect_literal (ruler, other, subsuming);
@@ -8022,6 +8025,8 @@ print_ruler_statistics (struct ruler *ruler)
           s->eliminated, percent (s->eliminated, variables));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "deduplicated:",
           s->deduplicated, percent (s->deduplicated, s->subsumed));
+  printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "self-subsumed::",
+          s->self_subsumed, percent (s->self_subsumed, s->subsumed));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "strengthened:",
           s->strengthened, percent (s->strengthened, s->subsumed));
   printf ("c %-22s %17u %13.2f %% original clauses\n", "subsumed:",
