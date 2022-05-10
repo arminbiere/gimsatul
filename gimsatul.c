@@ -3328,8 +3328,9 @@ subsume_clauses (struct ruler * ruler, unsigned round)
   assert (ruler->subsuming);
   ruler->subsuming = false;
   double end_subsumption = STOP (ruler, subsuming);
-  message (0, "subsumed %zu clauses in round %u in %.2f seconds",
-           subsumed, round, end_subsumption - start_subsumption);
+  message (0, "subsumed and strengthened %zu clauses "
+           "in round %u in %.2f seconds", subsumed, round,
+	   end_subsumption - start_subsumption);
 }
 
 static void
