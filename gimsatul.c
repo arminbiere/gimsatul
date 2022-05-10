@@ -563,6 +563,8 @@ struct ruler
 {
   unsigned size;
   volatile bool terminate;
+  bool subsuming;
+  bool eliminating;
   bool inconsistent;
   struct locks locks;
   struct rings rings;
@@ -2449,7 +2451,12 @@ disconnect_literal (struct ruler * ruler,
   struct clauses * clauses = &OCCURRENCES (lit);
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
-  ruler->statistics.ticks.elimination += 1 + cache_lines (end, begin);
+  uint64_t ticks = 1 + cache_lines (end, begin);
+  if (ruler->eliminating)
+    ruler->statistics.ticks.elimination += ticks;
+  if (ruler->subsuming)
+    ruler->statistics.ticks.subsumption += ticks;
+  COVER (ruler->subsuming);
   while (p != end)
     {
       struct clause * other_clause = *q++ = *p++;
@@ -3085,13 +3092,15 @@ get_subsumption_candidates (struct ruler * ruler,
 }
 
 static struct clause *
-find_subsuming_clause (struct ruler * ruler, unsigned lit)
+find_subsuming_clause (struct ruler * ruler, unsigned lit,
+                       unsigned * strengthen)
 {
   assert (marked_literal (ruler->marks, lit) > 0);
   struct clauses * clauses = &OCCURRENCES (lit);
   size_t size_clauses = SIZE (*clauses);
   struct clause * res = 0;
   uint64_t ticks = 1;
+  *strengthen = INVALID;
   if (size_clauses <= OCCURRENCE_LIMIT)
     {
       signed char * marks = ruler->marks;
@@ -3139,10 +3148,11 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
   assert (clause->size <= CLAUSE_SIZE_LIMIT);
   mark_clause (ruler->marks, clause, INVALID);
   struct clause * subsuming = 0;
+  unsigned strengthen;
   for (all_literals_in_clause (lit, clause))
-    if ((subsuming = find_subsuming_clause (ruler, lit)))
+    if ((subsuming = find_subsuming_clause (ruler, lit, &strengthen)))
       break;
-  if (subsuming)
+  if (subsuming && strengthen == INVALID)
     {
       ROGCLAUSE (subsuming, "subsuming");
       ruler->statistics.subsumed++;
@@ -3153,6 +3163,12 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
     }
   else
     {
+      if (subsuming)
+	{
+	  assert (strengthen != INVALID);
+	  ROGCLAUSE (clause,
+	             "strengthened by removing %s in", ROGLIT (strengthen));
+	}
       unsigned min_lit = INVALID;
       unsigned min_size = UINT_MAX;
       for (all_literals_in_clause (lit, clause))
@@ -3207,6 +3223,8 @@ subsume_clauses (struct ruler * ruler, unsigned round)
   if (subsumption_ticks_limit_hit (ruler))
     return;
   double start_subsumption = START (ruler, subsuming);
+  assert (!ruler->subsuming);
+  ruler->subsuming = true;
   size_t subsumed = remove_duplicated_binaries (ruler, round);
   struct clause ** candidates;
   size_t size_candidates = get_subsumption_candidates (ruler, &candidates);
@@ -3224,6 +3242,8 @@ subsume_clauses (struct ruler * ruler, unsigned round)
   for (all_clauses (clause, ruler->clauses))
     if (!clause->garbage)
       connect_large_clause (ruler, clause);
+  assert (ruler->subsuming);
+  ruler->subsuming = false;
   double end_subsumption = STOP (ruler, subsuming);
   message (0, "subsumed %zu clauses in round %u in %.2f seconds",
            subsumed, round, end_subsumption - start_subsumption);
@@ -3324,6 +3344,8 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   return 0;
 #endif
   double start_round = START (ruler, eliminating);
+  assert (!ruler->eliminating);
+  ruler->eliminating = true;
   unsigned eliminated = 0;
   for (all_ruler_indices (idx))
     if (ruler->inconsistent)
@@ -3339,6 +3361,8 @@ eliminate_variables (struct ruler * ruler, unsigned round)
 #endif
       }
   RELEASE (ruler->resolvent);
+  assert (ruler->eliminating);
+  ruler->eliminating = false;
   double end_round = STOP (ruler, eliminating);
   message (0, "eliminated %u variables in round %u in %.2f seconds",
 	   eliminated, round, end_round - start_round);
