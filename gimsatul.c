@@ -92,12 +92,14 @@ static const char * usage =
 
 #define CACHE_LINE_SIZE 128
 
-#define ELIMINATION_ROUNDS 10
+#define ELIMINATION_ROUNDS 16
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
 #define SUBSUMPTION_TICKS_LIMIT 200
 #define ELIMINATION_TICKS_LIMIT 200
+
+#define LD_MAX_MARGIN 4
 
 /*------------------------------------------------------------------------*/
 
@@ -2737,7 +2739,7 @@ elimination_ticks_limit_hit (struct ruler * ruler)
 }
 
 static bool
-can_eliminate_variable (struct ruler * ruler, unsigned idx)
+can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
 {
   if (ruler->eliminated[idx])
     return false;
@@ -2773,9 +2775,9 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
       return false;
     }
 
-  size_t limit = pos_size + neg_size;
+  size_t occurrences = pos_size + neg_size;
   ROG ("candidate %s has %zu = %zu + %zu occurrences",
-        ROGVAR (idx), limit, pos_size, neg_size);
+        ROGVAR (idx), occurrences, pos_size, neg_size);
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
@@ -2793,6 +2795,9 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx)
 
   size_t resolvents = 0;
   size_t resolutions = 0;
+  size_t limit = occurrences + margin;
+  LOG ("actual limit %zu = occurrences %zu + margin %zu"
+       limit, occurrences, margin);
 #if 0
   uint64_t ticks = ruler->statistics.ticks.elimination;
 #endif
@@ -3240,6 +3245,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
       ROGCLAUSE (subsuming, "subsuming");
       ruler->statistics.subsumed++;
       ROGCLAUSE (clause, "marking garbage subsumed");
+      mark_eliminate_clause (ruler, clause);
       trace_delete_clause (&ruler->buffer, clause);
       ruler->statistics.garbage++;
       clause->garbage = true;
@@ -3269,6 +3275,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	      ROGCLAUSE (subsuming,
 	                "disconnecting and marking garbage subsumed");
 	      disconnect_literal (ruler, other, subsuming);
+	      mark_eliminate_clause (ruler, subsuming);
 	      trace_delete_clause (&ruler->buffer, subsuming);
 	      ruler->statistics.garbage++;
 	      subsuming->garbage = true;
@@ -3462,13 +3469,25 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   assert (!ruler->eliminating);
   ruler->eliminating = true;
   unsigned eliminated = 0;
+  unsigned margin;
+  if (round < 2)
+    margin = 0;
+  else
+    {
+      unsigned shift = (round - 1)/2;
+      if (shift > LD_MAX_MARGIN)
+	shift = LD_MAX_MARGIN;
+      margin = 1u << shift;
+      if (shift != LD_MAX_MARGIN && (round & 1))
+	memset (ruler->eliminate, 1, ruler->size);
+    }
   for (all_ruler_indices (idx))
     {
       if (ruler->inconsistent)
 	break;
       if (elimination_ticks_limit_hit (ruler))
 	break;
-      if (can_eliminate_variable (ruler, idx))
+      if (can_eliminate_variable (ruler, idx, margin))
 	{
 	  eliminate_variable (ruler, idx);
 	  eliminated++;
@@ -3481,8 +3500,9 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   assert (ruler->eliminating);
   ruler->eliminating = false;
   double end_round = STOP (ruler, eliminating);
-  message (0, "eliminated %u variables in round %u in %.2f seconds",
-	   eliminated, round, end_round - start_round);
+  message (0, "eliminated %u variables "
+           "in round %u margin %u in %.2f seconds",
+	   eliminated, round, margin, end_round - start_round);
   return eliminated;
 }
 
