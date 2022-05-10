@@ -1,4 +1,4 @@
-# Gimsatul SAT Solver
+ # Gimsatul SAT Solver
 
 This is a port-folio style parallel SAT-solver which physically shares
 clauses between different solving threads.  This is made possible by using
@@ -7,6 +7,8 @@ actual clause data immutable.  This allows to share large clauses between
 threads through atomic reference counting, which in turn allows more
 aggressive sharing of learned clauses while keeping the overall memory
 foot-print small.
+
+## Sharing
 
 Interesting learned clauses are exported (shared) rather aggressively and
 imported eagerly before making a decision.  Beside exchanging all learned
@@ -20,6 +22,16 @@ virtual in separate watcher stacks, which then are shared among all threads
 (as they are not changed).  Learned binary clauses are virtual too but
 kept in thread local local watcher lists, and thus are the only part
 really physically copied.
+
+## Proofs
+
+From a memory as well as proof perspective these shared large clauses occur
+only once and are deleted when their atomic reference count reaches zero.
+This in turn allows to produce compact global DRAT proofs too.  Checking
+those proofs is not trivial trough with a sequential proof checker as proof
+lines are produced at a much higher rate than in a sequential solver.
+
+## Preprocessing
 
 As far preprocessing is concerned only bounded variable elimination and
 subsumption are currently implemented and simply run before solvers are
@@ -38,7 +50,7 @@ We use the same terminology in the source code.  The main thread which
 organizes everything is the "Ruler" and the actual solver threads are called
 "Rings".
 
-## Installation
+## Build
 
 Use the following to configure, compile and test the solver
 
