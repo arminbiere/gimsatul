@@ -1,30 +1,32 @@
 # Gimsatul SAT Solver
 
-This is an attempt to produce a port-folio style parallel SAT-solver which
-actually physically shares clauses between different solving threads.  This
-is made possible by using separate watcher data-structures for each solver
-thread, while keeping the actual clause data immutable.  This allows to
-share large clauses between threads through atomic reference counting,
-which in turn allows more aggressive sharing of learned clauses while
-keeping the overall memory foot-print small.
+This is a port-folio style parallel SAT-solver which physically shares
+clauses between different solving threads.  This is made possible by using
+separate watcher data-structures for each solver thread and keeping the
+actual clause data immutable.  This allows to share large clauses between
+threads through atomic reference counting, which in turn allows more
+aggressive sharing of learned clauses while keeping the overall memory
+foot-print small.
 
-Interesting learned clauses are exported rather aggressively and imported
-eagerly before making a decision.  Beside exchanging all learned units
-between threads, there is a preference given to import low-glue learned
-clauses (glue = LBD = glucose level), with binary clauses having highest
-priorities, followed by glucose level one clause, then tier 1 clauses (glue
-of two), and tier 3 clauses (glue at most 6).
+Interesting learned clauses are exported (shared) rather aggressively and
+imported eagerly before making a decision.  Beside exchanging all learned
+units between threads, there is a preference given to import low-glue
+learned clauses (glue = LBD = glucose level), with binary clauses having
+highest priorities, followed by glucose level one clause, then tier 1
+clauses (glue of two), and tier 3 clauses (glue at most 6).
 
 Binary original clauses (after preprocessing) are not allocated but kept
-virtual in separate watcher stacks, which the are shared among all threads
-(as they are not changed).  Learned binary clauses are thread local but
-also virtual in the thread local watcher lists.
+virtual in separate watcher stacks, which then are shared among all threads
+(as they are not changed).  Learned binary clauses are virtual too but
+kept in thread local local watcher lists, and thus are the only part
+really physically copied.
 
 As far preprocessing is concerned only bounded variable elimination and
 subsumption are currently implemented and simply run before solvers are
 cloned to share original irredundant clauses.  Inprocessing is not supported
 yet.  It would also be useful to parallelize preprocessing, which currently
-is only run in a single thread before cloning.
+is only run in a single thread initially before cloning and starting the
+solver threads.
 
 ## Naming
 
