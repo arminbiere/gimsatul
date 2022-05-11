@@ -2244,6 +2244,9 @@ static void
 mark_eliminate_literal (struct ruler * ruler, unsigned lit)
 {
   unsigned idx = IDX (lit);
+  if (ruler->eliminate[idx])
+    return;
+  ROG ("marking %s to be eliminated", ROGVAR (idx));
   ruler->eliminate[idx] = 1;
 }
 
@@ -2258,6 +2261,9 @@ static void
 mark_subsume_literal (struct ruler * ruler, unsigned lit)
 {
   unsigned idx = IDX (lit);
+  if (ruler->subsume[idx])
+    return;
+  ROG ("marking %s to be subsumed", ROGVAR (idx));
   ruler->subsume[idx] = 1;
 }
 
@@ -2796,7 +2802,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
   size_t resolvents = 0;
   size_t resolutions = 0;
   size_t limit = occurrences + margin;
-  LOG ("actual limit %zu = occurrences %zu + margin %zu"
+  ROG ("actual limit %zu = occurrences %zu + margin %u",
        limit, occurrences, margin);
 #if 0
   uint64_t ticks = ruler->statistics.ticks.elimination;
@@ -3190,12 +3196,51 @@ find_subsuming_clause (struct ruler * ruler, unsigned lit,
   return res;
 }
 
+static struct clause *
+strengthen_ternary_clause (struct ruler * ruler,
+			   struct clause * clause, unsigned remove)
+{
+  assert (!binary_pointer (clause));
+  assert (clause->size == 3);
+  assert (remove != INVALID);
+  unsigned lit = INVALID, other = INVALID;
+  unsigned * literals = clause->literals;
+  for (unsigned i = 0; i != 3; i++)
+    {
+      unsigned tmp = literals[i];
+      if (tmp == remove)
+	continue;
+      if (lit == INVALID)
+	lit = tmp;
+      else 
+	{
+	  assert (other == INVALID);
+	  other = tmp;
+	  break;
+	}
+    }
+  assert (lit != INVALID);
+  assert (other != INVALID);
+  mark_subsume_literal (ruler, lit);
+  mark_subsume_literal (ruler, other);
+  ruler->statistics.strengthened++;
+  ruler->statistics.subsumed++;
+  new_ruler_binary_clause (ruler, lit, other);
+  trace_add_binary (&ruler->buffer, lit, other);
+  ROGCLAUSE (clause, "marking garbage");
+  trace_delete_clause (&ruler->buffer, clause);
+  ruler->statistics.garbage++;
+  clause->garbage = true;
+  return tag_pointer (false, lit, other);
+}
+
 static void
 strengthen_very_large_clause (struct ruler * ruler,
                               struct clause * clause, unsigned remove)
 {
-  assert (remove != INVALID);
   ROGCLAUSE (clause, "strengthening by removing %s in", ROGLIT (remove));
+  assert (!binary_pointer (clause));
+  assert (remove != INVALID);
   unsigned old_size = clause->size;
   assert (old_size > 3);
   unsigned * literals = clause->literals, * q = literals;
@@ -3211,7 +3256,7 @@ strengthen_very_large_clause (struct ruler * ruler,
   assert (new_size > 2);
   ruler->statistics.strengthened++;
   ruler->statistics.subsumed++;
-  mark_eliminate_clause (ruler, clause);
+  mark_subsume_clause (ruler, clause);
 }
 
 static bool
@@ -3252,8 +3297,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
     }
   else
     {
-      bool connect = true;
-      if (subsuming && clause->size > 3)
+      if (subsuming)
 	{
 	  assert (remove != INVALID);
 	  bool self_subsuming = !binary_pointer (subsuming) &&
@@ -3265,9 +3309,16 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	  else
 	    ROGCLAUSE (subsuming, "resolution on %s with",
 	               ROGLIT (NOT (remove)));
-	  strengthen_very_large_clause (ruler, clause, remove);
+	  mark_eliminate_literal (ruler, remove);
+	  if (clause->size == 3)
+	    {
+	      clause = strengthen_ternary_clause (ruler, clause, remove);
+	      assert (binary_pointer (clause));
+	    }
+	  else
+	    strengthen_very_large_clause (ruler, clause, remove);
 	  ROGCLAUSE (clause, "strengthened");
-	  unmark_literal (ruler->marks, remove);
+	  mark_eliminate_literal (ruler, remove);
 	  if (self_subsuming)
 	    {
 	      ruler->statistics.subsumed++;
@@ -3281,13 +3332,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	      subsuming->garbage = true;
 	    }
 	}
-#if 0
-  else if (subsuming && clause->size == 3)
-    {
-      // TODO;
-    }
-#endif
-      if (connect)
+      if (!binary_pointer (clause))
 	{
 	  unsigned min_lit = INVALID;
 	  unsigned min_size = UINT_MAX;
@@ -3307,7 +3352,15 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	  connect_literal (ruler, min_lit, clause);
 	}
     }
-  unmark_clause (ruler->marks, clause, INVALID);
+  if (binary_pointer (clause))
+    {
+      unsigned lit = lit_pointer (clause);
+      unsigned other = other_pointer (clause);
+      unmark_literal (ruler->marks, lit);
+      unmark_literal (ruler->marks, other);
+    }
+  else
+    unmark_clause (ruler->marks, clause, INVALID);
   return subsuming;
 }
 
