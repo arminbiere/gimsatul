@@ -3043,39 +3043,38 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
   struct clauses * clauses = &OCCURRENCES (lit);
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
+  signed char * values = (signed char*) ruler->values;
   signed char * marks = ruler->marks;
   size_t removed = 0;
   ruler->statistics.ticks.subsumption += cache_lines (end, begin);
   while (p != end)
     {
-      struct clause * clause = *p++;
+      struct clause * clause = *q++ = *p++;
       if (!binary_pointer (clause))
 	continue;
       unsigned other = other_pointer (clause);
       if (!marks[other])
+	marks[other] = 1;
+      else
 	{
-	  *q++ = clause;
-	  marks[other] = 1;
-	}
-      else if (other < lit)
-	{
-	  ROGBINARY (lit, other, "removed duplicated");
-	  assert (ruler->statistics.binaries);
-	  ruler->statistics.binaries--;
-	  trace_delete_binary (&ruler->buffer, lit, other);
-	  mark_eliminate_literal (ruler, other);
-	  ruler->statistics.deduplicated++;
-	  ruler->statistics.subsumed++;
-	  removed++;
+	  q--;
+	  if (other < lit)
+	    {
+	      ROGBINARY (lit, other, "removed duplicated");
+	      assert (ruler->statistics.binaries);
+	      ruler->statistics.binaries--;
+	      trace_delete_binary (&ruler->buffer, lit, other);
+	      mark_eliminate_literal (ruler, other);
+	      ruler->statistics.deduplicated++;
+	      ruler->statistics.subsumed++;
+	      removed++;
+	    }
 	}
     }
   clauses->end = q;
   for (all_clauses (clause, *clauses))
-    {
-      assert (binary_pointer (clause));
-      unsigned other = other_pointer (clause);
-      marks[other] = 0;
-    }
+    if (binary_pointer (clause))
+      marks[other_pointer (clause)] = 0;
   if (removed)
     mark_eliminate_literal (ruler, lit);
   return removed;
@@ -3084,11 +3083,25 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 static size_t
 remove_duplicated_binaries (struct ruler * ruler, unsigned round)
 {
+  bool * eliminated = ruler->eliminated;
+  signed char * values = (signed char*) ruler->values;
+  unsigned units_before = ruler->statistics.fixed.total;
   size_t removed = 0;
   for (all_ruler_literals (lit))
-    removed += remove_duplicated_binaries_of_literal (ruler, lit);
+    {
+      if (values[lit])
+	continue;
+      if (eliminated[IDX (lit)])
+	continue;
+      removed += remove_duplicated_binaries_of_literal (ruler, lit);
+      if (ruler->inconsistent)
+	break;
+    }
   verbose (0, "removed %zu duplicated binary clauses in round %u",
            removed, round);
+  unsigned units_after = ruler->statistics.fixed.total;
+  if (units_after > units_before)
+  verbose (0, "deduplication found %u units", units_after - units_before);
   return removed;
 }
 
@@ -3374,9 +3387,10 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 }
 
 static void
-flush_large_clause_references (struct ruler * ruler)
+flush_large_clause_occurrences (struct ruler * ruler)
 {
-  ROG ("flushing all partial large clauses occurrences");
+  ROG ("flushing large clauses occurrences");
+  size_t flushed = 0;
   for (all_ruler_literals (lit))
     {
       struct clauses * clauses = &OCCURRENCES (lit);
@@ -3387,9 +3401,42 @@ flush_large_clause_references (struct ruler * ruler)
 	  struct clause * clause = *p++;
 	  if (binary_pointer (clause))
 	    *q++ = clause;
+	  else
+	    flushed++;
 	}
       clauses->end = q;
     }
+  very_verbose (0, "flushed %zu large clause occurrences", flushed);
+}
+
+static void
+flush_large_garbage_clauses (struct ruler * ruler, bool reconnect)
+{
+  ROG ("flushing large garbage clauses");
+  struct clauses * clauses = &ruler->clauses;
+  struct clause ** begin = clauses->begin, ** q = begin;
+  struct clause ** end = clauses->end, ** p = q;
+  size_t flushed = 0, reconnected = 0;
+  while (p != end)
+    {
+      struct clause * clause = *q++ = *p++;
+      if (clause->garbage)
+	{
+	  ROGCLAUSE (clause, "finally deleting");
+	  free (clause);
+	  flushed++;
+	  q--;
+	}
+      else if (reconnect)
+	{
+	  connect_large_clause (ruler, clause);
+	  reconnected++;
+	}
+    }
+  clauses->end = q;
+  very_verbose (0, "flushed %zu garbage clauses", flushed);
+  if (reconnect)
+    very_verbose (0, "reconnected %zu large clauses", reconnected);
 }
 
 static bool
@@ -3406,9 +3453,10 @@ subsume_clauses (struct ruler * ruler, unsigned round)
   if (subsumption_ticks_limit_hit (ruler))
     return;
   double start_subsumption = START (ruler, subsuming);
+  size_t subsumed = remove_duplicated_binaries (ruler, round);
+  flush_large_clause_occurrences (ruler);
   assert (!ruler->subsuming);
   ruler->subsuming = true;
-  size_t subsumed = remove_duplicated_binaries (ruler, round);
   struct clause ** candidates;
   size_t size_candidates = get_subsumption_candidates (ruler, &candidates);
   verbose (0, "found %zu large forward subsumption candidates in round %u",
@@ -3421,10 +3469,8 @@ subsume_clauses (struct ruler * ruler, unsigned round)
 	break;
     }
   free (candidates);
-  flush_large_clause_references (ruler);
-  for (all_clauses (clause, ruler->clauses))
-    if (!clause->garbage)
-      connect_large_clause (ruler, clause);
+  flush_large_clause_occurrences (ruler);
+  flush_large_garbage_clauses (ruler, true);
   assert (ruler->subsuming);
   ruler->subsuming = false;
   double end_subsumption = STOP (ruler, subsuming);
@@ -3559,6 +3605,7 @@ eliminate_variables (struct ruler * ruler, unsigned round)
 	}
     }
   RELEASE (ruler->resolvent);
+  flush_large_garbage_clauses (ruler, false);
   assert (ruler->eliminating);
   ruler->eliminating = false;
   double end_round = STOP (ruler, eliminating);
@@ -3618,21 +3665,28 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
   set_ruler_limits (ruler, optimize);
   connect_all_large_clauses (ruler);
   size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
-  propagate_and_flush_ruler_units (ruler);
   unsigned total_eliminated = 0;
   assert ((UINT_MAX - 1)/(optimize + 1) >= SIMPLIFICATION_ROUNDS);
   unsigned max_rounds = (optimize + 1) * SIMPLIFICATION_ROUNDS;
   message (0, "running  maximum number of %u simplification rounds", max_rounds);
   for (unsigned round = 1; round <= max_rounds; round++)
     {
+      propagate_and_flush_ruler_units (ruler);
       if (ruler->inconsistent)
 	break;
+
+      remove_duplicated_binaries (ruler, round);
+      propagate_and_flush_ruler_units (ruler);
+      if (ruler->inconsistent)
+	break;
+
       subsume_clauses (ruler, round);
-      if (ruler->inconsistent)
-	break;
+      assert (!ruler->inconsistent);
+
       unsigned eliminated = eliminate_variables (ruler, round);
       total_eliminated += eliminated;
-      propagate_and_flush_ruler_units (ruler);
+      if (ruler->inconsistent)
+	break;
       if (!eliminated)
 	break;
       if (elimination_ticks_limit_hit (ruler))
@@ -3646,12 +3700,22 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
   else
     {
       size_t after = SIZE (ruler->clauses) + ruler->statistics.binaries;
-      assert (after <= before);
-      size_t removed_clauses = before - after;
-      size_t removed_variables = SIZE (ruler->units) + total_eliminated;
-      message (0, "simplification removed %zu clauses %.0f%% and %zu variables %.0f%%",
-	       removed_clauses, percent (removed_clauses, before),
-	       removed_variables, percent (removed_variables, ruler->size));
+      if (after <= before)
+	{
+	  size_t removed_clauses = before - after;
+	  size_t removed_variables = SIZE (ruler->units) + total_eliminated;
+	  message (0, "simplification removed %zu clauses %.0f%% and %zu variables %.0f%%",
+		   removed_clauses, percent (removed_clauses, before),
+		   removed_variables, percent (removed_variables, ruler->size));
+	}
+      else
+	{
+	  size_t added_clauses = before - after;
+	  size_t removed_variables = SIZE (ruler->units) + total_eliminated;
+	  message (0, "simplification ADDED %zu clauses %.0f%% and %zu variables %.0f%%",
+		   added_clauses, percent (added_clauses, before),
+		   removed_variables, percent (removed_variables, ruler->size));
+	}
     }
 
   message (0, "subsumption ticks used %" PRIu64 "%s",
