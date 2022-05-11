@@ -918,7 +918,7 @@ do { \
 
 #ifdef LOGGING
 
-static char loglitbuf[4][64];
+static char loglitbuf[8][64];
 static unsigned loglitpos;
 
 #define loglitsize (sizeof loglitbuf / sizeof *loglitbuf)
@@ -3044,6 +3044,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
   struct clause ** begin = clauses->begin, ** q = begin;
   struct clause ** end = clauses->end, ** p = q;
   signed char * values = (signed char*) ruler->values;
+  assert (!values[lit]);
   signed char * marks = ruler->marks;
   size_t removed = 0;
   ruler->statistics.ticks.subsumption += cache_lines (end, begin);
@@ -3053,9 +3054,12 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
       if (!binary_pointer (clause))
 	continue;
       unsigned other = other_pointer (clause);
-      if (!marks[other])
-	marks[other] = 1;
-      else
+      if (values[other])
+	continue;
+      signed char mark = marked_literal (marks, other);
+      if (!mark)
+	mark_literal (marks, other);
+      else if (mark > 0)
 	{
 	  q--;
 	  if (other < lit)
@@ -3070,11 +3074,24 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 	      removed++;
 	    }
 	}
+      else
+	{
+	  assert (mark < 0);
+	  ROG ("binary clause %s %s and %s %s yield unit %s",
+	       ROGLIT (lit), ROGLIT (NOT (other)), 
+	       ROGLIT (lit), ROGLIT (other), 
+	       ROGLIT (lit));
+	  trace_add_unit (&ruler->buffer, lit);
+	  assign_ruler_unit (ruler, lit);
+	  while (p != end)
+	    *q++ = *p++;
+	  break;
+	}
     }
   clauses->end = q;
   for (all_clauses (clause, *clauses))
     if (binary_pointer (clause))
-      marks[other_pointer (clause)] = 0;
+      marks [IDX (other_pointer (clause))] = 0;
   if (removed)
     mark_eliminate_literal (ruler, lit);
   return removed;
