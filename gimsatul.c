@@ -3410,7 +3410,7 @@ flush_large_clause_occurrences (struct ruler * ruler)
 }
 
 static void
-flush_large_garbage_clauses (struct ruler * ruler, bool reconnect)
+flush_large_garbage_clauses_and_reconnect (struct ruler * ruler)
 {
   ROG ("flushing large garbage clauses");
   struct clauses * clauses = &ruler->clauses;
@@ -3427,7 +3427,7 @@ flush_large_garbage_clauses (struct ruler * ruler, bool reconnect)
 	  flushed++;
 	  q--;
 	}
-      else if (reconnect)
+      else
 	{
 	  connect_large_clause (ruler, clause);
 	  reconnected++;
@@ -3435,8 +3435,7 @@ flush_large_garbage_clauses (struct ruler * ruler, bool reconnect)
     }
   clauses->end = q;
   very_verbose (0, "flushed %zu garbage clauses", flushed);
-  if (reconnect)
-    very_verbose (0, "reconnected %zu large clauses", reconnected);
+  very_verbose (0, "reconnected %zu large clauses", reconnected);
 }
 
 static bool
@@ -3470,7 +3469,7 @@ subsume_clauses (struct ruler * ruler, unsigned round)
     }
   free (candidates);
   flush_large_clause_occurrences (ruler);
-  flush_large_garbage_clauses (ruler, true);
+  flush_large_garbage_clauses_and_reconnect (ruler);
   assert (ruler->subsuming);
   ruler->subsuming = false;
   double end_subsumption = STOP (ruler, subsuming);
@@ -3605,7 +3604,6 @@ eliminate_variables (struct ruler * ruler, unsigned round)
 	}
     }
   RELEASE (ruler->resolvent);
-  flush_large_garbage_clauses (ruler, false);
   assert (ruler->eliminating);
   ruler->eliminating = false;
   double end_round = STOP (ruler, eliminating);
@@ -3666,34 +3664,36 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
   connect_all_large_clauses (ruler);
   size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
   unsigned total_eliminated = 0;
-  assert ((UINT_MAX - 1)/(optimize + 1) >= SIMPLIFICATION_ROUNDS);
-  unsigned max_rounds = (optimize + 1) * SIMPLIFICATION_ROUNDS;
-  message (0, "running  maximum number of %u simplification rounds", max_rounds);
-  for (unsigned round = 1; round <= max_rounds; round++)
+  propagate_and_flush_ruler_units (ruler);
+
+  if (!ruler->inconsistent)
     {
-      propagate_and_flush_ruler_units (ruler);
-      if (ruler->inconsistent)
-	break;
+      assert ((UINT_MAX - 1)/(optimize + 1) >= SIMPLIFICATION_ROUNDS);
+      unsigned max_rounds = (optimize + 1) * SIMPLIFICATION_ROUNDS;
+      message (0, "running  maximum number of %u simplification rounds", max_rounds);
+      for (unsigned round = 1; round <= max_rounds; round++)
+	{
+	  remove_duplicated_binaries (ruler, round);
+	  propagate_and_flush_ruler_units (ruler);
+	  if (ruler->inconsistent)
+	    break;
 
-      remove_duplicated_binaries (ruler, round);
-      propagate_and_flush_ruler_units (ruler);
-      if (ruler->inconsistent)
-	break;
+	  subsume_clauses (ruler, round);
+	  assert (!ruler->inconsistent);
 
-      subsume_clauses (ruler, round);
-      assert (!ruler->inconsistent);
-
-      unsigned eliminated = eliminate_variables (ruler, round);
-      total_eliminated += eliminated;
-      if (ruler->inconsistent)
-	break;
-      if (!eliminated)
-	break;
-      if (elimination_ticks_limit_hit (ruler))
-	break;
+	  unsigned eliminated = eliminate_variables (ruler, round);
+	  total_eliminated += eliminated;
+	  propagate_and_flush_ruler_units (ruler);
+	  if (ruler->inconsistent)
+	    break;
+	  if (!eliminated)
+	    break;
+	  if (elimination_ticks_limit_hit (ruler))
+	    break;
 #if 0
-	break;
+	    break;
 #endif
+	}
     }
   if (ruler->inconsistent)
     message (0, "simplification produced empty clause");
