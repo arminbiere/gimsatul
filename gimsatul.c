@@ -3073,6 +3073,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 	  ruler->statistics.subsumed++;
 	  removed++;
 	}
+#if 0
       else
 	{
 	  assert (mark < 0);
@@ -3086,6 +3087,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 	    *q++ = *p++;
 	  break;
 	}
+#endif
     }
   clauses->end = q;
   for (all_clauses (clause, *clauses))
