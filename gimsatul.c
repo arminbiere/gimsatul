@@ -3234,7 +3234,6 @@ strengthen_ternary_clause (struct ruler * ruler,
   mark_subsume_literal (ruler, lit);
   mark_subsume_literal (ruler, other);
   ruler->statistics.strengthened++;
-  ruler->statistics.subsumed++;
   new_ruler_binary_clause (ruler, lit, other);
   trace_add_binary (&ruler->buffer, lit, other);
   ROGCLAUSE (clause, "marking garbage");
@@ -3265,7 +3264,6 @@ strengthen_very_large_clause (struct ruler * ruler,
   clause->size = new_size;
   assert (new_size > 2);
   ruler->statistics.strengthened++;
-  ruler->statistics.subsumed++;
   mark_subsume_clause (ruler, clause);
 }
 
@@ -8122,8 +8120,8 @@ print_ruler_statistics (struct ruler *ruler)
           s->deduplicated, percent (s->deduplicated, s->subsumed));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "self-subsumed::",
           s->self_subsumed, percent (s->self_subsumed, s->subsumed));
-  printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "strengthened:",
-          s->strengthened, percent (s->strengthened, s->subsumed));
+  printf ("c %-22s %17u %13.2f %% original clauses\n", "strengthened:",
+          s->strengthened, percent (s->strengthened, s->original));
   printf ("c %-22s %17u %13.2f %% original clauses\n", "subsumed:",
           s->subsumed, percent (s->subsumed, s->original));
   printf ("c %-22s %17u %13.2f %% total-fixed\n", "simplifying-fixed:",
