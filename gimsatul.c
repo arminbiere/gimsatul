@@ -3062,17 +3062,16 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
       else if (mark > 0)
 	{
 	  q--;
-	  if (other < lit)
-	    {
-	      ROGBINARY (lit, other, "removed duplicated");
-	      assert (ruler->statistics.binaries);
-	      ruler->statistics.binaries--;
-	      trace_delete_binary (&ruler->buffer, lit, other);
-	      mark_eliminate_literal (ruler, other);
-	      ruler->statistics.deduplicated++;
-	      ruler->statistics.subsumed++;
-	      removed++;
-	    }
+	  ROGBINARY (lit, other, "removed duplicated");
+	  assert (ruler->statistics.binaries);
+	  ruler->statistics.binaries--;
+	  trace_delete_binary (&ruler->buffer, lit, other);
+	  struct clause * other_clause = tag_pointer (false, other, lit);
+	  disconnect_literal (ruler, other, other_clause);
+	  mark_eliminate_literal (ruler, other);
+	  ruler->statistics.deduplicated++;
+	  ruler->statistics.subsumed++;
+	  removed++;
 	}
       else
 	{
