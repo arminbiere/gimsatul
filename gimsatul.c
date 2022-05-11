@@ -552,7 +552,6 @@ struct ruler_statistics
   unsigned original;
   unsigned deduplicated;
   unsigned eliminated;
-  unsigned fixed;
   unsigned strengthened;
   unsigned subsumed;
   unsigned self_subsumed;
@@ -561,15 +560,22 @@ struct ruler_statistics
     uint64_t elimination;
     uint64_t subsumption;
   } ticks;
+  struct {
+    unsigned simplifying;
+    unsigned solving;
+    unsigned total;
+  } fixed;
 };
 
 struct ruler
 {
   unsigned size;
   volatile bool terminate;
-  bool subsuming;
   bool eliminating;
   bool inconsistent;
+  bool simplifying;
+  bool solving;
+  bool subsuming;
   struct locks locks;
   struct rings rings;
   pthread_t *threads;
@@ -882,13 +888,13 @@ message (struct ring *ring, const char *fmt, ...)
 
 #define verbose(...) \
 do { \
-  if (verbosity > 1) \
+  if (verbosity > 0) \
     message (__VA_ARGS__); \
 } while (0)
 
 #define very_verbose(...) \
 do { \
-  if (verbosity > 2) \
+  if (verbosity > 1) \
     message (__VA_ARGS__); \
 } while (0)
 
@@ -1741,7 +1747,11 @@ assign_ruler_unit (struct ruler * ruler, unsigned unit)
   assert (ruler->units.end < ruler->units.begin + ruler->size);
   *ruler->units.end++ = unit;
   ROG ("assign %s unit", ROGLIT (unit));
-  ruler->statistics.fixed++;
+  if (ruler->simplifying)
+    ruler->statistics.fixed.simplifying++;
+  if (ruler->solving)
+    ruler->statistics.fixed.solving++;
+  ruler->statistics.fixed.total++;
 }
 
 /*------------------------------------------------------------------------*/
@@ -2575,15 +2585,15 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
   if (ruler->inconsistent)
     return;
   struct ruler_last * last = &ruler->last;
-  if (last->fixed != ruler->statistics.fixed)
+  if (last->fixed != ruler->statistics.fixed.total)
     {
       mark_satisfied_ruler_clauses (ruler);
       flush_satisfied_ruler_occurrences (ruler);
     }
-  if (last->fixed != ruler->statistics.fixed ||
+  if (last->fixed != ruler->statistics.fixed.total ||
       last->garbage != ruler->statistics.garbage)
     delete_large_garbage_ruler_clauses (ruler);
-  last->fixed = ruler->statistics.fixed;
+  last->fixed = ruler->statistics.fixed.total;
   last->garbage = ruler->statistics.garbage;
   assert (!ruler->inconsistent);
 }
@@ -3600,6 +3610,8 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
   if (ruler->inconsistent)
     return;
   double start_simplification = START (ruler, simplifying);
+  assert (!ruler->simplifying);
+  ruler->simplifying = true;
   if (verbosity >= 0)
     {
       printf ("c\nc simplifying formula before cloning\n");
@@ -3639,7 +3651,7 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
       assert (after <= before);
       size_t removed_clauses = before - after;
       size_t removed_variables = SIZE (ruler->units) + total_eliminated;
-      message (0, "simplified %zu clauses %.0f%% and %zu variables %.0f%%",
+      message (0, "simplification removed %zu clauses %.0f%% and %zu variables %.0f%%",
 	       removed_clauses, percent (removed_clauses, before),
 	       removed_variables, percent (removed_variables, ruler->size));
     }
@@ -3651,6 +3663,8 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
            ruler->statistics.ticks.elimination,
 	   elimination_ticks_limit_hit (ruler) ? " (limit hit)" : "");
 
+  assert (ruler->simplifying);
+  ruler->simplifying = false;
   double end_simplification = STOP (ruler, simplifying);
   message (0, "simplification took %.2f seconds",
            end_simplification - start_simplification);
@@ -3685,6 +3699,11 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
 	trace_add_unit (&ring->buffer, lit);
       v->reason = 0;
       ring->statistics.fixed++;
+      if (!ring->pool)
+	{
+	  ring->ruler->statistics.fixed.solving++;
+	  ring->ruler->statistics.fixed.total++;
+	}
       assert (ring->statistics.active);
       ring->statistics.active--;
       assert (ring->active[idx]);
@@ -7588,23 +7607,22 @@ stop_running_ring (struct ring *ring)
 static void
 run_rings (struct ruler *ruler, long long conflicts)
 {
-  START (ruler, solving);
+  double start_solving = START (ruler, solving);
+  assert (!ruler->solving);
+  ruler->solving = true;
   size_t threads = SIZE (ruler->rings);
   if (verbosity >= 0)
     {
       printf ("c\n");
       if (conflicts >= 0)
 	printf ("c conflict limit %lld\n", conflicts);
+      fflush (stdout);
     }
   for (all_rings (ring))
     set_ring_limits (ring, conflicts);
   if (threads > 1)
     {
-      if (verbosity >= 0)
-	{
-	  printf ("c starting and running %zu ring threads\n", threads);
-	  fflush (stdout);
-	}
+      message (0, "starting and running %zu ring threads", threads);
 
       for (all_rings (ring))
 	start_running_ring (ring);
@@ -7614,15 +7632,15 @@ run_rings (struct ruler *ruler, long long conflicts)
     }
   else
     {
-      if (verbosity >= 0)
-	{
-	  printf ("c running single ring in main thread\n");
-	  fflush (stdout);
-	}
+      message (0, "running single ring in main thread");
       struct ring *ring = first_ring (ruler);
       solve_routine (ring);
     }
-  STOP (ruler, solving);
+  assert (ruler->solving);
+  ruler->solving = false;
+  double end_solving = STOP (ruler, solving);
+  verbose (0, "finished solving using %zu threads in %.2f seconds",
+           threads, end_solving - start_solving);
 }
 
 static void *
@@ -8108,8 +8126,12 @@ print_ruler_statistics (struct ruler *ruler)
           s->strengthened, percent (s->strengthened, s->subsumed));
   printf ("c %-22s %17u %13.2f %% original clauses\n", "subsumed:",
           s->subsumed, percent (s->subsumed, s->original));
-  printf ("c %-22s %17u %13.2f %% variables\n", "simplification-fixed:",
-          s->fixed, percent (s->fixed, variables));
+  printf ("c %-22s %17u %13.2f %% total-fixed\n", "simplifying-fixed:",
+          s->fixed.simplifying, percent (s->fixed.simplifying, s->fixed.total));
+  printf ("c %-22s %17u %13.2f %% total-fixed\n", "solving-fixed:",
+          s->fixed.solving, percent (s->fixed.solving, s->fixed.total));
+  printf ("c %-22s %17u %13.2f %% variables\n", "total-fixed:",
+          s->fixed.total, percent (s->fixed.total, variables));
 
   printf ("c\n");
 
