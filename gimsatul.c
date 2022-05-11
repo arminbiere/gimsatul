@@ -3319,6 +3319,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	    strengthen_very_large_clause (ruler, clause, remove);
 	  ROGCLAUSE (clause, "strengthened");
 	  mark_eliminate_literal (ruler, remove);
+	  unmark_literal (ruler->marks, remove);
 	  if (self_subsuming)
 	    {
 	      ruler->statistics.subsumed++;
