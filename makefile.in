@@ -7,8 +7,10 @@ indent:
 	indent gimsatul.c
 test: all
 	cnf/test.sh
+docker: clean
+	docker build -t gimsatul .
 gimsatul: gimsatul.c config.h
 	$(CC) $(CFLAGS) -o $@ $< -lm -pthread
 config.h: makefile VERSION
 	./mkconfig.sh > $@
-.PHONY: all clean indent test
+.PHONY: all clean doacker indent test
