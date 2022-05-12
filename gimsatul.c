@@ -588,6 +588,7 @@ struct ruler
   struct clauses *occurrences;
   struct clauses clauses;
   struct unsigneds resolvent;
+  struct clauses gate[2], nogate[2];
   struct unsigneds extension;
   struct ruler_trail units;
   struct buffer buffer;
@@ -649,6 +650,52 @@ struct ring
   struct ring_profiles profiles;
   struct ring_last last;
   uint64_t random;
+};
+
+struct set
+{
+  size_t size;
+  size_t deleted;
+  size_t allocated;
+  void **table;
+};
+
+struct doubles
+{
+  double *begin, *end, *allocated;
+};
+
+struct counter
+{
+  unsigned count;
+  struct clause *clause;
+};
+
+struct counters
+{
+  struct counter **begin, **end, **allocated;
+  unsigned *binaries;
+};
+
+struct walker
+{
+  struct ring *ring;
+  struct counters *occurrences;
+  struct counter *counters;
+  struct set unsatisfied;
+  struct unsigneds literals;
+  struct unsigneds trail;
+  struct watches saved;
+  struct doubles scores;
+  struct doubles breaks;
+  unsigned maxbreak;
+  double epsilon;
+  size_t minimum;
+  size_t initial;
+  unsigned best;
+  uint64_t limit;
+  uint64_t extra;
+  uint64_t flips;
 };
 
 /*------------------------------------------------------------------------*/
@@ -1059,7 +1106,7 @@ do { \
   if (verbosity < INT_MAX) \
     break; \
   acquire_message_lock (); \
-  printf ("cr LOG - "); \
+  printf ("c LOG - "); \
   printf (__VA_ARGS__)
 
 #define ROGSUFFIX LOGSUFFIX
@@ -2726,6 +2773,125 @@ can_resolve_clause (struct ruler * ruler,
     }
 }
 
+static struct clause *
+find_binary (struct ruler * ruler, unsigned lit, unsigned other)
+{
+  struct clauses * lit_clauses = &OCCURRENCES (lit);
+  size_t size_lit_clauses = SIZE (*lit_clauses);
+
+  if (size_lit_clauses > OCCURRENCE_LIMIT)
+    return 0;
+
+  for (all_clauses (clause, *lit_clauses))
+    if (binary_pointer (clause) && other_pointer (clause) == other)
+      return clause;
+
+  return 0;
+}
+
+static bool
+find_all_binary_and_gate_clauses (struct ruler * ruler,
+                                  unsigned lit, struct clause * clause,
+				  struct clauses * gate)
+{
+  if (clause->size > CLAUSE_SIZE_LIMIT)
+    return false;
+  unsigned not_lit = NOT (lit);
+  CLEAR (*gate);
+  for (all_literals_in_clause (other, clause))
+    {
+      if (lit == other)
+	continue;
+      unsigned not_other = NOT (other);
+      struct clause * binary = find_binary (ruler, not_lit, not_other);
+      if (!binary)
+	return false;
+      PUSH (*gate, binary);
+    }
+  return true;
+}
+
+static struct clause *
+find_and_gate (struct ruler * ruler, struct clauses * gate, unsigned lit)
+{
+  for (all_clauses (clause, OCCURRENCES (lit)))
+    if (!binary_pointer (clause))
+      if (find_all_binary_and_gate_clauses (ruler, lit, clause, gate))
+	return clause;
+  return 0;
+}
+
+static bool
+find_definition (struct ruler * ruler, unsigned lit)
+{
+  unsigned resolve = lit;
+  struct clauses * gate = ruler->gate;
+  struct clause * base = find_and_gate (ruler, &gate[1], resolve);
+  if (base)
+    {
+      CLEAR (gate[0]);
+      PUSH (gate[0], base);
+      assert (SIZE (gate[1]) == base->size - 1);
+    }
+  else
+    {
+      resolve = NOT (lit);
+      base = find_and_gate (ruler, &gate[0], resolve);
+      if (base)
+	{
+	  CLEAR (gate[1]);
+	  PUSH (gate[1], base);
+	  assert (SIZE (gate[0]) == base->size - 1);
+	}
+    }
+  if (!base)
+    return false;
+#ifdef LOGGING
+  do
+    {
+      ROGPREFIX ("found %u-ary and-gate with %s defined as ",
+                 base->size - 1, ROGLIT (resolve));
+      bool first = true;
+      for (all_literals_in_clause (other, base))
+	{
+	  if (other == resolve)
+	    continue;
+	  if (first)
+	    first = false;
+	  else
+	    fputs (" & ", stdout);
+	  unsigned not_other = NOT (other);
+	  fputs (ROGLIT (not_other), stdout);
+	}
+      ROGSUFFIX ();
+    }
+  while (0);
+#endif
+  struct clauses * nogate = ruler->nogate;
+  resolve = lit;
+  for (unsigned i = 0; i != 2; i++)
+    {
+      CLEAR (nogate[i]);
+      struct clauses * clauses = &OCCURRENCES (resolve);
+      for (all_clauses (clause, *clauses))
+	{
+	  bool found = false;
+	  for (all_clauses (other_clause, gate[i]))
+	    if (other_clause == clause)
+	      {
+		found = true;
+		break;
+	      }
+	  if (!found)
+	    PUSH (nogate[i], clause);
+	}
+      ROG ("split clauses with %s into %zu gate and %zu non-gate clauses",
+	   ROGLIT (resolve), SIZE (gate[i]), SIZE (nogate[i]));
+      resolve = NOT (resolve);
+    }
+  return true;
+}
+
 static size_t
 actual_occurrences (struct clauses * clauses)
 {
@@ -2818,22 +2984,56 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
   uint64_t ticks = ruler->statistics.ticks.elimination;
 #endif
 
-  for (all_clauses (pos_clause, *pos_clauses))
+  if (find_definition (ruler, pivot))
     {
-      ruler->statistics.ticks.elimination++;
-      mark_clause (ruler->marks, pos_clause, pivot);
-      for (all_clauses (neg_clause, *neg_clauses))
+      struct clauses * gate = ruler->gate;
+      struct clauses * nogate = ruler->nogate;
+
+      for (unsigned i = 0; i != 2; i++)
 	{
+	  for (all_clauses (pos_clause, gate[i]))
+	    {
+	      ruler->statistics.ticks.elimination++;
+	      mark_clause (ruler->marks, pos_clause, pivot);
+	      for (all_clauses (neg_clause, nogate[!i]))
+		{
+		  if (elimination_ticks_limit_hit (ruler))
+		    break;
+		  resolutions++;
+		  if (can_resolve_clause (ruler, neg_clause, not_pivot))
+		    if (resolvents++ == limit)
+		      break;
+		}
+	      unmark_clause (ruler->marks, pos_clause, pivot);
+	      if (elimination_ticks_limit_hit (ruler))
+		break;
+	    }
+	  if (resolvents > limit)
+	    break;
 	  if (elimination_ticks_limit_hit (ruler))
 	    break;
-	  resolutions++;
-	  if (can_resolve_clause (ruler, neg_clause, not_pivot))
-	    if (resolvents++ == limit)
-	      break;
+	  SWAP (pivot, not_pivot);
 	}
-      unmark_clause (ruler->marks, pos_clause, pivot);
-      if (elimination_ticks_limit_hit (ruler))
-	break;
+    }
+  else
+    {
+      for (all_clauses (pos_clause, *pos_clauses))
+	{
+	  ruler->statistics.ticks.elimination++;
+	  mark_clause (ruler->marks, pos_clause, pivot);
+	  for (all_clauses (neg_clause, *neg_clauses))
+	    {
+	      if (elimination_ticks_limit_hit (ruler))
+		break;
+	      resolutions++;
+	      if (can_resolve_clause (ruler, neg_clause, not_pivot))
+		if (resolvents++ == limit)
+		  break;
+	    }
+	  unmark_clause (ruler->marks, pos_clause, pivot);
+	  if (elimination_ticks_limit_hit (ruler))
+	    break;
+	}
     }
 
 #if 0
@@ -3504,53 +3704,6 @@ disconnect_and_delete_clauses (struct ruler * ruler,
   RELEASE (*clauses);
 }
 
-static bool
-find_binary (struct ruler * ruler, unsigned lit, unsigned other)
-{
-  struct clauses * lit_clauses = &OCCURRENCES (lit);
-  struct clauses * other_clauses = &OCCURRENCES (other);
-  size_t size_lit_clauses = SIZE (*lit_clauses);
-  size_t size_other_clauses = SIZE (*other_clauses);
-  if (size_lit_clauses > size_other_clauses)
-    {
-      if (size_other_clauses > OCCURRENCE_LIMIT)
-	return false;
-      SWAP (lit, other);
-      lit_clauses = other_clauses;
-    }
-  else if (size_lit_clauses > OCCURRENCE_LIMIT)
-    return false;
-
-  for (all_clauses (clause, OCCURRENCES (lit)))
-    if (binary_pointer (clause) && other_pointer (clause) == other)
-      return true;
-
-  return false;
-}
-
-static bool
-find_all_binary_and_gate_clauses (struct ruler * ruler,
-                                  unsigned lit, struct clause * clause)
-{
-  if (clause->size > CLAUSE_SIZE_LIMIT)
-    return false;
-  unsigned not_lit = NOT (lit);
-  for (all_literals_in_clause (other, clause))
-    if (lit != other && !find_binary (ruler, not_lit, NOT (other)))
-      return false;
-  return true;
-}
-
-static struct clause *
-find_and_gate_base_clause (struct ruler * ruler, unsigned lit)
-{
-  for (all_clauses (clause, OCCURRENCES (lit)))
-    if (!binary_pointer (clause) &&
-         find_all_binary_and_gate_clauses (ruler, lit, clause))
-      return clause;
-  return 0;
-}
-
 static void
 eliminate_variable (struct ruler * ruler, unsigned idx)
 {
@@ -3572,14 +3725,6 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
       SWAP (pivot, not_pivot);
       SWAP (pos_size, neg_size);
       SWAP (pos_clauses, neg_clauses);
-    }
-  struct clause * gate = find_and_gate_base_clause (ruler, pivot);
-  if (!gate)
-    gate = find_and_gate_base_clause (ruler, not_pivot);
-  if (gate)
-    {
-      ROGCLAUSE (gate, "and-gate base");
-      COVER ("hit");
     }
   size_t resolvents = 0;
   signed char * marks = ruler->marks;
@@ -3675,6 +3820,10 @@ eliminate_variables (struct ruler * ruler, unsigned round)
 	}
     }
   RELEASE (ruler->resolvent);
+  RELEASE (ruler->gate[0]);
+  RELEASE (ruler->gate[1]);
+  RELEASE (ruler->nogate[0]);
+  RELEASE (ruler->nogate[1]);
   assert (ruler->eliminating);
   ruler->eliminating = false;
   double end_round = STOP (ruler, eliminating);
@@ -5843,31 +5992,6 @@ switch_mode (struct ring *ring)
   verbose (ring, "next mode switching limit at %" PRIu64 " ticks", l->mode);
 }
 
-struct doubles
-{
-  double *begin, *end, *allocated;
-};
-
-struct counter
-{
-  unsigned count;
-  struct clause *clause;
-};
-
-struct counters
-{
-  struct counter **begin, **end, **allocated;
-  unsigned *binaries;
-};
-
-struct set
-{
-  size_t size;
-  size_t deleted;
-  size_t allocated;
-  void **table;
-};
-
 static size_t
 hash_pointer_to_position (void *ptr)
 {
@@ -6092,27 +6216,6 @@ random_set (struct ring *ring, struct set *set)
     }
   return res;
 }
-
-struct walker
-{
-  struct ring *ring;
-  struct counters *occurrences;
-  struct counter *counters;
-  struct set unsatisfied;
-  struct unsigneds literals;
-  struct unsigneds trail;
-  struct watches saved;
-  struct doubles scores;
-  struct doubles breaks;
-  unsigned maxbreak;
-  double epsilon;
-  size_t minimum;
-  size_t initial;
-  unsigned best;
-  uint64_t limit;
-  uint64_t extra;
-  uint64_t flips;
-};
 
 #ifdef LOGGING
 
