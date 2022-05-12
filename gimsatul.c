@@ -3504,6 +3504,53 @@ disconnect_and_delete_clauses (struct ruler * ruler,
   RELEASE (*clauses);
 }
 
+static bool
+find_binary (struct ruler * ruler, unsigned lit, unsigned other)
+{
+  struct clauses * lit_clauses = &OCCURRENCES (lit);
+  struct clauses * other_clauses = &OCCURRENCES (other);
+  size_t size_lit_clauses = SIZE (*lit_clauses);
+  size_t size_other_clauses = SIZE (*other_clauses);
+  if (size_lit_clauses > size_other_clauses)
+    {
+      if (size_other_clauses > OCCURRENCE_LIMIT)
+	return false;
+      SWAP (lit, other);
+      lit_clauses = other_clauses;
+    }
+  else if (size_lit_clauses > OCCURRENCE_LIMIT)
+    return false;
+
+  for (all_clauses (clause, OCCURRENCES (lit)))
+    if (binary_pointer (clause) && other_pointer (clause) == other)
+      return true;
+
+  return false;
+}
+
+static bool
+find_all_binary_and_gate_clauses (struct ruler * ruler,
+                                  unsigned lit, struct clause * clause)
+{
+  if (clause->size > CLAUSE_SIZE_LIMIT)
+    return false;
+  unsigned not_lit = NOT (lit);
+  for (all_literals_in_clause (other, clause))
+    if (lit != other && !find_binary (ruler, not_lit, NOT (other)))
+      return false;
+  return true;
+}
+
+static struct clause *
+find_and_gate_base_clause (struct ruler * ruler, unsigned lit)
+{
+  for (all_clauses (clause, OCCURRENCES (lit)))
+    if (!binary_pointer (clause) &&
+         find_all_binary_and_gate_clauses (ruler, lit, clause))
+      return clause;
+  return 0;
+}
+
 static void
 eliminate_variable (struct ruler * ruler, unsigned idx)
 {
@@ -3525,6 +3572,14 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
       SWAP (pivot, not_pivot);
       SWAP (pos_size, neg_size);
       SWAP (pos_clauses, neg_clauses);
+    }
+  struct clause * gate = find_and_gate_base_clause (ruler, pivot);
+  if (!gate)
+    gate = find_and_gate_base_clause (ruler, not_pivot);
+  if (gate)
+    {
+      ROGCLAUSE (gate, "and-gate base");
+      COVER ("hit");
     }
   size_t resolvents = 0;
   signed char * marks = ruler->marks;
@@ -3686,7 +3741,8 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
     {
       assert ((UINT_MAX - 1)/(optimize + 1) >= SIMPLIFICATION_ROUNDS);
       unsigned max_rounds = (optimize + 1) * SIMPLIFICATION_ROUNDS;
-      message (0, "running  maximum number of %u simplification rounds", max_rounds);
+      message (0, "running at most %u simplification rounds",
+               max_rounds);
       for (unsigned round = 1; round <= max_rounds; round++)
 	{
 	  remove_duplicated_binaries (ruler, round);
@@ -3720,17 +3776,21 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
 	{
 	  size_t removed_clauses = before - after;
 	  size_t removed_variables = SIZE (ruler->units) + total_eliminated;
-	  message (0, "simplification removed %zu clauses %.0f%% and %zu variables %.0f%%",
+	  message (0, "simplification removed %zu clauses %.0f%% and "
+	           "%zu variables %.0f%%",
 		   removed_clauses, percent (removed_clauses, before),
-		   removed_variables, percent (removed_variables, ruler->size));
+		   removed_variables,
+		   percent (removed_variables, ruler->size));
 	}
       else
 	{
 	  size_t added_clauses = before - after;
 	  size_t removed_variables = SIZE (ruler->units) + total_eliminated;
-	  message (0, "simplification ADDED %zu clauses %.0f%% and %zu variables %.0f%%",
+	  message (0, "simplification ADDED %zu clauses %.0f%% "
+	           "and %zu variables %.0f%%",
 		   added_clauses, percent (added_clauses, before),
-		   removed_variables, percent (removed_variables, ruler->size));
+		   removed_variables,
+		   percent (removed_variables, ruler->size));
 	}
     }
 
