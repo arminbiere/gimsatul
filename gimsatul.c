@@ -2826,9 +2826,43 @@ find_and_gate (struct ruler * ruler, unsigned lit,
   return 0;
 }
 
+static unsigned
+find_equivalence (struct ruler * ruler, unsigned lit)
+{
+  signed char * marks = ruler->marks;
+  for (all_clauses (clause, OCCURRENCES (lit)))
+    if (binary_pointer (clause))
+      marks[other_pointer (clause)] = 1;
+  unsigned not_lit = NOT (lit);
+  unsigned res = INVALID;
+  for (all_clauses (clause, OCCURRENCES (not_lit)))
+    if (binary_pointer (clause))
+      {
+	unsigned other = other_pointer (clause);
+	unsigned not_other = NOT (other);
+	if (marks[not_other])
+	  {
+	    res = other;
+	    break;
+	  }
+      }
+  for (all_clauses (clause, OCCURRENCES (lit)))
+    if (binary_pointer (clause))
+      marks[other_pointer (clause)] = 0;
+  return res;
+}
+
 static bool
 find_definition (struct ruler * ruler, unsigned lit)
 {
+  {
+    unsigned other = find_equivalence (ruler, lit);
+    if (other != INVALID)
+      {
+	ROG ("found equivalence %s defined as %s", ROGLIT (lit), ROGLIT (other));
+	COVER ("hit");
+      }
+  }
   unsigned resolve = lit;
   struct clauses * gate = ruler->gate;
   struct clauses * nogate = ruler->nogate;
