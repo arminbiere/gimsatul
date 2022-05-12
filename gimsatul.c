@@ -2855,17 +2855,45 @@ find_equivalence (struct ruler * ruler, unsigned lit)
 static bool
 find_definition (struct ruler * ruler, unsigned lit)
 {
+  struct clauses * gate = ruler->gate;
+  struct clauses * nogate = ruler->nogate;
   {
     unsigned other = find_equivalence (ruler, lit);
     if (other != INVALID)
       {
-	ROG ("found equivalence %s defined as %s", ROGLIT (lit), ROGLIT (other));
-	COVER ("hit");
+	ROG ("found equivalence %s equal to %s", ROGLIT (lit), ROGLIT (other));
+	{
+	  CLEAR (gate[0]);
+	  CLEAR (nogate[0]);
+	  unsigned not_other = NOT (other);
+	  struct clause * lit_clause = tag_pointer (false, lit, not_other);
+	  bool found = false;
+	  PUSH (gate[0], lit_clause);
+	  for (all_clauses (clause, OCCURRENCES (lit)))
+	    if (clause == lit_clause)
+	      found = true;
+	    else
+	      PUSH (nogate[0], clause);
+	  assert (found), (void) found;
+	}
+	{
+	  CLEAR (gate[1]);
+	  CLEAR (nogate[1]);
+	  unsigned not_lit = NOT (lit);
+	  struct clause * not_lit_clause = tag_pointer (false, not_lit, other);
+	  bool found = false;
+	  PUSH (gate[1], not_lit_clause);
+	  for (all_clauses (clause, OCCURRENCES (not_lit)))
+	    if (clause == not_lit_clause)
+	      found = true;
+	    else
+	      PUSH (nogate[1], clause);
+	  assert (found), (void) found;
+	}
+	return true;
       }
   }
   unsigned resolve = lit;
-  struct clauses * gate = ruler->gate;
-  struct clauses * nogate = ruler->nogate;
   struct clause * base = find_and_gate (ruler, resolve, &gate[1], &nogate[1]);
   if (base)
     {
