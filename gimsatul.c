@@ -2952,12 +2952,6 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
   size_t occurrences = pos_size + neg_size;
   ROG ("candidate %s has %zu = %zu + %zu occurrences",
         ROGVAR (idx), occurrences, pos_size, neg_size);
-  if (pos_size > neg_size)
-    {
-      SWAP (pivot, not_pivot);
-      SWAP (pos_size, neg_size);
-      SWAP (pos_clauses, neg_clauses);
-    }
 
   for (all_clauses (clause, *pos_clauses))
     if (clause_with_too_many_occurrences (ruler, clause, pivot))
@@ -3000,11 +2994,11 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
 	      if (elimination_ticks_limit_hit (ruler))
 		break;
 	    }
+	  SWAP (pivot, not_pivot);
 	  if (resolvents > limit)
 	    break;
 	  if (elimination_ticks_limit_hit (ruler))
 	    break;
-	  SWAP (pivot, not_pivot);
 	}
     }
   else
@@ -3026,6 +3020,8 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
 	  if (elimination_ticks_limit_hit (ruler))
 	    break;
 	}
+
+      CLEAR (*ruler->gate);
     }
 
 #if 0
@@ -3071,10 +3067,14 @@ add_first_antecedent_literals (struct ruler * ruler,
   else
     {
       assert (!clause->garbage);
+      bool found_pivot = false;
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == pivot)
-	    continue;
+	    {
+	      found_pivot = true;
+	      continue;
+	    }
 	  signed char value = values[lit];
 	  if (value > 0)
 	    {
@@ -3085,6 +3085,7 @@ add_first_antecedent_literals (struct ruler * ruler,
 	    continue;
 	  PUSH (*resolvent, lit);
 	}
+      assert (found_pivot), (void) found_pivot;
     }
   return true;
 }
@@ -3122,10 +3123,14 @@ add_second_antecedent_literals (struct ruler * ruler,
   else
     {
       assert (!clause->garbage);
+      bool found_not_pivot = false;
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (lit == not_pivot)
-	    continue;
+	    {
+	      found_not_pivot = true;
+	      continue;
+	    }
 	  signed char value = values[lit];
 	  if (value > 0)
 	    {
@@ -3144,6 +3149,7 @@ add_second_antecedent_literals (struct ruler * ruler,
 	    continue;
 	  PUSH (*resolvent, lit);
 	}
+      assert (found_not_pivot), (void) found_not_pivot;
       return true;
     }
 }
@@ -3741,25 +3747,35 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   else
     {
       ruler->statistics.definitions++;
-      for (all_clauses (pos_clause, *pos_clauses))
+
+      struct clauses * gate = ruler->gate;
+      struct clauses * nogate = ruler->nogate;
+
+      for (unsigned i = 0; i != 2; i++)
 	{
-	  mark_clause (marks, pos_clause, pivot);
-	  for (all_clauses (neg_clause, *neg_clauses))
+	  for (all_clauses (pos_clause, gate[i]))
 	    {
-	      assert (EMPTY (ruler->resolvent));
-	      if (add_first_antecedent_literals (ruler,
-		                                 pos_clause, pivot) &&
-		  add_second_antecedent_literals (ruler,
-		                                  neg_clause, not_pivot))
+	      mark_clause (marks, pos_clause, pivot);
+	      for (all_clauses (neg_clause, nogate[!i]))
 		{
-		  add_resolvent (ruler);
-		  resolvents++;
+		  assert (EMPTY (ruler->resolvent));
+		  if (add_first_antecedent_literals (ruler,
+						     pos_clause, pivot) &&
+		      add_second_antecedent_literals (ruler,
+						      neg_clause, not_pivot))
+		    {
+		      add_resolvent (ruler);
+		      resolvents++;
+		    }
+		  CLEAR (ruler->resolvent);
+		  if (ruler->inconsistent)
+		    break;
 		}
-	      CLEAR (ruler->resolvent);
+	      unmark_clause (marks, pos_clause, pivot);
 	      if (ruler->inconsistent)
 		break;
 	    }
-	  unmark_clause (marks, pos_clause, pivot);
+	  SWAP (pivot, not_pivot);
 	  if (ruler->inconsistent)
 	    break;
 	}
