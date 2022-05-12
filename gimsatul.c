@@ -7306,8 +7306,6 @@ parse_int (int *res_ptr, int prev, int *next)
 	return false;
       tmp += digit;
     }
-  if (ch == EOF)
-    return false;
   int res;
   if (sign > 0)
     {
@@ -7387,6 +7385,7 @@ parse_dimacs_body (struct ruler * ruler, int variables, int expected)
       int ch = next_char ();
       if (ch == EOF)
 	{
+      END_OF_FILE:
 	  if (signed_lit)
 	    parse_error ("terminating zero missing");
 	  if (parsed != expected)
@@ -7409,7 +7408,7 @@ parse_dimacs_body (struct ruler * ruler, int variables, int expected)
 	parse_error ("invalid literal %d", signed_lit);
       if (parsed == expected)
 	parse_error ("too many clauses");
-      if (ch != 'c' && ch != ' ' && ch != '\t' && ch != '\n')
+      if (ch != 'c' && ch != ' ' && ch != '\t' && ch != '\n' && ch != EOF)
 	parse_error ("invalid character after '%d'", signed_lit);
       if (signed_lit)
 	{
@@ -7483,6 +7482,8 @@ parse_dimacs_body (struct ruler * ruler, int variables, int expected)
 	}
       if (ch == 'c')
 	goto SKIP_BODY_COMMENT;
+      if (ch == EOF)
+	goto END_OF_FILE;
     }
   assert (parsed == expected);
   assert (dimacs.file);
