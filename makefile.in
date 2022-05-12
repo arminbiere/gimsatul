@@ -2,7 +2,7 @@ CC=@CC@
 CFLAGS=@CFLAGS@
 all: gimsatul
 clean:
-	rm -f makfile config.h gimsatul *~
+	rm -f makfile config.h gimsatul *~ *.backup
 indent:
 	indent gimsatul.c
 test: all
