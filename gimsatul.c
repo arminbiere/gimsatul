@@ -552,6 +552,7 @@ struct ruler_statistics
   unsigned original;
   unsigned deduplicated;
   unsigned eliminated;
+  unsigned definitions;
   unsigned strengthened;
   unsigned subsumed;
   unsigned self_subsumed;
@@ -1674,7 +1675,7 @@ new_ruler (size_t size)
 #endif
   ruler->size = size;
   ruler->values = allocate_and_clear_block (2 * size);
-  ruler->marks = allocate_and_clear_block (2* size);
+  ruler->marks = allocate_and_clear_block (2 * size);
   assert (sizeof (bool) == 1);
   ruler->eliminated = allocate_and_clear_block (size);
   ruler->eliminate = allocate_and_clear_block (size);
@@ -2773,50 +2774,54 @@ can_resolve_clause (struct ruler * ruler,
     }
 }
 
-static struct clause *
-find_binary (struct ruler * ruler, unsigned lit, unsigned other)
-{
-  struct clauses * lit_clauses = &OCCURRENCES (lit);
-  size_t size_lit_clauses = SIZE (*lit_clauses);
-
-  if (size_lit_clauses > OCCURRENCE_LIMIT)
-    return 0;
-
-  for (all_clauses (clause, *lit_clauses))
-    if (binary_pointer (clause) && other_pointer (clause) == other)
-      return clause;
-
-  return 0;
-}
-
 static bool
-find_all_binary_and_gate_clauses (struct ruler * ruler,
-                                  unsigned lit, struct clause * clause,
-				  struct clauses * gate)
+find_binary_and_gate_clauses (struct ruler * ruler,
+                              unsigned lit, struct clause * clause,
+			      struct clauses * gate, struct clauses * nogate)
 {
+  assert (!clause->garbage);
   if (clause->size > CLAUSE_SIZE_LIMIT)
     return false;
-  unsigned not_lit = NOT (lit);
   CLEAR (*gate);
+  CLEAR (*nogate);
+  signed char * marks = ruler->marks;
   for (all_literals_in_clause (other, clause))
-    {
-      if (lit == other)
-	continue;
-      unsigned not_other = NOT (other);
-      struct clause * binary = find_binary (ruler, not_lit, not_other);
-      if (!binary)
-	return false;
-      PUSH (*gate, binary);
-    }
-  return true;
+    if (other != lit)
+      marks[other] = 1;
+  unsigned not_lit = NOT (lit);
+  struct clauses * not_lit_clauses = &OCCURRENCES (not_lit);
+  unsigned marked = 0;
+  for (all_clauses (not_lit_clause, *not_lit_clauses))
+    if (binary_pointer (not_lit_clause))
+      {
+	unsigned other = other_pointer (not_lit_clause);
+	unsigned not_other = NOT (other);
+	if (marks[not_other])
+	  {
+	    PUSH (*gate, not_lit_clause);
+	    marks[not_other] = 0;
+	    marked++;
+	  }
+	else
+	  PUSH (*nogate, not_lit_clause);
+      }
+    else
+      PUSH (*nogate, not_lit_clause);
+  for (all_literals_in_clause (other, clause))
+    if (other != lit)
+      marks[other] = 0;
+  assert (marked < clause->size);
+  return marked + 1 == clause->size;
 }
 
 static struct clause *
-find_and_gate (struct ruler * ruler, struct clauses * gate, unsigned lit)
+find_and_gate (struct ruler * ruler, unsigned lit,
+               struct clauses * gate, struct clauses * nogate)
 {
   for (all_clauses (clause, OCCURRENCES (lit)))
     if (!binary_pointer (clause))
-      if (find_all_binary_and_gate_clauses (ruler, lit, clause, gate))
+      if (find_binary_and_gate_clauses (ruler, lit, clause,
+	                                    gate, nogate))
 	return clause;
   return 0;
 }
@@ -2826,22 +2831,31 @@ find_definition (struct ruler * ruler, unsigned lit)
 {
   unsigned resolve = lit;
   struct clauses * gate = ruler->gate;
-  struct clause * base = find_and_gate (ruler, &gate[1], resolve);
+  struct clauses * nogate = ruler->nogate;
+  struct clause * base = find_and_gate (ruler, resolve, &gate[1], &nogate[1]);
   if (base)
     {
-      CLEAR (gate[0]);
-      PUSH (gate[0], base);
       assert (SIZE (gate[1]) == base->size - 1);
+      CLEAR (gate[0]);
+      CLEAR (nogate[0]);
+      PUSH (gate[0], base);
+      for (all_clauses (clause, OCCURRENCES (resolve)))
+	if (clause != base)
+	  PUSH (nogate[0], clause);
     }
   else
     {
       resolve = NOT (lit);
-      base = find_and_gate (ruler, &gate[0], resolve);
+      base = find_and_gate (ruler, resolve, &gate[0], &nogate[0]);
       if (base)
 	{
-	  CLEAR (gate[1]);
-	  PUSH (gate[1], base);
 	  assert (SIZE (gate[0]) == base->size - 1);
+	  CLEAR (gate[1]);
+	  CLEAR (nogate[1]);
+	  PUSH (gate[1], base);
+	  for (all_clauses (clause, OCCURRENCES (resolve)))
+	    if (clause != base)
+	      PUSH (nogate[1], clause);
 	}
     }
   if (!base)
@@ -2867,28 +2881,6 @@ find_definition (struct ruler * ruler, unsigned lit)
     }
   while (0);
 #endif
-  struct clauses * nogate = ruler->nogate;
-  resolve = lit;
-  for (unsigned i = 0; i != 2; i++)
-    {
-      CLEAR (nogate[i]);
-      struct clauses * clauses = &OCCURRENCES (resolve);
-      for (all_clauses (clause, *clauses))
-	{
-	  bool found = false;
-	  for (all_clauses (other_clause, gate[i]))
-	    if (other_clause == clause)
-	      {
-		found = true;
-		break;
-	      }
-	  if (!found)
-	    PUSH (nogate[i], clause);
-	}
-      ROG ("split clauses with %s into %zu gate and %zu non-gate clauses",
-	   ROGLIT (resolve), SIZE (gate[i]), SIZE (nogate[i]));
-      resolve = NOT (resolve);
-    }
   return true;
 }
 
@@ -3718,39 +3710,72 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   unsigned not_pivot = NOT (pivot);
   struct clauses * pos_clauses = &OCCURRENCES (pivot);
   struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
-  size_t neg_size = SIZE (*neg_clauses);
+  size_t resolvents = 0;
+  signed char * marks = ruler->marks;
+  struct clauses * gate = ruler->gate;
+  if (EMPTY (*gate))
+    {
+      for (all_clauses (pos_clause, *pos_clauses))
+	{
+	  mark_clause (marks, pos_clause, pivot);
+	  for (all_clauses (neg_clause, *neg_clauses))
+	    {
+	      assert (EMPTY (ruler->resolvent));
+	      if (add_first_antecedent_literals (ruler,
+		                                 pos_clause, pivot) &&
+		  add_second_antecedent_literals (ruler,
+		                                  neg_clause, not_pivot))
+		{
+		  add_resolvent (ruler);
+		  resolvents++;
+		}
+	      CLEAR (ruler->resolvent);
+	      if (ruler->inconsistent)
+		break;
+	    }
+	  unmark_clause (marks, pos_clause, pivot);
+	  if (ruler->inconsistent)
+	    break;
+	}
+    }
+  else
+    {
+      ruler->statistics.definitions++;
+      for (all_clauses (pos_clause, *pos_clauses))
+	{
+	  mark_clause (marks, pos_clause, pivot);
+	  for (all_clauses (neg_clause, *neg_clauses))
+	    {
+	      assert (EMPTY (ruler->resolvent));
+	      if (add_first_antecedent_literals (ruler,
+		                                 pos_clause, pivot) &&
+		  add_second_antecedent_literals (ruler,
+		                                  neg_clause, not_pivot))
+		{
+		  add_resolvent (ruler);
+		  resolvents++;
+		}
+	      CLEAR (ruler->resolvent);
+	      if (ruler->inconsistent)
+		break;
+	    }
+	  unmark_clause (marks, pos_clause, pivot);
+	  if (ruler->inconsistent)
+	    break;
+	}
+    }
+
+  ROG ("added %zu resolvents on %s", resolvents, ROGVAR (idx));
+  if (ruler->inconsistent)
+    return;
   size_t pos_size = SIZE (*pos_clauses);
+  size_t neg_size = SIZE (*neg_clauses);
   if (pos_size > neg_size)
     {
       SWAP (pivot, not_pivot);
       SWAP (pos_size, neg_size);
       SWAP (pos_clauses, neg_clauses);
     }
-  size_t resolvents = 0;
-  signed char * marks = ruler->marks;
-  for (all_clauses (pos_clause, *pos_clauses))
-    {
-      mark_clause (marks, pos_clause, pivot);
-      for (all_clauses (neg_clause, *neg_clauses))
-	{
-	  assert (EMPTY (ruler->resolvent));
-	  if (add_first_antecedent_literals (ruler, pos_clause, pivot) &&
-	      add_second_antecedent_literals (ruler, neg_clause, not_pivot))
-	    {
-	      add_resolvent (ruler),
-	      resolvents++;
-	    }
-	  CLEAR (ruler->resolvent);
-	  if (ruler->inconsistent)
-	    break;
-	}
-      unmark_clause (marks, pos_clause, pivot);
-      if (ruler->inconsistent)
-	break;
-    }
-  ROG ("added %zu resolvents on %s", resolvents, ROGVAR (idx));
-  if (ruler->inconsistent)
-    return;
   ROG ("adding %zu clauses with %s to extension stack",
        pos_size, ROGLIT (pivot));
   struct unsigneds * extension = &ruler->extension;
@@ -8360,6 +8385,8 @@ print_ruler_statistics (struct ruler *ruler)
 
   printf ("c %-22s %17u %13.2f %% variables\n", "eliminated:",
           s->eliminated, percent (s->eliminated, variables));
+  printf ("c %-22s %17u %13.2f %% eliminated variables\n", "definitions:",
+          s->definitions, percent (s->definitions, s->eliminated));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "deduplicated:",
           s->deduplicated, percent (s->deduplicated, s->subsumed));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "self-subsumed::",
