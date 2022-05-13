@@ -14,7 +14,7 @@ static const char * usage =
 "-l|--log[ging]   enable very verbose internal logging\n"
 #endif
 "-n|--no-witness  do not print satisfying assignments\n"
-"-O|-O1|-O2|-O3   increase simplification ticks limits by 10^<level>\n"
+"-O|-O<level>     increase simplification ticks and round limits\n"
 "-q|--quiet       disable all additional messages\n"
 "-v|--verbose     increase verbosity\n"
 "--version        print version\n"
@@ -436,6 +436,7 @@ struct ruler_profiles
 {
   struct profile cloning;
   struct profile eliminating;
+  struct profile deduplicating;
   struct profile parsing;
   struct profile solving;
   struct profile simplifying;
@@ -553,15 +554,17 @@ struct ruler_limits
 struct ruler_statistics
 {
   uint64_t garbage;
-  unsigned binaries;
-  unsigned clauses;
+  uint64_t binaries;
+  //uint64_t clauses;
+  unsigned active;
   unsigned original;
   unsigned deduplicated;
   unsigned eliminated;
   unsigned definitions;
   unsigned strengthened;
   unsigned subsumed;
-  unsigned self_subsumed;
+  unsigned substituted;
+  unsigned selfsubsumed;
   struct
   {
     uint64_t elimination;
@@ -1658,6 +1661,7 @@ static void
 init_ruler_profiles (struct ruler *ruler)
 {
   INIT_PROFILE (ruler, cloning);
+  INIT_PROFILE (ruler, deduplicating);
   INIT_PROFILE (ruler, eliminating);
   INIT_PROFILE (ruler, parsing);
   INIT_PROFILE (ruler, solving);
@@ -1681,6 +1685,7 @@ new_ruler (size_t size)
   pthread_mutex_init (&ruler->locks.winner, 0);
 #endif
   ruler->size = size;
+  ruler->statistics.active = size;
   ruler->values = allocate_and_clear_block (2 * size);
   ruler->marks = allocate_and_clear_block (2 * size);
   assert (sizeof (bool) == 1);
@@ -1807,6 +1812,8 @@ assign_ruler_unit (struct ruler * ruler, unsigned unit)
   if (ruler->solving)
     ruler->statistics.fixed.solving++;
   ruler->statistics.fixed.total++;
+  assert (ruler->statistics.active);
+  ruler->statistics.active--;
 }
 
 /*------------------------------------------------------------------------*/
@@ -3361,9 +3368,10 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
   return removed;
 }
 
-static size_t
+static bool
 remove_duplicated_binaries (struct ruler * ruler, unsigned round)
 {
+  double start_deduplication = START (ruler, deduplicating);
   bool * eliminated = ruler->eliminated;
   signed char * values = (signed char*) ruler->values;
   unsigned units_before = ruler->statistics.fixed.total;
@@ -3378,11 +3386,15 @@ remove_duplicated_binaries (struct ruler * ruler, unsigned round)
       if (ruler->inconsistent)
 	break;
     }
-  verbose (0, "removed %zu duplicated binary clauses in round %u",
-           removed, round);
   unsigned units_after = ruler->statistics.fixed.total;
   if (units_after > units_before)
-  verbose (0, "deduplication found %u units", units_after - units_before);
+    verbose (0, "[%u] deduplicating found %u units",
+             round, units_after - units_before);
+  double stop_deduplication = STOP (ruler, deduplicating);
+  message (0, "[%u] removed %zu duplicated binary clauses %.0f%% "
+           "in %.2f seconds", round,
+           removed, percent (removed, ruler->statistics.original),
+	   stop_deduplication - start_deduplication);
   return removed;
 }
 
@@ -3561,7 +3573,7 @@ strengthen_very_large_clause (struct ruler * ruler,
   mark_subsume_clause (ruler, clause);
 }
 
-static bool
+static void
 forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 {
   ROGCLAUSE (clause, "subsumption candidate");
@@ -3602,9 +3614,9 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
       if (subsuming)
 	{
 	  assert (remove != INVALID);
-	  bool self_subsuming = !binary_pointer (subsuming) &&
+	  bool selfsubsuming = !binary_pointer (subsuming) &&
 	                        (clause->size == subsuming->size);
-	  if (self_subsuming)
+	  if (selfsubsuming)
 	    ROGCLAUSE (subsuming,
 		       "self-subsuming resolution on %s with",
 		       ROGLIT (NOT (remove)));
@@ -3622,10 +3634,10 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	  ROGCLAUSE (clause, "strengthened");
 	  mark_eliminate_literal (ruler, remove);
 	  unmark_literal (ruler->marks, remove);
-	  if (self_subsuming)
+	  if (selfsubsuming)
 	    {
 	      ruler->statistics.subsumed++;
-	      ruler->statistics.self_subsumed++;
+	      ruler->statistics.selfsubsumed++;
 	      ROGCLAUSE (subsuming,
 	                "disconnecting and marking garbage subsumed");
 	      disconnect_literal (ruler, other, subsuming);
@@ -3664,7 +3676,6 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
     }
   else
     unmark_clause (ruler->marks, clause, INVALID);
-  return subsuming;
 }
 
 static void
@@ -3727,24 +3738,27 @@ subsumption_ticks_limit_hit (struct ruler * ruler)
   return statistics->ticks.subsumption > limits->subsumption;
 }
 
-static void
+static bool
 subsume_clauses (struct ruler * ruler, unsigned round)
 {
   if (subsumption_ticks_limit_hit (ruler))
-    return;
+    return false;
   double start_subsumption = START (ruler, subsuming);
-  size_t subsumed = remove_duplicated_binaries (ruler, round);
   flush_large_clause_occurrences (ruler);
   assert (!ruler->subsuming);
   ruler->subsuming = true;
   struct clause ** candidates;
   size_t size_candidates = get_subsumption_candidates (ruler, &candidates);
-  verbose (0, "found %zu large forward subsumption candidates in round %u",
-           size_candidates, round);
+  verbose (0, "[%u] found %zu large forward subsumption candidates",
+           round, size_candidates);
+  struct { uint64_t before, after, delta; } subsumed, strengthened;
+  struct ruler_statistics * statistics = &ruler->statistics;
+  subsumed.before = statistics->subsumed;
+  strengthened.before = statistics->strengthened;
   struct clause ** end_candidates = candidates + size_candidates;
   for (struct clause ** p = candidates; p != end_candidates; p++)
     {
-      subsumed += forward_subsume_large_clause (ruler, *p);
+      forward_subsume_large_clause (ruler, *p);
       if (subsumption_ticks_limit_hit (ruler))
 	break;
     }
@@ -3753,10 +3767,17 @@ subsume_clauses (struct ruler * ruler, unsigned round)
   flush_large_garbage_clauses_and_reconnect (ruler);
   assert (ruler->subsuming);
   ruler->subsuming = false;
+  subsumed.after = statistics->subsumed;
+  strengthened.after = statistics->strengthened;
+  subsumed.delta = subsumed.after - subsumed.before;
+  strengthened.delta = strengthened.after - strengthened.before;
   double end_subsumption = STOP (ruler, subsuming);
-  message (0, "subsumed and strengthened %zu clauses "
-           "in round %u in %.2f seconds", subsumed, round,
+  message (0, "[%u] subsumed %zu clauses %.0f%% and "
+           "strengthened %zu clauses %.0f%% in %.2f seconds", round,
+	   subsumed.delta, percent (subsumed.delta, statistics->original),
+	   strengthened.delta, percent (strengthened.delta, statistics->original),
 	   end_subsumption - start_subsumption);
+  return subsumed.delta || strengthened.delta;
 }
 
 static void
@@ -3779,6 +3800,8 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   assert (!ruler->eliminated[idx]);
   ruler->eliminated[idx] = true;
   ruler->statistics.eliminated++;
+  assert (ruler->statistics.active);
+  ruler->statistics.active--;
   ROG ("adding resolvents on %s", ROGVAR (idx));
   unsigned not_pivot = NOT (pivot);
   struct clauses * pos_clauses = &OCCURRENCES (pivot);
@@ -3888,11 +3911,11 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
 }
 
-static unsigned
+static bool
 eliminate_variables (struct ruler * ruler, unsigned round)
 {
   if (elimination_ticks_limit_hit (ruler))
-    return 0;
+    return false;
   double start_round = START (ruler, eliminating);
   assert (!ruler->eliminating);
   ruler->eliminating = true;
@@ -3929,10 +3952,10 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   assert (ruler->eliminating);
   ruler->eliminating = false;
   double end_round = STOP (ruler, eliminating);
-  message (0, "eliminated %u variables %.0f%% "
-           "in round %u margin %u in %.2f seconds",
+  message (0, "[%u] eliminated %u variables %.0f%% "
+           "margin %u in %.2f seconds", round,
 	   eliminated, percent (eliminated, ruler->size),
-	   round, margin, end_round - start_round);
+	   margin, end_round - start_round);
   return eliminated;
 }
 
@@ -4048,8 +4071,8 @@ DONE:
   RELEASE (work);
   free (reaches);
   free (marks);
-  verbose (0, "found %u new equivalent literal pairs in round %u",
-	  equivalences, round);
+  verbose (0, "[%u] found %u new equivalent literal pairs",
+	  round, equivalences);
   if (equivalences && !ruler->inconsistent)
     return repr;
   free (repr);
@@ -4065,7 +4088,7 @@ substitute_clause (struct ruler * ruler,
   signed char dst_value = values[dst];
   if (dst_value > 0)
     {
-      ROG ("satisfied replacment literal %s", ROGLIT (dst));
+      ROG ("satisfied replacement literal %s", ROGLIT (dst));
       return;
     }
   struct unsigneds * resolvent = &ruler->resolvent;
@@ -4130,8 +4153,6 @@ substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
 {
   if (ruler->values[src])
     return 0;
-  if (ruler->values[dst])
-    return 0;
   ROG ("substituting literal %s with %s", ROGLIT (src), ROGLIT (dst));
   assert (!ruler->eliminated[IDX (src)]);
   assert (!ruler->eliminated[IDX (dst)]);
@@ -4141,6 +4162,8 @@ substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
   for (all_clauses (clause, *clauses))
     {
       substitute_clause (ruler, src, dst, clause);
+      if (ruler->inconsistent)
+	break;
       disconnect_and_delete_clause (ruler, clause, src);
     }
   RELEASE (*clauses);
@@ -4151,6 +4174,16 @@ substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
   PUSH (*extension, INVALID);
   PUSH (*extension, src);
   PUSH (*extension, NOT (dst));
+  if (SGN (src))
+    {
+      unsigned idx = IDX (src);
+      ROG ("marking %s as aliminated", ROGVAR (idx));
+      ruler->statistics.substituted++;
+      assert (ruler->statistics.active);
+      ruler->statistics.active--;
+      assert (!ruler->eliminated[idx]);
+      ruler->eliminated[idx] = 1;
+    }
   return 1;
 }
 
@@ -4185,7 +4218,7 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
   return substituted;
 }
 
-static void
+static bool
 equivalent_literal_substitution (struct ruler * ruler, unsigned round)
 {
   double substitution_start = START (ruler, substituting);
@@ -4197,10 +4230,12 @@ equivalent_literal_substitution (struct ruler * ruler, unsigned round)
       free (repr);
     }
   double substitution_end = STOP (ruler, substituting);
-  message (0, "substituted %u variables %.0f%% "
-           "in round %u in %.2f seconds",
-	   substituted, percent (substituted, ruler->size),
-	   round, substitution_end - substitution_start);
+  if (verbosity >= 0)
+    fputs ("c\n", stdout);
+  message (0, "[%u] substituted %u variables %.0f%% in %.2f seconds",
+           round, substituted, percent (substituted, ruler->size),
+	   substitution_end - substitution_start);
+  return substituted;
 }
 
 static uint64_t
@@ -4225,16 +4260,50 @@ static void
 set_ruler_limits (struct ruler * ruler, unsigned optimize)
 {
   message (0, "simplification optimization level %u", optimize);
+  if (optimize)
+    {
+      unsigned scale = 1;
+      for (unsigned i = 0; i != optimize; i++)
+	scale *= 10;
+      message (0, "scaling simplification ticks limits by %u", scale);
+    }
+  else
+    message (0, "keeping simplification ticks limits at their default");
 
   ruler->limits.elimination =
     scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-  message (0, "setting elimination ticks limit to %" PRIu64,
+  message (0, "setting elimination limit to %" PRIu64 " ticks",
            ruler->limits.elimination);
 
   ruler->limits.subsumption =
     scale_ticks_limit (optimize, SUBSUMPTION_TICKS_LIMIT);
-  message (0, "setting subsumption ticks limit to %" PRIu64,
+  message (0, "setting subsumption limit to %" PRIu64 " ticks",
            ruler->limits.subsumption);
+}
+
+static unsigned
+set_max_rounds (unsigned optimize)
+{
+  unsigned res = SIMPLIFICATION_ROUNDS;
+  if (optimize)
+    {
+      unsigned scale = optimize + 1;
+      if ((UINT_MAX - 1)/scale >= SIMPLIFICATION_ROUNDS)
+	res *= scale;
+      else
+	res = UINT_MAX - 1;
+      message (0, "running at most %u simplification rounds (scaled by %u)",
+	       res, optimize);
+    }
+  else
+    message (0, "running at most %u simplification rounds (default)", res);
+  return res;
+}
+
+static size_t
+current_ruler_clauses (struct ruler * ruler)
+{
+  return SIZE (ruler->clauses) + ruler->statistics.binaries;
 }
 
 static void
@@ -4252,70 +4321,94 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
     }
   set_ruler_limits (ruler, optimize);
   connect_all_large_clauses (ruler);
-  size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
-  unsigned total_eliminated = 0;
-  if (propagate_and_flush_ruler_units (ruler))
+  struct
+  {
+    size_t before, after, delta;
+  } clauses, variables;
+
+  clauses.before = current_ruler_clauses (ruler);
+  variables.before = ruler->statistics.active;
+
+  unsigned max_rounds = set_max_rounds (optimize);
+
+  bool done = false;
+
+  for (unsigned round = 1; !done && round <= max_rounds; round++)
     {
-      assert ((UINT_MAX - 1)/(optimize + 1) >= SIMPLIFICATION_ROUNDS);
-      unsigned max_rounds = (optimize + 1) * SIMPLIFICATION_ROUNDS;
-      message (0, "running at most %u simplification rounds",
-               max_rounds);
-      for (unsigned round = 1; round <= max_rounds; round++)
-	{
-	  equivalent_literal_substitution (ruler, round);
-	  if (!propagate_and_flush_ruler_units (ruler))
-	    break;
-#if 1
-	  break;
+      done = true;
+      if (!propagate_and_flush_ruler_units (ruler))
+	break;
+
+      if (equivalent_literal_substitution (ruler, round))
+	done = false;
+      if (!propagate_and_flush_ruler_units (ruler))
+	break;
+#if 0
+      break;
 #endif
-	  remove_duplicated_binaries (ruler, round);
-	  if (!propagate_and_flush_ruler_units (ruler))
-	    break;
+      if (remove_duplicated_binaries (ruler, round))
+	done = false;
+      if (!propagate_and_flush_ruler_units (ruler))
+	break;
 
-	  subsume_clauses (ruler, round);
-	  assert (!ruler->inconsistent);
+      if (subsume_clauses (ruler, round))
+	done = false;
+      if (!propagate_and_flush_ruler_units (ruler))
+	break;
 
-	  unsigned eliminated = eliminate_variables (ruler, round);
-	  total_eliminated += eliminated;
-	  if (!propagate_and_flush_ruler_units (ruler))
-	    break;
-	  if (!eliminated)
-	    break;
-	  if (elimination_ticks_limit_hit (ruler))
-	    break;
-	}
+      if (eliminate_variables (ruler, round))
+	done = false;
+      if (!propagate_and_flush_ruler_units (ruler))
+	break;
+      if (elimination_ticks_limit_hit (ruler))
+	break;
     }
-  if (ruler->inconsistent)
-    message (0, "simplification produced empty clause");
+  if (verbosity >= 0)
+    fputs ("c\n", stdout);
+
+  variables.after = ruler->statistics.active;
+  assert (variables.after <= variables.before);
+  variables.delta = variables.before - variables.after;
+
+  message (0, "simplification removed %zu variables %.0f%% "
+           "with %zu remaining %.0f%%",
+	   variables.delta,
+	   percent (variables.delta, variables.before),
+	   variables.after,
+	   percent (variables.after, ruler->size));
+           
+
+  clauses.after = current_ruler_clauses (ruler);
+  size_t original = ruler->statistics.original;
+
+  if (clauses.after <= clauses.before)
+    {
+      clauses.delta = clauses.before - clauses.after;
+      message (0, "simplification removed %zu clauses %.0f%% "
+               "with %zu remaining %.0f%%",
+	       clauses.delta,
+	       percent (clauses.delta, clauses.before),
+	       clauses.after,
+	       percent (clauses.after, original));
+    }
   else
     {
-      size_t after = SIZE (ruler->clauses) + ruler->statistics.binaries;
-      if (after <= before)
-	{
-	  size_t removed_clauses = before - after;
-	  size_t removed_variables = SIZE (ruler->units) + total_eliminated;
-	  message (0, "simplification removed %zu clauses %.0f%% and "
-	           "%zu variables %.0f%%",
-		   removed_clauses, percent (removed_clauses, before),
-		   removed_variables,
-		   percent (removed_variables, ruler->size));
-	}
-      else
-	{
-	  size_t added_clauses = before - after;
-	  size_t removed_variables = SIZE (ruler->units) + total_eliminated;
-	  message (0, "simplification ADDED %zu clauses %.0f%% "
-	           "and %zu variables %.0f%%",
-		   added_clauses, percent (added_clauses, before),
-		   removed_variables,
-		   percent (removed_variables, ruler->size));
-	}
+      clauses.delta = clauses.after - clauses.before;
+      message (0, "simplification ADDED %zu clauses %.0f%% "
+               "with %zu remaining %.0f%%",
+	       clauses.delta,
+	       percent (clauses.delta, clauses.before),
+	       clauses.after,
+	       percent (clauses.after, original));
     }
 
-  message (0, "subsumption ticks used %" PRIu64 "%s",
+  if (ruler->inconsistent)
+    message (0, "simplification produced empty clause");
+
+  message (0, "subsumption used %" PRIu64 " ticks%s",
            ruler->statistics.ticks.subsumption,
 	   subsumption_ticks_limit_hit (ruler) ? " (limit hit)" : "");
-  message (0, "elimination ticks used %" PRIu64 "%s",
+  message (0, "elimination used %" PRIu64 " ticks%s",
            ruler->statistics.ticks.elimination,
 	   elimination_ticks_limit_hit (ruler) ? " (limit hit)" : "");
 
@@ -4357,8 +4450,11 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
       ring->statistics.fixed++;
       if (!ring->pool)
 	{
-	  ring->ruler->statistics.fixed.solving++;
-	  ring->ruler->statistics.fixed.total++;
+	  struct ruler * ruler = ring->ruler;
+	  ruler->statistics.fixed.solving++;
+	  ruler->statistics.fixed.total++;
+	  assert (ruler->statistics.active);
+	  ruler->statistics.active--;
 	}
       assert (ring->statistics.active);
       ring->statistics.active--;
@@ -7561,6 +7657,21 @@ struct options
   unsigned optimize;
 };
 
+static bool
+is_positive_number_string (const char *arg)
+{
+  const char * p = arg;
+  int ch;
+  if (!(ch = *p++))
+    return false;
+  if (!isdigit (ch))
+    return false;
+  while ((ch = *p++))
+    if (!isdigit (ch))
+      return false;
+  return true;
+}
+
 static const char *
 parse_long_option (const char *arg, const char *match)
 {
@@ -7574,15 +7685,7 @@ parse_long_option (const char *arg, const char *match)
       return 0;
   if (*p++ != '=')
     return 0;
-  const char *res = p;
-  int ch;
-  if (!(ch = *p++))
-    return 0;
-  if (!isdigit (ch))
-    return 0;
-  while ((ch = *p++) && isdigit (ch))
-    ;
-  return ch ? 0 : res;
+  return is_positive_number_string (p) ? p : 0;
 }
 
 static void
@@ -7615,15 +7718,16 @@ parse_options (int argc, char **argv, struct options *opts)
 #endif
       else if (!strcmp (opt, "-n") || !strcmp (opt, "--no-witness"))
 	witness = false;
-      else if (!strcmp (opt, "-O") || !strcmp (opt, "-O1"))
+      else if (!strcmp (opt, "-O"))
 	opts->optimize = 1;
-      else if (!strcmp (opt, "-O2"))
-	opts->optimize = 2;
-      else if (!strcmp (opt, "-O3"))
-	opts->optimize = 3;
       else if (opt[0] == '-' && opt[1] == 'O')
-	die ("invalid optimization option '%s' "
-	     "(only '-O' and '-O[1-3]' supported)", opt);
+	{
+	  arg = opt + 2;
+	  if (!is_positive_number_string (arg) ||
+	      sscanf (arg, "%u", &opts->optimize) != 1)
+	    die ("invalid '-O' option '%s'", opt);
+
+	}
       else if (!strcmp (opt, "-q") || !strcmp (opt, "--quiet"))
 	{
 	  if (quiet_opt)
@@ -8096,6 +8200,24 @@ extend_witness (struct ring * ring)
   bool satisfied = false;
   size_t flipped = 0;
   LOG ("going through extension stack of size %zu", (size_t)(p - begin));
+#ifdef LOGGING
+  if (verbosity == INT_MAX)
+    {
+      LOG ("extension stack in reverse order:");
+      unsigned * q = p;
+      while (q != begin)
+	{
+	  unsigned * next = q;
+	  while (*--next != INVALID)
+	    ;
+	  LOGPREFIX ("extension clause");
+	  for (unsigned * c = next + 1; c != q; c++)
+	    printf (" %s", LOGLIT (*c));
+	  LOGSUFFIX ();
+	  q = next;
+	}
+    }
+#endif
   while (p != begin)
     {
       unsigned lit = *--p;
@@ -8725,10 +8847,12 @@ print_ruler_statistics (struct ruler *ruler)
           s->eliminated, percent (s->eliminated, variables));
   printf ("c %-22s %17u %13.2f %% eliminated variables\n", "definitions:",
           s->definitions, percent (s->definitions, s->eliminated));
+  printf ("c %-22s %17u %13.2f %% variables\n", "substituted:",
+          s->substituted, percent (s->substituted, variables));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "deduplicated:",
           s->deduplicated, percent (s->deduplicated, s->subsumed));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "self-subsumed::",
-          s->self_subsumed, percent (s->self_subsumed, s->subsumed));
+          s->selfsubsumed, percent (s->selfsubsumed, s->subsumed));
   printf ("c %-22s %17u %13.2f %% original clauses\n", "strengthened:",
           s->strengthened, percent (s->strengthened, s->original));
   printf ("c %-22s %17u %13.2f %% original clauses\n", "subsumed:",
