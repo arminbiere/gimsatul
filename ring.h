@@ -1,6 +1,7 @@
 #ifndef _ring_h_INCLUDED
 #define _ring_h_INCLUDED
 
+#include "average.h"
 #include "clause.h"
 #include "logging.h"
 #include "options.h"
@@ -16,11 +17,6 @@
 #include <stdlib.h>
 
 struct ruler;
-
-struct average
-{
-  double value, biased, exp;
-};
 
 struct reluctant
 {
