@@ -4064,7 +4064,10 @@ substitute_clause (struct ruler * ruler,
   signed char * values = (signed char*) ruler->values;
   signed char dst_value = values[dst];
   if (dst_value > 0)
-    return;
+    {
+      ROG ("satisfied replacment literal %s", ROGLIT (dst));
+      return;
+    }
   struct unsigneds * resolvent = &ruler->resolvent;
   CLEAR (*resolvent);
   unsigned not_dst = NOT (dst);
@@ -4073,12 +4076,20 @@ substitute_clause (struct ruler * ruler,
       assert (lit_pointer (clause) == src);
       unsigned other = other_pointer (clause);
       if (other == not_dst)
-	return;
+	{
+	  ROG ("resulting clause tautological since it "
+	       "contains both %s and %s",
+	       ROGLIT (dst), ROGLIT (other));
+	  return;
+	}
       if (other != dst)
 	{
 	  signed char other_value = values[other];
 	  if (other_value > 0)
-	    return;
+	    {
+	      ROG ("clause already satisfied by %s", ROGLIT (other));
+	      return;
+	    }
 	  if (!other_value)
 	    PUSH (*resolvent, other);
 	}
@@ -4092,12 +4103,20 @@ substitute_clause (struct ruler * ruler,
 	  if (other == dst)
 	    continue;
 	  if (other == not_dst)
-	    return;
+	    {
+	      ROG ("resulting clause tautological since it "
+		   "contains both %s and %s",
+		   ROGLIT (dst), ROGLIT (other));
+	      return;
+	    }
 	  signed char other_value = values[other];
 	  if (other_value < 0)
 	    continue;
 	  if (other_value > 0)
-	    return;
+	    {
+	      ROG ("clause already satisfied by %s", ROGLIT (other));
+	      return;
+	    }
 	  PUSH (*resolvent, other);
 	}
     }
@@ -4130,8 +4149,8 @@ substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
              "pushing on extension stack with witness literal %s",
 	     ROGLIT (NOT (src)));
   PUSH (*extension, INVALID);
-  PUSH (*extension, NOT (src));
-  PUSH (*extension, dst);
+  PUSH (*extension, src);
+  PUSH (*extension, NOT (dst));
   return 1;
 }
 
@@ -4246,7 +4265,9 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
 	  equivalent_literal_substitution (ruler, round);
 	  if (!propagate_and_flush_ruler_units (ruler))
 	    break;
-
+#if 1
+	  break;
+#endif
 	  remove_duplicated_binaries (ruler, round);
 	  if (!propagate_and_flush_ruler_units (ruler))
 	    break;
