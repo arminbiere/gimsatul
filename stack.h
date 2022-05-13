@@ -78,5 +78,15 @@ struct buffer
   unsigned char *begin, *end, *allocated;
 };
 
+#define all_elements_on_stack(TYPE,ELEM,STACK) \
+  TYPE * P_ ## ELEM = (STACK).begin, * END_ ## ELEM = (STACK).end, ELEM; \
+  (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
+  ++P_ ## ELEM
+
+#define all_pointers_on_stack(TYPE,ELEM,STACK) \
+  TYPE ** P_ ## ELEM = (STACK).begin, ** END_ ## ELEM = (STACK).end, * ELEM; \
+  (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
+  ++P_ ## ELEM
+
 #endif
 

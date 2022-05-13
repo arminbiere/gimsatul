@@ -5,6 +5,7 @@
 #include "profile.h"
 #include "queue.h"
 #include "stack.h"
+#include "variable.h"
 #include "watches.h"
 
 #include <stdbool.h>

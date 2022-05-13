@@ -71,16 +71,6 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#define all_elements_on_stack(TYPE,ELEM,STACK) \
-  TYPE * P_ ## ELEM = (STACK).begin, * END_ ## ELEM = (STACK).end, ELEM; \
-  (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
-  ++P_ ## ELEM
-
-#define all_pointers_on_stack(TYPE,ELEM,STACK) \
-  TYPE ** P_ ## ELEM = (STACK).begin, ** END_ ## ELEM = (STACK).end, * ELEM; \
-  (P_ ## ELEM != END_ ## ELEM) && ((ELEM) = *P_ ## ELEM, true); \
-  ++P_ ## ELEM
-
 #define all_watches(ELEM,WATCHES) \
   all_pointers_on_stack (struct watch, ELEM, WATCHES)
 
@@ -162,19 +152,6 @@ struct file
   FILE *file;
   int close;
   uint64_t lines;
-};
-
-struct variable
-{
-  unsigned level;
-  signed char best;
-  signed char saved;
-  signed char target;
-  bool minimize:1;
-  bool poison:1;
-  bool seen:1;
-  bool shrinkable:1;
-  struct watch *reason;
 };
 
 struct ruler_profiles
