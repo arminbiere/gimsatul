@@ -1,3 +1,4 @@
 makefile 
 config.h
+*.o
 gimsatul

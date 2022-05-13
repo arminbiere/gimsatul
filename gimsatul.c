@@ -53,6 +53,8 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
+#include "allocate.h"
+#include "messages.h"
 #include "options.h"
 
 /*------------------------------------------------------------------------*/
@@ -781,122 +783,6 @@ export_literal (unsigned unsigned_lit)
 
 /*------------------------------------------------------------------------*/
 
-static pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static void
-message_lock_failure (const char *str)
-{
-  char buffer[128];
-  sprintf (buffer, "gimsatul: fatal message locking error: %s\n", str);
-  size_t len = strlen (buffer);
-  assert (len < sizeof buffer);
-  if (write (1, buffer, len) != len)
-    abort ();
-  abort ();
-}
-
-static void
-acquire_message_lock (void)
-{
-  if (pthread_mutex_lock (&message_mutex))
-    message_lock_failure ("failed to acquire message lock");
-}
-
-static void
-release_message_lock (void)
-{
-  if (pthread_mutex_unlock (&message_mutex))
-    message_lock_failure ("failed to release message lock");
-}
-
-static void die (const char *, ...) __attribute__((format (printf, 1, 2)));
-
-static void
-die (const char *fmt, ...)
-{
-  acquire_message_lock ();
-  fputs ("gimsatul: error: ", stderr);
-  va_list ap;
-  va_start (ap, fmt);
-  vfprintf (stderr, fmt, ap);
-  va_end (ap);
-  fputc ('\n', stderr);
-  fflush (stderr);
-  release_message_lock ();
-  exit (1);
-}
-
-static void fatal_error (const char *, ...)
-  __attribute__((format (printf, 1, 2)));
-
-static void
-fatal_error (const char *fmt, ...)
-{
-  acquire_message_lock ();
-  fputs ("gimsatul: fatal error: ", stderr);
-  va_list ap;
-  va_start (ap, fmt);
-  vfprintf (stderr, fmt, ap);
-  va_end (ap);
-  fputc ('\n', stderr);
-  fflush (stderr);
-  release_message_lock ();
-  abort ();
-}
-
-static void
-print_line_without_acquiring_lock (struct ring *, const char *, ...)
-__attribute__((format (printf, 2, 3)));
-
-static const char *prefix_format = "c%-2u ";
-
-static void
-print_line_without_acquiring_lock (struct ring *ring, const char *fmt, ...)
-{
-  va_list ap;
-  char line[256];
-  if (ring)
-    sprintf (line, prefix_format, ring->id);
-  else
-    strcpy (line, "c ");
-  va_start (ap, fmt);
-  vsprintf (line + strlen (line), fmt, ap);
-  va_end (ap);
-  strcat (line, "\n");
-  assert (strlen (line) + 1 < sizeof line);
-  fputs (line, stdout);
-}
-
-static int verbosity;
-#ifdef LOGGING
-static volatile uint64_t clause_ids;
-#endif
-
-#define PRINTLN(...) \
-  print_line_without_acquiring_lock (ring, __VA_ARGS__)
-
-static void message (struct ring *ring, const char *, ...)
-  __attribute__((format (printf, 2, 3)));
-
-static void
-message (struct ring *ring, const char *fmt, ...)
-{
-  if (verbosity < 0)
-    return;
-  acquire_message_lock ();
-  if (ring)
-    printf (prefix_format, ring->id);
-  else
-    fputs ("c ", stdout);
-  va_list ap;
-  va_start (ap, fmt);
-  vprintf (fmt, ap);
-  va_end (ap);
-  fputc ('\n', stdout);
-  fflush (stdout);
-  release_message_lock ();
-}
-
 #define verbose(...) \
 do { \
   if (verbosity > 0) \
@@ -1135,52 +1021,6 @@ do { \
 #endif
 
 /*------------------------------------------------------------------------*/
-
-static void *
-allocate_block (size_t bytes)
-{
-  void *res = malloc (bytes);
-  if (bytes && !res)
-    fatal_error ("out-of-memory allocating %zu bytes", bytes);
-  return res;
-}
-
-static void *
-allocate_and_clear_block (size_t bytes)
-{
-  void *res = calloc (1, bytes);
-  if (bytes && !res)
-    fatal_error ("out-of-memory allocating %zu bytes", bytes);
-  return res;
-}
-
-static void *
-allocate_array (size_t num, size_t bytes)
-{
-  size_t actual_bytes = num * bytes;
-  void *res = malloc (actual_bytes);
-  if (actual_bytes && !res)
-    fatal_error ("out-of-memory allocating %zu*%zu bytes", num, bytes);
-  return res;
-}
-
-static void *
-allocate_and_clear_array (size_t num, size_t bytes)
-{
-  void *res = calloc (num, bytes);
-  if (num && bytes && !res)
-    fatal_error ("out-of-memory allocating %zu*%zu bytes", num, bytes);
-  return res;
-}
-
-static void *
-reallocate_block (void *ptr, size_t bytes)
-{
-  void *res = realloc (ptr, bytes);
-  if (bytes && !res)
-    fatal_error ("out-of-memory reallocating %zu bytes", bytes);
-  return res;
-}
 
 /*------------------------------------------------------------------------*/
 
