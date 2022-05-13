@@ -2824,7 +2824,7 @@ find_and_gate (struct ruler * ruler, unsigned lit,
 }
 
 static unsigned
-find_equivalence (struct ruler * ruler, unsigned lit)
+find_equivalence_gate (struct ruler * ruler, unsigned lit)
 {
   signed char * marks = ruler->marks;
   for (all_clauses (clause, OCCURRENCES (lit)))
@@ -2855,7 +2855,7 @@ find_definition (struct ruler * ruler, unsigned lit)
   struct clauses * gate = ruler->gate;
   struct clauses * nogate = ruler->nogate;
   {
-    unsigned other = find_equivalence (ruler, lit);
+    unsigned other = find_equivalence_gate (ruler, lit);
     if (other != INVALID)
       {
 	ROG ("found equivalence %s equal to %s", ROGLIT (lit), ROGLIT (other));
@@ -3911,9 +3911,6 @@ eliminate_variables (struct ruler * ruler, unsigned round)
 	{
 	  eliminate_variable (ruler, idx);
 	  eliminated++;
-#if 0
-	  break;
-#endif
 	}
     }
   RELEASE (ruler->resolvent);
@@ -3928,6 +3925,121 @@ eliminate_variables (struct ruler * ruler, unsigned round)
            "in round %u margin %u in %.2f seconds",
 	   eliminated, round, margin, end_round - start_round);
   return eliminated;
+}
+
+static unsigned *
+find_equivalent_literals (struct ruler * ruler, unsigned round)
+{
+  size_t bytes = 2*ruler->size * sizeof (unsigned);
+  unsigned * marks = allocate_and_clear_block (bytes);
+  unsigned * reaches = allocate_and_clear_block (bytes);
+  unsigned * repr = allocate_block (bytes);
+  for (all_ruler_literals (lit))
+    repr[lit] = lit;
+  struct unsigneds scc;
+  struct unsigneds work;
+  INIT (scc);
+  INIT (work);
+  bool * eliminated = ruler->eliminated;
+  signed char * values = (signed char*) ruler->values;
+  unsigned marked = 0;
+  for (all_ruler_literals (root))
+    {
+      if (eliminated[IDX (root)])
+	continue;
+      if (values[root])
+	continue;
+      if (marks[root])
+	continue;
+      assert (EMPTY (scc));
+      assert (EMPTY (work));
+      assert (marked < UINT_MAX);
+      PUSH (work, root);
+      while (!EMPTY (work))
+	{
+	  unsigned lit = POP (work);
+	  if (lit == INVALID)
+	    {
+	      lit = POP (work);
+	      unsigned not_lit = NOT (lit);
+	      unsigned lit_reaches = reaches[lit];
+              struct clauses * clauses = &OCCURRENCES (not_lit);
+	      for (all_clauses (clause, *clauses))
+		{
+		  if (!binary_pointer (clause))
+		    continue;
+		  unsigned other = other_pointer (clause);
+		  if (values[other])
+		    continue;
+		  if (eliminated[IDX (other)])
+		    continue;
+		  unsigned other_reaches = reaches[other];
+		  if (other_reaches < lit_reaches)
+		    lit_reaches = other_reaches;
+		}
+	      reaches[lit] = lit_reaches;
+	      unsigned lit_mark = marks[lit];
+	      if (lit_reaches != lit_mark)
+		continue;
+	      unsigned * end = scc.end, * p = end, other, new_repr = lit;
+	      while ((other = *--p) != lit)
+		if (other < new_repr)
+		  new_repr = other;
+	      scc.end = p;
+	      while (p != end)
+		{
+		  unsigned other = *p++;
+		  reaches[other] = INVALID;
+		  if (other == new_repr)
+		    continue;
+		  repr[other] = new_repr;
+		  ROG ("literal %s is equivalent to representative %s",
+		       ROGLIT (other), ROGLIT (new_repr));
+#if 0
+		  COVER (other == NOT (root));
+		  COVER (other == not_lit);
+#endif
+		}
+	    }
+	  else
+	    {
+	      if (marks[lit])
+		continue;
+	      assert (marked < UINT_MAX);
+	      reaches[lit] = marks[lit] = ++marked;
+	      PUSH (work, lit);
+	      PUSH (work, INVALID);
+	      PUSH (scc, lit);
+	      unsigned not_lit = NOT (lit);
+              struct clauses * clauses = &OCCURRENCES (not_lit);
+	      for (all_clauses (clause, *clauses))
+		{
+		  if (!binary_pointer (clause))
+		    continue;
+		  unsigned other = other_pointer (clause);
+		  if (values[other])
+		    continue;
+		  if (eliminated[IDX (other)])
+		    continue;
+		  if (marks[other])
+		    continue;
+		  PUSH (work, other);
+		}
+	    }
+	}
+    }
+  RELEASE (scc);
+  RELEASE (work);
+  free (reaches);
+  free (marks);
+  return repr;
+}
+
+static void
+equivalent_literal_substitution (struct ruler * ruler, unsigned round)
+{
+  unsigned * repr = find_equivalent_literals (ruler, round);
+  free (repr);
 }
 
 static uint64_t
@@ -3989,11 +4101,10 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
                max_rounds);
       for (unsigned round = 1; round <= max_rounds; round++)
 	{
-#if 0
 	  equivalent_literal_substitution (ruler, round);
 	  if (!propagate_and_flush_ruler_units (ruler))
 	    break;
-#endif
+
 	  remove_duplicated_binaries (ruler, round);
 	  if (!propagate_and_flush_ruler_units (ruler))
 	    break;
