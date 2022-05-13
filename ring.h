@@ -1,10 +1,13 @@
 #ifndef _ring_h_INCLUDED
 #define _ring_h_INCLUDED
 
+#include "clause.h"
+#include "logging.h"
 #include "options.h"
 #include "profile.h"
 #include "queue.h"
 #include "stack.h"
+#include "tagging.h"
 #include "variable.h"
 #include "watches.h"
 
@@ -203,5 +206,54 @@ struct rings
 #define OCCURRENCES(LIT) (ruler->occurrences[LIT])
 
 /*------------------------------------------------------------------------*/
+
+#define all_ring_indices(IDX) \
+  unsigned IDX = 0, END_ ## IDX = ring->size; \
+  IDX != END_ ## IDX; \
+  ++IDX
+
+#define all_ring_literals(LIT) \
+  unsigned LIT = 0, END_ ## LIT = 2*ring->size; \
+  LIT != END_ ## LIT; \
+  ++LIT
+
+#define all_variables(VAR) \
+  struct variable * VAR = ring->variables, \
+                  * END_ ## VAR = VAR + ring->size; \
+  (VAR != END_ ## VAR); \
+  ++ VAR
+
+#define all_literals_on_trail_with_reason(LIT) \
+  unsigned * P_ ## LIT = ring->trail.iterate, \
+           * END_ ## LIT = ring->trail.end, LIT; \
+  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
+  ++ P_ ## LIT
+
+#define all_active_and_inactive_nodes(NODE) \
+  struct node * NODE = ring->queue.nodes, \
+              * END_ ## NODE = (NODE) + ring->size; \
+  NODE != END_ ## NODE; \
+  ++NODE
+
+#define all_active_nodes(NODE) \
+  struct node * NODE = first_active_node (ring), \
+              * END_ ## NODE = ring->queue.nodes + ring->size; \
+  NODE != END_ ## NODE; \
+  NODE = next_active_node (ring, NODE)
+
+/*------------------------------------------------------------------------*/
+
+void warming_up_saved_phases (struct ring *);
+void backtrack (struct ring *, unsigned level);
+void mark_satisfied_ring_clauses_as_garbage (struct ring *);
+
+/*------------------------------------------------------------------------*/
+
+static inline void
+watch_literal (struct ring *ring, unsigned lit, struct watch *watch)
+{
+  LOGWATCH (watch, "watching %s in", LOGLIT (lit));
+  PUSH (REFERENCES (lit), watch);
+}
 
 #endif

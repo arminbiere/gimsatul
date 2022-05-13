@@ -11,5 +11,10 @@ struct set
   void **table;
 };
 
+#define DELETED ((void*) ~(size_t) 0)
+
+void set_insert (struct set *, void *);
+void set_remove (struct set *, void *);
+
 #endif
 

@@ -31,4 +31,10 @@ struct references
 #define all_watches(ELEM,WATCHES) \
   all_pointers_on_stack (struct watch, ELEM, WATCHES)
 
+struct ring;
+
+void release_references (struct ring *);
+void disconnect_references (struct ring *, struct watches *);
+void reconnect_watches (struct ring *, struct watches *saved);
+
 #endif

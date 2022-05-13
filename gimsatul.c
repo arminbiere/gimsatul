@@ -38,9 +38,12 @@ static const char * usage =
 #include "message.h"
 #include "options.h"
 #include "ring.h"
+#include "random.h"
 #include "ruler.h"
 #include "stack.h"
 #include "tagging.h"
+#include "utilities.h"
+#include "walk.h"
 
 /*------------------------------------------------------------------------*/
 
@@ -66,57 +69,18 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#define COUNTERS(LIT) (walker->occurrences[LIT])
-
 #define MAX_THREADS \
   ((size_t) 1 << 8*sizeof ((struct clause *) 0)->shared)
 
 /*------------------------------------------------------------------------*/
 
-#define all_counters(ELEM,COUNTERS) \
-  all_pointers_on_stack (struct counter, ELEM, COUNTERS)
-
 #define all_rings(RING) \
   all_pointers_on_stack(struct ring, RING, ruler->rings)
-
-#define all_variables(VAR) \
-  struct variable * VAR = ring->variables, \
-                  * END_ ## VAR = VAR + ring->size; \
-  (VAR != END_ ## VAR); \
-  ++ VAR
-
-#define all_literals_on_trail_with_reason(LIT) \
-  unsigned * P_ ## LIT = ring->trail.iterate, \
-           * END_ ## LIT = ring->trail.end, LIT; \
-  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
-  ++ P_ ## LIT
-
-#define all_active_and_inactive_nodes(NODE) \
-  struct node * NODE = ring->queue.nodes, \
-              * END_ ## NODE = (NODE) + ring->size; \
-  NODE != END_ ## NODE; \
-  ++NODE
-
-#define all_active_nodes(NODE) \
-  struct node * NODE = first_active_node (ring), \
-              * END_ ## NODE = ring->queue.nodes + ring->size; \
-  NODE != END_ ## NODE; \
-  NODE = next_active_node (ring, NODE)
-
-#define all_ring_indices(IDX) \
-  unsigned IDX = 0, END_ ## IDX = ring->size; \
-  IDX != END_ ## IDX; \
-  ++IDX
 
 #define all_ruler_indices(IDX) \
   unsigned IDX = 0, END_ ## IDX = ruler->size; \
   IDX != END_ ## IDX; \
   ++IDX
-
-#define all_ring_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*ring->size; \
-  LIT != END_ ## LIT; \
-  ++LIT
 
 #define all_ruler_literals(LIT) \
   unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
@@ -143,21 +107,6 @@ struct file
   int close;
   uint64_t lines;
 };
-
-/*------------------------------------------------------------------------*/
-
-/*------------------------------------------------------------------------*/
-
-static size_t
-cache_lines (void *p, void *q)
-{
-  if (p == q)
-    return 0;
-  assert (p >= q);
-  size_t bytes = (char *) p - (char *) q;
-  size_t res = (bytes + (CACHE_LINE_SIZE - 1)) / CACHE_LINE_SIZE;
-  return res;
-}
 
 /*------------------------------------------------------------------------*/
 
@@ -201,50 +150,6 @@ update_average (struct average *average, double alpha, double y)
   : \
     (void) 0 \
 )
-
-/*------------------------------------------------------------------------*/
-
-static uint64_t
-random64 (struct ring *ring)
-{
-  uint64_t res = ring->random, next = res;
-  next *= 6364136223846793005ul;
-  next += 1442695040888963407ul;
-  ring->random = next;
-  return res;
-}
-
-static unsigned
-random32 (struct ring *ring)
-{
-  return random64 (ring) >> 32;
-}
-
-#if 0
-
-static bool
-random_bool (struct ring *ring)
-{
-  return (random64 (ring) >> 33) & 1;
-}
-
-#endif
-
-static size_t
-random_modulo (struct ring *ring, size_t mod)
-{
-  assert (mod);
-  size_t tmp = random64 (ring);
-  size_t res = tmp % mod;
-  assert (res < mod);
-  return res;
-}
-
-static double
-random_double (struct ring *ring)
-{
-  return random32 (ring) / 4294967296.0;
-}
 
 /*------------------------------------------------------------------------*/
 
@@ -485,57 +390,6 @@ swap_scores (struct ring *ring)
 }
 
 /*------------------------------------------------------------------------*/
-
-static double
-start_profile (struct profile *profile, double time)
-{
-  double volatile *p = &profile->start;
-  assert (*p < 0);
-  *p = time;
-  return time;
-}
-
-static double
-stop_profile (struct profile *profile, double time)
-{
-  double volatile *p = &profile->start;
-  double delta = time - *p;
-  *p = -1;
-  profile->time += delta;
-  return time;
-}
-
-#define START(OWNER,NAME) \
-  start_profile (&OWNER->profiles.NAME, current_time ())
-
-#define STOP(OWNER,NAME) \
-  stop_profile (&OWNER->profiles.NAME, current_time ())
-
-#define MODE_PROFILE \
-  (ring->stable ? &ring->profiles.stable : &ring->profiles.focused)
-
-#define STOP_SEARCH_AND_START(NAME) \
-do { \
-  double t = current_time (); \
-  stop_profile (MODE_PROFILE, t); \
-  stop_profile (&ring->profiles.search, t); \
-  start_profile (&ring->profiles.NAME, t); \
-} while (0)
-
-#define STOP_AND_START_SEARCH(NAME) \
-do { \
-  double t = current_time (); \
-  stop_profile (&ring->profiles.NAME, t); \
-  start_profile (&ring->profiles.search, t); \
-  start_profile (MODE_PROFILE, t); \
-} while (0)
-
-#define INIT_PROFILE(OWNER,NAME) \
-do { \
-  struct profile * profile = &OWNER->profiles.NAME; \
-  profile->start = -1; \
-  profile->name = #NAME; \
-} while (0)
 
 static void
 init_ring_profiles (struct ring *ring)
@@ -791,13 +645,6 @@ init_pool (struct ring *ring, unsigned threads)
 {
   ring->threads = threads;
   ring->pool = allocate_and_clear_array (threads, sizeof *ring->pool);
-}
-
-static void
-release_references (struct ring *ring)
-{
-  for (all_ring_literals (lit))
-    RELEASE (REFERENCES (lit));
 }
 
 static void
@@ -1072,13 +919,6 @@ watch_large_clause (struct ring *ring, struct clause *clause)
   PUSH (ring->watches, watch);
   inc_clauses (ring, redundant);
   return watch;
-}
-
-static void
-watch_literal (struct ring *ring, unsigned lit, struct watch *watch)
-{
-  LOGWATCH (watch, "watching %s in", LOGLIT (lit));
-  PUSH (REFERENCES (lit), watch);
 }
 
 static struct watch *
@@ -3771,7 +3611,7 @@ unassign (struct ring *ring, unsigned lit)
     push_queue (queue, node);
 }
 
-static void
+void
 backtrack (struct ring *ring, unsigned new_level)
 {
   assert (ring->level > new_level);
@@ -4895,6 +4735,26 @@ decide (struct ring *ring)
   assign_decision (ring, lit);
 }
 
+void
+warming_up_saved_phases (struct ring *ring)
+{
+  assert (!ring->level);
+  assert (ring->trail.propagate == ring->trail.end);
+  uint64_t decisions = 0, conflicts = 0;
+  while (ring->unassigned)
+    {
+      decisions++;
+      decide (ring);
+      if (!ring_propagate (ring, false))
+	conflicts++;
+    }
+  if (ring->level)
+    backtrack (ring, 0);
+  verbose (ring,
+	   "warmed-up phases with %" PRIu64 " decisions and %" PRIu64
+	   " conflicts", decisions, conflicts);
+}
+
 static void
 report (struct ring *ring, char type)
 {
@@ -5002,7 +4862,7 @@ unmark_reasons (struct ring *ring)
     }
 }
 
-static void
+void
 mark_satisfied_ring_clauses_as_garbage (struct ring *ring)
 {
   size_t marked = 0;
@@ -5340,231 +5200,6 @@ switch_mode (struct ring *ring)
   swap_scores (ring);
   l->mode = SEARCH_TICKS + square (s->switched / 2 + 1) * i->mode;
   verbose (ring, "next mode switching limit at %" PRIu64 " ticks", l->mode);
-}
-
-static size_t
-hash_pointer_to_position (void *ptr)
-{
-  size_t res = 1111111121u * (size_t) ptr;
-  return res;
-}
-
-static size_t
-hash_pointer_to_delta (void *ptr)
-{
-  size_t res = 2222222243u * (size_t) ptr;
-  return res;
-}
-
-#ifndef NDEBUG
-
-static bool
-is_power_of_two (size_t n)
-{
-  return n && !(n & (n - 1));
-}
-
-#endif
-
-static size_t
-reduce_hash (size_t hash, size_t allocated)
-{
-  assert (allocated);
-  assert (is_power_of_two (allocated));
-  size_t res = hash;
-  if (allocated >= (size_t) 1 << 32)
-    res ^= res >> 32;
-  if (allocated >= (size_t) 1 << 16)
-    res ^= res >> 16;
-  if (allocated >= (size_t) 1 << 8)
-    res ^= res >> 8;
-  res &= allocated - 1;
-  assert (res < allocated);
-  return res;
-}
-
-static size_t
-reduce_delta (size_t hash, size_t allocated)
-{
-  return reduce_hash (hash, allocated) | 1;
-}
-
-#define DELETED ((void*) ~(size_t) 0)
-
-#ifndef NDEBUG
-
-static bool
-set_contains (struct set *set, void *ptr)
-{
-  assert (ptr);
-  assert (ptr != DELETED);
-  size_t size = set->size;
-  if (!size)
-    return false;
-  size_t hash = hash_pointer_to_position (ptr);
-  size_t allocated = set->allocated;
-  size_t start = reduce_hash (hash, allocated);
-  void **table = set->table;
-  void *tmp = table[start];
-  if (!tmp)
-    return false;
-  if (tmp == ptr)
-    return true;
-  hash = hash_pointer_to_delta (ptr);
-  size_t delta = reduce_delta (hash, allocated);
-  size_t pos = start;
-  assert (allocated < 2 || (delta & 1));
-  for (;;)
-    {
-      pos += delta;
-      if (pos >= allocated)
-	pos -= allocated;
-      assert (pos < allocated);
-      if (pos == start)
-	return false;
-      tmp = table[pos];
-      if (!tmp)
-	return false;
-      if (tmp == ptr)
-	return true;
-    }
-}
-
-#endif
-
-static void enlarge_set (struct set *set);
-static void shrink_set (struct set *set);
-
-static void
-set_insert (struct set *set, void *ptr)
-{
-  assert (ptr);
-  assert (ptr != DELETED);
-  if (set->size + set->deleted >= set->allocated / 2)
-    enlarge_set (set);
-  size_t hash = hash_pointer_to_position (ptr);
-  size_t allocated = set->allocated;
-  size_t start = reduce_hash (hash, allocated);
-  void **table = set->table;
-  size_t pos = start;
-  void *tmp = table[pos];
-  if (tmp && tmp != DELETED)
-    {
-      hash = hash_pointer_to_delta (ptr);
-      size_t delta = reduce_delta (hash, allocated);
-      assert (delta & 1);
-      do
-	{
-	  pos += delta;
-	  if (pos >= allocated)
-	    pos -= allocated;
-	  assert (pos < allocated);
-	  assert (pos != start);
-	  tmp = table[pos];
-	}
-      while (tmp && tmp != DELETED);
-    }
-  if (tmp == DELETED)
-    {
-      assert (set->deleted);
-      set->deleted--;
-    }
-  set->size++;
-  table[pos] = ptr;
-  assert (set_contains (set, ptr));
-}
-
-static void
-set_remove (struct set *set, void *ptr)
-{
-  assert (ptr);
-  assert (ptr != DELETED);
-  assert (set_contains (set, ptr));
-  assert (set->size);
-  if (set->allocated > 16 && set->size <= set->allocated / 8)
-    shrink_set (set);
-  size_t hash = hash_pointer_to_position (ptr);
-  size_t allocated = set->allocated;
-  size_t start = reduce_hash (hash, allocated);
-  void **table = set->table;
-  size_t pos = start;
-  void *tmp = table[pos];
-  if (tmp != ptr)
-    {
-      assert (tmp);
-      hash = hash_pointer_to_delta (ptr);
-      size_t delta = reduce_delta (hash, allocated);
-      assert (delta & 1);
-      do
-	{
-	  pos += delta;
-	  if (pos >= allocated)
-	    pos -= allocated;
-	  assert (pos < allocated);
-	  assert (pos != start);
-	  tmp = table[pos];
-	  assert (tmp);
-	}
-      while (tmp != ptr);
-    }
-  table[pos] = DELETED;
-  set->deleted++;
-  set->size--;
-}
-
-static void
-resize_set (struct set *set, size_t new_allocated)
-{
-  assert (new_allocated != set->allocated);
-  void **old_table = set->table;
-  unsigned old_allocated = set->allocated;
-  set->allocated = new_allocated;
-#ifndef NDEBUG
-  size_t old_size = set->size;
-#endif
-  assert (old_size < new_allocated);
-  set->size = set->deleted = 0;
-  set->table = allocate_and_clear_array (new_allocated, sizeof *set->table);
-  void **end = old_table + old_allocated;
-  for (void **p = old_table, *ptr; p != end; p++)
-    if ((ptr = *p) && ptr != DELETED)
-      set_insert (set, ptr);
-  assert (set->size == old_size);
-  assert (set->allocated == new_allocated);
-  free (old_table);
-}
-
-static void
-enlarge_set (struct set *set)
-{
-  size_t old_allocated = set->allocated;
-  size_t new_allocated = old_allocated ? 2 * old_allocated : 2;
-  resize_set (set, new_allocated);
-}
-
-static void
-shrink_set (struct set *set)
-{
-  size_t old_allocated = set->allocated;
-  size_t new_allocated = old_allocated / 2;
-  resize_set (set, new_allocated);
-}
-
-static void *
-random_set (struct ring *ring, struct set *set)
-{
-  assert (set->size);
-  size_t allocated = set->allocated;
-  size_t pos = random_modulo (ring, allocated);
-  void **table = set->table;
-  void *res = table[pos];
-  while (!res || res == DELETED)
-    {
-      if (++pos == allocated)
-	pos = 0;
-      res = table[pos];
-    }
-  return res;
 }
 
 static char
@@ -7096,7 +6731,7 @@ check_types (void)
       fputs ("c\n", stdout);
       printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
       printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
-      printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
+      print_walker_types ();
     }
 }
 

@@ -1,6 +1,8 @@
 #ifndef _options_h_INCLUDED
 #define _options_h_INCLUDED
 
+#include <limits.h>
+
 #define MAX_VAR ((1u<<30) - 1)
 #define MAX_LIT NOT (LIT (MAX_VAR))
 

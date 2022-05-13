@@ -4,5 +4,6 @@
 struct ring;
 
 void local_search (struct ring *ring);
+void print_walker_types (void);
 
 #endif

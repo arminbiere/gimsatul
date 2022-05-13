@@ -1,5 +1,10 @@
 #include "system.h"
 
+#include <stdio.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <unistd.h>
+
 double
 process_time (void)
 {

@@ -1,12 +1,17 @@
-#include "ring.h"
 #include "clause.h"
-#include "set.h"
-#include "tagging.h"
 #include "logging.h"
+#include "ring.h"
+#include "random.h"
+#include "set.h"
 #include "message.h"
+#include "tagging.h"
+#include "utilities.h"
 #include "walk.h"
 
 #include <assert.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
 
 struct doubles
 {
@@ -46,6 +51,11 @@ struct walker
   uint64_t flips;
 };
 
+#define COUNTERS(LIT) (walker->occurrences[LIT])
+
+#define all_counters(ELEM,COUNTERS) \
+  all_pointers_on_stack (struct counter, ELEM, COUNTERS)
+
 #ifdef LOGGING
 
 #define WOG(...) \
@@ -55,9 +65,7 @@ do { \
 } while (0)
 
 #else
-
 #define WOG(...) do { } while (0)
-
 #endif
 
 static size_t
@@ -220,26 +228,6 @@ connect_counters (struct walker *walker, struct clause *last)
 }
 
 static void
-warming_up_saved_phases (struct ring *ring)
-{
-  assert (!ring->level);
-  assert (ring->trail.propagate == ring->trail.end);
-  uint64_t decisions = 0, conflicts = 0;
-  while (ring->unassigned)
-    {
-      decisions++;
-      decide (ring);
-      if (!ring_propagate (ring, false))
-	conflicts++;
-    }
-  if (ring->level)
-    backtrack (ring, 0);
-  verbose (ring,
-	   "warmed-up phases with %" PRIu64 " decisions and %" PRIu64
-	   " conflicts", decisions, conflicts);
-}
-
-static void
 import_decisions (struct walker *walker)
 {
   struct ring *ring = walker->ring;
@@ -304,54 +292,6 @@ set_walking_limits (struct walker *walker)
 		" = %" PRIu64 " + %g * (%" PRIu64 " - %" PRIu64 ")",
 		effort, extra, (double) WALK_EFFORT, ticks,
 		extra, (double) WALK_EFFORT, search, last->walk);
-}
-
-static void
-disconnect_references (struct ring *ring, struct watches *saved)
-{
-  size_t disconnected = 0;
-  for (all_ring_literals (lit))
-    {
-      struct references *watches = &REFERENCES (lit);
-      for (all_watches (watch, *watches))
-	if (binary_pointer (watch))
-	  {
-	    assert (redundant_pointer (watch));
-	    assert (lit_pointer (watch) == lit);
-	    unsigned other = other_pointer (watch);
-	    if (other < lit)
-	      PUSH (*saved, watch);
-	  }
-      disconnected += SIZE (*watches);
-      RELEASE (*watches);
-    }
-}
-
-static void
-reconnect_watches (struct ring *ring, struct watches *saved)
-{
-  size_t reconnected = 0;
-  for (all_watches (watch, ring->watches))
-    {
-      assert (!binary_pointer (watch));
-      unsigned *literals = watch->clause->literals;
-      watch->sum = literals[0] ^ literals[1];
-      watch_literal (ring, literals[0], watch);
-      watch_literal (ring, literals[1], watch);
-      reconnected++;
-    }
-  for (all_watches (lit_watch, *saved))
-    {
-      assert (binary_pointer (lit_watch));
-      assert (redundant_pointer (lit_watch));
-      unsigned lit = lit_pointer (lit_watch);
-      unsigned other = other_pointer (lit_watch);
-      struct watch *other_watch = tag_pointer (true, other, lit);
-      watch_literal (ring, lit, lit_watch);
-      watch_literal (ring, other, other_watch);
-    }
-  very_verbose (ring, "reconnected %zu clauses", reconnected);
-  ring->trail.propagate = ring->trail.begin;
 }
 
 static struct walker *
@@ -697,6 +637,23 @@ pick_literal_to_flip (struct walker *walker, size_t size, unsigned *literals)
   return res;
 }
 
+static void *
+random_set (struct ring *ring, struct set *set)
+{
+  assert (set->size);
+  size_t allocated = set->allocated;
+  size_t pos = random_modulo (ring, allocated);
+  void **table = set->table;
+  void *res = table[pos];
+  while (!res || res == DELETED)
+    {
+      if (++pos == allocated)
+	pos = 0;
+      res = table[pos];
+    }
+  return res;
+}
+
 static void
 walking_step (struct walker *walker)
 {
@@ -758,3 +715,8 @@ local_search (struct ring *ring)
   STOP_AND_START_SEARCH (walk);
 }
 
+void
+print_walker_types (void)
+{
+  printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
+}
