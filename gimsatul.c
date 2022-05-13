@@ -110,24 +110,6 @@ update_average (struct average *average, double alpha, double y)
 
 /*------------------------------------------------------------------------*/
 
-#define COVER(COND) \
-( \
-  (COND) \
-  ? \
-  \
-    ( \
-      fflush (stdout), \
-      fprintf (stderr, "%s:%ld: %s: Coverage goal `%s' reached.\n", \
-	__FILE__, (long) __LINE__, __func__, #COND), \
-      abort (), \
-      (void) 0 \
-    ) \
-  : \
-    (void) 0 \
-)
-
-/*------------------------------------------------------------------------*/
-
 static bool
 queue_contains (struct queue *queue, struct node *node)
 {
