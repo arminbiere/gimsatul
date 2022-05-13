@@ -236,6 +236,12 @@ struct rings
   NODE != END_ ## NODE; \
   NODE = next_active_node (ring, NODE)
 
+#define all_averages(AVG) \
+  struct average * AVG = (struct average*) &ring->averages, \
+  * END_ ## AVG = (struct average*) ((char*) AVG + sizeof ring->averages); \
+  AVG != END_ ## AVG; \
+  ++AVG
+
 /*------------------------------------------------------------------------*/
 
 void warming_up_saved_phases (struct ring *);
