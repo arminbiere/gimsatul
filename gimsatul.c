@@ -434,6 +434,7 @@ struct ruler_profiles
   struct profile parsing;
   struct profile solving;
   struct profile simplifying;
+  struct profile substituting;
   struct profile subsuming;
 
   struct profile total;
@@ -1657,6 +1658,7 @@ init_ruler_profiles (struct ruler *ruler)
   INIT_PROFILE (ruler, solving);
   INIT_PROFILE (ruler, simplifying);
   INIT_PROFILE (ruler, subsuming);
+  INIT_PROFILE (ruler, substituting);
   INIT_PROFILE (ruler, total);
   START (ruler, total);
 }
@@ -3921,9 +3923,10 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   assert (ruler->eliminating);
   ruler->eliminating = false;
   double end_round = STOP (ruler, eliminating);
-  message (0, "eliminated %u variables "
+  message (0, "eliminated %u variables %.0f%% "
            "in round %u margin %u in %.2f seconds",
-	   eliminated, round, margin, end_round - start_round);
+	   eliminated, percent (eliminated, ruler->size),
+	   round, margin, end_round - start_round);
   return eliminated;
 }
 
@@ -3942,7 +3945,7 @@ find_equivalent_literals (struct ruler * ruler, unsigned round)
   INIT (work);
   bool * eliminated = ruler->eliminated;
   signed char * values = (signed char*) ruler->values;
-  unsigned marked = 0;
+  unsigned marked = 0, equivalences = 0;
   for (all_ruler_literals (root))
     {
       if (eliminated[IDX (root)])
@@ -3993,6 +3996,7 @@ find_equivalent_literals (struct ruler * ruler, unsigned round)
 		  if (other == new_repr)
 		    continue;
 		  repr[other] = new_repr;
+		  equivalences++;
 		  ROG ("literal %s is equivalent to representative %s",
 		       ROGLIT (other), ROGLIT (new_repr));
 #if 0
@@ -4032,14 +4036,50 @@ find_equivalent_literals (struct ruler * ruler, unsigned round)
   RELEASE (work);
   free (reaches);
   free (marks);
-  return repr;
+  verbose (0, "found %u new equivalent literal pairs in round %u",
+	  equivalences, round);
+  if (equivalences)
+    return repr;
+  free (repr);
+  return 0;
+}
+
+static unsigned
+substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
+{
+  unsigned other;
+
+  if (proof.file)
+    for (all_ruler_literals (lit))
+      if ((other = repr[lit]) != lit)
+	trace_add_binary (&ruler->buffer, NOT (lit), other),
+	trace_add_binary (&ruler->buffer, lit, NOT (other));
+
+  if (proof.file)
+    for (all_ruler_literals (lit))
+      if ((other = repr[lit]) != lit)
+	trace_delete_binary (&ruler->buffer, NOT (lit), other),
+	trace_delete_binary (&ruler->buffer, lit, NOT (other));
+
+  return 0;
 }
 
 static void
 equivalent_literal_substitution (struct ruler * ruler, unsigned round)
 {
+  double substitution_start = START (ruler, substituting);
   unsigned * repr = find_equivalent_literals (ruler, round);
-  free (repr);
+  unsigned substituted = 0;
+  if (repr)
+    {
+      substituted = substitute_equivalent_literals (ruler, repr);
+      free (repr);
+    }
+  double substitution_end = STOP (ruler, substituting);
+  message (0, "substituted %u variables %.0f%% "
+           "in round %u in %.2f seconds",
+	   substituted, percent (substituted, ruler->size),
+	   round, substitution_end - substitution_start);
 }
 
 static uint64_t
