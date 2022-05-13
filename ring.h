@@ -192,14 +192,9 @@ struct ring
 
 /*------------------------------------------------------------------------*/
 
-void print_line_without_acquiring_lock (struct ring *, const char *, ...)
-__attribute__((format (printf, 2, 3)));
-
-void message (struct ring *ring, const char *, ...)
-  __attribute__((format (printf, 2, 3)));
-
-#define PRINTLN(...) \
-  print_line_without_acquiring_lock (ring, __VA_ARGS__)
+#define VAR(LIT) (ring->variables + IDX (LIT))
+#define REFERENCES(LIT) (ring->references[LIT])
+#define OCCURRENCES(LIT) (ruler->occurrences[LIT])
 
 /*------------------------------------------------------------------------*/
 

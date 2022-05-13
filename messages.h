@@ -17,4 +17,15 @@ void release_message_lock (void);
 void die (const char *, ...) __attribute__((format (printf, 1, 2)));
 void fatal_error (const char *, ...) __attribute__((format (printf, 1, 2)));
 
+struct ring;
+
+void print_line_without_acquiring_lock (struct ring *, const char *, ...)
+__attribute__((format (printf, 2, 3)));
+
+void message (struct ring *ring, const char *, ...)
+  __attribute__((format (printf, 2, 3)));
+
+#define PRINTLN(...) \
+  print_line_without_acquiring_lock (ring, __VA_ARGS__)
+
 #endif

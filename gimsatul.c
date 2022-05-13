@@ -31,6 +31,15 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
+#include "allocate.h"
+#include "messages.h"
+#include "options.h"
+#include "ring.h"
+#include "stack.h"
+#include "tagging.h"
+
+/*------------------------------------------------------------------------*/
+
 #include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
@@ -41,9 +50,9 @@ static const char * usage =
 #include <stdarg.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
@@ -53,25 +62,12 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#include "allocate.h"
-#include "messages.h"
-#include "options.h"
-#include "stack.h"
-#include "ring.h"
-
-/*------------------------------------------------------------------------*/
-
 #define IDX(LIT) ((LIT) >> 1)
 #define LIT(IDX) ((IDX) << 1)
 #define NOT(LIT) ((LIT) ^ 1u)
 #define SGN(LIT) ((LIT) & 1)
 
-#define VAR(LIT) (ring->variables + IDX (LIT))
-
-#define REFERENCES(LIT) (ring->references[LIT])
-#define OCCURRENCES(LIT) (ruler->occurrences[LIT])
 #define COUNTERS(LIT) (walker->occurrences[LIT])
-
 
 #define MAX_THREADS \
   ((size_t) 1 << 8*sizeof ((struct clause *) 0)->shared)
@@ -1006,89 +1002,6 @@ swap_scores (struct ring *ring)
   double tmp = queue->increment[0];
   queue->increment[0] = queue->increment[1];
   queue->increment[1] = tmp;
-}
-
-/*------------------------------------------------------------------------*/
-
-static bool
-tagged_literal (unsigned lit)
-{
-  return lit & 1;
-}
-
-static unsigned
-untag_literal (unsigned lit)
-{
-  return lit >> 1;
-}
-
-static unsigned
-tag_literal (bool tag, unsigned lit)
-{
-  assert (lit < (1u << 31));
-  unsigned res = tag | (lit << 1);
-  assert (untag_literal (res) == lit);
-  assert (tagged_literal (res) == tag);
-  return res;
-}
-
-/*------------------------------------------------------------------------*/
-
-static unsigned
-lower_pointer (void *watch)
-{
-  return (size_t) watch;
-}
-
-static unsigned
-upper_pointer (void *watch)
-{
-  return (size_t) watch >> 32;
-}
-
-static bool
-binary_pointer (void *watch)
-{
-  unsigned lower = lower_pointer (watch);
-  return tagged_literal (lower);
-}
-
-static bool
-redundant_pointer (void *watch)
-{
-  assert (binary_pointer (watch));
-  unsigned upper = upper_pointer (watch);
-  return tagged_literal (upper);
-}
-
-static unsigned
-lit_pointer (void *watch)
-{
-  assert (binary_pointer (watch));
-  unsigned lower = lower_pointer (watch);
-  return untag_literal (lower);
-}
-
-static unsigned
-other_pointer (void *watch)
-{
-  assert (binary_pointer (watch));
-  unsigned upper = upper_pointer (watch);
-  return untag_literal (upper);
-}
-
-static void *
-tag_pointer (bool redundant, unsigned lit, unsigned other)
-{
-  unsigned lower = tag_literal (true, lit);
-  unsigned upper = tag_literal (redundant, other);
-  size_t word = lower | (size_t) upper << 32;
-  void *res = (void *) word;
-  assert (binary_pointer (res));
-  assert (lit_pointer (res) == lit);
-  assert (other_pointer (res) == other);
-  assert (redundant_pointer (res) == redundant);
-  return res;
 }
 
 /*------------------------------------------------------------------------*/
