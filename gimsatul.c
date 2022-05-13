@@ -264,6 +264,11 @@ do { \
   LIT != END_ ## LIT; \
   ++LIT
 
+#define all_positive_ruler_literals(LIT) \
+  unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
+  LIT != END_ ## LIT; \
+  LIT += 2
+
 #define all_literals_in_clause(LIT,CLAUSE) \
   unsigned * P_ ## LIT = (CLAUSE)->literals, \
            * END_ ## LIT = P_ ## LIT + (CLAUSE)->size, LIT;\
@@ -3245,7 +3250,8 @@ add_resolvent (struct ruler * ruler)
   else
     {
       assert (size > 2);
-      ruler->statistics.ticks.elimination += size;
+      if (ruler->eliminating)
+	ruler->statistics.ticks.elimination += size;
       struct clause *clause = new_large_clause (size, literals, false, 0);
       connect_large_clause (ruler, clause);
       mark_subsume_clause (ruler, clause);
@@ -4050,16 +4056,83 @@ DONE:
   return 0;
 }
 
+static void
+substitute_clause (struct ruler * ruler,
+                   unsigned src, unsigned dst, struct clause * clause)
+{
+  ROGCLAUSE (clause, "substituting");
+  signed char * values = (signed char*) ruler->values;
+  signed char dst_value = values[dst];
+  if (dst_value > 0)
+    return;
+  struct unsigneds * resolvent = &ruler->resolvent;
+  CLEAR (*resolvent);
+  unsigned not_dst = NOT (dst);
+  if (binary_pointer (clause))
+    {
+      assert (lit_pointer (clause) == src);
+      unsigned other = other_pointer (clause);
+      if (other == not_dst)
+	return;
+      if (other != dst)
+	{
+	  signed char other_value = values[other];
+	  if (other_value > 0)
+	    return;
+	  if (!other_value)
+	    PUSH (*resolvent, other);
+	}
+    }
+  else
+    {
+      for (all_literals_in_clause (other, clause))
+	{
+	  if (other == src)
+	    continue;
+	  if (other == dst)
+	    continue;
+	  if (other == not_dst)
+	    return;
+	  signed char other_value = values[other];
+	  if (other_value < 0)
+	    continue;
+	  if (other_value > 0)
+	    return;
+	  PUSH (*resolvent, other);
+	}
+    }
+  if (!dst_value)
+    PUSH (*resolvent, dst);
+  add_resolvent (ruler);
+}
+
 static unsigned
 substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
 {
-  assert (!ruler->values[src]);
-  assert (!ruler->values[dst]);
+  if (ruler->values[src])
+    return 0;
+  if (ruler->values[dst])
+    return 0;
+  ROG ("substituting literal %s with %s", ROGLIT (src), ROGLIT (dst));
   assert (!ruler->eliminated[IDX (src)]);
   assert (!ruler->eliminated[IDX (dst)]);
   assert (src != NOT (dst));
   assert (dst < src);
-  return 0;
+  struct clauses * clauses = &OCCURRENCES (src);
+  for (all_clauses (clause, *clauses))
+    {
+      substitute_clause (ruler, src, dst, clause);
+      disconnect_and_delete_clause (ruler, clause, src);
+    }
+  RELEASE (*clauses);
+  struct unsigneds * extension = &ruler->extension;
+  ROGBINARY (NOT (src), dst,
+             "pushing on extension stack with witness literal %s",
+	     ROGLIT (NOT (src)));
+  PUSH (*extension, INVALID);
+  PUSH (*extension, NOT (src));
+  PUSH (*extension, dst);
+  return 1;
 }
 
 static unsigned
@@ -4068,7 +4141,7 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
   unsigned other;
 
   if (proof.file)
-    for (all_ruler_literals (lit))
+    for (all_positive_ruler_literals (lit))
       if ((other = repr[lit]) != lit)
 	trace_add_binary (&ruler->buffer, NOT (lit), other),
 	trace_add_binary (&ruler->buffer, lit, NOT (other));
@@ -4076,13 +4149,19 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
   unsigned substituted = 0;
   for (all_ruler_literals (lit))
     if ((other = repr[lit]) != lit)
-      substituted += substitute_literal (ruler, lit, other);
+      {
+	substituted += substitute_literal (ruler, lit, other);
+	if (ruler->inconsistent)
+	  break;
+      }
 
   if (proof.file)
-    for (all_ruler_literals (lit))
+    for (all_positive_ruler_literals (lit))
       if ((other = repr[lit]) != lit)
 	trace_delete_binary (&ruler->buffer, NOT (lit), other),
 	trace_delete_binary (&ruler->buffer, lit, NOT (other));
+
+  RELEASE (ruler->resolvent);
 
   return substituted;
 }
