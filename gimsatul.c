@@ -3999,10 +3999,13 @@ find_equivalent_literals (struct ruler * ruler, unsigned round)
 		  equivalences++;
 		  ROG ("literal %s is equivalent to representative %s",
 		       ROGLIT (other), ROGLIT (new_repr));
-#if 0
-		  COVER (other == NOT (root));
-		  COVER (other == not_lit);
-#endif
+		  if (other == NOT (new_repr))
+		    {
+		      very_verbose (0, "%s", "empty resolvent");
+		      trace_add_empty (&ruler->buffer);
+		      ruler->inconsistent = true;
+		      goto DONE;
+		    }
 		}
 	    }
 	  else
@@ -4032,15 +4035,28 @@ find_equivalent_literals (struct ruler * ruler, unsigned round)
 	    }
 	}
     }
+DONE:
   RELEASE (scc);
   RELEASE (work);
   free (reaches);
   free (marks);
   verbose (0, "found %u new equivalent literal pairs in round %u",
 	  equivalences, round);
-  if (equivalences)
+  if (equivalences && !ruler->inconsistent)
     return repr;
   free (repr);
+  return 0;
+}
+
+static unsigned
+substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
+{
+  assert (!ruler->values[src]);
+  assert (!ruler->values[dst]);
+  assert (!ruler->eliminated[IDX (src)]);
+  assert (!ruler->eliminated[IDX (dst)]);
+  assert (src != NOT (dst));
+  assert (dst < src);
   return 0;
 }
 
@@ -4055,13 +4071,18 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
 	trace_add_binary (&ruler->buffer, NOT (lit), other),
 	trace_add_binary (&ruler->buffer, lit, NOT (other));
 
+  unsigned substituted = 0;
+  for (all_ruler_literals (lit))
+    if ((other = repr[lit]) != lit)
+      substituted += substitute_literal (ruler, lit, other);
+
   if (proof.file)
     for (all_ruler_literals (lit))
       if ((other = repr[lit]) != lit)
 	trace_delete_binary (&ruler->buffer, NOT (lit), other),
 	trace_delete_binary (&ruler->buffer, lit, NOT (other));
 
-  return 0;
+  return substituted;
 }
 
 static void
