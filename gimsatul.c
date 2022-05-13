@@ -40,8 +40,11 @@ static const char * usage =
 #include "ring.h"
 #include "random.h"
 #include "ruler.h"
+#include "simplify.h"
+#include "subsume.h"
 #include "stack.h"
 #include "tagging.h"
+#include "trace.h"
 #include "utilities.h"
 #include "walk.h"
 
@@ -74,39 +77,11 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#define all_rings(RING) \
-  all_pointers_on_stack(struct ring, RING, ruler->rings)
-
-#define all_ruler_indices(IDX) \
-  unsigned IDX = 0, END_ ## IDX = ruler->size; \
-  IDX != END_ ## IDX; \
-  ++IDX
-
-#define all_ruler_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
-  LIT != END_ ## LIT; \
-  ++LIT
-
-#define all_positive_ruler_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
-  LIT != END_ ## LIT; \
-  LIT += 2
-
 #define all_averages(AVG) \
   struct average * AVG = (struct average*) &ring->averages, \
   * END_ ## AVG = (struct average*) ((char*) AVG + sizeof ring->averages); \
   AVG != END_ ## AVG; \
   ++AVG
-
-/*------------------------------------------------------------------------*/
-
-struct file
-{
-  const char *path;
-  FILE *file;
-  int close;
-  uint64_t lines;
-};
 
 /*------------------------------------------------------------------------*/
 
@@ -527,20 +502,6 @@ detach_ring (struct ring *ring)
 /*------------------------------------------------------------------------*/
 
 static void
-connect_literal (struct ruler * ruler, unsigned lit, struct clause * clause)
-{
-  PUSH (OCCURRENCES (lit), clause);
-}
-
-static void
-connect_large_clause (struct ruler * ruler, struct clause * clause)
-{
-  assert (!binary_pointer (clause));
-  for (all_literals_in_clause (lit, clause))
-    connect_literal (ruler, lit, clause);
-}
-
-static void
 assign_ruler_unit (struct ruler * ruler, unsigned unit)
 {
   signed char * values = (signed char*) ruler->values;
@@ -711,164 +672,6 @@ delete_ring (struct ring *ring)
 
 /*------------------------------------------------------------------------*/
 
-static struct file proof;
-static bool binary_proof_format = true;
-static bool force = false;
-
-static void
-write_buffer (struct buffer *buffer, FILE * file)
-{
-  assert (file);
-  size_t size = SIZE (*buffer);
-  fwrite (buffer->begin, size, 1, file);
-  CLEAR (*buffer);
-}
-
-static void
-inc_proof_lines (void)
-{
-  atomic_fetch_add (&proof.lines, 1);
-}
-
-static void
-binary_proof_line (struct buffer *buffer,
-                   size_t size, unsigned *literals, unsigned except)
-{
-  const unsigned *end = literals + size;
-  for (const unsigned *p = literals; p != end; p++)
-    {
-      unsigned lit = *p;
-      if (lit == except)
-	continue;
-      unsigned tmp = lit + 2;
-      while (tmp & ~127u)
-	{
-	  unsigned char ch = (tmp & 0x7f) | 128;
-	  PUSH (*buffer, ch);
-	  tmp >>= 7;
-	}
-      PUSH (*buffer, (unsigned char) tmp);
-    }
-  PUSH (*buffer, 0);
-}
-
-static void
-ascii_proof_line (struct buffer *buffer,
-                  size_t size, unsigned *literals, unsigned except)
-{
-  const unsigned *end = literals + size;
-  char tmp[32];
-  for (const unsigned *p = literals; p != end; p++)
-    {
-      unsigned lit = *p;
-      if (lit == except)
-	continue;
-      sprintf (tmp, "%d", export_literal (lit));
-      for (char *q = tmp, ch; (ch = *q); q++)
-	PUSH (*buffer, ch);
-      PUSH (*buffer, ' ');
-    }
-  PUSH (*buffer, '0');
-  PUSH (*buffer, '\n');
-}
-
-static inline void
-trace_add_literals (struct buffer *buffer,
-                    size_t size, unsigned *literals, unsigned except)
-{
-  if (!proof.file)
-    return;
-  assert (EMPTY (*buffer));
-  if (binary_proof_format)
-    {
-      PUSH (*buffer, 'a');
-      binary_proof_line (buffer, size, literals, except);
-    }
-  else
-    ascii_proof_line (buffer, size, literals, except);
-  write_buffer (buffer, proof.file);
-  inc_proof_lines ();
-}
-
-static inline void
-trace_add_empty (struct buffer *buffer)
-{
-  if (proof.file)
-    trace_add_literals (buffer, 0, 0, INVALID);
-}
-
-static inline void
-trace_add_unit (struct buffer *buffer, unsigned unit)
-{
-  if (proof.file)
-    trace_add_literals (buffer, 1, &unit, INVALID);
-}
-
-static inline void
-trace_add_binary (struct buffer *buffer, unsigned lit, unsigned other)
-{
-  if (!proof.file)
-    return;
-  unsigned literals[2] = { lit, other };
-  trace_add_literals (buffer, 2, literals, INVALID);
-}
-
-static inline void
-trace_add_clause (struct buffer *buffer, struct clause *clause)
-{
-  trace_add_literals (buffer, clause->size, clause->literals, INVALID);
-}
-
-static inline void
-trace_delete_literals (struct buffer *buffer, size_t size, unsigned *literals)
-{
-  if (!proof.file)
-    return;
-  assert (EMPTY (*buffer));
-  PUSH (*buffer, 'd');
-  if (binary_proof_format)
-    binary_proof_line (buffer, size, literals, INVALID);
-  else
-    {
-      PUSH (*buffer, ' ');
-      ascii_proof_line (buffer, size, literals, INVALID);
-    }
-  write_buffer (buffer, proof.file);
-  inc_proof_lines ();
-}
-
-static inline void
-trace_delete_binary (struct buffer *buffer, unsigned lit, unsigned other)
-{
-  if (!proof.file)
-    return;
-  unsigned literals[2] = { lit, other };
-  trace_delete_literals (buffer, 2, literals);
-}
-
-static inline void
-trace_delete_clause (struct buffer *buffer, struct clause *clause)
-{
-  if (proof.file && !clause->garbage)
-    trace_delete_literals (buffer, clause->size, clause->literals);
-}
-
-static void
-close_proof (void)
-{
-  if (!proof.file)
-    return;
-  if (proof.close)
-    fclose (proof.file);
-
-  if (verbosity >= 0)
-    {
-      printf ("c\nc closed '%s' after writing %" PRIu64 " proof lines\n",
-	      proof.path, proof.lines);
-      fflush (stdout);
-    }
-}
-
 /*------------------------------------------------------------------------*/
 
 static void
@@ -952,23 +755,6 @@ watch_first_two_literals_in_large_clause (struct ring *ring,
   return watch_literals_in_large_clause (ring, clause, lits[0], lits[1]);
 }
 
-static void
-connect_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
-{
-  struct clauses *clauses = &OCCURRENCES (lit);
-  struct clause *watch_lit = tag_pointer (false, lit, other);
-  PUSH (*clauses, watch_lit);
-}
-
-static void
-new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
-{
-  ROGBINARY (lit, other, "new");
-  connect_ruler_binary (ruler, lit, other);
-  connect_ruler_binary (ruler, other, lit);
-  ruler->statistics.binaries++;
-}
-
 static struct watch *
 new_local_binary_clause (struct ring *ring, bool redundant,
 			 unsigned lit, unsigned other)
@@ -1042,40 +828,6 @@ delete_watch (struct ring *ring, struct watch *watch)
 }
 
 /*------------------------------------------------------------------------*/
-
-static void
-mark_eliminate_literal (struct ruler * ruler, unsigned lit)
-{
-  unsigned idx = IDX (lit);
-  if (ruler->eliminate[idx])
-    return;
-  ROG ("marking %s to be eliminated", ROGVAR (idx));
-  ruler->eliminate[idx] = 1;
-}
-
-static void
-mark_eliminate_clause (struct ruler * ruler, struct clause * clause)
-{
-  for (all_literals_in_clause (lit, clause))
-    mark_eliminate_literal (ruler, lit);
-}
-
-static void
-mark_subsume_literal (struct ruler * ruler, unsigned lit)
-{
-  unsigned idx = IDX (lit);
-  if (ruler->subsume[idx])
-    return;
-  ROG ("marking %s to be subsumed", ROGVAR (idx));
-  ruler->subsume[idx] = 1;
-}
-
-static void
-mark_subsume_clause (struct ruler * ruler, struct clause * clause)
-{
-  for (all_literals_in_clause (lit, clause))
-    mark_subsume_literal (ruler, lit);
-}
 
 static bool
 ruler_propagate (struct ruler * ruler)
@@ -1265,36 +1017,6 @@ flush_satisfied_ruler_occurrences (struct ruler * ruler)
 }
 
 static void
-disconnect_literal (struct ruler * ruler,
-                    unsigned lit, struct clause * clause)
-{
-  ROGCLAUSE (clause, "disconnecting %s from", ROGLIT (lit));
-  struct clauses * clauses = &OCCURRENCES (lit);
-  struct clause ** begin = clauses->begin, ** q = begin;
-  struct clause ** end = clauses->end, ** p = q;
-  uint64_t ticks = 1 + cache_lines (end, begin);
-  if (ruler->eliminating)
-    ruler->statistics.ticks.elimination += ticks;
-  if (ruler->subsuming)
-    ruler->statistics.ticks.subsumption += ticks;
-  while (p != end)
-    {
-      struct clause * other_clause = *q++ = *p++;
-      if (other_clause == clause)
-	{
-	  q--;
-	  break;
-	}
-    }
-  while (p != end)
-    *q++ = *p++;
-  assert (q + 1 == p);
-  clauses->end = q;
-  if (EMPTY (*clauses))
-    RELEASE (*clauses);
-}
-
-static void
 delete_large_garbage_ruler_clauses (struct ruler * ruler)
 {
   struct clauses * clauses = &ruler->clauses;
@@ -1425,54 +1147,6 @@ clause_with_too_many_occurrences (struct ruler * ruler,
 	return true;
 
   return false;
-}
-
-static void
-mark_literal (signed char * marks, unsigned lit)
-{
-  unsigned idx = IDX (lit);
-  assert (!marks[idx]);
-  marks[idx] = SGN (lit) ? -1 : 1;
-}
-
-static void
-unmark_literal (signed char * marks, unsigned lit)
-{
-  unsigned idx = IDX (lit);
-  assert (marks[idx]);
-  marks[idx] = 0;
-}
-
-static signed char
-marked_literal (signed char * marks, unsigned lit)
-{
-  unsigned idx = IDX (lit);
-  signed char res = marks[idx];
-  if (SGN (lit))
-    res = -res;
-  return res;
-}
-
-static void
-mark_clause (signed char * marks, struct clause * clause, unsigned except)
-{
-  if (binary_pointer (clause))
-    mark_literal (marks, other_pointer (clause));
-  else
-    for (all_literals_in_clause (other, clause))
-      if (other != except)
-	mark_literal (marks, other);
-}
-
-static void
-unmark_clause (signed char * marks, struct clause * clause, unsigned except)
-{
-  if (binary_pointer (clause))
-    unmark_literal (marks, other_pointer (clause));
-  else
-    for (all_literals_in_clause (other, clause))
-      if (other != except)
-	unmark_literal (marks, other);
 }
 
 static bool
@@ -1706,14 +1380,6 @@ actual_occurrences (struct clauses * clauses)
 
   clauses->end = q;
   return q - begin;
-}
-
-static bool
-elimination_ticks_limit_hit (struct ruler * ruler)
-{
-  struct ruler_statistics * statistics = &ruler->statistics;
-  struct ruler_limits * limits = &ruler->limits;
-  return statistics->ticks.elimination > limits->elimination;
 }
 
 static bool
@@ -2127,388 +1793,6 @@ remove_duplicated_binaries (struct ruler * ruler, unsigned round)
            removed, percent (removed, ruler->statistics.original),
 	   stop_deduplication - start_deduplication);
   return removed;
-}
-
-static bool
-is_subsumption_candidate (struct ruler * ruler, struct clause * clause)
-{
-  bool subsume = false;
-  ruler->statistics.ticks.subsumption++;
-  if (clause->size <= CLAUSE_SIZE_LIMIT && !clause->garbage)
-    {
-      unsigned count = 0;
-      for (all_literals_in_clause (lit, clause))
-	if (ruler->subsume[IDX (lit)])
-	  if (count++)
-	    break;
-      subsume = (count > 1);
-    }
-  clause->subsume = subsume;
-  return subsume;
-}
-
-static size_t
-get_subsumption_candidates (struct ruler * ruler,
-                            struct clause *** candidates_ptr)
-{
-  struct clauses * clauses = &ruler->clauses;
-  ruler->statistics.ticks.subsumption += SIZE (*clauses);
-  const size_t size_count = CLAUSE_SIZE_LIMIT + 1;
-  size_t count[size_count];
-  memset (count, 0, sizeof count);
-  for (all_clauses (clause, *clauses))
-    if (is_subsumption_candidate (ruler, clause))
-      count[clause->size]++;
-  size_t * c = count, * end = c + size_count;
-  size_t pos = 0, size;
-  while (c != end)
-    size = *c, *c++ = pos, pos += size;
-  size_t bytes = pos * sizeof (struct clause *);
-  struct clause **candidates = allocate_block (bytes);
-  for (all_clauses (clause, *clauses))
-    if (clause->subsume)
-      candidates[count[clause->size]++] = clause;
-  memset (ruler->subsume, 0, ruler->size);
-  *candidates_ptr = candidates;
-  return pos;
-}
-
-static struct clause *
-find_subsuming_clause (struct ruler * ruler, unsigned lit,
-                       bool strengthen_only, unsigned * remove_ptr)
-{
-  assert (!strengthen_only || marked_literal (ruler->marks, lit) < 0);
-  assert (strengthen_only || marked_literal (ruler->marks, lit) > 0);
-  struct clauses * clauses = &OCCURRENCES (lit);
-  unsigned resolved;
-  size_t size_clauses = SIZE (*clauses);
-  struct clause * res = 0;
-  uint64_t ticks = 1;
-  if (size_clauses <= OCCURRENCE_LIMIT)
-    {
-      signed char * marks = ruler->marks;
-      ticks += cache_lines (clauses->end, clauses->begin);
-      for (all_clauses (clause, *clauses))
-	{
-	  resolved = strengthen_only ? lit : INVALID;
-	  if (binary_pointer (clause))
-	    {
-	      unsigned other = other_pointer (clause);
-	      signed char mark = marked_literal (marks, other);
-	      if (mark > 0)
-		{
-		  res = clause;
-		  break;
-		}
-	      if (mark < 0 && !strengthen_only)
-		{
-		  res = clause;
-		  assert (resolved == INVALID);
-		  resolved = other;
-		  break;
-		}
-	    }
-	  else
-	    {
-	      ticks++;
-	      res = clause;
-	      assert (!clause->garbage);
-	      for (all_literals_in_clause (other, clause))
-		{
-		  signed char mark = marked_literal (marks, other);
-		  if (!mark)
-		    {
-		      res = 0;
-		      break;
-		    }
-		  if (mark < 0)
-		    {
-		      if (resolved == INVALID)
-			resolved = other;
-		      else
-			{
-			  res = 0;
-			  break;
-			}
-		    }
-		}
-	      if (res)
-		break;
-	    }
-	}
-    }
-  ruler->statistics.ticks.subsumption += ticks;
-  if (res && resolved != INVALID)
-    *remove_ptr = NOT (resolved);
-  return res;
-}
-
-static struct clause *
-strengthen_ternary_clause (struct ruler * ruler,
-			   struct clause * clause, unsigned remove)
-{
-  assert (!binary_pointer (clause));
-  assert (clause->size == 3);
-  assert (remove != INVALID);
-  unsigned lit = INVALID, other = INVALID;
-  unsigned * literals = clause->literals;
-  for (unsigned i = 0; i != 3; i++)
-    {
-      unsigned tmp = literals[i];
-      if (tmp == remove)
-	continue;
-      if (lit == INVALID)
-	lit = tmp;
-      else 
-	{
-	  assert (other == INVALID);
-	  other = tmp;
-	  break;
-	}
-    }
-  assert (lit != INVALID);
-  assert (other != INVALID);
-  mark_subsume_literal (ruler, lit);
-  mark_subsume_literal (ruler, other);
-  ruler->statistics.strengthened++;
-  new_ruler_binary_clause (ruler, lit, other);
-  trace_add_binary (&ruler->buffer, lit, other);
-  ROGCLAUSE (clause, "marking garbage");
-  trace_delete_clause (&ruler->buffer, clause);
-  ruler->statistics.garbage++;
-  clause->garbage = true;
-  return tag_pointer (false, lit, other);
-}
-
-static void
-strengthen_very_large_clause (struct ruler * ruler,
-                              struct clause * clause, unsigned remove)
-{
-  ROGCLAUSE (clause, "strengthening by removing %s in", ROGLIT (remove));
-  assert (!binary_pointer (clause));
-  assert (remove != INVALID);
-  unsigned old_size = clause->size;
-  assert (old_size > 3);
-  unsigned * literals = clause->literals, * q = literals;
-  trace_add_literals (&ruler->buffer, old_size, literals, remove);
-  trace_delete_literals (&ruler->buffer, old_size, literals);
-  unsigned * end = literals + old_size;
-  for (unsigned *p = literals, lit; p != end; p++)
-    if ((lit = *p) != remove)
-      *q++ = lit;
-  unsigned new_size = q - literals;
-  assert (new_size + 1 == old_size);
-  clause->size = new_size;
-  assert (new_size > 2);
-  ruler->statistics.strengthened++;
-  mark_subsume_clause (ruler, clause);
-}
-
-static void
-forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
-{
-  ROGCLAUSE (clause, "subsumption candidate");
-  assert (!binary_pointer (clause));
-  assert (!clause->garbage);
-  assert (clause->size <= CLAUSE_SIZE_LIMIT);
-  mark_clause (ruler->marks, clause, INVALID);
-  unsigned remove = INVALID, other = INVALID;
-  struct clause * subsuming = 0;
-  for (all_literals_in_clause (lit, clause))
-    {
-      subsuming = find_subsuming_clause (ruler, lit, false, &remove);
-      if (subsuming)
-	{
-	  other = lit;
-	  break;
-	}
-      unsigned not_lit = NOT (lit);
-      subsuming = find_subsuming_clause (ruler, not_lit, true, &remove);
-      if (subsuming)
-	{
-	  other = not_lit;
-	  break;
-	}
-    }
-  if (subsuming && remove == INVALID)
-    {
-      ROGCLAUSE (subsuming, "subsuming");
-      ruler->statistics.subsumed++;
-      ROGCLAUSE (clause, "marking garbage subsumed");
-      mark_eliminate_clause (ruler, clause);
-      trace_delete_clause (&ruler->buffer, clause);
-      ruler->statistics.garbage++;
-      clause->garbage = true;
-    }
-  else
-    {
-      if (subsuming)
-	{
-	  assert (remove != INVALID);
-	  bool selfsubsuming = !binary_pointer (subsuming) &&
-	                        (clause->size == subsuming->size);
-	  if (selfsubsuming)
-	    ROGCLAUSE (subsuming,
-		       "self-subsuming resolution on %s with",
-		       ROGLIT (NOT (remove)));
-	  else
-	    ROGCLAUSE (subsuming, "resolution on %s with",
-	               ROGLIT (NOT (remove)));
-	  mark_eliminate_literal (ruler, remove);
-	  if (clause->size == 3)
-	    {
-	      clause = strengthen_ternary_clause (ruler, clause, remove);
-	      assert (binary_pointer (clause));
-	    }
-	  else
-	    strengthen_very_large_clause (ruler, clause, remove);
-	  ROGCLAUSE (clause, "strengthened");
-	  mark_eliminate_literal (ruler, remove);
-	  unmark_literal (ruler->marks, remove);
-	  if (selfsubsuming)
-	    {
-	      ruler->statistics.subsumed++;
-	      ruler->statistics.selfsubsumed++;
-	      ROGCLAUSE (subsuming,
-	                "disconnecting and marking garbage subsumed");
-	      disconnect_literal (ruler, other, subsuming);
-	      mark_eliminate_clause (ruler, subsuming);
-	      trace_delete_clause (&ruler->buffer, subsuming);
-	      ruler->statistics.garbage++;
-	      subsuming->garbage = true;
-	    }
-	}
-      if (!binary_pointer (clause))
-	{
-	  unsigned min_lit = INVALID;
-	  unsigned min_size = UINT_MAX;
-	  for (all_literals_in_clause (lit, clause))
-	    {
-	      unsigned lit_size = SIZE (OCCURRENCES (lit));
-	      if (min_lit != INVALID && min_size <= lit_size)
-		continue;
-	      min_lit = lit;
-	      min_size = lit_size;
-	    }
-	  assert (min_lit != INVALID);
-	  assert (min_size != INVALID);
-	  ROGCLAUSE (clause, "connecting least occurring literal %s "
-			     "with %u occurrences in",
-			     ROGLIT (min_lit), min_size);
-	  connect_literal (ruler, min_lit, clause);
-	}
-    }
-  if (binary_pointer (clause))
-    {
-      unsigned lit = lit_pointer (clause);
-      unsigned other = other_pointer (clause);
-      unmark_literal (ruler->marks, lit);
-      unmark_literal (ruler->marks, other);
-    }
-  else
-    unmark_clause (ruler->marks, clause, INVALID);
-}
-
-static void
-flush_large_clause_occurrences (struct ruler * ruler)
-{
-  ROG ("flushing large clauses occurrences");
-  size_t flushed = 0;
-  for (all_ruler_literals (lit))
-    {
-      struct clauses * clauses = &OCCURRENCES (lit);
-      struct clause ** begin = clauses->begin, ** q = begin;
-      struct clause ** end = clauses->end, ** p = q;
-      while (p != end)
-	{
-	  struct clause * clause = *p++;
-	  if (binary_pointer (clause))
-	    *q++ = clause;
-	  else
-	    flushed++;
-	}
-      clauses->end = q;
-    }
-  very_verbose (0, "flushed %zu large clause occurrences", flushed);
-}
-
-static void
-flush_large_garbage_clauses_and_reconnect (struct ruler * ruler)
-{
-  ROG ("flushing large garbage clauses");
-  struct clauses * clauses = &ruler->clauses;
-  struct clause ** begin = clauses->begin, ** q = begin;
-  struct clause ** end = clauses->end, ** p = q;
-  size_t flushed = 0, reconnected = 0;
-  while (p != end)
-    {
-      struct clause * clause = *q++ = *p++;
-      if (clause->garbage)
-	{
-	  ROGCLAUSE (clause, "finally deleting");
-	  free (clause);
-	  flushed++;
-	  q--;
-	}
-      else
-	{
-	  connect_large_clause (ruler, clause);
-	  reconnected++;
-	}
-    }
-  clauses->end = q;
-  very_verbose (0, "flushed %zu garbage clauses", flushed);
-  very_verbose (0, "reconnected %zu large clauses", reconnected);
-}
-
-static bool
-subsumption_ticks_limit_hit (struct ruler * ruler)
-{
-  struct ruler_statistics * statistics = &ruler->statistics;
-  struct ruler_limits * limits = &ruler->limits;
-  return statistics->ticks.subsumption > limits->subsumption;
-}
-
-static bool
-subsume_clauses (struct ruler * ruler, unsigned round)
-{
-  if (subsumption_ticks_limit_hit (ruler))
-    return false;
-  double start_subsumption = START (ruler, subsuming);
-  flush_large_clause_occurrences (ruler);
-  assert (!ruler->subsuming);
-  ruler->subsuming = true;
-  struct clause ** candidates;
-  size_t size_candidates = get_subsumption_candidates (ruler, &candidates);
-  verbose (0, "[%u] found %zu large forward subsumption candidates",
-           round, size_candidates);
-  struct { uint64_t before, after, delta; } subsumed, strengthened;
-  struct ruler_statistics * statistics = &ruler->statistics;
-  subsumed.before = statistics->subsumed;
-  strengthened.before = statistics->strengthened;
-  struct clause ** end_candidates = candidates + size_candidates;
-  for (struct clause ** p = candidates; p != end_candidates; p++)
-    {
-      forward_subsume_large_clause (ruler, *p);
-      if (subsumption_ticks_limit_hit (ruler))
-	break;
-    }
-  free (candidates);
-  flush_large_clause_occurrences (ruler);
-  flush_large_garbage_clauses_and_reconnect (ruler);
-  assert (ruler->subsuming);
-  ruler->subsuming = false;
-  subsumed.after = statistics->subsumed;
-  strengthened.after = statistics->strengthened;
-  subsumed.delta = subsumed.after - subsumed.before;
-  strengthened.delta = strengthened.after - strengthened.before;
-  double end_subsumption = STOP (ruler, subsuming);
-  message (0, "[%u] subsumed %zu clauses %.0f%% and "
-           "strengthened %zu clauses %.0f%% in %.2f seconds", round,
-	   subsumed.delta, percent (subsumed.delta, statistics->original),
-	   strengthened.delta, percent (strengthened.delta, statistics->original),
-	   end_subsumption - start_subsumption);
-  return subsumed.delta || strengthened.delta;
 }
 
 static void
@@ -5501,6 +4785,8 @@ parse_long_option (const char *arg, const char *match)
     return 0;
   return is_positive_number_string (p) ? p : 0;
 }
+
+static bool force = false;
 
 static void
 parse_options (int argc, char **argv, struct options *opts)

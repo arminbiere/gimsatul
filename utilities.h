@@ -19,6 +19,32 @@ percent (double a, double b)
   return average (100 * a, b);
 }
 
+static inline void
+mark_literal (signed char * marks, unsigned lit)
+{
+  unsigned idx = IDX (lit);
+  assert (!marks[idx]);
+  marks[idx] = SGN (lit) ? -1 : 1;
+}
+
+static inline void
+unmark_literal (signed char * marks, unsigned lit)
+{
+  unsigned idx = IDX (lit);
+  assert (marks[idx]);
+  marks[idx] = 0;
+}
+
+static inline signed char
+marked_literal (signed char * marks, unsigned lit)
+{
+  unsigned idx = IDX (lit);
+  signed char res = marks[idx];
+  if (SGN (lit))
+    res = -res;
+  return res;
+}
+
 static inline int
 export_literal (unsigned unsigned_lit)
 {

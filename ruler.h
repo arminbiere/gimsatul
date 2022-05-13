@@ -108,4 +108,42 @@ struct ruler
   struct ruler_last last;
 };
 
+/*------------------------------------------------------------------------*/
+
+#define OCCURRENCES(LIT) (ruler->occurrences[LIT])
+
+/*------------------------------------------------------------------------*/
+
+#define all_rings(RING) \
+  all_pointers_on_stack(struct ring, RING, ruler->rings)
+
+#define all_ruler_indices(IDX) \
+  unsigned IDX = 0, END_ ## IDX = ruler->size; \
+  IDX != END_ ## IDX; \
+  ++IDX
+
+#define all_ruler_literals(LIT) \
+  unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
+  LIT != END_ ## LIT; \
+  ++LIT
+
+#define all_positive_ruler_literals(LIT) \
+  unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
+  LIT != END_ ## LIT; \
+  LIT += 2
+
+/*------------------------------------------------------------------------*/
+
+void new_ruler_binary_clause (struct ruler *, unsigned, unsigned);
+void disconnect_literal (struct ruler *, unsigned, struct clause *);
+void connect_large_clause (struct ruler *, struct clause *);
+
+/*------------------------------------------------------------------------*/
+
+static inline void
+connect_literal (struct ruler * ruler, unsigned lit, struct clause * clause)
+{
+  PUSH (OCCURRENCES (lit), clause);
+}
+
 #endif

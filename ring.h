@@ -203,7 +203,6 @@ struct rings
 
 #define VAR(LIT) (ring->variables + IDX (LIT))
 #define REFERENCES(LIT) (ring->references[LIT])
-#define OCCURRENCES(LIT) (ruler->occurrences[LIT])
 
 /*------------------------------------------------------------------------*/
 

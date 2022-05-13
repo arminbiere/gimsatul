@@ -37,4 +37,7 @@ struct clauses
   P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
   ++ P_ ## LIT
 
+void mark_clause (signed char * marks, struct clause *, unsigned except);
+void unmark_clause (signed char * marks, struct clause *, unsigned except);
+
 #endif
