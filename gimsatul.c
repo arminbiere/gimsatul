@@ -4002,6 +4002,8 @@ find_equivalent_literals (struct ruler * ruler, unsigned round)
 		  if (other == NOT (new_repr))
 		    {
 		      very_verbose (0, "%s", "empty resolvent");
+		      trace_add_unit (&ruler->buffer, other);
+		      assign_ruler_unit (ruler, other);
 		      trace_add_empty (&ruler->buffer);
 		      ruler->inconsistent = true;
 		      goto DONE;
