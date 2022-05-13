@@ -1,5 +1,6 @@
 #include "definition.h"
 #include "eliminate.h"
+#include "message.h"
 #include "profile.h"
 #include "simplify.h"
 #include "trace.h"
