@@ -2332,12 +2332,11 @@ mark_subsume_clause (struct ruler * ruler, struct clause * clause)
     mark_subsume_literal (ruler, lit);
 }
 
-static void
+static bool
 ruler_propagate (struct ruler * ruler)
 {
-  assert (!ruler->inconsistent);
-  struct ruler_trail * units = &ruler->units;
   signed char * values = (signed char*) ruler->values;
+  struct ruler_trail * units = &ruler->units;
   size_t garbage = 0;
   while (!ruler->inconsistent && units->propagate != units->end)
     {
@@ -2413,6 +2412,7 @@ ruler_propagate (struct ruler * ruler)
 	}
     }
   very_verbose (0, "marked %zu garbage clause during propagation", garbage);
+  return !ruler->inconsistent;
 }
 
 static void
@@ -2623,15 +2623,11 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
   very_verbose (0, "shrunken %zu dirty clauses", shrunken);
 }
 
-static void
+static bool
 propagate_and_flush_ruler_units (struct ruler * ruler)
 {
-  if (ruler->inconsistent)
-    return;
-  if (ruler->units.propagate != ruler->units.end)
-    ruler_propagate (ruler);
-  if (ruler->inconsistent)
-    return;
+  if (!ruler_propagate (ruler))
+    return false;
   struct ruler_last * last = &ruler->last;
   if (last->fixed != ruler->statistics.fixed.total)
     {
@@ -2644,6 +2640,7 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
   last->fixed = ruler->statistics.fixed.total;
   last->garbage = ruler->statistics.garbage;
   assert (!ruler->inconsistent);
+  return true;
 }
 
 static bool
@@ -3888,9 +3885,6 @@ eliminate_variables (struct ruler * ruler, unsigned round)
 {
   if (elimination_ticks_limit_hit (ruler))
     return 0;
-#if 0
-  return 0;
-#endif
   double start_round = START (ruler, eliminating);
   assert (!ruler->eliminating);
   ruler->eliminating = true;
@@ -3987,9 +3981,7 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
   connect_all_large_clauses (ruler);
   size_t before = SIZE (ruler->clauses) + ruler->statistics.binaries;
   unsigned total_eliminated = 0;
-  propagate_and_flush_ruler_units (ruler);
-
-  if (!ruler->inconsistent)
+  if (propagate_and_flush_ruler_units (ruler))
     {
       assert ((UINT_MAX - 1)/(optimize + 1) >= SIMPLIFICATION_ROUNDS);
       unsigned max_rounds = (optimize + 1) * SIMPLIFICATION_ROUNDS;
@@ -3997,9 +3989,13 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
                max_rounds);
       for (unsigned round = 1; round <= max_rounds; round++)
 	{
+#if 0
+	  equivalent_literal_substitution (ruler, round);
+	  if (!propagate_and_flush_ruler_units (ruler))
+	    break;
+#endif
 	  remove_duplicated_binaries (ruler, round);
-	  propagate_and_flush_ruler_units (ruler);
-	  if (ruler->inconsistent)
+	  if (!propagate_and_flush_ruler_units (ruler))
 	    break;
 
 	  subsume_clauses (ruler, round);
@@ -4007,16 +4003,12 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
 
 	  unsigned eliminated = eliminate_variables (ruler, round);
 	  total_eliminated += eliminated;
-	  propagate_and_flush_ruler_units (ruler);
-	  if (ruler->inconsistent)
+	  if (!propagate_and_flush_ruler_units (ruler))
 	    break;
 	  if (!eliminated)
 	    break;
 	  if (elimination_ticks_limit_hit (ruler))
 	    break;
-#if 0
-	    break;
-#endif
 	}
     }
   if (ruler->inconsistent)
@@ -5248,12 +5240,6 @@ shrink_clause (struct ring *ring)
 
   assert (uip != INVALID);
   LOGTMP ("shrinking succeeded with first UIP %s1 of", LOGLIT (uip));
-#if 0
-  unsigned idx = IDX (uip);
-  struct variable *v = variables + idx;
-  if (!v->seen)
-    bump_variable_score (ring, idx);
-#endif
   unsigned not_uip = NOT (uip);
   clause->begin[1] = not_uip;
   size_t deduced = end - begin;
