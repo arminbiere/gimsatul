@@ -135,8 +135,17 @@ struct ruler
 /*------------------------------------------------------------------------*/
 
 void new_ruler_binary_clause (struct ruler *, unsigned, unsigned);
-void disconnect_literal (struct ruler *, unsigned, struct clause *);
+void assign_ruler_unit (struct ruler *, unsigned unit);
+
 void connect_large_clause (struct ruler *, struct clause *);
+
+void disconnect_literal (struct ruler *, unsigned, struct clause *);
+
+void disconnect_and_delete_clause (struct ruler *,
+                                   struct clause *, unsigned except);
+
+void disconnect_and_delete_clauses (struct ruler *,
+                                    struct clauses *, unsigned except);
 
 /*------------------------------------------------------------------------*/
 

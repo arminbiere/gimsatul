@@ -3,6 +3,7 @@
 
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #ifdef LOGGING
 #include <stdint.h>
@@ -28,6 +29,8 @@ struct clauses
   struct clause **begin, **end, **allocated;
 };
 
+/*------------------------------------------------------------------------*/
+
 #define all_clauses(ELEM,CLAUSES) \
   all_pointers_on_stack (struct clause, ELEM, CLAUSES)
 
@@ -36,6 +39,11 @@ struct clauses
            * END_ ## LIT = P_ ## LIT + (CLAUSE)->size, LIT;\
   P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
   ++ P_ ## LIT
+
+/*------------------------------------------------------------------------*/
+
+struct clause * new_large_clause (size_t, unsigned *,
+                                  bool redundant, unsigned glue);
 
 void mark_clause (signed char * marks, struct clause *, unsigned except);
 void unmark_clause (signed char * marks, struct clause *, unsigned except);

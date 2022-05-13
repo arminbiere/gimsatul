@@ -1,6 +1,13 @@
 #ifndef _simplify_h_INCLUDED
 
+#include "macros.h"
 #include "ruler.h"
+
+/*------------------------------------------------------------------------*/
+
+void add_resolvent (struct ruler *);
+
+/*------------------------------------------------------------------------*/
 
 static inline void
 mark_eliminate_literal (struct ruler * ruler, unsigned lit)
