@@ -32,6 +32,8 @@ static const char * usage =
 /*------------------------------------------------------------------------*/
 
 #include "allocate.h"
+#include "clause.h"
+#include "macros.h"
 #include "messages.h"
 #include "options.h"
 #include "ring.h"
@@ -62,26 +64,10 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#define IDX(LIT) ((LIT) >> 1)
-#define LIT(IDX) ((IDX) << 1)
-#define NOT(LIT) ((LIT) ^ 1u)
-#define SGN(LIT) ((LIT) & 1)
-
 #define COUNTERS(LIT) (walker->occurrences[LIT])
 
 #define MAX_THREADS \
   ((size_t) 1 << 8*sizeof ((struct clause *) 0)->shared)
-
-/*------------------------------------------------------------------------*/
-
-#define MIN(A,B) ((A) < (B) ? (A) : (B))
-
-#define SWAP(A,B) \
-do { \
-  typeof(A) TMP = (A); \
-  (A) = (B); \
-  (B) = TMP; \
-} while (0)
 
 /*------------------------------------------------------------------------*/
 
@@ -178,28 +164,6 @@ struct file
   uint64_t lines;
 };
 
-#define SHARE
-
-struct clause
-{
-#ifdef LOGGING
-  uint64_t id;
-#endif
-  atomic_ushort shared;
-  unsigned char glue;
-  bool dirty:1;
-  bool garbage:1;
-  bool redundant:1;
-  bool subsume:1;
-  unsigned size;
-  unsigned literals[];
-};
-
-struct clauses
-{
-  struct clause **begin, **end, **allocated;
-};
-
 struct variable
 {
   unsigned level;
@@ -225,11 +189,6 @@ struct ruler_profiles
   struct profile subsuming;
 
   struct profile total;
-};
-
-struct rings
-{
-  struct ring **begin, **end, **allocated;
 };
 
 struct ruler_trail

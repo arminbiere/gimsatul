@@ -190,6 +190,11 @@ struct ring
   uint64_t random;
 };
 
+struct rings
+{
+  struct ring **begin, **end, **allocated;
+};
+
 /*------------------------------------------------------------------------*/
 
 #define VAR(LIT) (ring->variables + IDX (LIT))
