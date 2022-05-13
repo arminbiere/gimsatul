@@ -28,4 +28,16 @@ void message (struct ring *ring, const char *, ...)
 #define PRINTLN(...) \
   print_line_without_acquiring_lock (ring, __VA_ARGS__)
 
+#define verbose(...) \
+do { \
+  if (verbosity > 0) \
+    message (__VA_ARGS__); \
+} while (0)
+
+#define very_verbose(...) \
+do { \
+  if (verbosity > 1) \
+    message (__VA_ARGS__); \
+} while (0)
+
 #endif

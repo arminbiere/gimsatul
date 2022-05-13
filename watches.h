@@ -28,4 +28,7 @@ struct references
   unsigned *binaries;
 };
 
+#define all_watches(ELEM,WATCHES) \
+  all_pointers_on_stack (struct watch, ELEM, WATCHES)
+
 #endif

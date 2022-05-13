@@ -1,5 +1,5 @@
 #include "allocate.h"
-#include "messages.h"
+#include "message.h"
 
 void *
 allocate_block (size_t bytes)

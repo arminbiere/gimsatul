@@ -28,4 +28,13 @@ struct clauses
   struct clause **begin, **end, **allocated;
 };
 
+#define all_clauses(ELEM,CLAUSES) \
+  all_pointers_on_stack (struct clause, ELEM, CLAUSES)
+
+#define all_literals_in_clause(LIT,CLAUSE) \
+  unsigned * P_ ## LIT = (CLAUSE)->literals, \
+           * END_ ## LIT = P_ ## LIT + (CLAUSE)->size, LIT;\
+  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
+  ++ P_ ## LIT
+
 #endif

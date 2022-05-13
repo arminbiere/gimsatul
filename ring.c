@@ -1,5 +1,5 @@
 #include "ring.h"
-#include "messages.h"
+#include "message.h"
 
 #include <assert.h>
 #include <stdarg.h>
