@@ -27,15 +27,15 @@ unmark_clause (signed char * marks, struct clause * clause, unsigned except)
 }
 
 void
-trace_add_clause (struct buffer *buffer, struct clause *clause)
+really_trace_add_clause (struct buffer *buffer, struct clause *clause)
 {
-  trace_add_literals (buffer, clause->size, clause->literals, INVALID);
+  really_trace_add_literals (buffer, clause->size, clause->literals, INVALID);
 }
 
 void
-trace_delete_clause (struct buffer *buffer, struct clause *clause)
+really_trace_delete_clause (struct buffer *buffer, struct clause *clause)
 {
-  if (proof.file && !clause->garbage)
-    trace_delete_literals (buffer, clause->size, clause->literals);
+  if (!clause->garbage)
+    really_trace_delete_literals (buffer, clause->size, clause->literals);
 }
 

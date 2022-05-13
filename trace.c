@@ -3,6 +3,7 @@
 #include "message.h"
 #include "utilities.h"
 
+#include <assert.h>
 #include <inttypes.h>
 
 struct file proof;
@@ -51,11 +52,11 @@ ascii_proof_line (struct buffer *buffer,
 }
 
 void
-trace_add_literals (struct buffer *buffer,
-                    size_t size, unsigned *literals, unsigned except)
+really_trace_add_literals (struct buffer *buffer,
+                           size_t size, unsigned *literals,
+			   unsigned except)
 {
-  if (!proof.file)
-    return;
+  assert (proof.file);
   assert (EMPTY (*buffer));
   if (binary_proof_format)
     {
@@ -68,33 +69,31 @@ trace_add_literals (struct buffer *buffer,
 }
 
 void
-trace_add_empty (struct buffer *buffer)
+really_trace_add_empty (struct buffer *buffer)
 {
-  if (proof.file)
-    trace_add_literals (buffer, 0, 0, INVALID);
+  assert (proof.file);
+  really_trace_add_literals (buffer, 0, 0, INVALID);
 }
 
 void
-trace_add_unit (struct buffer *buffer, unsigned unit)
+really_trace_add_unit (struct buffer *buffer, unsigned unit)
 {
-  if (proof.file)
-    trace_add_literals (buffer, 1, &unit, INVALID);
+  assert (proof.file);
+  really_trace_add_literals (buffer, 1, &unit, INVALID);
 }
 
 void
-trace_add_binary (struct buffer *buffer, unsigned lit, unsigned other)
+really_trace_add_binary (struct buffer *buffer, unsigned lit, unsigned other)
 {
-  if (!proof.file)
-    return;
+  assert (proof.file);
   unsigned literals[2] = { lit, other };
-  trace_add_literals (buffer, 2, literals, INVALID);
+  really_trace_add_literals (buffer, 2, literals, INVALID);
 }
 
 void
-trace_delete_literals (struct buffer *buffer, size_t size, unsigned *literals)
+really_trace_delete_literals (struct buffer *buffer, size_t size, unsigned *literals)
 {
-  if (!proof.file)
-    return;
+  assert (proof.file);
   assert (EMPTY (*buffer));
   PUSH (*buffer, 'd');
   if (binary_proof_format)
@@ -108,12 +107,11 @@ trace_delete_literals (struct buffer *buffer, size_t size, unsigned *literals)
 }
 
 void
-trace_delete_binary (struct buffer *buffer, unsigned lit, unsigned other)
+really_trace_delete_binary (struct buffer *buffer, unsigned lit, unsigned other)
 {
-  if (!proof.file)
-    return;
+  assert (proof.file);
   unsigned literals[2] = { lit, other };
-  trace_delete_literals (buffer, 2, literals);
+  really_trace_delete_literals (buffer, 2, literals);
 }
 
 void

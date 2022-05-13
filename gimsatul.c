@@ -2210,8 +2210,10 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
   if (proof.file)
     for (all_positive_ruler_literals (lit))
       if ((other = repr[lit]) != lit)
-	trace_add_binary (&ruler->buffer, NOT (lit), other),
-	trace_add_binary (&ruler->buffer, lit, NOT (other));
+	{
+	  trace_add_binary (&ruler->buffer, NOT (lit), other);
+	  trace_add_binary (&ruler->buffer, lit, NOT (other));
+	}
 
   unsigned substituted = 0;
   for (all_ruler_literals (lit))
@@ -2225,8 +2227,10 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
   if (proof.file)
     for (all_positive_ruler_literals (lit))
       if ((other = repr[lit]) != lit)
-	trace_delete_binary (&ruler->buffer, NOT (lit), other),
-	trace_delete_binary (&ruler->buffer, lit, NOT (other));
+	{
+	  trace_delete_binary (&ruler->buffer, NOT (lit), other);
+	  trace_delete_binary (&ruler->buffer, lit, NOT (other));
+	}
 
   RELEASE (ruler->resolvent);
 
