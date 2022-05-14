@@ -9,6 +9,7 @@
 #include "macros.h"
 #include "queue.h"
 #include "stack.h"
+#include "trace.h"
 #include "tagging.h"
 #include "variable.h"
 #include "watches.h"
@@ -181,7 +182,7 @@ struct ring
   struct unsigneds analyzed;
   struct ring_trail trail;
   struct ring_limits limits;
-  struct buffer buffer;
+  struct trace trace;
   struct intervals intervals;
   struct averages averages[2];
   struct reluctant reluctant;

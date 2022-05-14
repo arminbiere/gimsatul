@@ -187,7 +187,7 @@ flush_references (struct ring *ring, bool fixed)
 		    {
 		      bool redundant = redundant_pointer (watch);
 		      dec_clauses (ring, redundant);
-		      trace_delete_binary (&ring->buffer, lit, other);
+		      trace_delete_binary (&ring->trace, lit, other);
 		    }
 		  flushed++;
 		  q--;

@@ -16,7 +16,7 @@ add_resolvent (struct ruler * ruler)
   struct unsigneds * resolvent = &ruler->resolvent;
   unsigned * literals = resolvent->begin;
   size_t size = SIZE (*resolvent);
-  trace_add_literals (&ruler->buffer, size, literals, INVALID);
+  trace_add_literals (&ruler->trace, size, literals, INVALID);
   if (!size)
     {
       very_verbose (0, "%s", "empty resolvent");
@@ -81,7 +81,7 @@ ruler_propagate (struct ruler * ruler)
 		  goto CONFLICT;
 		}
 	      ROGBINARY (not_lit, other, "unit %s forcing", ROGLIT (other));
-	      trace_add_unit (&ruler->buffer, other);
+	      trace_add_unit (&ruler->trace, other);
 	      assign_ruler_unit (ruler, other);
 	      continue;
 	    }
@@ -108,21 +108,21 @@ ruler_propagate (struct ruler * ruler)
 	      assert (!ruler->inconsistent);
 	      verbose (0, "%s", "propagation yields inconsistency");
 	      ruler->inconsistent = true;
-	      trace_add_empty (&ruler->buffer);
+	      trace_add_empty (&ruler->trace);
 	      break;
 	    }
 	  if (!satisfied && non_false == 1)
 	    {
 	      ROGCLAUSE (clause, "unit %s forcing", ROGLIT (unit));
 	      assert (unit != INVALID);
-	      trace_add_unit (&ruler->buffer, unit);
+	      trace_add_unit (&ruler->trace, unit);
 	      assign_ruler_unit (ruler, unit);
 	      satisfied = true;
 	    }
 	  if (satisfied)
 	    {
 	      ROGCLAUSE (clause, "marking satisfied garbage");
-	      trace_delete_clause (&ruler->buffer, clause);
+	      trace_delete_clause (&ruler->trace, clause);
 	      mark_eliminate_clause (ruler, clause);
 	      ruler->statistics.garbage++;
 	      clause->garbage = true;
@@ -158,7 +158,7 @@ mark_satisfied_ruler_clauses (struct ruler * ruler)
       if (satisfied)
 	{
 	  ROGCLAUSE (clause, "marking satisfied garbage");
-	  trace_delete_clause (&ruler->buffer, clause);
+	  trace_delete_clause (&ruler->trace, clause);
 	  mark_eliminate_clause (ruler, clause);
 	  ruler->statistics.garbage++;
 	  clause->garbage = true;
@@ -202,7 +202,7 @@ flush_satisfied_ruler_occurrences (struct ruler * ruler)
 		  if (other < lit)
 		    {
 		      ROGBINARY (lit, other, "deleting satisfied");
-		      trace_delete_binary (&ruler->buffer, lit, other);
+		      trace_delete_binary (&ruler->trace, lit, other);
 		      if (!lit_value)
 			mark_eliminate_literal ( ruler, lit);
 		      if (!other_value)
@@ -246,6 +246,7 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
   struct clause ** end_clauses = clauses->end, ** p = q;
   size_t deleted = 0, shrunken = 0;
   signed char * values = (signed char*) ruler->values;
+  bool trace = ruler->options.proof.file;
   struct unsigneds remove;
   INIT (remove);
   while (p != end_clauses)
@@ -273,7 +274,7 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	      unsigned lit = *k++ = *l++;
 	      signed char value = values[lit];
 	      assert (value <= 0);
-	      if (proof.file)
+	      if (trace)
 		PUSH (remove, lit);
 	      if (value < 0)
 		k--;
@@ -284,11 +285,11 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	  clause->size = new_size;
 	  clause->dirty = false;
 	  ROGCLAUSE (clause, "shrunken dirty");
-	  if (proof.file)
+	  if (trace)
 	    {
 	      assert (old_size == SIZE (remove));
-	      trace_add_clause (&ruler->buffer, clause);
-	      trace_delete_literals (&ruler->buffer, old_size, remove.begin);
+	      trace_add_clause (&ruler->trace, clause);
+	      trace_delete_literals (&ruler->trace, old_size, remove.begin);
 	      CLEAR (remove);
 	    }
 	  if (2 < new_size)
@@ -306,7 +307,7 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	}
     }
   clauses->end = q;
-  if (proof.file)
+  if (trace)
     RELEASE (remove);
   very_verbose (0, "finally deleted %zu large garbage clauses", deleted);
   very_verbose (0, "shrunken %zu dirty clauses", shrunken);

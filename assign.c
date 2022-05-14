@@ -27,7 +27,7 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   if (!level)
     {
       if (reason)
-	trace_add_unit (&ring->buffer, lit);
+	trace_add_unit (&ring->trace, lit);
       v->reason = 0;
       ring->statistics.fixed++;
       if (!ring->pool)

@@ -65,6 +65,8 @@ new_ring (struct ruler *ruler)
   init_ring_profiles (ring);
   push_ring (ruler, ring);
   ring->size = size;
+  if ((ring->trace.file = ruler->trace.file))
+    ring->trace.binary = ruler->trace.binary;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);
   ring->values = allocate_and_clear_block (2 * size);
   ring->marks = allocate_and_clear_block (2 * size);
@@ -186,7 +188,7 @@ delete_ring (struct ring *ring)
   free (ring->trail.begin);
   free (ring->trail.pos);
   RELEASE (ring->levels);
-  RELEASE (ring->buffer);
+  RELEASE (ring->trace.buffer);
   release_references (ring);
   if (!ring->id)
     release_binaries (ring);

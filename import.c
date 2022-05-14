@@ -42,7 +42,7 @@ import_units (struct ring *ring)
       if (value < 0)
 	{
 	  set_inconsistent (ring, "imported falsified unit");
-	  trace_add_empty (&ring->buffer);
+	  trace_add_empty (&ring->trace);
 	  imported = INVALID;
 	  break;
 	}
@@ -63,7 +63,7 @@ static void
 really_import_binary_clause (struct ring *ring, unsigned lit, unsigned other)
 {
   (void) new_local_binary_clause (ring, true, lit, other);
-  trace_add_binary (&ring->buffer, lit, other);
+  trace_add_binary (&ring->trace, lit, other);
   ring->statistics.imported.binary++;
   ring->statistics.imported.clauses++;
 }

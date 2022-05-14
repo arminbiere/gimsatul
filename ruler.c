@@ -28,6 +28,8 @@ new_ruler (size_t size, struct options * opts)
   assert (opts->threads <= MAX_THREADS);
   struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
   memcpy (&ruler->options, opts, sizeof *opts);
+  ruler->trace.binary = opts->binary;
+  ruler->trace.file = opts->proof.file ? &opts->proof : 0;
   pthread_mutex_init (&ruler->locks.units, 0);
   pthread_mutex_init (&ruler->locks.rings, 0);
 #ifdef NFASTPATH
@@ -79,7 +81,7 @@ delete_ruler (struct ruler *ruler)
     assert (!ring);
 #endif
   RELEASE (ruler->rings);
-  RELEASE (ruler->buffer);
+  RELEASE (ruler->trace.buffer);
   RELEASE (ruler->extension);
   release_occurrences (ruler);
   release_clauses (ruler);
@@ -183,13 +185,13 @@ disconnect_and_delete_clause (struct ruler * ruler,
       ROGBINARY (lit, other, "disconnected and deleted");
       assert (ruler->statistics.binaries);
       ruler->statistics.binaries--;
-      trace_delete_binary (&ruler->buffer, lit, other);
+      trace_delete_binary (&ruler->trace, lit, other);
       mark_eliminate_literal (ruler, other);
     }
   else
     {
       ROGCLAUSE (clause, "disconnecting and marking garbage");
-      trace_delete_clause (&ruler->buffer, clause);
+      trace_delete_clause (&ruler->trace, clause);
       ruler->statistics.garbage++;
       clause->garbage = true;
       for (all_literals_in_clause (other, clause))

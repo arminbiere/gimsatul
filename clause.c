@@ -53,23 +53,23 @@ unmark_clause (signed char * marks, struct clause * clause, unsigned except)
 }
 
 void
-really_trace_add_clause (struct buffer *buffer, struct clause *clause)
+trace_add_clause (struct trace *trace, struct clause *clause)
 {
-  really_trace_add_literals (buffer, clause->size, clause->literals, INVALID);
+  trace_add_literals (trace, clause->size, clause->literals, INVALID);
 }
 
 void
-really_trace_delete_clause (struct buffer *buffer, struct clause *clause)
+trace_delete_clause (struct trace *trace, struct clause *clause)
 {
   if (!clause->garbage)
-    really_trace_delete_literals (buffer, clause->size, clause->literals);
+    trace_delete_literals (trace, clause->size, clause->literals);
 }
 
 static void
-really_delete_clause (struct ring *ring, struct clause *clause)
+delete_clause (struct ring *ring, struct clause *clause)
 {
   LOGCLAUSE (clause, "delete");
-  trace_delete_clause (&ring->buffer, clause);
+  trace_delete_clause (&ring->trace, clause);
   free (clause);
 }
 
@@ -89,5 +89,5 @@ dereference_clause (struct ring *ring, struct clause *clause)
   assert (shared + 1);
   LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
   if (!shared)
-    really_delete_clause (ring, clause);
+    delete_clause (ring, clause);
 }

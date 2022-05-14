@@ -1,5 +1,5 @@
 #include "allocate.h"
-#include "config.h"
+#include "build.h"
 #include "file.h"
 #include "options.h"
 #include "message.h"
@@ -128,7 +128,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	}
       else if (!strcmp (opt, "--version"))
 	{
-	  printf ("%s\n", VERSION);
+	  print_version ();
 	  exit (0);
 	}
       else if ((arg = parse_long_option (opt, "conflicts")))

@@ -102,7 +102,7 @@ struct ruler
   struct clauses gate[2], nogate[2];
   struct unsigneds extension;
   struct ruler_trail units;
-  struct buffer buffer;
+  struct trace trace;
   struct ruler_profiles profiles;
   struct ruler_statistics statistics;
   struct ruler_limits limits;

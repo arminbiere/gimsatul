@@ -152,9 +152,9 @@ strengthen_ternary_clause (struct ruler * ruler,
   mark_subsume_literal (ruler, other);
   ruler->statistics.strengthened++;
   new_ruler_binary_clause (ruler, lit, other);
-  trace_add_binary (&ruler->buffer, lit, other);
+  trace_add_binary (&ruler->trace, lit, other);
   ROGCLAUSE (clause, "marking garbage");
-  trace_delete_clause (&ruler->buffer, clause);
+  trace_delete_clause (&ruler->trace, clause);
   ruler->statistics.garbage++;
   clause->garbage = true;
   return tag_pointer (false, lit, other);
@@ -170,8 +170,8 @@ strengthen_very_large_clause (struct ruler * ruler,
   unsigned old_size = clause->size;
   assert (old_size > 3);
   unsigned * literals = clause->literals, * q = literals;
-  trace_add_literals (&ruler->buffer, old_size, literals, remove);
-  trace_delete_literals (&ruler->buffer, old_size, literals);
+  trace_add_literals (&ruler->trace, old_size, literals, remove);
+  trace_delete_literals (&ruler->trace, old_size, literals);
   unsigned * end = literals + old_size;
   for (unsigned *p = literals, lit; p != end; p++)
     if ((lit = *p) != remove)
@@ -216,7 +216,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
       ruler->statistics.subsumed++;
       ROGCLAUSE (clause, "marking garbage subsumed");
       mark_eliminate_clause (ruler, clause);
-      trace_delete_clause (&ruler->buffer, clause);
+      trace_delete_clause (&ruler->trace, clause);
       ruler->statistics.garbage++;
       clause->garbage = true;
     }
@@ -253,7 +253,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	                "disconnecting and marking garbage subsumed");
 	      disconnect_literal (ruler, other, subsuming);
 	      mark_eliminate_clause (ruler, subsuming);
-	      trace_delete_clause (&ruler->buffer, subsuming);
+	      trace_delete_clause (&ruler->trace, subsuming);
 	      ruler->statistics.garbage++;
 	      subsuming->garbage = true;
 	    }

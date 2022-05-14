@@ -6,11 +6,8 @@
 #include <assert.h>
 #include <inttypes.h>
 
-struct file proof;
-bool binary_proof_format;
-
 static void
-binary_proof_line (struct buffer *buffer,
+binary_proof_line (struct trace * trace,
                    size_t size, unsigned *literals, unsigned except)
 {
   const unsigned *end = literals + size;
@@ -23,16 +20,16 @@ binary_proof_line (struct buffer *buffer,
       while (tmp & ~127u)
 	{
 	  unsigned char ch = (tmp & 0x7f) | 128;
-	  PUSH (*buffer, ch);
+	  PUSH (trace->buffer, ch);
 	  tmp >>= 7;
 	}
-      PUSH (*buffer, (unsigned char) tmp);
+      PUSH (trace->buffer, (unsigned char) tmp);
     }
-  PUSH (*buffer, 0);
+  PUSH (trace->buffer, 0);
 }
 
 static void
-ascii_proof_line (struct buffer *buffer,
+ascii_proof_line (struct trace * trace,
                   size_t size, unsigned *literals, unsigned except)
 {
   const unsigned *end = literals + size;
@@ -44,89 +41,78 @@ ascii_proof_line (struct buffer *buffer,
 	continue;
       sprintf (tmp, "%d", export_literal (lit));
       for (char *q = tmp, ch; (ch = *q); q++)
-	PUSH (*buffer, ch);
-      PUSH (*buffer, ' ');
+	PUSH (trace->buffer, ch);
+      PUSH (trace->buffer, ' ');
     }
-  PUSH (*buffer, '0');
-  PUSH (*buffer, '\n');
+  PUSH (trace->buffer, '0');
+  PUSH (trace->buffer, '\n');
 }
 
 void
-really_trace_add_literals (struct buffer *buffer,
+trace_add_literals (struct trace * trace,
                            size_t size, unsigned *literals,
 			   unsigned except)
 {
-  assert (proof.file);
-  assert (EMPTY (*buffer));
-  if (binary_proof_format)
-    {
-      PUSH (*buffer, 'a');
-      binary_proof_line (buffer, size, literals, except);
-    }
-  else
-    ascii_proof_line (buffer, size, literals, except);
-  write_buffer (buffer, &proof);
-}
-
-void
-really_trace_add_empty (struct buffer *buffer)
-{
-  assert (proof.file);
-  really_trace_add_literals (buffer, 0, 0, INVALID);
-}
-
-void
-really_trace_add_unit (struct buffer *buffer, unsigned unit)
-{
-  assert (proof.file);
-  really_trace_add_literals (buffer, 1, &unit, INVALID);
-}
-
-void
-really_trace_add_binary (struct buffer *buffer, unsigned lit, unsigned other)
-{
-  assert (proof.file);
-  unsigned literals[2] = { lit, other };
-  really_trace_add_literals (buffer, 2, literals, INVALID);
-}
-
-void
-really_trace_delete_literals (struct buffer *buffer, size_t size, unsigned *literals)
-{
-  assert (proof.file);
-  assert (EMPTY (*buffer));
-  PUSH (*buffer, 'd');
-  if (binary_proof_format)
-    binary_proof_line (buffer, size, literals, INVALID);
-  else
-    {
-      PUSH (*buffer, ' ');
-      ascii_proof_line (buffer, size, literals, INVALID);
-    }
-  write_buffer (buffer, &proof);
-}
-
-void
-really_trace_delete_binary (struct buffer *buffer, unsigned lit, unsigned other)
-{
-  assert (proof.file);
-  unsigned literals[2] = { lit, other };
-  really_trace_delete_literals (buffer, 2, literals);
-}
-
-void
-close_proof (void)
-{
-  if (!proof.file)
+  if (!trace->file)
     return;
-  if (proof.close)
-    fclose (proof.file);
-
-  if (verbosity >= 0)
+  assert (EMPTY (trace->buffer));
+  if (trace->binary)
     {
-      printf ("c\nc closed '%s' after writing %" PRIu64 " proof lines\n",
-	      proof.path, proof.lines);
-      fflush (stdout);
+      PUSH (trace->buffer, 'a');
+      binary_proof_line (trace, size, literals, except);
     }
+  else
+    ascii_proof_line (trace, size, literals, except);
+  write_buffer (&trace->buffer, trace->file);
 }
 
+void
+trace_add_empty (struct trace * trace)
+{
+  if (!trace->file)
+    return;
+  trace_add_literals (trace, 0, 0, INVALID);
+}
+
+void
+trace_add_unit (struct trace * trace, unsigned unit)
+{
+  if (!trace->file)
+    return;
+  trace_add_literals (trace, 1, &unit, INVALID);
+}
+
+void
+trace_add_binary (struct trace * trace, unsigned lit, unsigned other)
+{
+  if (!trace->file)
+    return;
+  unsigned literals[2] = { lit, other };
+  trace_add_literals (trace, 2, literals, INVALID);
+}
+
+void
+trace_delete_literals (struct trace * trace, size_t size, unsigned *literals)
+{
+  if (!trace->file)
+    return;
+  assert (EMPTY (trace->buffer));
+  PUSH (trace->buffer, 'd');
+  if (trace->binary)
+    binary_proof_line (trace, size, literals, INVALID);
+  else
+    {
+      PUSH (trace->buffer, ' ');
+      ascii_proof_line (trace, size, literals, INVALID);
+    }
+  write_buffer (&trace->buffer, trace->file);
+}
+
+void
+trace_delete_binary (struct trace * trace, unsigned lit, unsigned other)
+{
+  if (!trace->file)
+    return;
+  unsigned literals[2] = { lit, other };
+  trace_delete_literals (trace, 2, literals);
+}

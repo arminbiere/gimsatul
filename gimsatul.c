@@ -36,8 +36,8 @@ const char * gimsatul_usage =
 /*------------------------------------------------------------------------*/
 
 #include "allocate.h"
-#include "banner.h"
 #include "assign.h"
+#include "build.h"
 #include "backtrack.h"
 #include "clause.h"
 #include "clone.h"
@@ -300,7 +300,7 @@ parse_dimacs_body (struct ruler * ruler, int variables, int expected)
 		      assert (!ruler->inconsistent);
 		      very_verbose (0, "found inconsistent unit");
 		      ruler->inconsistent = true;
-		      trace_add_empty (&ruler->buffer);
+		      trace_add_empty (&ruler->trace);
 		    }
 		  else if (!value)
 		    assign_ruler_unit (ruler, unit);
@@ -327,7 +327,7 @@ parse_dimacs_body (struct ruler * ruler, int variables, int expected)
 	goto END_OF_FILE;
     }
   assert (parsed == expected);
-  assert (dimacs.file);
+  assert (dimacs->file);
   if (dimacs->close == 1)
     fclose (dimacs->file);
   if (dimacs->close == 2)
@@ -921,10 +921,10 @@ main (int argc, char **argv)
   parse_options (argc, argv, &options);
   print_banner ();
   check_types ();
-  if (verbosity >= 0 && proof.file)
+  if (verbosity >= 0 && options.proof.file)
     {
       printf ("c\nc writing %s proof trace to '%s'\n",
-	      binary_proof_format ? "binary" : "ASCII", proof.path);
+	      options.binary ? "binary" : "ASCII", options.proof.path);
       fflush (stdout);
     }
   int variables, clauses;
@@ -938,7 +938,7 @@ main (int argc, char **argv)
   struct ring *winner = (struct ring *) ruler->winner;
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();
-  close_proof ();
+  close_proof (&options.proof);
   if (res == 20)
     {
       if (verbosity >= 0)

@@ -1,8 +1,9 @@
-#include "banner.h"
+#include "build.h"
 #include "config.h"
-#include "message.h"
 
 #include <stdio.h>
+
+extern int verbosity;
 
 void
 print_banner (void)
@@ -17,3 +18,8 @@ print_banner (void)
   printf ("c %s\n", BUILD);
 }
 
+void
+print_version (void)
+{
+  printf ("%s\n", VERSION);
+}

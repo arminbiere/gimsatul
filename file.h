@@ -15,5 +15,7 @@ struct file
 struct buffer;
 
 void write_buffer (struct buffer *, struct file *);
+void close_proof (struct file *);
+
 
 #endif

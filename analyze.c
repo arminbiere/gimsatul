@@ -109,7 +109,7 @@ analyze (struct ring *ring, struct watch *reason)
     {
       set_inconsistent (ring,
 			"conflict on root-level produces empty clause");
-      trace_add_empty (&ring->buffer);
+      trace_add_empty (&ring->trace);
       return false;
     }
   struct unsigneds *clause = &ring->clause;
@@ -177,7 +177,7 @@ analyze (struct ring *ring, struct watch *reason)
   assert (size);
   if (size == 1)
     {
-      trace_add_unit (&ring->buffer, not_uip);
+      trace_add_unit (&ring->trace, not_uip);
       assign_ring_unit (ring, not_uip);
       ring->iterating = true;
     }
@@ -189,7 +189,7 @@ analyze (struct ring *ring, struct watch *reason)
 	{
 	  assert (VAR (other)->level == jump);
 	  learned = new_local_binary_clause (ring, true, not_uip, other);
-	  trace_add_binary (&ring->buffer, not_uip, other);
+	  trace_add_binary (&ring->trace, not_uip, other);
 	  export_binary (ring, learned);
 	}
       else
@@ -208,7 +208,7 @@ analyze (struct ring *ring, struct watch *reason)
 	  LOGCLAUSE (clause, "new");
 	  learned = watch_first_two_literals_in_large_clause (ring, clause);
 	  assert (!binary_pointer (learned));
-	  trace_add_clause (&ring->buffer, clause);
+	  trace_add_clause (&ring->trace, clause);
 	  if (glue == 1)
 	    export_glue1_clause (ring, clause);
 	  else if (glue <= TIER1_GLUE_LIMIT)

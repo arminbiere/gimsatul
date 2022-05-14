@@ -77,9 +77,9 @@ find_equivalent_literals (struct ruler * ruler, unsigned round)
 		  if (other == NOT (new_repr))
 		    {
 		      very_verbose (0, "%s", "empty resolvent");
-		      trace_add_unit (&ruler->buffer, other);
+		      trace_add_unit (&ruler->trace, other);
 		      assign_ruler_unit (ruler, other);
-		      trace_add_empty (&ruler->buffer);
+		      trace_add_empty (&ruler->trace);
 		      ruler->inconsistent = true;
 		      goto DONE;
 		    }
@@ -238,12 +238,12 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
 {
   unsigned other;
 
-  if (proof.file)
+  if (ruler->options.proof.file)
     for (all_positive_ruler_literals (lit))
       if ((other = repr[lit]) != lit)
 	{
-	  trace_add_binary (&ruler->buffer, NOT (lit), other);
-	  trace_add_binary (&ruler->buffer, lit, NOT (other));
+	  trace_add_binary (&ruler->trace, NOT (lit), other);
+	  trace_add_binary (&ruler->trace, lit, NOT (other));
 	}
 
   unsigned substituted = 0;
@@ -255,12 +255,12 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
 	  break;
       }
 
-  if (proof.file)
+  if (ruler->options.proof.file)
     for (all_positive_ruler_literals (lit))
       if ((other = repr[lit]) != lit)
 	{
-	  trace_delete_binary (&ruler->buffer, NOT (lit), other);
-	  trace_delete_binary (&ruler->buffer, lit, NOT (other));
+	  trace_delete_binary (&ruler->trace, NOT (lit), other);
+	  trace_delete_binary (&ruler->trace, lit, NOT (other));
 	}
 
   RELEASE (ruler->resolvent);

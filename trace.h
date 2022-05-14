@@ -1,76 +1,30 @@
 #ifndef _trace_h_INCLUDED
 #define _trace_h_INCLUDED
 
-#include "file.h"
+#include "stack.h"
 
 #include <stdbool.h>
 
-extern struct file proof;
-extern bool binary_proof_format;
+struct file;
 
-void close_proof (void);
+struct trace
+{
+  bool binary;
+  struct file * file;
+  struct buffer buffer;
+};
 
-void really_trace_add_empty (struct buffer *);
-void really_trace_add_unit (struct buffer *, unsigned unit);
-void really_trace_add_binary (struct buffer *, unsigned , unsigned);
-void really_trace_add_literals (struct buffer *,
-                                size_t, unsigned *, unsigned except);
+void trace_add_empty (struct trace *);
+void trace_add_unit (struct trace *, unsigned unit);
+void trace_add_binary (struct trace *, unsigned , unsigned);
+void trace_add_literals (struct trace *,
+			 size_t, unsigned *, unsigned except);
 
-void really_trace_delete_literals (struct buffer *, size_t, unsigned *);
-void really_trace_delete_binary (struct buffer *, unsigned, unsigned);
+void trace_delete_literals (struct trace *, size_t, unsigned *);
+void trace_delete_binary (struct trace *, unsigned, unsigned);
 
 struct clause;
-void really_trace_add_clause (struct buffer *, struct clause *);
-void really_trace_delete_clause (struct buffer *, struct clause *);
-
-/*------------------------------------------------------------------------*/
-
-#define trace_add_empty(...) \
-do { \
-  if (proof.file) \
-    really_trace_add_empty (__VA_ARGS__); \
-} while (0)
-
-#define trace_add_unit(...) \
-do { \
-  if (proof.file) \
-    really_trace_add_unit (__VA_ARGS__); \
-} while (0)
-
-#define trace_add_binary(...) \
-do { \
-  if (proof.file) \
-    really_trace_add_binary (__VA_ARGS__); \
-} while (0)
-
-#define trace_add_literals(...) \
-do { \
-  if (proof.file) \
-    really_trace_add_literals (__VA_ARGS__); \
-} while (0)
-
-#define trace_add_clause(...) \
-do { \
-  if (proof.file) \
-    really_trace_add_clause (__VA_ARGS__); \
-} while (0)
-
-#define trace_delete_literals(...) \
-do { \
-  if (proof.file) \
-    really_trace_delete_literals (__VA_ARGS__); \
-} while (0)
-
-#define trace_delete_binary(...) \
-do { \
-  if (proof.file) \
-    really_trace_delete_binary (__VA_ARGS__); \
-} while (0)
-
-#define trace_delete_clause(...) \
-do { \
-  if (proof.file) \
-    really_trace_delete_clause (__VA_ARGS__); \
-} while (0)
+void trace_add_clause (struct trace *, struct clause *);
+void trace_delete_clause (struct trace *, struct clause *);
 
 #endif

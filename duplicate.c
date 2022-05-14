@@ -34,7 +34,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 	  ROGBINARY (lit, other, "removed duplicated");
 	  assert (ruler->statistics.binaries);
 	  ruler->statistics.binaries--;
-	  trace_delete_binary (&ruler->buffer, lit, other);
+	  trace_delete_binary (&ruler->trace, lit, other);
 	  struct clause * other_clause = tag_pointer (false, other, lit);
 	  disconnect_literal (ruler, other, other_clause);
 	  mark_eliminate_literal (ruler, other);
@@ -49,7 +49,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 	       ROGLIT (lit), ROGLIT (NOT (other)), 
 	       ROGLIT (lit), ROGLIT (other), 
 	       ROGLIT (lit));
-	  trace_add_unit (&ruler->buffer, lit);
+	  trace_add_unit (&ruler->trace, lit);
 	  assign_ruler_unit (ruler, lit);
 	  while (p != end)
 	    *q++ = *p++;
