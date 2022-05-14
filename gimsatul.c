@@ -41,6 +41,7 @@ static const char * usage =
 #include "clause.h"
 #include "clone.h"
 #include "config.h"
+#include "detach.h"
 #include "export.h"
 #include "logging.h"
 #include "macros.h"
@@ -165,8 +166,6 @@ parse_long_option (const char *arg, const char *match)
   return is_positive_number_string (p) ? p : 0;
 }
 
-static bool force = false;
-
 static void
 parse_options (int argc, char **argv, struct options *opts)
 {
@@ -180,7 +179,7 @@ parse_options (int argc, char **argv, struct options *opts)
       if (!strcmp (opt, "-a") || !strcmp (opt, "--ascii"))
 	binary_proof_format = false;
       else if (!strcmp (opt, "-f") || !strcmp (opt, "--force"))
-	force = true;
+	opts->force = true;
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
 	{
 	  printf (usage, (size_t) MAX_THREADS);
@@ -283,7 +282,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	      proof.file = stdout;
 	      binary_proof_format = false;
 	    }
-	  else if (!force && looks_like_dimacs (opt))
+	  else if (!opts->force && looks_like_dimacs (opt))
 	    die ("proof file '%s' looks like a DIMACS file (use '-f')", opt);
 	  else if (!(proof.file = fopen (opt, "w")))
 	    die ("can not open and write to '%s'", opt);
@@ -724,70 +723,6 @@ print_witness (struct ring *ring)
   print_signed_literal (0);
   if (buffered)
     flush_line ();
-}
-
-/*------------------------------------------------------------------------*/
-static void *
-detach_and_delete_ring (void *ptr)
-{
-  struct ring *ring = ptr;
-  detach_ring (ring);
-  delete_ring (ring);
-  return ring;
-}
-
-static void
-start_detaching_and_deleting_ring (struct ring *ring)
-{
-  struct ruler *ruler = ring->ruler;
-  assert (ruler->threads);
-  pthread_t *thread = ruler->threads + ring->id;
-  if (pthread_create (thread, 0, detach_and_delete_ring, ring))
-    fatal_error ("failed to create deletion thread %u", ring->id);
-}
-
-static void
-stop_detaching_and_deleting_ring (struct ruler *ruler, unsigned id)
-{
-  assert (ruler->threads);
-  pthread_t *thread = ruler->threads + id;
-  if (pthread_join (*thread, 0))
-    fatal_error ("failed to join deletion thread %u", id);
-}
-
-static void
-detach_and_delete_rings (struct ruler *ruler)
-{
-  size_t threads = SIZE (ruler->rings);
-  if (threads > 1)
-    {
-      if (verbosity > 0)
-	{
-	  printf ("c deleting %zu rings in parallel\n", threads);
-	  fflush (stdout);
-	}
-#if 1
-      for (all_rings (ring))
-	start_detaching_and_deleting_ring (ring);
-
-      for (unsigned i = 0; i != threads; i++)
-	stop_detaching_and_deleting_ring (ruler, i);
-#else
-      for (all_rings (ring))
-	detach_and_delete_ring (ring);
-#endif
-    }
-  else
-    {
-      if (verbosity > 0)
-	{
-	  printf ("c deleting single ring in main thread\n");
-	  fflush (stdout);
-	}
-
-      struct ring *ring = first_ring (ruler);
-      detach_and_delete_ring (ring);
-    }
 }
 
 /*------------------------------------------------------------------------*/

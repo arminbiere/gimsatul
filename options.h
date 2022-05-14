@@ -60,6 +60,7 @@ struct options
   unsigned seconds;
   unsigned threads;
   unsigned optimize;
+  bool force;
   bool no_walk;
   bool no_simplify;
   bool walk_initially;
