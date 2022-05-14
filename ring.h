@@ -28,6 +28,7 @@ struct reluctant
 struct ring_limits
 {
   uint64_t mode;
+  uint64_t probing;
   uint64_t reduce;
   uint64_t rephase;
   uint64_t restart;
@@ -75,15 +76,16 @@ struct ring_trail
 
 struct context
 {
-  uint64_t conflicts;
-  uint64_t decisions;
   uint64_t propagations;
   uint64_t ticks;
+  uint64_t conflicts;
+  uint64_t decisions;
 };
 
 #define SEARCH_CONTEXT 0
-#define WALK_CONTEXT 1
-#define SIZE_CONTEXTS 2
+#define PROBING_CONTEXT 1
+#define WALK_CONTEXT 2
+#define SIZE_CONTEXTS 3
 
 struct ring_statistics
 {
@@ -137,6 +139,9 @@ struct ring_statistics
 
 #define SEARCH_TICKS \
   ring->statistics.contexts[SEARCH_CONTEXT].ticks
+
+#define PROBING_TICKS \
+  ring->statistics.contexts[PROBING_CONTEXT].ticks
 
 #define BINARY_SHARED 0
 #define GLUE1_SHARED 1

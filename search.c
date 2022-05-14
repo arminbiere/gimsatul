@@ -106,7 +106,7 @@ search (struct ring *ring)
   int res = ring->inconsistent ? 20 : 0;
   while (!res)
     {
-      struct watch *conflict = ring_propagate (ring, true);
+      struct watch *conflict = ring_propagate (ring, true, 0);
       if (conflict)
 	{
 	  if (!analyze (ring, conflict))

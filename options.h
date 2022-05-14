@@ -56,6 +56,9 @@
 
 #define MAX_THREADS (1u<<16)
 
+#define PROBING_EFFORT 0.02
+#define PROBING_INTERVAL 100
+
 struct file;
 
 struct options
