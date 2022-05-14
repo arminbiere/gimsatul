@@ -1346,27 +1346,30 @@ simplify_ruler (struct ruler * ruler)
   if (ruler->inconsistent)
     return;
 
-  connect_all_large_clauses (ruler);
+  double start_simplification = START (ruler, simplifying);
+  assert (!ruler->simplifying);
+  ruler->simplifying = true;
 
   if (ruler->options.no_simplify)
     {
       if (verbosity >= 0)
 	{
-	  printf ("c\nc root-level propagation before cloning\n");
+	  printf ("c\nc simplifying by root-level propagation only\n");
 	  fflush (stdout);
 	}
+      connect_all_large_clauses (ruler);
       propagate_and_flush_ruler_units (ruler);
-      return;
+      goto DONE;
     }
 
-  double start_simplification = START (ruler, simplifying);
-  assert (!ruler->simplifying);
-  ruler->simplifying = true;
   if (verbosity >= 0)
     {
       printf ("c\nc simplifying formula before cloning\n");
       fflush (stdout);
     }
+
+  connect_all_large_clauses (ruler);
+
   unsigned optimize = ruler->options.optimize;
   set_ruler_limits (ruler, optimize);
   struct
@@ -1459,7 +1462,7 @@ simplify_ruler (struct ruler * ruler)
   message (0, "elimination used %" PRIu64 " ticks%s",
            ruler->statistics.ticks.elimination,
 	   elimination_ticks_limit_hit (ruler) ? " (limit hit)" : "");
-
+DONE:
   assert (ruler->simplifying);
   ruler->simplifying = false;
   double end_simplification = STOP (ruler, simplifying);
