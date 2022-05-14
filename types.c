@@ -1,0 +1,63 @@
+#include "clause.h"
+#include "watches.h"
+#include "types.h"
+#include "message.h"
+#include "options.h"
+#include "walk.h"
+
+#include <stdio.h>
+#include <stdatomic.h>
+
+#define CHECK_TYPE(TYPE,BYTES) \
+do { \
+  if (sizeof (TYPE) != (BYTES)) \
+    fatal_error ("unsupported platform:\n" \
+                 "'sizeof (" #TYPE ") == %zu' " \
+		 "but expected 'sizeof (" #TYPE ") == %zu'", \
+	         sizeof (TYPE), (size_t) (BYTES)); \
+} while (0)
+
+void
+check_types (void)
+{
+  CHECK_TYPE (signed char, 1);
+  CHECK_TYPE (unsigned char, 1);
+  CHECK_TYPE (unsigned short, 2);
+  CHECK_TYPE (atomic_ushort, 2);
+  CHECK_TYPE (unsigned, 4);
+  CHECK_TYPE (int, 4);
+  CHECK_TYPE (size_t, 8);
+  CHECK_TYPE (void *, 8);
+  
+  {
+    if (MAX_THREADS & 7)
+      fatal_error ("'MAX_THREADS = %u' not byte aligned", MAX_THREADS);
+    size_t bytes_of_shared_field = sizeof ((struct clause *) 0)->shared;
+    if ((MAX_THREADS >> 3) > (1u << (bytes_of_shared_field * 8 - 3)))
+      fatal_error ("shared field of clauses with %zu bytes "
+                   "does not fit 'MAX_THREADS = %u'",
+		   bytes_of_shared_field, MAX_THREADS);
+  }
+
+  {
+    size_t glue_in_clause_bytes = sizeof ((struct clause *) 0)->glue;
+    if (glue_in_clause_bytes << 8 <= MAX_GLUE)
+      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (clause.glue) = %zu'",
+		   MAX_GLUE, glue_in_clause_bytes);
+  }
+
+  {
+    size_t glue_in_watch_bytes = sizeof ((struct watch *) 0)->glue;
+    if (glue_in_watch_bytes << 8 <= MAX_GLUE)
+      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (watch.glue) = %zu'",
+		   MAX_GLUE, glue_in_watch_bytes);
+  }
+
+  if (verbosity > 0)
+    {
+      fputs ("c\n", stdout);
+      printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
+      printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
+      print_walker_types ();
+    }
+}
