@@ -1,4 +1,4 @@
-#include "queue.h"
+#include "heap.h"
 
 static struct node *
 merge_nodes (struct node *a, struct node *b)
@@ -66,7 +66,7 @@ collapse_node (struct node *node)
 }
 
 static void
-dequeue_node (struct node *node)
+deheap_node (struct node *node)
 {
   assert (node);
   struct node *prev = node->prev;
@@ -82,43 +82,43 @@ dequeue_node (struct node *node)
 }
 
 void
-pop_queue (struct queue *queue, struct node *node)
+pop_heap (struct heap *heap, struct node *node)
 {
-  struct node *root = queue->root;
+  struct node *root = heap->root;
   struct node *child = node->child;
   if (root == node)
-    queue->root = collapse_node (child);
+    heap->root = collapse_node (child);
   else
     {
-      dequeue_node (node);
+      deheap_node (node);
       struct node *collapsed = collapse_node (child);
-      queue->root = merge_nodes (root, collapsed);
+      heap->root = merge_nodes (root, collapsed);
     }
-  assert (!queue_contains (queue, node));
+  assert (!heap_contains (heap, node));
 }
 
 void
-push_queue (struct queue *queue, struct node *node)
+push_heap (struct heap *heap, struct node *node)
 {
-  assert (!queue_contains (queue, node));
+  assert (!heap_contains (heap, node));
   node->child = 0;
-  queue->root = merge_nodes (queue->root, node);
-  assert (queue_contains (queue, node));
+  heap->root = merge_nodes (heap->root, node);
+  assert (heap_contains (heap, node));
 }
 
 void
-update_queue (struct queue *queue, struct node *node, double new_score)
+update_heap (struct heap *heap, struct node *node, double new_score)
 {
   double old_score = node->score;
   assert (old_score <= new_score);
   if (old_score == new_score)
     return;
   node->score = new_score;
-  struct node *root = queue->root;
+  struct node *root = heap->root;
   if (root == node)
     return;
   if (!node->prev)
     return;
-  dequeue_node (node);
-  queue->root = merge_nodes (root, node);
+  deheap_node (node);
+  heap->root = merge_nodes (root, node);
 }

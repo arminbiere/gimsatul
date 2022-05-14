@@ -69,22 +69,22 @@ best_score_decision (struct ring *ring)
   assert (ring->unassigned);
 
   signed char *values = ring->values;
-  struct queue *queue = &ring->queue;
-  struct node *nodes = queue->nodes;
+  struct heap *heap = &ring->heap;
+  struct node *nodes = heap->nodes;
 
-  assert (queue->root);
+  assert (heap->root);
 
   unsigned lit, idx;
   for (;;)
     {
-      struct node *ruler = queue->root;
+      struct node *ruler = heap->root;
       assert (ruler);
       assert (ruler - nodes < ring->size);
       idx = ruler - nodes;
       lit = LIT (idx);
       if (!values[lit])
 	break;
-      pop_queue (queue, ruler);
+      pop_heap (heap, ruler);
     }
   assert (idx < ring->size);
 

@@ -75,6 +75,6 @@ assign_decision (struct ring *ring, unsigned decision)
   assert (ring->level);
   assign (ring, decision, 0);
   LOG ("assign %s decision score %g",
-       LOGLIT (decision), ring->queue.nodes[IDX (decision)].score);
+       LOGLIT (decision), ring->heap.nodes[IDX (decision)].score);
 }
 

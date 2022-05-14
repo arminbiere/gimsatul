@@ -5,10 +5,10 @@
 static void
 rescale_variable_scores (struct ring *ring)
 {
-  struct queue *queue = &ring->queue;
+  struct heap *heap = &ring->heap;
   unsigned stable = ring->stable;
-  double max_score = queue->increment[stable];
-  struct node *nodes = queue->nodes;
+  double max_score = heap->increment[stable];
+  struct node *nodes = heap->nodes;
   struct node *end = nodes + ring->size;
   for (struct node * node = nodes; node != end; node++)
     if (node->score > max_score)
@@ -17,19 +17,19 @@ rescale_variable_scores (struct ring *ring)
   assert (max_score > 0);
   for (struct node * node = nodes; node != end; node++)
     node->score /= max_score;
-  queue->increment[stable] /= max_score;
+  heap->increment[stable] /= max_score;
 }
 
 void
 bump_variable_score (struct ring *ring, unsigned idx)
 {
-  struct queue *queue = &ring->queue;
-  struct node *node = queue->nodes + idx;
+  struct heap *heap = &ring->heap;
+  struct node *node = heap->nodes + idx;
   double old_score = node->score;
-  double new_score = old_score + queue->increment[ring->stable];
+  double new_score = old_score + heap->increment[ring->stable];
   LOG ("bumping %s old score %g to new score %g",
        LOGVAR (idx), old_score, new_score);
-  update_queue (queue, node, new_score);
+  update_heap (heap, node, new_score);
   if (new_score > MAX_SCORE)
     rescale_variable_scores (ring);
 }
@@ -37,8 +37,8 @@ bump_variable_score (struct ring *ring, unsigned idx)
 static struct node *
 first_active_node (struct ring * ring)
 {
-  struct queue *queue = &ring->queue;
-  struct node * nodes = queue->nodes;
+  struct heap *heap = &ring->heap;
+  struct node * nodes = heap->nodes;
   struct node * end = nodes + ring->size;
   struct node * res = nodes;
   bool * active = ring->active;
@@ -55,8 +55,8 @@ first_active_node (struct ring * ring)
 static struct node *
 next_active_node (struct ring * ring, struct node * node)
 {
-  struct queue *queue = &ring->queue;
-  struct node * nodes = queue->nodes;
+  struct heap *heap = &ring->heap;
+  struct node * nodes = heap->nodes;
   struct node * end = nodes + ring->size;
   assert (nodes <= node);
   assert (node < end);
@@ -74,16 +74,16 @@ next_active_node (struct ring * ring, struct node * node)
 
 #define all_active_nodes(NODE) \
   struct node * NODE = first_active_node (ring), \
-              * END_ ## NODE = ring->queue.nodes + ring->size; \
+              * END_ ## NODE = ring->heap.nodes + ring->size; \
   NODE != END_ ## NODE; \
   NODE = next_active_node (ring, NODE)
 
 void
 swap_scores (struct ring *ring)
 {
-  struct queue *queue = &ring->queue;
-  struct node * nodes = queue->nodes;
-  double *scores = queue->scores;
+  struct heap *heap = &ring->heap;
+  struct node * nodes = heap->nodes;
+  double *scores = heap->scores;
   for (all_active_nodes (node))
     {
       double tmp = node->score;
@@ -93,25 +93,25 @@ swap_scores (struct ring *ring)
       node->child = node->prev = node->next = 0;
       *s = tmp;
     }
-  queue->root = 0;
+  heap->root = 0;
   for (all_active_nodes (node))
-    push_queue (queue, node);
-  double tmp = queue->increment[0];
-  queue->increment[0] = queue->increment[1];
-  queue->increment[1] = tmp;
+    push_heap (heap, node);
+  double tmp = heap->increment[0];
+  heap->increment[0] = heap->increment[1];
+  heap->increment[1] = tmp;
 }
 
 void
 bump_score_increment (struct ring *ring)
 {
-  struct queue *queue = &ring->queue;
+  struct heap *heap = &ring->heap;
   unsigned stable = ring->stable;
-  double old_increment = queue->increment[stable];
+  double old_increment = heap->increment[stable];
   double factor = stable ? 1.0 / STABLE_DECAY : 1.0 / FOCUSED_DECAY;
   double new_increment = old_increment * factor;
   LOG ("new increment %g", new_increment);
-  queue->increment[stable] = new_increment;
-  if (queue->increment[stable] > MAX_SCORE)
+  heap->increment[stable] = new_increment;
+  if (heap->increment[stable] > MAX_SCORE)
     rescale_variable_scores (ring);
 }
 

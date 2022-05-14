@@ -3,14 +3,14 @@
 
 #include "average.h"
 #include "clause.h"
+#include "heap.h"
 #include "logging.h"
+#include "macros.h"
 #include "options.h"
 #include "profile.h"
-#include "macros.h"
-#include "queue.h"
 #include "stack.h"
-#include "trace.h"
 #include "tagging.h"
+#include "trace.h"
 #include "variable.h"
 #include "watches.h"
 
@@ -177,7 +177,7 @@ struct ring
   struct watches watches;
   struct references *references;
   struct unsigneds levels;
-  struct queue queue;
+  struct heap heap;
   struct unsigneds clause;
   struct unsigneds analyzed;
   struct ring_trail trail;
@@ -227,7 +227,7 @@ struct rings
   ++ P_ ## LIT
 
 #define all_active_and_inactive_nodes(NODE) \
-  struct node * NODE = ring->queue.nodes, \
+  struct node * NODE = ring->heap.nodes, \
               * END_ ## NODE = (NODE) + ring->size; \
   NODE != END_ ## NODE; \
   ++NODE
