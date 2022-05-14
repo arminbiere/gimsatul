@@ -1,6 +1,8 @@
 #ifndef _macros_h_INCLUDED
 #define _macros_h_INCLUDED
 
+#define INVALID UINT_MAX
+
 #define IDX(LIT) ((LIT) >> 1)
 #define LIT(IDX) ((IDX) << 1)
 #define NOT(LIT) ((LIT) ^ 1u)

@@ -8,6 +8,7 @@
 #include "macros.h"
 #include "options.h"
 #include "profile.h"
+#include "queue.h"
 #include "stack.h"
 #include "tagging.h"
 #include "trace.h"
@@ -178,8 +179,10 @@ struct ring
   struct references *references;
   struct unsigneds levels;
   struct heap heap;
+  struct queue queue;
   struct unsigneds clause;
   struct unsigneds analyzed;
+  struct unsigneds minimize;
   struct ring_trail trail;
   struct ring_limits limits;
   struct trace trace;
@@ -219,18 +222,6 @@ struct rings
                   * END_ ## VAR = VAR + ring->size; \
   (VAR != END_ ## VAR); \
   ++ VAR
-
-#define all_literals_on_trail_with_reason(LIT) \
-  unsigned * P_ ## LIT = ring->trail.iterate, \
-           * END_ ## LIT = ring->trail.end, LIT; \
-  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
-  ++ P_ ## LIT
-
-#define all_active_and_inactive_nodes(NODE) \
-  struct node * NODE = ring->heap.nodes, \
-              * END_ ## NODE = (NODE) + ring->size; \
-  NODE != END_ ## NODE; \
-  ++NODE
 
 #define all_averages(AVG) \
   struct average * AVG = (struct average*) &ring->averages, \
