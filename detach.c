@@ -1,5 +1,8 @@
 #include "detach.h"
+#include "message.h"
 #include "ruler.h"
+
+#include <stdio.h>
 
 static void *
 detach_and_delete_ring (void *ptr)
