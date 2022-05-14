@@ -1,3 +1,4 @@
+#include "backtrack.h"
 #include "rephase.h"
 #include "report.h"
 #include "search.h"

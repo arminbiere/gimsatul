@@ -2,6 +2,7 @@
 #include "export.h"
 #include "propagate.h"
 #include "report.h"
+#include "restart.h"
 #include "ruler.h"
 #include "search.h"
 
