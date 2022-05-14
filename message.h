@@ -25,6 +25,8 @@ __attribute__((format (printf, 2, 3)));
 void message (struct ring *ring, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
+void empty_message (void);
+
 #define PRINTLN(...) \
   print_line_without_acquiring_lock (ring, __VA_ARGS__)
 

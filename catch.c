@@ -106,7 +106,7 @@ catch_alarm (int sig)
   if (verbosity > 0)
     caught_message (sig);
   reset_alarm_handler ();
-  assert (ruler);
+  assert (one_global_ruler);
   one_global_ruler->terminate = true;
   caught_signal = 0;
 }

@@ -35,58 +35,18 @@ const char * gimsatul_usage =
 
 /*------------------------------------------------------------------------*/
 
-#include "allocate.h"
-#include "assign.h"
 #include "build.h"
-#include "backtrack.h"
 #include "catch.h"
-#include "clause.h"
 #include "clone.h"
-#include "config.h"
 #include "detach.h"
-#include "export.h"
-#include "logging.h"
-#include "macros.h"
 #include "message.h"
-#include "options.h"
 #include "parse.h"
-#include "report.h"
-#include "ring.h"
-#include "random.h"
 #include "ruler.h"
 #include "simplify.h"
-#include "search.h"
-#include "stack.h"
 #include "solve.h"
 #include "statistics.h"
-#include "tagging.h"
-#include "trace.h"
 #include "types.h"
-#include "utilities.h"
-#include "walk.h"
 #include "witness.h"
-
-/*------------------------------------------------------------------------*/
-
-#include <assert.h>
-#include <ctype.h>
-#include <inttypes.h>
-#include <limits.h>
-#include <math.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 /*------------------------------------------------------------------------*/
 
@@ -111,8 +71,7 @@ main (int argc, char **argv)
   parse_dimacs_body (ruler, variables, clauses);
   simplify_ruler (ruler);
   clone_rings (ruler);
-  run_rings (ruler);
-  struct ring *winner = (struct ring *) ruler->winner;
+  struct ring *winner = solve_rings (ruler);
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();
   close_proof (&options.proof);
