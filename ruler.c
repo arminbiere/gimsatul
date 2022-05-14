@@ -30,6 +30,9 @@ new_ruler (size_t size, struct options * opts)
   memcpy (&ruler->options, opts, sizeof *opts);
   ruler->trace.binary = opts->binary;
   ruler->trace.file = opts->proof.file ? &opts->proof : 0;
+#ifndef NDEBUG
+  ruler->original = allocate_and_clear_block (sizeof *ruler->original);
+#endif
   pthread_mutex_init (&ruler->locks.units, 0);
   pthread_mutex_init (&ruler->locks.rings, 0);
 #ifdef NFASTPATH
@@ -83,6 +86,11 @@ delete_ruler (struct ruler *ruler)
   RELEASE (ruler->rings);
   RELEASE (ruler->trace.buffer);
   RELEASE (ruler->extension);
+  if (ruler->original)
+    {
+      RELEASE (*ruler->original);
+      free (ruler->original);
+    }
   release_occurrences (ruler);
   release_clauses (ruler);
   free ((void *) ruler->values);

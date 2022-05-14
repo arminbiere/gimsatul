@@ -12,7 +12,7 @@ all: gimsatul
 gimsatul: $(OBJ) makefile
 	$(CC) $(CFLAGS) -o $@ $(OBJ) -lm -pthread
 
-gimsatul.o: config.h
+build.o: config.h
 config.h: makefile VERSION
 	./mkconfig.sh > $@
 

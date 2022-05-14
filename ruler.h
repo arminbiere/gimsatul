@@ -99,6 +99,7 @@ struct ruler
   struct clauses *occurrences;
   struct clauses clauses;
   struct unsigneds resolvent;
+  struct unsigneds * original;
   struct clauses gate[2], nogate[2];
   struct unsigneds extension;
   struct ruler_trail units;
