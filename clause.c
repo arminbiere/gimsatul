@@ -67,4 +67,3 @@ really_trace_delete_clause (struct buffer *buffer, struct clause *clause)
   if (!clause->garbage)
     really_trace_delete_literals (buffer, clause->size, clause->literals);
 }
-

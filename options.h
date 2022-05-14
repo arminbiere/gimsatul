@@ -2,6 +2,7 @@
 #define _options_h_INCLUDED
 
 #include <limits.h>
+#include <stdbool.h>
 
 #define MAX_VAR ((1u<<30) - 1)
 #define MAX_LIT NOT (LIT (MAX_VAR))
@@ -50,5 +51,16 @@
 #define ELIMINATION_TICKS_LIMIT 2000
 
 #define LD_MAX_MARGIN 4
+
+struct options
+{
+  long long conflicts;
+  unsigned seconds;
+  unsigned threads;
+  unsigned optimize;
+  bool no_walk;
+  bool no_simplify;
+  bool walk_initially;
+};
 
 #endif

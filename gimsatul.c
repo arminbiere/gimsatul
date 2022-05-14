@@ -7,21 +7,25 @@ static const char * usage =
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
-"-a|--ascii       use ASCII format for proof output\n"
-"-f|--force       force reading and writing\n"
-"-h|--help        print this command line option summary\n"
+"  -a|--ascii               use ASCII format for proof output\n"
+"  -f|--force               force reading and writing\n"
+"  -h|--help                print this command line option summary\n"
 #ifdef LOGGING   
-"-l|--log[ging]   enable very verbose internal logging\n"
-#endif
-"-n|--no-witness  do not print satisfying assignments\n"
-"-O|-O<level>     increase simplification ticks and round limits\n"
-"-q|--quiet       disable all additional messages\n"
-"-v|--verbose     increase verbosity\n"
-"--version        print version\n"
+"  -l|--log[ging]           enable very verbose internal logging\n"
+#endif                   
+"  -n|--no-witness          do not print satisfying assignments\n"
+"  -O|-O<level>             increase simplification ticks and round limits\n"
+"  -q|--quiet               disable all additional messages\n"
+"  -v|--verbose             increase verbosity\n"
+"  --version                print version\n"
 "\n"
-"--conflicts=<conflicts>  limit conflicts (zero or more - default unlimited)\n"
-"--threads=<number>       set number of threads (1 ... %zu - default '1')\n"
-"--time=<seconds>         limit time (1,2,3, ... - default unlimited)\n"
+"  --conflicts=<conflicts>  limit conflicts (0,1,... - default unlimited)\n"
+"  --threads=<number>       set number of threads (1,...,%zu - default 1)\n"
+"  --time=<seconds>         limit time (1,2,3,... - default unlimited)\n"
+"\n"
+"  --no-simplify            disable preprocessing\n"
+"  --no-walk                disable local search\n"
+"  --walk-initially         initial local search\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof output file in 'DRAT' format (no proof if missing).\n"
@@ -33,6 +37,7 @@ static const char * usage =
 
 #include "allocate.h"
 #include "clause.h"
+#include "config.h"
 #include "eliminate.h"
 #include "logging.h"
 #include "macros.h"
@@ -216,9 +221,12 @@ init_ruler_profiles (struct ruler *ruler)
 /*------------------------------------------------------------------------*/
 
 static struct ruler *
-new_ruler (size_t size)
+new_ruler (size_t size, struct options * opts)
 {
+  assert (0 < opts->threads);
+  assert (opts->threads <= MAX_THREADS);
   struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
+  memcpy (&ruler->options, opts, sizeof *opts);
   pthread_mutex_init (&ruler->locks.units, 0);
   pthread_mutex_init (&ruler->locks.rings, 0);
 #ifdef NFASTPATH
@@ -1333,10 +1341,24 @@ current_ruler_clauses (struct ruler * ruler)
 }
 
 static void
-simplify_ruler (struct ruler * ruler, unsigned optimize)
+simplify_ruler (struct ruler * ruler)
 {
   if (ruler->inconsistent)
     return;
+
+  connect_all_large_clauses (ruler);
+
+  if (ruler->options.no_simplify)
+    {
+      if (verbosity >= 0)
+	{
+	  printf ("c\nc root-level propagation before cloning\n");
+	  fflush (stdout);
+	}
+      propagate_and_flush_ruler_units (ruler);
+      return;
+    }
+
   double start_simplification = START (ruler, simplifying);
   assert (!ruler->simplifying);
   ruler->simplifying = true;
@@ -1345,8 +1367,8 @@ simplify_ruler (struct ruler * ruler, unsigned optimize)
       printf ("c\nc simplifying formula before cloning\n");
       fflush (stdout);
     }
+  unsigned optimize = ruler->options.optimize;
   set_ruler_limits (ruler, optimize);
-  connect_all_large_clauses (ruler);
   struct
   {
     size_t before, after, delta;
@@ -3067,7 +3089,9 @@ report (struct ring *ring, char type)
   unsigned active = s->active;
 
   static volatile uint64_t reported;
-  if (!(atomic_fetch_add (&reported, 1) % 20))
+  bool header = !(atomic_fetch_add (&reported, 1) % 20);
+
+  if (header)
     printf ("c\nc       seconds MB level reductions restarts "
 	    "conflicts redundant trail glue irredundant variables\nc\n");
 
@@ -3647,6 +3671,12 @@ terminate_ring (struct ring *ring)
   return res;
 }
 
+static bool
+walk_initially (struct ring * ring)
+{
+  return !ring->statistics.walked && ring->ruler->options.walk_initially;
+}
+
 static int
 solve (struct ring *ring)
 {
@@ -3666,10 +3696,8 @@ solve (struct ring *ring)
 	iterate (ring);
       else if (terminate_ring (ring))
 	break;
-#if 0
-      else if (!ring->statistics.walked)
+      else if (walk_initially (ring))
 	local_search (ring);
-#endif
 #if 0
       else if (!ring->statistics.reductions)
 	reduce (ring);
@@ -3756,16 +3784,6 @@ open_and_read_from_pipe (const char *path, const char *fmt)
   return file;
 }
 
-#include "config.h"
-
-struct options
-{
-  long long conflicts;
-  unsigned seconds;
-  unsigned threads;
-  unsigned optimize;
-};
-
 static bool
 is_positive_number_string (const char *arg)
 {
@@ -3802,10 +3820,8 @@ static bool force = false;
 static void
 parse_options (int argc, char **argv, struct options *opts)
 {
+  memset (opts, 0, sizeof *opts);
   opts->conflicts = -1;
-  opts->seconds = 0;
-  opts->threads = 0;
-  opts->optimize = 0;
   const char *quiet_opt = 0;
   const char *verbose_opt = 0;
   for (int i = 1; i != argc; i++)
@@ -3890,6 +3906,20 @@ parse_options (int argc, char **argv, struct options *opts)
 	    die ("invalid argument in '%s'", opt);
 	  if (!opts->seconds)
 	    die ("invalid zero argument in '%s'", opt);
+	}
+      else if (!strcmp (opt, "--no-simplify"))
+	opts->no_simplify = true;
+      else if (!strcmp (opt, "--no-walk"))
+	{
+	  if (opts->walk_initially)
+	    die ("can not combine '--walk-initially' and '--no-walk'");
+	  opts->no_walk = true;
+	}
+      else if (!strcmp (opt, "--walk-initially"))
+	{
+	  if (opts->no_walk)
+	    die ("can not combine '--no-walk' and '--walk-initially'");
+	  opts->walk_initially = true;
 	}
       else if (opt[0] == '-' && opt[1])
 	die ("invalid option '%s' (try '-h')", opt);
@@ -4391,9 +4421,11 @@ stop_cloning_ring (struct ring *first, unsigned clone)
 }
 
 static void
-clone_rings (struct ruler *ruler, unsigned threads)
+clone_rings (struct ruler *ruler)
 {
-  assert (threads > 0);
+  unsigned threads = ruler->options.threads;
+  assert (0 < threads);
+  assert (threads <= MAX_THREADS);
   START (ruler, cloning);
   double before = 0;
   if (verbosity >= 0)
@@ -4443,12 +4475,13 @@ stop_running_ring (struct ring *ring)
 }
 
 static void
-run_rings (struct ruler *ruler, long long conflicts)
+run_rings (struct ruler *ruler)
 {
   double start_solving = START (ruler, solving);
   assert (!ruler->solving);
   ruler->solving = true;
   size_t threads = SIZE (ruler->rings);
+  long long conflicts = ruler->options.conflicts;
   if (verbosity >= 0)
     {
       printf ("c\n");
@@ -5050,12 +5083,12 @@ main (int argc, char **argv)
     }
   int variables, clauses;
   parse_dimacs_header (&variables, &clauses);
-  ruler = new_ruler (variables);
+  ruler = new_ruler (variables, &options);
   set_signal_handlers (options.seconds);
   parse_dimacs_body (ruler, variables, clauses);
-  simplify_ruler (ruler, options.optimize);
-  clone_rings (ruler, options.threads);
-  run_rings (ruler, options.conflicts);
+  simplify_ruler (ruler);
+  clone_rings (ruler);
+  run_rings (ruler);
   struct ring *winner = (struct ring *) ruler->winner;
   int res = winner ? winner->status : 0;
   reset_signal_handlers ();

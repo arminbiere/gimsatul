@@ -2,20 +2,38 @@
 
 cd `dirname $0`/..
 
-run () {
+ron () {
+  if [ "$3" = "" ]
+  then
+    name=$2
+    opts=""
+  else
+    name=$2`echo -- "$3"|sed -e 's,[= ],,g;s,--,-,g'`
+    opts=" $3"
+  fi
   cnf=cnf/$2.cnf
-  log=cnf/$2.log
-  err=cnf/$2.err
+  log=cnf/$name.log
+  err=cnf/$name.err
   rm -f $log $err
-  cmd="./gimsatul $cnf"
+  cmd="./gimsatul $cnf$opts"
   echo "$cmd"
   $cmd 1>$log 2>$err
   status=$?
   if [ ! $1 = $status ]
   then
-    echo "cnf/test.sh: error: status '$status' but expected '$1'"
+    echo "cnf/test.sh: error: '$cmd' exits with status '$status' but expected '$1'"
     exit 1
   fi
+}
+
+run () {
+  ron $1 $2
+  ron $1 $2 "--threads=2"
+  ron $1 $2 "--threads=4"
+  ron $1 $2 "--walk-initially"
+  ron $1 $2 "--no-simplify"
+  ron $1 $2 "--no-simplify --threads=2"
+  ron $1 $2 "--no-simplify --threads=4"
 }
 
 run 20 false

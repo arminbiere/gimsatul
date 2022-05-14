@@ -1,6 +1,7 @@
 #ifndef _ruler_h_INCLUDED
 #define _ruler_h_INCLUDED
 
+#include "options.h"
 #include "profile.h"
 #include "clause.h"
 #include "ring.h"
@@ -105,6 +106,7 @@ struct ruler
   struct ruler_profiles profiles;
   struct ruler_statistics statistics;
   struct ruler_limits limits;
+  struct options options;
   struct ruler_last last;
 };
 

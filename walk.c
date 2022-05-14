@@ -294,6 +294,18 @@ set_walking_limits (struct walker *walker)
 		extra, (double) WALK_EFFORT, search, last->walk);
 }
 
+static size_t
+hash_counter_or_binary (void * state, void * ptr)
+{
+  if (binary_pointer (ptr))
+    return (size_t) ptr;
+  struct counter * counters = state;
+  struct counter * counter = ptr;
+  assert (counters <= counter);
+  size_t res = counter - counters;
+  return res;
+}
+
 static struct walker *
 new_walker (struct ring *ring)
 {
@@ -311,6 +323,9 @@ new_walker (struct ring *ring)
   walker->counters =
     allocate_and_clear_array (clauses, sizeof *walker->counters);
   walker->occurrences = (struct counters *) ring->references;
+
+  walker->unsatisfied.hash.function = hash_counter_or_binary;
+  walker->unsatisfied.hash.state = walker->counters;
 
   import_decisions (walker);
   double length = connect_counters (walker, last);

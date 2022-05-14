@@ -9,6 +9,10 @@ struct set
   size_t deleted;
   size_t allocated;
   void **table;
+  struct {
+    size_t (*function)(void* state, void* ptr);
+    void * state;
+  } hash;
 };
 
 #define DELETED ((void*) ~(size_t) 0)

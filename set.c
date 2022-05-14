@@ -5,16 +5,29 @@
 #include <stdbool.h>
 
 static size_t
-hash_pointer_to_position (void *ptr)
+hash_pointer (struct set * set, void * ptr)
 {
-  size_t res = 1111111121u * (size_t) ptr;
+  size_t res;
+  if (set->hash.function)
+    res = set->hash.function (set->hash.state, ptr);
+  else
+    res = (size_t) ptr;
   return res;
 }
 
 static size_t
-hash_pointer_to_delta (void *ptr)
+hash_pointer_to_position (struct set * set, void *ptr)
 {
-  size_t res = 2222222243u * (size_t) ptr;
+  size_t res = hash_pointer (set, ptr);
+  res *= 1111111121u;
+  return res;
+}
+
+static size_t
+hash_pointer_to_delta (struct set * set, void *ptr)
+{
+  size_t res = hash_pointer (set, ptr);
+  res *= 2222222243u;
   return res;
 }
 
@@ -61,7 +74,7 @@ set_contains (struct set *set, void *ptr)
   size_t size = set->size;
   if (!size)
     return false;
-  size_t hash = hash_pointer_to_position (ptr);
+  size_t hash = hash_pointer_to_position (set, ptr);
   size_t allocated = set->allocated;
   size_t start = reduce_hash (hash, allocated);
   void **table = set->table;
@@ -70,7 +83,7 @@ set_contains (struct set *set, void *ptr)
     return false;
   if (tmp == ptr)
     return true;
-  hash = hash_pointer_to_delta (ptr);
+  hash = hash_pointer_to_delta (set, ptr);
   size_t delta = reduce_delta (hash, allocated);
   size_t pos = start;
   assert (allocated < 2 || (delta & 1));
@@ -102,7 +115,7 @@ set_insert (struct set *set, void *ptr)
   assert (ptr != DELETED);
   if (set->size + set->deleted >= set->allocated / 2)
     enlarge_set (set);
-  size_t hash = hash_pointer_to_position (ptr);
+  size_t hash = hash_pointer_to_position (set, ptr);
   size_t allocated = set->allocated;
   size_t start = reduce_hash (hash, allocated);
   void **table = set->table;
@@ -110,7 +123,7 @@ set_insert (struct set *set, void *ptr)
   void *tmp = table[pos];
   if (tmp && tmp != DELETED)
     {
-      hash = hash_pointer_to_delta (ptr);
+      hash = hash_pointer_to_delta (set, ptr);
       size_t delta = reduce_delta (hash, allocated);
       assert (delta & 1);
       do
@@ -143,7 +156,7 @@ set_remove (struct set *set, void *ptr)
   assert (set->size);
   if (set->allocated > 16 && set->size <= set->allocated / 8)
     shrink_set (set);
-  size_t hash = hash_pointer_to_position (ptr);
+  size_t hash = hash_pointer_to_position (set, ptr);
   size_t allocated = set->allocated;
   size_t start = reduce_hash (hash, allocated);
   void **table = set->table;
@@ -152,7 +165,7 @@ set_remove (struct set *set, void *ptr)
   if (tmp != ptr)
     {
       assert (tmp);
-      hash = hash_pointer_to_delta (ptr);
+      hash = hash_pointer_to_delta (set, ptr);
       size_t delta = reduce_delta (hash, allocated);
       assert (delta & 1);
       do
