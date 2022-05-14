@@ -76,8 +76,6 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-/*------------------------------------------------------------------------*/
-
 static void
 rescale_variable_scores (struct ring *ring)
 {
@@ -186,136 +184,6 @@ swap_scores (struct ring *ring)
 }
 
 /*------------------------------------------------------------------------*/
-
-static void
-dec_clauses (struct ring *ring, bool redundant)
-{
-  if (redundant)
-    {
-      assert (ring->statistics.redundant > 0);
-      ring->statistics.redundant--;
-    }
-  else
-    {
-      assert (ring->statistics.irredundant > 0);
-      ring->statistics.irredundant--;
-    }
-}
-
-static void
-inc_clauses (struct ring *ring, bool redundant)
-{
-  if (redundant)
-    ring->statistics.redundant++;
-  else
-    ring->statistics.irredundant++;
-}
-
-static struct watch *
-watch_large_clause (struct ring *ring, struct clause *clause)
-{
-  assert (clause->size > 2);
-  assert (!clause->garbage);
-  assert (!clause->dirty);
-  bool redundant = clause->redundant;
-  unsigned glue = clause->glue;
-  struct watch *watch = allocate_block (sizeof *watch);
-  watch->garbage = false;
-  watch->reason = false;
-  watch->redundant = redundant;
-  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
-    watch->used = 2;
-  else if (redundant && glue >= TIER2_GLUE_LIMIT)
-    watch->used = 1;
-  else
-    watch->used = 0;
-  watch->glue = glue;
-  watch->middle = 2;
-  watch->clause = clause;
-  PUSH (ring->watches, watch);
-  inc_clauses (ring, redundant);
-  return watch;
-}
-
-static struct watch *
-watch_literals_in_large_clause (struct ring *ring,
-				struct clause *clause,
-				unsigned first, unsigned second)
-{
-#ifndef NDEBUG
-  assert (first != second);
-  bool found_first = false;
-  for (all_literals_in_clause (lit, clause))
-    found_first |= (lit == first);
-  assert (found_first);
-  bool found_second = false;
-  for (all_literals_in_clause (lit, clause))
-    found_second |= (lit == second);
-  assert (found_second);
-#endif
-  struct watch *watch = watch_large_clause (ring, clause);
-  watch->sum = first ^ second;
-  watch_literal (ring, first, watch);
-  watch_literal (ring, second, watch);
-  return watch;
-}
-
-static struct watch *
-watch_first_two_literals_in_large_clause (struct ring *ring,
-					  struct clause *clause)
-{
-  unsigned *lits = clause->literals;
-  return watch_literals_in_large_clause (ring, clause, lits[0], lits[1]);
-}
-
-static struct watch *
-new_local_binary_clause (struct ring *ring, bool redundant,
-			 unsigned lit, unsigned other)
-{
-  inc_clauses (ring, redundant);
-  struct watch *watch_lit = tag_pointer (redundant, lit, other);
-  struct watch *watch_other = tag_pointer (redundant, other, lit);
-  watch_literal (ring, lit, watch_lit);
-  watch_literal (ring, other, watch_other);
-  LOGBINARY (redundant, lit, other, "new");
-  return watch_lit;
-}
-
-static void
-really_delete_clause (struct ring *ring, struct clause *clause)
-{
-  LOGCLAUSE (clause, "delete");
-  trace_delete_clause (&ring->buffer, clause);
-  free (clause);
-}
-
-static void
-reference_clause (struct ring *ring, struct clause *clause, unsigned inc)
-{
-  assert (inc);
-  unsigned shared = atomic_fetch_add (&clause->shared, inc);
-  LOGCLAUSE (clause, "reference %u times (was shared %u)", inc, shared);
-  assert (shared < MAX_THREADS - inc), (void) shared;
-}
-
-static void
-dereference_clause (struct ring *ring, struct clause *clause)
-{
-  unsigned shared = atomic_fetch_sub (&clause->shared, 1);
-  assert (shared + 1);
-  LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
-  if (!shared)
-    really_delete_clause (ring, clause);
-}
-
-static void
-delete_watch (struct ring *ring, struct watch *watch)
-{
-  struct clause *clause = watch->clause;
-  dec_clauses (ring, clause->redundant);
-  dereference_clause (ring, clause);
-  free (watch);
-}
 
 /*------------------------------------------------------------------------*/
 
@@ -525,7 +393,7 @@ transfer_and_own_ruler_clauses (struct ring *ring)
     {
       LOGCLAUSE (clause, "transferring");
       assert (!clause->garbage);
-      watch_first_two_literals_in_large_clause (ring, clause);
+      (void) watch_first_two_literals_in_large_clause (ring, clause);
       transferred++;
     }
   RELEASE (ruler->clauses);
@@ -580,7 +448,7 @@ clone_clauses (struct ring *dst, struct ring *src)
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
       reference_clause (ring, clause, 1);
-      watch_first_two_literals_in_large_clause (ring, clause);
+      (void) watch_first_two_literals_in_large_clause (ring, clause);
       shared++;
     }
   very_verbose (ring, "sharing %zu large clauses", shared);
@@ -1190,7 +1058,7 @@ static void
 really_import_large_clause (struct ring *ring, struct clause *clause,
 			    unsigned first, unsigned second)
 {
-  (void) watch_literals_in_large_clause (ring, clause, first, second);
+  watch_literals_in_large_clause (ring, clause, first, second);
   unsigned glue = clause->glue;
   assert (clause->redundant);
   struct ring_statistics *statistics = &ring->statistics;
@@ -2191,31 +2059,6 @@ flush_references (struct ring *ring, bool fixed)
   verbose (ring, "flushed %zu garbage watches from watch lists", flushed);
 }
 
-static void
-flush_watches (struct ring *ring)
-{
-  struct watches *watches = &ring->watches;
-  struct watch **begin = watches->begin, **q = begin;
-  struct watch **end = watches->end;
-  size_t flushed = 0, deleted = 0;
-  for (struct watch ** p = begin; p != end; p++)
-    {
-      struct watch *watch = *q++ = *p;
-      assert (!binary_pointer (watch));
-      if (!watch->garbage)
-	continue;
-      if (watch->reason)
-	continue;
-      delete_watch (ring, watch);
-      flushed++;
-      q--;
-    }
-  watches->end = q;
-  verbose (ring,
-	   "flushed %zu garbage watched and deleted %zu clauses %.0f%%",
-	   flushed, deleted, percent (deleted, flushed));
-}
-
 #ifndef NDEBUG
 
 static void
@@ -2746,7 +2589,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (!opts->threads)
 	    die ("invalid zero argument in '%s'", opt);
 	  if (opts->threads > MAX_THREADS)
-	    die ("invalid argument in '%s' (maximum %zu)", opt, MAX_THREADS);
+	    die ("invalid argument in '%s' (maximum %u)", opt, MAX_THREADS);
 	}
       else if ((arg = parse_long_option (opt, "time")))
 	{
@@ -3891,6 +3734,16 @@ check_types (void)
   CHECK_TYPE (int, 4);
   CHECK_TYPE (size_t, 8);
   CHECK_TYPE (void *, 8);
+  
+  {
+    if (MAX_THREADS & 7)
+      fatal_error ("'MAX_THREADS = %u' not byte aligned", MAX_THREADS);
+    size_t bytes_of_shared_field = sizeof ((struct clause *) 0)->shared;
+    if ((MAX_THREADS >> 3) > (1u << (bytes_of_shared_field * 8 - 3)))
+      fatal_error ("shared field of clauses with %zu bytes "
+                   "does not fit 'MAX_THREADS = %u'",
+		   bytes_of_shared_field, MAX_THREADS);
+  }
 
   {
     size_t glue_in_clause_bytes = sizeof ((struct clause *) 0)->glue;

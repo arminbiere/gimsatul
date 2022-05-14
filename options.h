@@ -52,6 +52,8 @@
 
 #define LD_MAX_MARGIN 4
 
+#define MAX_THREADS (1u<<16)
+
 struct options
 {
   long long conflicts;

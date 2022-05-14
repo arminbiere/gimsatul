@@ -201,3 +201,27 @@ delete_ring (struct ring *ring)
   free (ring);
 }
 
+void
+dec_clauses (struct ring *ring, bool redundant)
+{
+  if (redundant)
+    {
+      assert (ring->statistics.redundant > 0);
+      ring->statistics.redundant--;
+    }
+  else
+    {
+      assert (ring->statistics.irredundant > 0);
+      ring->statistics.irredundant--;
+    }
+}
+
+void
+inc_clauses (struct ring *ring, bool redundant)
+{
+  if (redundant)
+    ring->statistics.redundant++;
+  else
+    ring->statistics.irredundant++;
+}
+

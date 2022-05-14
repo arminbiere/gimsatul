@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 struct clause;
+struct ring;
 
 struct watch
 {
@@ -28,13 +29,31 @@ struct references
   unsigned *binaries;
 };
 
+/*------------------------------------------------------------------------*/
+
 #define all_watches(ELEM,WATCHES) \
   all_pointers_on_stack (struct watch, ELEM, WATCHES)
 
-struct ring;
+/*------------------------------------------------------------------------*/
+
+struct watch *
+new_local_binary_clause (struct ring *ring, bool redundant,
+			 unsigned lit, unsigned other);
+
+struct watch * watch_literals_in_large_clause (struct ring *,
+                                               struct clause *,
+				               unsigned first,
+					       unsigned second);
+
+struct watch * watch_first_two_literals_in_large_clause (struct ring *,
+					                 struct clause *);
+
+void flush_watches (struct ring*);
+void reconnect_watches (struct ring *, struct watches *saved);
 
 void release_references (struct ring *);
 void disconnect_references (struct ring *, struct watches *);
-void reconnect_watches (struct ring *, struct watches *saved);
+
+/*------------------------------------------------------------------------*/
 
 #endif

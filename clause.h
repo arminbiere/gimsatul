@@ -9,6 +9,8 @@
 #include <stdint.h>
 #endif
 
+struct ring;
+
 struct clause
 {
 #ifdef LOGGING
@@ -47,5 +49,8 @@ struct clause * new_large_clause (size_t, unsigned *,
 
 void mark_clause (signed char * marks, struct clause *, unsigned except);
 void unmark_clause (signed char * marks, struct clause *, unsigned except);
+
+void reference_clause (struct ring *, struct clause *, unsigned inc);
+void dereference_clause (struct ring *, struct clause *);
 
 #endif

@@ -1,12 +1,9 @@
 #include "clause.h"
-#include "stack.h"
+#include "logging.h"
+#include "ring.h"
 #include "tagging.h"
 #include "trace.h"
 #include "utilities.h"
-
-#ifdef LOGGING
-#include "logging.h"
-#endif
 
 #include <string.h>
 
@@ -66,4 +63,31 @@ really_trace_delete_clause (struct buffer *buffer, struct clause *clause)
 {
   if (!clause->garbage)
     really_trace_delete_literals (buffer, clause->size, clause->literals);
+}
+
+static void
+really_delete_clause (struct ring *ring, struct clause *clause)
+{
+  LOGCLAUSE (clause, "delete");
+  trace_delete_clause (&ring->buffer, clause);
+  free (clause);
+}
+
+void
+reference_clause (struct ring *ring, struct clause *clause, unsigned inc)
+{
+  assert (inc);
+  unsigned shared = atomic_fetch_add (&clause->shared, inc);
+  LOGCLAUSE (clause, "reference %u times (was shared %u)", inc, shared);
+  assert (shared < MAX_THREADS - inc), (void) shared;
+}
+
+void
+dereference_clause (struct ring *ring, struct clause *clause)
+{
+  unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+  assert (shared + 1);
+  LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
+  if (!shared)
+    really_delete_clause (ring, clause);
 }

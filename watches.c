@@ -2,7 +2,9 @@
 #include "ring.h"
 #include "message.h"
 #include "tagging.h"
+#include "trace.h"
 #include "watches.h"
+#include "utilities.h"
 
 void
 release_references (struct ring *ring)
@@ -57,5 +59,109 @@ reconnect_watches (struct ring *ring, struct watches *saved)
     }
   very_verbose (ring, "reconnected %zu clauses", reconnected);
   ring->trail.propagate = ring->trail.begin;
+}
+
+static struct watch *
+watch_large_clause (struct ring *ring, struct clause *clause)
+{
+  assert (clause->size > 2);
+  assert (!clause->garbage);
+  assert (!clause->dirty);
+  bool redundant = clause->redundant;
+  unsigned glue = clause->glue;
+  struct watch *watch = allocate_block (sizeof *watch);
+  watch->garbage = false;
+  watch->reason = false;
+  watch->redundant = redundant;
+  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
+    watch->used = 2;
+  else if (redundant && glue >= TIER2_GLUE_LIMIT)
+    watch->used = 1;
+  else
+    watch->used = 0;
+  watch->glue = glue;
+  watch->middle = 2;
+  watch->clause = clause;
+  PUSH (ring->watches, watch);
+  inc_clauses (ring, redundant);
+  return watch;
+}
+
+struct watch *
+watch_literals_in_large_clause (struct ring *ring,
+				struct clause *clause,
+				unsigned first, unsigned second)
+{
+#ifndef NDEBUG
+  assert (first != second);
+  bool found_first = false;
+  for (all_literals_in_clause (lit, clause))
+    found_first |= (lit == first);
+  assert (found_first);
+  bool found_second = false;
+  for (all_literals_in_clause (lit, clause))
+    found_second |= (lit == second);
+  assert (found_second);
+#endif
+  struct watch *watch = watch_large_clause (ring, clause);
+  watch->sum = first ^ second;
+  watch_literal (ring, first, watch);
+  watch_literal (ring, second, watch);
+  return watch;
+}
+
+struct watch *
+watch_first_two_literals_in_large_clause (struct ring *ring,
+					  struct clause *clause)
+{
+  unsigned *lits = clause->literals;
+  return watch_literals_in_large_clause (ring, clause, lits[0], lits[1]);
+}
+
+struct watch *
+new_local_binary_clause (struct ring *ring, bool redundant,
+			 unsigned lit, unsigned other)
+{
+  inc_clauses (ring, redundant);
+  struct watch *watch_lit = tag_pointer (redundant, lit, other);
+  struct watch *watch_other = tag_pointer (redundant, other, lit);
+  watch_literal (ring, lit, watch_lit);
+  watch_literal (ring, other, watch_other);
+  LOGBINARY (redundant, lit, other, "new");
+  return watch_lit;
+}
+
+static void
+delete_watch (struct ring *ring, struct watch *watch)
+{
+  struct clause *clause = watch->clause;
+  dec_clauses (ring, clause->redundant);
+  dereference_clause (ring, clause);
+  free (watch);
+}
+
+void
+flush_watches (struct ring *ring)
+{
+  struct watches *watches = &ring->watches;
+  struct watch **begin = watches->begin, **q = begin;
+  struct watch **end = watches->end;
+  size_t flushed = 0, deleted = 0;
+  for (struct watch ** p = begin; p != end; p++)
+    {
+      struct watch *watch = *q++ = *p;
+      assert (!binary_pointer (watch));
+      if (!watch->garbage)
+	continue;
+      if (watch->reason)
+	continue;
+      delete_watch (ring, watch);
+      flushed++;
+      q--;
+    }
+  watches->end = q;
+  verbose (ring,
+	   "flushed %zu garbage watched and deleted %zu clauses %.0f%%",
+	   flushed, deleted, percent (deleted, flushed));
 }
 
