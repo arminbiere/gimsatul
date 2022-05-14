@@ -34,7 +34,7 @@ bump_reason_side_literal (struct ring *ring, unsigned lit)
   v->seen = true;
   if (!v->poison && !v->minimize && !v->shrinkable)
     PUSH (ring->analyzed, idx);
-  bump_variable_score (ring, idx);
+  bump_variable (ring, idx);
 }
 
 static void
@@ -79,7 +79,7 @@ do { \
     break; \
   V->seen = true; \
   PUSH (*analyzed, OTHER_IDX); \
-  bump_variable_score (ring, OTHER_IDX); \
+  bump_variable (ring, OTHER_IDX); \
   if (OTHER_LEVEL == level) \
     { \
       open++; \

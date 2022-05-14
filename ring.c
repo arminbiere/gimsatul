@@ -82,15 +82,18 @@ new_ring (struct ruler *ruler)
   trail->pos = allocate_array (size, sizeof *trail->pos);
   struct heap *heap = &ring->heap;
   heap->nodes = allocate_and_clear_array (size, sizeof *heap->nodes);
-  heap->scores = allocate_and_clear_array (size, sizeof *heap->scores);
   heap->increment[0] = heap->increment[1] = 1;
+  struct queue *queue = &ring->queue;
+  queue->links = allocate_and_clear_array (size, sizeof *heap->nodes);
   bool * eliminated = ruler->eliminated;
   unsigned active = 0;
   signed char * ruler_values = (signed char*) ruler->values;
-  for (all_active_and_inactive_nodes (node))
+  struct node * n = heap->nodes;
+  struct link * l = queue->links;
+  for (all_ring_indices (idx))
     {
-      size_t idx = node - heap->nodes;
-      assert (idx < size);
+      struct node * node = n++;
+      struct link * link = l++;
       if (eliminated[idx])
 	{
 	  LOG ("skipping eliminated %s", LOGVAR (idx));
@@ -102,13 +105,14 @@ new_ring (struct ruler *ruler)
 	  LOG ("skipping simplification-fixed %s", LOGVAR (idx));
 	  continue;
 	}
-      LOG ("enqueuing active %s", LOGVAR (idx));
+      LOG ("pushing active %s", LOGVAR (idx));
       ring->active[idx] = true;
       push_heap (heap, node);
+      enqueue (queue, link, true);
       active++;
     }
   ring->statistics.active = ring->unassigned = active;
-  LOG ("found in total %u active variables", active);
+  LOG ("found %u active variables", active);
   for (all_averages (a))
     a->exp = 1.0;
   ring->limits.conflicts = -1;
@@ -195,7 +199,7 @@ delete_ring (struct ring *ring)
   free (ring->references);
   release_watches (ring);
   free (ring->heap.nodes);
-  free (ring->heap.scores);
+  free (ring->queue.links);
   free (ring->variables);
   free (ring->values);
   free (ring->marks);

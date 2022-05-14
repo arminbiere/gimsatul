@@ -11,7 +11,7 @@ enqueue (struct queue * queue, struct link * link, bool update)
   queue->last = link;
   link->next = 0;
   link->stamp = ++queue->stamp;
-  if (!queue->search || update)
+  if (update || !queue->search)
     queue->search = link;
 }
 

@@ -3,8 +3,8 @@
 
 struct ring;
 
-void bump_variable_score (struct ring *, unsigned idx);
+void bump_variable (struct ring *, unsigned idx);
 void bump_score_increment (struct ring *);
-void swap_scores (struct ring *);
+void rebuild_heap (struct ring *);
 
 #endif

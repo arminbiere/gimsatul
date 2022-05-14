@@ -2,6 +2,8 @@
 #include "logging.h"
 #include "ring.h"
 
+#include <string.h>
+
 static void
 rescale_variable_scores (struct ring *ring)
 {
@@ -20,8 +22,8 @@ rescale_variable_scores (struct ring *ring)
   heap->increment[stable] /= max_score;
 }
 
-void
-bump_variable_score (struct ring *ring, unsigned idx)
+static void
+bump_heap (struct ring * ring, unsigned idx)
 {
   struct heap *heap = &ring->heap;
   struct node *node = heap->nodes + idx;
@@ -32,6 +34,34 @@ bump_variable_score (struct ring *ring, unsigned idx)
   update_heap (heap, node, new_score);
   if (new_score > MAX_SCORE)
     rescale_variable_scores (ring);
+}
+
+static void
+bump_queue (struct ring * ring, unsigned idx)
+{
+  struct queue *queue = &ring->queue;
+  struct link *link = queue->links + idx;
+#ifdef LOGGING
+  uint64_t old_stamp = link->stamp;
+#endif
+  dequeue (queue, link);
+  unsigned lit = LIT (idx);
+  bool unassigned = !ring->values[lit];
+  enqueue (queue, link, unassigned);
+#ifdef LOGGING
+  uint64_t new_stamp = link->stamp;
+  LOG ("bumping %s old stamp %" PRIu64 " new stamp %" PRIu64,
+       LOGVAR (idx), old_stamp, new_stamp);
+#endif
+}
+
+void
+bump_variable (struct ring *ring, unsigned idx)
+{
+  if (ring->stable)
+    bump_heap (ring, idx);
+  else
+    bump_queue (ring, idx);
 }
 
 static struct node *
@@ -79,20 +109,11 @@ next_active_node (struct ring * ring, struct node * node)
   NODE = next_active_node (ring, NODE)
 
 void
-swap_scores (struct ring *ring)
+rebuild_heap (struct ring *ring)
 {
   struct heap *heap = &ring->heap;
   struct node * nodes = heap->nodes;
-  double *scores = heap->scores;
-  for (all_active_nodes (node))
-    {
-      double tmp = node->score;
-      unsigned idx = node - nodes;
-      double * s = scores + idx;
-      node->score = *s;
-      node->child = node->prev = node->next = 0;
-      *s = tmp;
-    }
+  memset (nodes, 0, ring->size * sizeof *nodes);
   heap->root = 0;
   for (all_active_nodes (node))
     push_heap (heap, node);
@@ -104,14 +125,15 @@ swap_scores (struct ring *ring)
 void
 bump_score_increment (struct ring *ring)
 {
+  if (!ring->stable)
+    return;
   struct heap *heap = &ring->heap;
   unsigned stable = ring->stable;
   double old_increment = heap->increment[stable];
-  double factor = stable ? 1.0 / STABLE_DECAY : 1.0 / FOCUSED_DECAY;
+  double factor = 1.0 / DECAY;
   double new_increment = old_increment * factor;
   LOG ("new increment %g", new_increment);
   heap->increment[stable] = new_increment;
   if (heap->increment[stable] > MAX_SCORE)
     rescale_variable_scores (ring);
 }
-

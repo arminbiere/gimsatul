@@ -19,16 +19,26 @@ struct queue
   uint64_t stamp;
 };
 
+/*------------------------------------------------------------------------*/
+
 void enqueue (struct queue * queue, struct link * link, bool update);
 void dequeue (struct queue * queue, struct link * link);
 
+/*------------------------------------------------------------------------*/
 
-void
+static inline void
 update_queue_search (struct queue * queue, struct link * link)
 {
-  assert (queue->search);
-  if (queue->stamp < link->stamp)
-    queue->stamp = link->stamp;
+  struct link * search = queue->search;
+  assert (search);
+  if (search->stamp < link->stamp)
+    queue->search = link;
+}
+
+static inline void
+reset_queue_search (struct queue * queue)
+{
+  queue->search = queue->last;
 }
 
 #endif
