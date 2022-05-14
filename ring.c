@@ -189,6 +189,7 @@ delete_ring (struct ring *ring)
   release_pool (ring);
   RELEASE (ring->clause);
   RELEASE (ring->analyzed);
+  RELEASE (ring->minimize);
   free (ring->trail.begin);
   free (ring->trail.pos);
   RELEASE (ring->levels);

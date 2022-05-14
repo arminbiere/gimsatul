@@ -39,11 +39,12 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
 	if (other != not_lit && !minimize_literal (ring, other, depth))
 	  res = false;
     }
+  if (!v->shrinkable)
+    PUSH (ring->minimize, idx);
   if (res)
     v->minimize = true;
   else
     v->poison = true;
-  PUSH (ring->analyzed, idx);
   return res;
 }
 
@@ -65,8 +66,9 @@ do { \
     } \
   if (V->shrinkable) \
     break; \
+  if (!v->poison && !v->minimize) \
+    PUSH (*minimize, OTHER_IDX); \
   V->shrinkable = true; \
-  PUSH (*analyzed, OTHER_IDX); \
   open++; \
 } while (0)
 
@@ -76,7 +78,7 @@ shrink_clause (struct ring *ring)
   LOGTMP ("trying to shrink");
 
   struct variable *variables = ring->variables;
-  struct unsigneds *analyzed = &ring->analyzed;
+  struct unsigneds *minimize = &ring->minimize;
   struct ring_trail *trail = &ring->trail;
 
   struct unsigneds *clause = &ring->clause;
@@ -100,8 +102,9 @@ shrink_clause (struct ring *ring)
 	level = v->level;
       else
 	assert (v->level == level);
+      if (!v->shrinkable && !v->poison && !v->minimize)
+	PUSH (*minimize, idx);
       v->shrinkable = true;
-      PUSH (*analyzed, idx);
       unsigned pos = trail->pos[idx];
       if (pos > max_pos)
 	max_pos = pos;
@@ -175,6 +178,9 @@ minimize_clause (struct ring *ring)
 void
 shrink_or_minimize_clause (struct ring *ring, unsigned glue)
 {
+  struct unsigneds * minimize = &ring->minimize;
+  assert (EMPTY (*minimize));
+
   size_t deduced = SIZE (ring->clause);
 
   size_t minimized = 0;
@@ -207,6 +213,15 @@ shrink_or_minimize_clause (struct ring *ring, unsigned glue)
   ring->statistics.literals.minimized += minimized;
   ring->statistics.literals.shrunken += shrunken;
   ring->statistics.literals.deduced += deduced;
+
+  struct variable *variables = ring->variables;
+  for (all_elements_on_stack (unsigned, idx, *minimize))
+    {
+      struct variable *v = variables + idx;
+      assert (v->poison || v->minimize || v->shrinkable);
+      v->poison = v->minimize = v->shrinkable = false;
+    }
+  CLEAR (*minimize);
 
   LOG ("minimized %zu literals out of %zu", minimized, deduced);
   LOG ("shrunken %zu literals out of %zu", shrunken, deduced);

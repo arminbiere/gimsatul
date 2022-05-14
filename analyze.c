@@ -227,7 +227,8 @@ analyze (struct ring *ring, struct watch *reason)
   for (all_elements_on_stack (unsigned, idx, *analyzed))
     {
       struct variable *v = variables + idx;
-      v->seen = v->poison = v->minimize = v->shrinkable = false;
+      assert (v->seen);
+      v->seen = false;
     }
   CLEAR (*analyzed);
 

@@ -182,6 +182,7 @@ struct ring
   struct queue queue;
   struct unsigneds clause;
   struct unsigneds analyzed;
+  struct unsigneds minimize;
   struct ring_trail trail;
   struct ring_limits limits;
   struct trace trace;

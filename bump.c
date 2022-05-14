@@ -132,6 +132,31 @@ bump_score_increment (struct ring *ring)
 static void
 sort_analyzed_variable_according_to_stamp (struct ring * ring)
 {
+  struct link * links = ring->queue.links;
+  struct unsigneds * analyzed = &ring->analyzed;
+  size_t size = SIZE (*analyzed), count[256];
+  unsigned * begin = analyzed->begin;
+  unsigned * tmp = allocate_array (size, sizeof *tmp);
+  for (size_t i = 0; i != 64; i += 8)
+    {
+      memset (count, 0, sizeof count);
+      for (unsigned * p = begin, * end = p + size; p != end; p++)
+        count[(links[*p].stamp >> i) & 255]++;
+      size_t pos = 0, delta;
+      for (size_t j = 0; j != 256; j++)
+	delta = count[j], count[j] = pos, pos += delta;
+      assert (pos == size);
+      for (unsigned * p = begin, * end = p + size; p != end; p++)
+	tmp[count[(links[*p].stamp >> i) & 255]++] = *p;
+      SWAP (tmp, begin);
+    }
+#ifndef NDEBUG
+  assert (begin == analyzed->begin);
+  assert (tmp != begin);
+  for (size_t i = 0; i + 1 < size; i++)
+    assert (links[begin[i]].stamp < links[begin[i + 1]].stamp);
+#endif
+  free (tmp);
 }
 
 static void
