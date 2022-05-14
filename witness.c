@@ -120,48 +120,54 @@ check_witness (struct ring *ring, struct unsigneds * original)
 
 #endif
 
-static char line[80];
-static size_t buffered;
+struct line
+{
+  char buffer[80];
+  size_t size;
+};
 
 static void
-flush_line (void)
+flush_line (struct line * line)
 {
-  fwrite (line, 1, buffered, stdout);
+  fwrite (line->buffer, 1, line->size, stdout);
   fputc ('\n', stdout);
-  buffered = 0;
+  line->size = 0;
 }
 
 static void
-print_signed_literal (int lit)
+print_signed_literal (struct line * line, int lit)
 {
   char buffer[32];
   sprintf (buffer, " %d", lit);
   size_t len = strlen (buffer);
-  if (buffered + len >= sizeof line)
-    flush_line ();
-  if (!buffered)
-    line[buffered++] = 'v';
-  memcpy (line + buffered, buffer, len);
-  buffered += len;
+  if (line->size + len >= sizeof line->buffer)
+    flush_line (line);
+  if (!line->size)
+    line->buffer[line->size++] = 'v';
+  memcpy (line->buffer + line->size, buffer, len);
+  line->size += len;
 }
 
 static void
-print_unsigned_literal (signed char *values, unsigned unsigned_lit)
+print_unsigned_literal (struct line * line,
+                        signed char *values, unsigned unsigned_lit)
 {
   assert (unsigned_lit < (unsigned) INT_MAX);
   int signed_lit = IDX (unsigned_lit) + 1;
   signed_lit *= values[unsigned_lit];
-  print_signed_literal (signed_lit);
+  print_signed_literal (line, signed_lit);
 }
 
 void
 print_witness (struct ring *ring)
 {
   signed char *values = ring->values;
+  struct line line;
+  line.size = 0;
   for (all_ring_indices (idx))
-    print_unsigned_literal (values, LIT (idx));
-  print_signed_literal (0);
-  if (buffered)
-    flush_line ();
+    print_unsigned_literal (&line, values, LIT (idx));
+  print_signed_literal (&line, 0);
+  if (line.size)
+    flush_line (&line);
 }
 
