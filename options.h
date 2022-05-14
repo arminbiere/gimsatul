@@ -1,6 +1,8 @@
 #ifndef _options_h_INCLUDED
 #define _options_h_INCLUDED
 
+#include "file.h"
+
 #include <limits.h>
 #include <stdbool.h>
 
@@ -54,16 +56,24 @@
 
 #define MAX_THREADS (1u<<16)
 
+struct file;
+
 struct options
 {
   long long conflicts;
   unsigned seconds;
   unsigned threads;
   unsigned optimize;
+  bool binary;
   bool force;
   bool no_walk;
   bool no_simplify;
   bool walk_initially;
+  bool witness;
+  struct file dimacs;
+  struct file proof;
 };
+
+void parse_options (int argc, char **argv, struct options *);
 
 #endif
