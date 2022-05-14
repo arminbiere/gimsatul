@@ -1,3 +1,4 @@
+#include "backtrack.h"
 #include "clause.h"
 #include "logging.h"
 #include "message.h"
@@ -8,6 +9,7 @@
 #include "tagging.h"
 #include "utilities.h"
 #include "walk.h"
+#include "warm.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -622,7 +624,7 @@ pick_literal_to_flip (struct walker *walker, size_t size, unsigned *literals)
       res = lit;
     }
 
-  double random = random_double (ring);
+  double random = random_double (&ring->random);
   assert (0 <= random), assert (random < 1);
   double threshold = random * total;
 
@@ -658,7 +660,7 @@ random_set (struct ring *ring, struct set *set)
 {
   assert (set->size);
   size_t allocated = set->allocated;
-  size_t pos = random_modulo (ring, allocated);
+  size_t pos = random_modulo (&ring->random, allocated);
   void **table = set->table;
   void *res = table[pos];
   while (!res || res == DELETED)

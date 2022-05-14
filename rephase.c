@@ -1,10 +1,12 @@
 #include "backtrack.h"
+#include "message.h"
 #include "rephase.h"
 #include "report.h"
 #include "search.h"
 #include "ring.h"
 #include "walk.h"
 
+#include <inttypes.h>
 #include <math.h>
 
 static char

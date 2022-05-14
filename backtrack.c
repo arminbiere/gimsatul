@@ -1,4 +1,5 @@
 #include "backtrack.h"
+#include "message.h"
 #include "ring.h"
 
 static void

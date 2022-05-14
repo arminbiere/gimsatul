@@ -1,6 +1,10 @@
+#include "message.h"
 #include "report.h"
 #include "ring.h"
 #include "utilities.h"
+
+#include <stdio.h>
+#include <inttypes.h>
 
 static volatile uint64_t reported;
 

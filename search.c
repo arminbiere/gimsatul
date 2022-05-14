@@ -1,12 +1,20 @@
 #include "analyze.h"
+#include "decide.h"
 #include "export.h"
+#include "import.h"
+#include "message.h"
+#include "mode.h"
 #include "propagate.h"
+#include "reduce.h"
 #include "report.h"
+#include "rephase.h"
 #include "restart.h"
 #include "ruler.h"
 #include "search.h"
+#include "walk.h"
 
 #include <assert.h>
+#include <inttypes.h>
 
 static void
 iterate (struct ring *ring)
@@ -134,24 +142,3 @@ solve (struct ring *ring)
   stop_search (ring, res);
   return res;
 }
-
-void
-warming_up_saved_phases (struct ring *ring)
-{
-  assert (!ring->level);
-  assert (ring->trail.propagate == ring->trail.end);
-  uint64_t decisions = 0, conflicts = 0;
-  while (ring->unassigned)
-    {
-      decisions++;
-      decide (ring);
-      if (!ring_propagate (ring, false))
-	conflicts++;
-    }
-  if (ring->level)
-    backtrack (ring, 0);
-  verbose (ring,
-	   "warmed-up phases with %" PRIu64 " decisions and %" PRIu64
-	   " conflicts", decisions, conflicts);
-}
-

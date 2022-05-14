@@ -1,6 +1,7 @@
 #include "assign.h"
 #include "backtrack.h"
 #include "import.h"
+#include "message.h"
 #include "random.h"
 #include "ruler.h"
 #include "trace.h"

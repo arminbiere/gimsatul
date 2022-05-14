@@ -1,8 +1,11 @@
 #include "bump.h"
+#include "message.h"
 #include "mode.h"
 #include "options.h"
 #include "report.h"
 #include "ring.h"
+
+#include <inttypes.h>
 
 static void
 switch_to_focused_mode (struct ring *ring)

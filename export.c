@@ -1,4 +1,5 @@
 #include "export.h"
+#include "message.h"
 #include "ruler.h"
 #include "utilities.h"
 

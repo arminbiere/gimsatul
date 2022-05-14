@@ -1,8 +1,11 @@
 #include "backtrack.h"
+#include "message.h"
 #include "options.h"
 #include "restart.h"
 #include "report.h"
 #include "ring.h"
+
+#include <inttypes.h>
 
 bool
 restarting (struct ring *ring)

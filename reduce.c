@@ -1,10 +1,12 @@
 #include "macros.h"
+#include "message.h"
 #include "reduce.h"
 #include "report.h"
 #include "ring.h"
 #include "trace.h"
 #include "utilities.h"
 
+#include <inttypes.h>
 #include <math.h>
 #include <string.h>
 
