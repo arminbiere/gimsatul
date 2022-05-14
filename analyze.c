@@ -32,9 +32,9 @@ bump_reason_side_literal (struct ring *ring, unsigned lit)
   if (v->seen)
     return;
   v->seen = true;
-  if (!v->poison && !v->minimize && !v->shrinkable)
-    PUSH (ring->analyzed, idx);
-  bump_variable (ring, idx);
+  PUSH (ring->analyzed, idx);
+  if (ring->stable)
+    bump_variable_on_heap (ring, idx);
 }
 
 static void
@@ -79,7 +79,8 @@ do { \
     break; \
   V->seen = true; \
   PUSH (*analyzed, OTHER_IDX); \
-  bump_variable (ring, OTHER_IDX); \
+  if (ring->stable) \
+    bump_variable_on_heap (ring, OTHER_IDX); \
   if (OTHER_LEVEL == level) \
     { \
       open++; \
@@ -168,7 +169,10 @@ analyze (struct ring *ring, struct watch *reason)
   LOGTMP ("first UIP %s", LOGLIT (uip));
   shrink_or_minimize_clause (ring, glue);
   bump_reason_side_literals (ring);
-  bump_score_increment (ring);
+  if (ring->stable)
+    bump_score_increment (ring);
+  else
+    sort_and_bump_analyzed_variables_on_queue (ring);
   backtrack (ring, level - 1);
   update_best_and_target_phases (ring);
   if (jump < level - 1)

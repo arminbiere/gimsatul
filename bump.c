@@ -22,8 +22,8 @@ rescale_variable_scores (struct ring *ring)
   heap->increment[stable] /= max_score;
 }
 
-static void
-bump_heap (struct ring * ring, unsigned idx)
+void
+bump_variable_on_heap (struct ring * ring, unsigned idx)
 {
   struct heap *heap = &ring->heap;
   struct node *node = heap->nodes + idx;
@@ -37,7 +37,7 @@ bump_heap (struct ring * ring, unsigned idx)
 }
 
 static void
-bump_queue (struct ring * ring, unsigned idx)
+bump_variable_on_queue (struct ring * ring, unsigned idx)
 {
   struct queue *queue = &ring->queue;
   struct link *link = queue->links + idx;
@@ -53,15 +53,6 @@ bump_queue (struct ring * ring, unsigned idx)
   LOG ("bumping %s old stamp %" PRIu64 " new stamp %" PRIu64,
        LOGVAR (idx), old_stamp, new_stamp);
 #endif
-}
-
-void
-bump_variable (struct ring *ring, unsigned idx)
-{
-  if (ring->stable)
-    bump_heap (ring, idx);
-  else
-    bump_queue (ring, idx);
 }
 
 static struct node *
@@ -136,4 +127,23 @@ bump_score_increment (struct ring *ring)
   heap->increment[stable] = new_increment;
   if (heap->increment[stable] > MAX_SCORE)
     rescale_variable_scores (ring);
+}
+
+static void
+sort_analyzed_variable_according_to_stamp (struct ring * ring)
+{
+}
+
+static void
+bump_analyze_variables_on_queue (struct ring * ring)
+{
+  for (all_elements_on_stack (unsigned, idx, ring->analyzed))
+    bump_variable_on_queue (ring, idx);
+}
+
+void
+sort_and_bump_analyzed_variables_on_queue (struct ring * ring)
+{
+  sort_analyzed_variable_according_to_stamp (ring);
+  bump_analyze_variables_on_queue (ring);
 }
