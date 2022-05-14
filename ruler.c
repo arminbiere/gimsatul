@@ -3,6 +3,95 @@
 #include "trace.h"
 #include "utilities.h"
 
+#include <string.h>
+
+static void
+init_ruler_profiles (struct ruler *ruler)
+{
+  INIT_PROFILE (ruler, cloning);
+  INIT_PROFILE (ruler, deduplicating);
+  INIT_PROFILE (ruler, eliminating);
+  INIT_PROFILE (ruler, parsing);
+  INIT_PROFILE (ruler, solving);
+  INIT_PROFILE (ruler, simplifying);
+  INIT_PROFILE (ruler, subsuming);
+  INIT_PROFILE (ruler, substituting);
+  INIT_PROFILE (ruler, total);
+  START (ruler, total);
+}
+
+struct ruler *
+new_ruler (size_t size, struct options * opts)
+{
+  assert (0 < opts->threads);
+  assert (opts->threads <= MAX_THREADS);
+  struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
+  memcpy (&ruler->options, opts, sizeof *opts);
+  pthread_mutex_init (&ruler->locks.units, 0);
+  pthread_mutex_init (&ruler->locks.rings, 0);
+#ifdef NFASTPATH
+  pthread_mutex_init (&ruler->locks.terminate, 0);
+  pthread_mutex_init (&ruler->locks.winner, 0);
+#endif
+  ruler->size = size;
+  ruler->statistics.active = size;
+  ruler->values = allocate_and_clear_block (2 * size);
+  ruler->marks = allocate_and_clear_block (2 * size);
+  assert (sizeof (bool) == 1);
+  ruler->eliminated = allocate_and_clear_block (size);
+  ruler->eliminate = allocate_and_clear_block (size);
+  ruler->subsume = allocate_and_clear_block (size);
+  memset (ruler->eliminate, 1, size);
+  memset (ruler->subsume, 1, size);
+  ruler->occurrences =
+    allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
+  ruler->units.begin = allocate_array (size, sizeof (unsigned));
+  ruler->units.propagate = ruler->units.end = ruler->units.begin;
+  init_ruler_profiles (ruler);
+  return ruler;
+}
+
+static void
+release_occurrences (struct ruler *ruler)
+{
+  if (!ruler->occurrences)
+    return;
+  for (all_ruler_literals (lit))
+    RELEASE (OCCURRENCES (lit));
+  free (ruler->occurrences);
+}
+
+static void
+release_clauses (struct ruler * ruler)
+{
+  for (all_clauses (clause, ruler->clauses))
+    if (!binary_pointer (clause))
+      free (clause);
+  RELEASE (ruler->clauses);
+}
+
+void
+delete_ruler (struct ruler *ruler)
+{
+#ifndef NDEBUG
+  for (all_rings (ring))
+    assert (!ring);
+#endif
+  RELEASE (ruler->rings);
+  RELEASE (ruler->buffer);
+  RELEASE (ruler->extension);
+  release_occurrences (ruler);
+  release_clauses (ruler);
+  free ((void *) ruler->values);
+  free (ruler->marks);
+  free (ruler->eliminated);
+  free (ruler->eliminate);
+  free (ruler->subsume);
+  free (ruler->units.begin);
+  free (ruler->threads);
+  free (ruler);
+}
+
 static void
 connect_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 {

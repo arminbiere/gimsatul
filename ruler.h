@@ -112,6 +112,11 @@ struct ruler
 
 /*------------------------------------------------------------------------*/
 
+#define MAX_THREADS \
+  ((size_t) 1 << 8*sizeof ((struct clause *) 0)->shared)
+
+/*------------------------------------------------------------------------*/
+
 #define OCCURRENCES(LIT) (ruler->occurrences[LIT])
 
 /*------------------------------------------------------------------------*/
@@ -135,6 +140,9 @@ struct ruler
   LIT += 2
 
 /*------------------------------------------------------------------------*/
+
+struct ruler * new_ruler (size_t size, struct options *);
+void delete_ruler (struct ruler *);
 
 void new_ruler_binary_clause (struct ruler *, unsigned, unsigned);
 void assign_ruler_unit (struct ruler *, unsigned unit);
