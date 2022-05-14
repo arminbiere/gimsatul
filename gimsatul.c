@@ -39,6 +39,7 @@ static const char * usage =
 #include "assign.h"
 #include "backtrack.h"
 #include "clause.h"
+#include "clone.h"
 #include "config.h"
 #include "export.h"
 #include "logging.h"
@@ -52,6 +53,7 @@ static const char * usage =
 #include "simplify.h"
 #include "search.h"
 #include "stack.h"
+#include "solve.h"
 #include "tagging.h"
 #include "trace.h"
 #include "utilities.h"
@@ -78,18 +80,6 @@ static const char * usage =
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-/*------------------------------------------------------------------------*/
-
-static void *
-solve_routine (void *ptr)
-{
-  struct ring *ring = ptr;
-  int res = solve (ring);
-  assert (ring->status == res);
-  (void) res;
-  return ring;
-}
 
 /*------------------------------------------------------------------------*/
 
@@ -355,29 +345,6 @@ parse_options (int argc, char **argv, struct options *opts)
     prefix_format = "c%-4u ";
   else
     prefix_format = "c%-5u ";
-}
-
-static void
-set_ring_limits (struct ring *ring, long long conflicts)
-{
-  if (ring->inconsistent)
-    return;
-  assert (!ring->stable);
-  assert (!SEARCH_CONFLICTS);
-  struct ring_limits *limits = &ring->limits;
-  limits->mode = MODE_INTERVAL;
-  limits->reduce = REDUCE_INTERVAL;
-  limits->restart = FOCUSED_RESTART_INTERVAL;
-  limits->rephase = REPHASE_INTERVAL;
-  verbose (ring, "reduce interval of %" PRIu64 " conflict", limits->reduce);
-  verbose (ring, "restart interval of %" PRIu64 " conflict", limits->restart);
-  verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
-	   limits->mode);
-  if (conflicts >= 0)
-    {
-      limits->conflicts = conflicts;
-      verbose (ring, "conflict limit set to %lld conflicts", conflicts);
-    }
 }
 
 static void
@@ -760,66 +727,6 @@ print_witness (struct ring *ring)
 }
 
 /*------------------------------------------------------------------------*/
-static void
-start_running_ring (struct ring *ring)
-{
-  struct ruler *ruler = ring->ruler;
-  assert (ruler->threads);
-  pthread_t *thread = ruler->threads + ring->id;
-  if (pthread_create (thread, 0, solve_routine, ring))
-    fatal_error ("failed to create solving thread %u", ring->id);
-}
-
-static void
-stop_running_ring (struct ring *ring)
-{
-  struct ruler *ruler = ring->ruler;
-  assert (ruler->threads);
-  pthread_t *thread = ruler->threads + ring->id;
-  if (pthread_join (*thread, 0))
-    fatal_error ("failed to join solving thread %u", ring->id);
-}
-
-static void
-run_rings (struct ruler *ruler)
-{
-  double start_solving = START (ruler, solving);
-  assert (!ruler->solving);
-  ruler->solving = true;
-  size_t threads = SIZE (ruler->rings);
-  long long conflicts = ruler->options.conflicts;
-  if (verbosity >= 0)
-    {
-      printf ("c\n");
-      if (conflicts >= 0)
-	printf ("c conflict limit %lld\n", conflicts);
-      fflush (stdout);
-    }
-  for (all_rings (ring))
-    set_ring_limits (ring, conflicts);
-  if (threads > 1)
-    {
-      message (0, "starting and running %zu ring threads", threads);
-
-      for (all_rings (ring))
-	start_running_ring (ring);
-
-      for (all_rings (ring))
-	stop_running_ring (ring);
-    }
-  else
-    {
-      message (0, "running single ring in main thread");
-      struct ring *ring = first_ring (ruler);
-      solve_routine (ring);
-    }
-  assert (ruler->solving);
-  ruler->solving = false;
-  double end_solving = STOP (ruler, solving);
-  verbose (0, "finished solving using %zu threads in %.2f seconds",
-           threads, end_solving - start_solving);
-}
-
 static void *
 detach_and_delete_ring (void *ptr)
 {

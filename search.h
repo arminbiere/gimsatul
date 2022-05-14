@@ -3,6 +3,6 @@
 
 struct ring;
 
-int solve (struct ring *) ;
+int search (struct ring *) ;
 
 #endif

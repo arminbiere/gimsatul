@@ -100,7 +100,7 @@ walk_initially (struct ring * ring)
 }
 
 int
-solve (struct ring *ring)
+search (struct ring *ring)
 {
   start_search (ring);
   int res = ring->inconsistent ? 20 : 0;
