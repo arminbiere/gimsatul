@@ -39,6 +39,7 @@ const char * gimsatul_usage =
 #include "assign.h"
 #include "build.h"
 #include "backtrack.h"
+#include "catch.h"
 #include "clause.h"
 #include "clone.h"
 #include "config.h"
@@ -89,128 +90,6 @@ const char * gimsatul_usage =
 
 /*------------------------------------------------------------------------*/
 
-static volatile int caught_signal;
-static volatile bool catching_signals;
-static volatile bool catching_alarm;
-
-static struct ruler *ruler;
-
-#define SIGNALS \
-SIGNAL(SIGABRT) \
-SIGNAL(SIGBUS) \
-SIGNAL(SIGILL) \
-SIGNAL(SIGINT) \
-SIGNAL(SIGSEGV) \
-SIGNAL(SIGTERM)
-
-// *INDENT-OFF*
-
-// Saved previous signal handlers.
-
-#define SIGNAL(SIG) \
-static void (*saved_ ## SIG ## _handler)(int);
-SIGNALS
-#undef SIGNAL
-static void (*saved_SIGALRM_handler)(int);
-
-// *INDENT-ON*
-
-static void
-reset_alarm_handler (void)
-{
-  if (atomic_exchange (&catching_alarm, false))
-    signal (SIGALRM, saved_SIGALRM_handler);
-}
-
-static void
-reset_signal_handlers (void)
-{
-  if (atomic_exchange (&catching_signals, false))
-    {
-  // *INDENT-OFF*
-#define SIGNAL(SIG) \
-      signal (SIG, saved_ ## SIG ## _handler);
-      SIGNALS
-#undef SIGNAL
-  // *INDENT-ON*
-    }
-  reset_alarm_handler ();
-}
-
-static void
-caught_message (int sig)
-{
-  if (verbosity < 0)
-    return;
-  const char *name = "SIGNUNKNOWN";
-#define SIGNAL(SIG) \
-  if (sig == SIG) name = #SIG;
-  SIGNALS
-#undef SIGNAL
-    if (sig == SIGALRM)
-    name = "SIGALRM";
-  char buffer[80];
-  sprintf (buffer, "c\nc caught signal %d (%s)\nc\n", sig, name);
-  size_t bytes = strlen (buffer);
-  if (write (1, buffer, bytes) != bytes)
-    exit (0);
-}
-
-static void
-catch_signal (int sig)
-{
-  if (atomic_exchange (&caught_signal, sig))
-    return;
-  caught_message (sig);
-  reset_signal_handlers ();
-  if (ruler)
-    print_ruler_statistics (ruler);
-  raise (sig);
-}
-
-static void
-catch_alarm (int sig)
-{
-  assert (sig == SIGALRM);
-  if (!catching_alarm)
-    catch_signal (sig);
-  if (atomic_exchange (&caught_signal, sig))
-    return;
-  if (verbosity > 0)
-    caught_message (sig);
-  reset_alarm_handler ();
-  assert (ruler);
-  ruler->terminate = true;
-  caught_signal = 0;
-}
-
-static void
-set_alarm_handler (unsigned seconds)
-{
-  assert (seconds);
-  assert (!catching_alarm);
-  saved_SIGALRM_handler = signal (SIGALRM, catch_alarm);
-  alarm (seconds);
-  catching_alarm = true;
-}
-
-static void
-set_signal_handlers (unsigned seconds)
-{
-  assert (!catching_signals);
-  // *INDENT-OFF*
-#define SIGNAL(SIG) \
-  saved_ ## SIG ##_handler = signal (SIG, catch_signal);
-  SIGNALS
-#undef SIGNAL
-  // *INDENT-ON*
-  catching_signals = true;
-  if (seconds)
-    set_alarm_handler (seconds);
-}
-
-/*------------------------------------------------------------------------*/
-
 int
 main (int argc, char **argv)
 {
@@ -227,8 +106,8 @@ main (int argc, char **argv)
     }
   int variables, clauses;
   parse_dimacs_header (&options.dimacs, &variables, &clauses);
-  ruler = new_ruler (variables, &options);
-  set_signal_handlers (options.seconds);
+  struct ruler * ruler = new_ruler (variables, &options);
+  set_signal_handlers (ruler);
   parse_dimacs_body (ruler, variables, clauses);
   simplify_ruler (ruler);
   clone_rings (ruler);
