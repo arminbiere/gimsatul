@@ -486,10 +486,10 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   else
     {
       unsigned shift = (round - 1)/2;
-      if (shift > LD_MAX_MARGIN)
-	shift = LD_MAX_MARGIN;
+      if (shift > LD_MAX_ELIMINATE_MARGIN)
+	shift = LD_MAX_ELIMINATE_MARGIN;
       margin = 1u << shift;
-      if (shift != LD_MAX_MARGIN && (round & 1))
+      if (shift != LD_MAX_ELIMINATE_MARGIN && (round & 1))
 	memset (ruler->eliminate, 1, ruler->size);
     }
   for (all_ruler_indices (idx))
