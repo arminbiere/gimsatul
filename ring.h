@@ -253,6 +253,8 @@ void dec_clauses (struct ring *ring, bool redundant);
 void set_inconsistent (struct ring *, const char *msg);
 void set_satisfied (struct ring *);
 
+void print_ring_profiles (struct ring *);
+
 /*------------------------------------------------------------------------*/
 
 static inline void

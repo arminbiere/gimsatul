@@ -3,6 +3,9 @@
 
 #include "system.h"
 
+#include <assert.h>
+#include <string.h>
+
 struct profile
 {
   const char *name;
@@ -10,8 +13,7 @@ struct profile
   volatile double time;
 };
 
-double start_profile (struct profile *, double time);
-double stop_profile (struct profile *, double time);
+/*------------------------------------------------------------------------*/
 
 #define START(OWNER,NAME) \
   start_profile (&OWNER->profiles.NAME, current_time ())
@@ -44,5 +46,36 @@ do { \
   profile->start = -1; \
   profile->name = #NAME; \
 } while (0)
+
+/*------------------------------------------------------------------------*/
+
+double start_profile (struct profile *, double time);
+double stop_profile (struct profile *, double time);
+
+/*------------------------------------------------------------------------*/
+
+static inline void
+flush_profile (double time, struct profile *profile)
+{
+  double volatile *p = &profile->start;
+  assert (*p >= 0);
+  double delta = time - *p;
+  *p = time;
+  profile->time += delta;
+}
+
+static inline int
+cmp_profiles (struct profile *a, struct profile *b)
+{
+  if (!a)
+    return -1;
+  if (!b)
+    return -1;
+  if (a->time < b->time)
+    return -1;
+  if (a->time > b->time)
+    return 1;
+  return strcmp (b->name, a->name);
+}
 
 #endif

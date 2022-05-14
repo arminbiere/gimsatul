@@ -157,6 +157,8 @@ void push_ring (struct ruler *, struct ring *);
 void detach_ring (struct ring *);
 void set_winner (struct ring *);
 
+void print_ruler_profiles (struct ruler *);
+
 /*------------------------------------------------------------------------*/
 
 static inline void

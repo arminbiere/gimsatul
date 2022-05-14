@@ -291,3 +291,49 @@ set_winner (struct ring *ring)
 #endif
   verbose (ring, "winning ring[%u] with status %d", ring->id, ring->status);
 }
+
+#define begin_ruler_profiles ((struct profile *)(&ruler->profiles))
+#define end_ruler_profiles (&ruler->profiles.total)
+
+#define all_ruler_profiles(PROFILE) \
+struct profile * PROFILE = begin_ruler_profiles, \
+               * END_ ## PROFILE = end_ruler_profiles; \
+PROFILE != END_ ## PROFILE; \
+++PROFILE
+
+static double
+flush_ruler_profiles (struct ruler *ruler)
+{
+  double time = current_time ();
+  for (all_ruler_profiles (profile))
+    if (profile->start >= 0)
+      flush_profile (time, profile);
+
+  flush_profile (time, &ruler->profiles.total);
+  return time;
+}
+
+void
+print_ruler_profiles (struct ruler *ruler)
+{
+  struct ring * ring = 0;
+  flush_ruler_profiles (ruler);
+  double total = ruler->profiles.total.time;
+  struct profile *prev = 0;
+  for (;;)
+    {
+      struct profile *next = 0;
+      for (all_ruler_profiles (tmp))
+	if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
+	  next = tmp;
+      if (!next)
+	break;
+      PRINTLN ("%10.2f seconds  %5.1f %%  %s",
+	       next->time, percent (next->time, total), next->name);
+      prev = next;
+    }
+  PRINTLN ("--------------------------------------------");
+  PRINTLN ("%10.2f seconds  100.0 %%  total", total);
+  fputs ("c\n", stdout);
+  fflush (stdout);
+}

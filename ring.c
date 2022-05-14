@@ -281,3 +281,49 @@ mark_satisfied_ring_clauses_as_garbage (struct ring *ring)
   verbose (ring, "marked %zu satisfied clauses as garbage %.0f%%",
 	   marked, percent (marked, SIZE (ring->watches)));
 }
+
+#define begin_ring_profiles ((struct profile *)(&ring->profiles))
+#define end_ring_profiles (&ring->profiles.solving)
+
+#define all_ring_profiles(PROFILE) \
+struct profile * PROFILE = begin_ring_profiles, \
+               * END_ ## PROFILE = end_ring_profiles; \
+PROFILE != END_ ## PROFILE; \
+++PROFILE
+
+static double
+flush_ring_profiles (struct ring *ring)
+{
+  double time = current_time ();
+  for (all_ring_profiles (profile))
+    if (profile->start >= 0)
+      flush_profile (time, profile);
+
+  flush_profile (time, &ring->profiles.solving);
+  return time;
+}
+
+void
+print_ring_profiles (struct ring *ring)
+{
+  flush_ring_profiles (ring);
+  double solving = ring->profiles.solving.time;
+  struct profile *prev = 0;
+  fputs ("c\n", stdout);
+  for (;;)
+    {
+      struct profile *next = 0;
+      for (all_ring_profiles (tmp))
+	if (cmp_profiles (tmp, prev) < 0 && cmp_profiles (next, tmp) < 0)
+	  next = tmp;
+      if (!next)
+	break;
+      PRINTLN ("%10.2f seconds  %5.1f %%  %s",
+	       next->time, percent (next->time, solving), next->name);
+      prev = next;
+    }
+  PRINTLN ("-----------------------------------------");
+  PRINTLN ("%10.2f seconds  100.0 %%  solving", solving);
+  fputs ("c\n", stdout);
+  fflush (stdout);
+}
