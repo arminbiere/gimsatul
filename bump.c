@@ -34,6 +34,50 @@ bump_variable_score (struct ring *ring, unsigned idx)
     rescale_variable_scores (ring);
 }
 
+static struct node *
+first_active_node (struct ring * ring)
+{
+  struct queue *queue = &ring->queue;
+  struct node * nodes = queue->nodes;
+  struct node * end = nodes + ring->size;
+  struct node * res = nodes;
+  bool * active = ring->active;
+  while (res != end)
+    {
+      unsigned idx = res - nodes;
+      if (active [idx])
+	return res;
+      res++;
+    }
+  return res;
+}
+
+static struct node *
+next_active_node (struct ring * ring, struct node * node)
+{
+  struct queue *queue = &ring->queue;
+  struct node * nodes = queue->nodes;
+  struct node * end = nodes + ring->size;
+  assert (nodes <= node);
+  assert (node < end);
+  struct node * res = node + 1; 
+  bool * active = ring->active;
+  while (res != end)
+    {
+      unsigned idx = res - nodes;
+      if (active [idx])
+	return res;
+      res++;
+    }
+  return res;
+}
+
+#define all_active_nodes(NODE) \
+  struct node * NODE = first_active_node (ring), \
+              * END_ ## NODE = ring->queue.nodes + ring->size; \
+  NODE != END_ ## NODE; \
+  NODE = next_active_node (ring, NODE)
+
 void
 swap_scores (struct ring *ring)
 {

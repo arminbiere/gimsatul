@@ -154,6 +154,7 @@ void disconnect_and_delete_clauses (struct ruler *,
 
 void push_ring (struct ruler *, struct ring *);
 void detach_ring (struct ring *);
+void set_winner (struct ring *);
 
 /*------------------------------------------------------------------------*/
 

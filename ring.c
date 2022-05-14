@@ -225,3 +225,24 @@ inc_clauses (struct ring *ring, bool redundant)
     ring->statistics.irredundant++;
 }
 
+void
+set_inconsistent (struct ring *ring, const char *msg)
+{
+  assert (!ring->inconsistent);
+  very_verbose (ring, "%s", msg);
+  ring->inconsistent = true;
+  assert (!ring->status);
+  ring->status = 20;
+  set_winner (ring);
+}
+
+void
+set_satisfied (struct ring *ring)
+{
+  assert (!ring->inconsistent);
+  assert (!ring->unassigned);
+  assert (ring->trail.propagate == ring->trail.end);
+  ring->status = 10;
+  set_winner (ring);
+}
+

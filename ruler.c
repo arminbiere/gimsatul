@@ -244,3 +244,40 @@ detach_ring (struct ring *ring)
 }
 
 /*------------------------------------------------------------------------*/
+
+void
+set_winner (struct ring *ring)
+{
+  volatile struct ring *winner;
+  struct ruler *ruler = ring->ruler;
+  bool winning;
+#ifndef NFASTPATH
+  winner = 0;
+  winning = atomic_compare_exchange_strong (&ruler->winner, &winner, ring);
+#else
+  if (pthread_mutex_lock (&ruler->locks.winner))
+    fatal_error ("failed to acquire winner lock");
+  winner = ruler->winner;
+  winning = !winner;
+  if (winning)
+    ruler->winner = ring;
+  if (pthread_mutex_unlock (&ruler->locks.winner))
+    fatal_error ("failed to release winner lock");
+#endif
+  if (!winning)
+    {
+      assert (winner);
+      assert (winner->status == ring->status);
+      return;
+    }
+#ifndef NFASTPATH
+  (void) atomic_exchange (&ruler->terminate, true);
+#else
+  if (pthread_mutex_lock (&ruler->locks.terminate))
+    fatal_error ("failed to acquire terminate lock");
+  ruler->terminate = true;
+  if (pthread_mutex_unlock (&ruler->locks.terminate))
+    fatal_error ("failed to release terminate lock");
+#endif
+  verbose (ring, "winning ring[%u] with status %d", ring->id, ring->status);
+}

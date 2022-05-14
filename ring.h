@@ -230,12 +230,6 @@ struct rings
   NODE != END_ ## NODE; \
   ++NODE
 
-#define all_active_nodes(NODE) \
-  struct node * NODE = first_active_node (ring), \
-              * END_ ## NODE = ring->queue.nodes + ring->size; \
-  NODE != END_ ## NODE; \
-  NODE = next_active_node (ring, NODE)
-
 #define all_averages(AVG) \
   struct average * AVG = (struct average*) &ring->averages, \
   * END_ ## AVG = (struct average*) ((char*) AVG + sizeof ring->averages); \
@@ -253,6 +247,9 @@ void mark_satisfied_ring_clauses_as_garbage (struct ring *);
 
 void inc_clauses (struct ring *ring, bool redundant);
 void dec_clauses (struct ring *ring, bool redundant);
+
+void set_inconsistent (struct ring *, const char *msg);
+void set_satisfied (struct ring *);
 
 /*------------------------------------------------------------------------*/
 

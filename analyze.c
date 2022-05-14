@@ -2,6 +2,21 @@
 #include "bump.h"
 #include "macros.h"
 #include "ring.h"
+#include "trace.h"
+#include "utilities.h"
+
+static void
+bump_reason (struct watch *watch)
+{
+  if (!watch->redundant)
+    return;
+  if (watch->clause->glue <= TIER1_GLUE_LIMIT)
+    return;
+  if (watch->clause->glue <= TIER2_GLUE_LIMIT)
+    watch->used = 2;
+  else
+    watch->used = 1;
+}
 
 static void
 bump_reason_side_literal (struct ring *ring, unsigned lit)
