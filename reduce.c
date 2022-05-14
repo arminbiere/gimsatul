@@ -68,6 +68,12 @@ check_clause_statistics (struct ring *ring)
 #define check_clause_statistics(...) do { } while (0)
 #endif
 
+#define all_literals_on_trail_with_reason(LIT) \
+  unsigned * P_ ## LIT = ring->trail.iterate, \
+           * END_ ## LIT = ring->trail.end, LIT; \
+  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
+  ++ P_ ## LIT
+
 static void
 mark_reasons (struct ring *ring)
 {

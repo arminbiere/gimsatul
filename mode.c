@@ -64,10 +64,15 @@ switch_mode (struct ring *ring)
 	       i->mode);
     }
   if (ring->stable)
-    switch_to_focused_mode (ring);
+    {
+      switch_to_focused_mode (ring);
+      reset_queue_search (&ring->queue);
+    }
   else
-    switch_to_stable_mode (ring);
-  swap_scores (ring);
+    {
+      switch_to_stable_mode (ring);
+      rebuild_heap (ring);
+    }
   l->mode = SEARCH_TICKS + square (s->switched / 2 + 1) * i->mode;
   verbose (ring, "next mode switching limit at %" PRIu64 " ticks", l->mode);
 }

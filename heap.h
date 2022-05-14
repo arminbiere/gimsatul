@@ -15,7 +15,6 @@ struct heap
   double increment[2];
   struct node *nodes;
   struct node *root;
-  double *scores;
 };
 
 /*------------------------------------------------------------------------*/

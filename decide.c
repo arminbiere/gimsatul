@@ -64,7 +64,7 @@ random_decision (struct ring *ring)
 }
 
 static unsigned
-best_score_decision (struct ring *ring)
+best_decision_on_heap (struct ring *ring)
 {
   assert (ring->unassigned);
 
@@ -74,22 +74,49 @@ best_score_decision (struct ring *ring)
 
   assert (heap->root);
 
-  unsigned lit, idx;
+  unsigned idx;
   for (;;)
     {
       struct node *ruler = heap->root;
       assert (ruler);
       assert (ruler - nodes < ring->size);
       idx = ruler - nodes;
-      lit = LIT (idx);
+      unsigned lit = LIT (idx);
       if (!values[lit])
 	break;
       pop_heap (heap, ruler);
     }
-  assert (idx < ring->size);
 
-  LOG ("best score decision %s score %g", LOGVAR (idx), nodes[idx].score);
+  LOG ("best decision %s on heap with score %g",
+       LOGVAR (idx), nodes[idx].score);
 
+  return idx;
+}
+
+static unsigned
+best_decision_on_queue (struct ring * ring)
+{
+  assert (ring->unassigned);
+
+  signed char *values = ring->values;
+  struct queue * queue = &ring->queue;
+  struct link * links = queue->links;
+  struct link * search = queue->search;
+
+  unsigned lit, idx;
+  for (;;)
+    {
+      assert (search);
+      idx = search - links;
+      lit = LIT (idx);
+      if (!values[lit])
+	break;
+      search = search->prev;
+    }
+  queue->search = search;
+
+  LOG ("best decision %s on queue with stamp %" PRIu64,
+       LOGVAR (idx), search->stamp);
   return idx;
 }
 
@@ -103,8 +130,10 @@ decide (struct ring *ring)
   unsigned idx;
   if (ring->id && decisions < RANDOM_DECISIONS)
     idx = random_decision (ring);
+  else if (ring->stable)
+    idx = best_decision_on_heap (ring);
   else
-    idx = best_score_decision (ring);
+    idx = best_decision_on_queue (ring);
 
   struct variable *v = ring->variables + idx;
   signed char phase = decide_phase (ring, v);

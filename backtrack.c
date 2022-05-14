@@ -14,10 +14,20 @@ unassign (struct ring *ring, unsigned lit)
   values[lit] = values[not_lit] = 0;
   assert (ring->unassigned < ring->size);
   ring->unassigned++;
-  struct heap *heap = &ring->heap;
-  struct node *node = heap->nodes + IDX (lit);
-  if (!heap_contains (heap, node))
-    push_heap (heap, node);
+  unsigned idx = IDX (lit);
+  if (ring->stable)
+    {
+      struct heap *heap = &ring->heap;
+      struct node *node = heap->nodes + idx;
+      if (!heap_contains (heap, node))
+	push_heap (heap, node);
+    }
+  else
+    {
+      struct queue *queue = &ring->queue;
+      struct link * link = queue->links + idx;
+      update_queue_search (queue, link);
+    }
 }
 
 void
