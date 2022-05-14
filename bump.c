@@ -136,27 +136,77 @@ sort_analyzed_variable_according_to_stamp (struct ring * ring)
   struct unsigneds * analyzed = &ring->analyzed;
   size_t size = SIZE (*analyzed), count[256];
   unsigned * begin = analyzed->begin;
-  unsigned * tmp = allocate_array (size, sizeof *tmp);
-  for (size_t i = 0; i != 64; i += 8)
+  size_t bytes = size * sizeof *begin;
+  unsigned * tmp = 0, * a = begin, * b = 0, * c = a;
+  uint64_t masked_lower = 0, masked_upper = 255;
+  uint64_t upper = 0, lower = ~upper, shifted_mask = 255;
+  bool bounded = false;
+  for (size_t i = 0; i != 64; i += 8, shifted_mask <<= 8)
     {
-      memset (count, 0, sizeof count);
-      for (unsigned * p = begin, * end = p + size; p != end; p++)
-        count[(links[*p].stamp >> i) & 255]++;
-      size_t pos = 0, delta;
-      for (size_t j = 0; j != 256; j++)
-	delta = count[j], count[j] = pos, pos += delta;
-      assert (pos == size);
-      for (unsigned * p = begin, * end = p + size; p != end; p++)
-	tmp[count[(links[*p].stamp >> i) & 255]++] = *p;
-      SWAP (tmp, begin);
+      if (bounded && (lower & shifted_mask) == (upper & shifted_mask))
+	continue;
+      memset (count + masked_lower, 0,
+              (masked_upper - masked_lower + 1) * sizeof *count);
+      unsigned * end = c + size;
+      bool sorted = true;
+      uint64_t last = 0;
+      for (unsigned * p = c; p != end; p++)
+	{
+	  unsigned idx = *p;
+	  uint64_t r = links[idx].stamp;
+	  if (!bounded)
+	    lower &= r, upper |= r;
+	  uint64_t s = r >> i;
+	  uint64_t m = s & 255;
+	  if (sorted && last > m)
+	    sorted = false;
+	  else
+	    last = m;
+	  count[m]++;
+	}
+      masked_lower = (lower >> i) & 255;
+      masked_upper = (upper >> i) & 255;
+      if (!bounded)
+	{
+	  bounded = true;
+	  if ((lower & shifted_mask) == (upper & shifted_mask))
+	    continue;
+	}
+      if (sorted)
+	continue;
+      size_t pos = 0;
+      for (size_t j = masked_lower; j <= masked_upper; j++)
+	{
+	  size_t delta = count[j];
+	  count[j] = pos;
+	  pos += delta;
+	}
+      if (!tmp)
+	{
+	  assert (c == a);
+	  b = tmp = allocate_block (bytes);
+	}
+      assert (b == tmp);
+      unsigned * d = (c == a) ? b : a;
+      for (unsigned * p = c; p != end; p++)
+	{
+	  unsigned idx = *p;
+	  uint64_t r = links[idx].stamp;
+	  uint64_t s = r >> i;
+	  uint64_t m = s & 255;
+	  pos = count[m]++;
+	  d[pos] = idx;
+	}
+      c = d;
     }
+  if (c == b)
+    memcpy (a, b, bytes);
+  if (tmp)
+    free (tmp);
 #ifndef NDEBUG
-  assert (begin == analyzed->begin);
-  assert (tmp != begin);
   for (size_t i = 0; i + 1 < size; i++)
     assert (links[begin[i]].stamp < links[begin[i + 1]].stamp);
 #endif
-  free (tmp);
 }
 
 static void
