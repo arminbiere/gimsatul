@@ -211,3 +211,36 @@ disconnect_and_delete_clauses (struct ruler * ruler,
   RELEASE (*clauses);
 }
 
+/*------------------------------------------------------------------------*/
+
+void
+push_ring (struct ruler *ruler, struct ring *ring)
+{
+  if (pthread_mutex_lock (&ruler->locks.rings))
+    fatal_error ("failed to acquire rings lock while pushing ring");
+  size_t id = SIZE (ruler->rings);
+  PUSH (ruler->rings, ring);
+  if (pthread_mutex_unlock (&ruler->locks.rings))
+    fatal_error ("failed to release rings lock while pushing ring");
+  assert (id < MAX_THREADS);
+  ring->id = id;
+  ring->random = ring->id;
+  ring->ruler = ruler;
+  ring->units = ruler->units.end;
+}
+
+void
+detach_ring (struct ring *ring)
+{
+  struct ruler *ruler = ring->ruler;
+  if (pthread_mutex_lock (&ruler->locks.rings))
+    fatal_error ("failed to acquire rings lock while detaching ring");
+  assert (ring->id < SIZE (ruler->rings));
+  assert (ruler->rings.begin[ring->id] == ring);
+  ruler->rings.begin[ring->id] = 0;
+  if (pthread_mutex_unlock (&ruler->locks.rings))
+    fatal_error ("failed to release ringfs lock while detaching ring");
+}
+
+/*------------------------------------------------------------------------*/
+

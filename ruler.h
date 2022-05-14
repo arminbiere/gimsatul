@@ -157,12 +157,22 @@ void disconnect_and_delete_clause (struct ruler *,
 void disconnect_and_delete_clauses (struct ruler *,
                                     struct clauses *, unsigned except);
 
+void push_ring (struct ruler *, struct ring *);
+void detach_ring (struct ring *);
+
 /*------------------------------------------------------------------------*/
 
 static inline void
 connect_literal (struct ruler * ruler, unsigned lit, struct clause * clause)
 {
   PUSH (OCCURRENCES (lit), clause);
+}
+
+static inline struct ring *
+first_ring (struct ruler *ruler)
+{
+  assert (!EMPTY (ruler->rings));
+  return ruler->rings.begin[0];
 }
 
 #endif
