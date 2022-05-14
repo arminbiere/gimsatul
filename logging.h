@@ -8,7 +8,6 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
-#include <stdint.h>
 
 struct ring;
 struct ruler;
