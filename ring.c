@@ -2,6 +2,7 @@
 #include "ruler.h"
 #include "macros.h"
 #include "message.h"
+#include "utilities.h"
 
 #include <assert.h>
 #include <stdarg.h>
@@ -246,3 +247,35 @@ set_satisfied (struct ring *ring)
   set_winner (ring);
 }
 
+void
+mark_satisfied_ring_clauses_as_garbage (struct ring *ring)
+{
+  size_t marked = 0;
+  signed char *values = ring->values;
+  struct variable *variables = ring->variables;
+  for (all_watches (watch, ring->watches))
+    {
+      if (watch->garbage)
+	continue;
+      bool satisfied = false;
+      struct clause *clause = watch->clause;
+      for (all_literals_in_clause (lit, clause))
+	{
+	  if (values[lit] <= 0)
+	    continue;
+	  unsigned idx = IDX (lit);
+	  if (variables[idx].level)
+	    continue;
+	  satisfied = true;
+	  break;
+	}
+      if (!satisfied)
+	continue;
+      LOGCLAUSE (clause, "marking satisfied garbage");
+      watch->garbage = true;
+      marked++;
+    }
+  ring->last.fixed = ring->statistics.fixed;
+  verbose (ring, "marked %zu satisfied clauses as garbage %.0f%%",
+	   marked, percent (marked, SIZE (ring->watches)));
+}
