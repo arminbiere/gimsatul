@@ -1,4 +1,5 @@
 #ifndef _simplify_h_INCLUDED
+#define _simplify_h_INCLUDED
 
 #include "macros.h"
 #include "ruler.h"
@@ -6,6 +7,7 @@
 /*------------------------------------------------------------------------*/
 
 void add_resolvent (struct ruler *);
+void simplify_ruler (struct ruler *);
 
 /*------------------------------------------------------------------------*/
 
