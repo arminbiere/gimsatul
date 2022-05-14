@@ -249,8 +249,6 @@ void delete_ring (struct ring *);
 
 void init_pool (struct ring *, unsigned threads);
 
-void warming_up_saved_phases (struct ring *);
-void backtrack (struct ring *, unsigned level);
 void mark_satisfied_ring_clauses_as_garbage (struct ring *);
 
 void inc_clauses (struct ring *ring, bool redundant);

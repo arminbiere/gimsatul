@@ -6,35 +6,35 @@
 #include <stdlib.h>
 
 static inline uint64_t
-random64 (struct ring *ring)
+random64 (uint64_t * random)
 {
-  uint64_t res = ring->random, next = res;
+  uint64_t res = *random, next = res;
   next *= 6364136223846793005ul;
   next += 1442695040888963407ul;
-  ring->random = next;
+  *random = next;
   return res;
 }
 
 static inline unsigned
-random32 (struct ring *ring)
+random32 (uint64_t * random)
 {
-  return random64 (ring) >> 32;
+  return random64 (random) >> 32;
 }
 
 static inline size_t
-random_modulo (struct ring *ring, size_t mod)
+random_modulo (uint64_t * random, size_t mod)
 {
   assert (mod);
-  size_t tmp = random64 (ring);
+  size_t tmp = random64 (random);
   size_t res = tmp % mod;
   assert (res < mod);
   return res;
 }
 
 static inline double
-random_double (struct ring *ring)
+random_double (uint64_t * random)
 {
-  return random32 (ring) / 4294967296.0;
+  return random32 (random) / 4294967296.0;
 }
 
 #endif
