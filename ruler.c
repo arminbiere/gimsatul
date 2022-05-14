@@ -1,3 +1,4 @@
+#include "message.h"
 #include "ruler.h"
 #include "simplify.h"
 #include "trace.h"
