@@ -37,6 +37,7 @@ static const char * usage =
 
 #include "allocate.h"
 #include "assign.h"
+#include "backtrack.h"
 #include "clause.h"
 #include "config.h"
 #include "export.h"
@@ -222,81 +223,6 @@ clone_ring (void *ptr)
 }
 
 /*------------------------------------------------------------------------*/
-
-/*------------------------------------------------------------------------*/
-
-static void
-unassign (struct ring *ring, unsigned lit)
-{
-#ifdef LOGGING
-  ring->level = VAR (lit)->level;
-  LOG ("unassign %s", LOGLIT (lit));
-#endif
-  unsigned not_lit = NOT (lit);
-  signed char *values = ring->values;
-  values[lit] = values[not_lit] = 0;
-  assert (ring->unassigned < ring->size);
-  ring->unassigned++;
-  struct queue *queue = &ring->queue;
-  struct node *node = queue->nodes + IDX (lit);
-  if (!queue_contains (queue, node))
-    push_queue (queue, node);
-}
-
-void
-backtrack (struct ring *ring, unsigned new_level)
-{
-  assert (ring->level > new_level);
-  struct ring_trail *trail = &ring->trail;
-  unsigned *t = trail->end;
-  while (t != trail->begin)
-    {
-      unsigned lit = t[-1];
-      unsigned lit_level = VAR (lit)->level;
-      if (lit_level == new_level)
-	break;
-      unassign (ring, lit);
-      t--;
-    }
-  trail->end = trail->propagate = t;
-  assert (trail->export <= trail->propagate);
-  assert (trail->iterate <= trail->propagate);
-  ring->level = new_level;
-}
-
-static void
-update_best_and_target_phases (struct ring *ring)
-{
-  if (!ring->stable)
-    return;
-  unsigned assigned = SIZE (ring->trail);
-  if (ring->target < assigned)
-    {
-      very_verbose (ring, "updating target assigned to %u", assigned);
-      ring->target = assigned;
-      signed char *p = ring->values;
-      for (all_variables (v))
-	{
-	  signed char tmp = *p;
-	  p += 2;
-	  if (tmp)
-	    v->target = tmp;
-	}
-    }
-  if (ring->best < assigned)
-    {
-      very_verbose (ring, "updating best assigned to %u", assigned);
-      ring->best = assigned;
-      signed char *p = ring->values;
-      for (all_variables (v))
-	{
-	  signed char tmp = *p;
-	  p += 2;
-	  if (tmp)
-	    v->best = tmp;
-	}
-    }
-}
 
 /*------------------------------------------------------------------------*/
 
@@ -854,21 +780,6 @@ restart (struct ring *ring)
 }
 
 static void
-mark_reasons (struct ring *ring)
-{
-  for (all_literals_on_trail_with_reason (lit))
-    {
-      struct watch *watch = VAR (lit)->reason;
-      if (!watch)
-	continue;
-      if (binary_pointer (watch))
-	continue;
-      assert (!watch->reason);
-      watch->reason = true;
-    }
-}
-
-static void
 unmark_reasons (struct ring *ring)
 {
   for (all_literals_on_trail_with_reason (lit))
@@ -1041,96 +952,6 @@ flush_references (struct ring *ring, bool fixed)
     }
   assert (!(flushed & 1));
   verbose (ring, "flushed %zu garbage watches from watch lists", flushed);
-}
-
-#ifndef NDEBUG
-
-static void
-check_clause_statistics (struct ring *ring)
-{
-  size_t redundant = 0;
-  size_t irredundant = 0;
-
-  for (all_ring_literals (lit))
-    {
-      struct references *watches = &REFERENCES (lit);
-      for (all_watches (watch, *watches))
-	{
-	  if (!binary_pointer (watch))
-	    continue;
-	  assert (lit == lit_pointer (watch));
-	  unsigned other = other_pointer (watch);
-	  if (lit < other)
-	    continue;
-	  assert (redundant_pointer (watch));
-	  redundant++;
-	}
-
-      unsigned *binaries = watches->binaries;
-      if (!binaries)
-	continue;
-      for (unsigned *p = binaries, other; (other = *p) != INVALID; p++)
-	if (lit < other)
-	  irredundant++;
-    }
-
-  for (all_watches (watch, ring->watches))
-    {
-      assert (!binary_pointer (watch));
-      struct clause *clause = watch->clause;
-      assert (clause->glue == watch->glue);
-      assert (clause->redundant == watch->redundant);
-      if (watch->redundant)
-	redundant++;
-      else
-	irredundant++;
-    }
-
-  struct ring_statistics *statistics = &ring->statistics;
-  assert (statistics->redundant == redundant);
-  assert (statistics->irredundant == irredundant);
-}
-
-#else
-
-#define check_clause_statistics(...) do { } while (0)
-
-#endif
-
-static bool
-reducing (struct ring *ring)
-{
-  return ring->limits.reduce < SEARCH_CONFLICTS;
-}
-
-static void
-reduce (struct ring *ring)
-{
-  check_clause_statistics (ring);
-  struct ring_statistics *statistics = &ring->statistics;
-  struct ring_limits *limits = &ring->limits;
-  statistics->reductions++;
-  verbose (ring, "reduction %" PRIu64 " at %" PRIu64 " conflicts",
-	   statistics->reductions, SEARCH_CONFLICTS);
-  mark_reasons (ring);
-  struct watches candidates;
-  INIT (candidates);
-  bool fixed = ring->last.fixed != ring->statistics.fixed;
-  if (fixed)
-    mark_satisfied_ring_clauses_as_garbage (ring);
-  gather_reduce_candidates (ring, &candidates);
-  sort_reduce_candidates (&candidates);
-  mark_reduce_candidates_as_garbage (ring, &candidates);
-  RELEASE (candidates);
-  flush_references (ring, fixed);
-  flush_watches (ring);
-  check_clause_statistics (ring);
-  unmark_reasons (ring);
-  limits->reduce = SEARCH_CONFLICTS;
-  limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
-  verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
-	   limits->reduce);
-  report (ring, '-');
 }
 
 static void *

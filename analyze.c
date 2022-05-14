@@ -1,6 +1,8 @@
 #include "analyze.h"
+#include "backtrack.h"
 #include "bump.h"
 #include "macros.h"
+#include "minimize.h"
 #include "ring.h"
 #include "trace.h"
 #include "utilities.h"

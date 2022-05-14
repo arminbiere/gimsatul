@@ -6,6 +6,7 @@
 #include "logging.h"
 #include "options.h"
 #include "profile.h"
+#include "macros.h"
 #include "queue.h"
 #include "stack.h"
 #include "tagging.h"
