@@ -467,8 +467,8 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   ROG ("pushing unit %s to extension stack", ROGLIT (not_pivot));
   PUSH (*extension, INVALID);
   PUSH (*extension, not_pivot);
-  disconnect_and_delete_clauses (ruler, pos_clauses, pivot);
-  disconnect_and_delete_clauses (ruler, neg_clauses, not_pivot);
+  recycle_clauses (ruler, pos_clauses, pivot);
+  recycle_clauses (ruler, neg_clauses, not_pivot);
 }
 
 bool

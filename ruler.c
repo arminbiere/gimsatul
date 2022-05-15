@@ -180,8 +180,9 @@ assign_ruler_unit (struct ruler * ruler, unsigned unit)
 }
 
 void
-disconnect_and_delete_clause (struct ruler * ruler,
-                              struct clause * clause, unsigned lit)
+recycle_clause (struct ruler * ruler,
+                                         struct clause * clause,
+					 unsigned lit)
 {
   if (binary_pointer (clause))
     {
@@ -203,22 +204,18 @@ disconnect_and_delete_clause (struct ruler * ruler,
       ruler->statistics.garbage++;
       clause->garbage = true;
       for (all_literals_in_clause (other, clause))
-	{
-	  if (other == lit)
-	    continue;
-	  disconnect_literal (ruler, other, clause);
+	if (other != lit)
 	  mark_eliminate_literal (ruler, other);
-	}
     }
 }
 
 void
-disconnect_and_delete_clauses (struct ruler * ruler,
+recycle_clauses (struct ruler * ruler,
                                struct clauses * clauses, unsigned except)
 {
   ROG ("disconnecting and deleting clauses with %s", ROGLIT (except));
   for (all_clauses (clause, *clauses))
-      disconnect_and_delete_clause (ruler, clause, except);
+      recycle_clause (ruler, clause, except);
   RELEASE (*clauses);
 }
 
