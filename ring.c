@@ -49,6 +49,7 @@ static void
 init_ring_profiles (struct ring *ring)
 {
   INIT_PROFILE (ring, focused);
+  INIT_PROFILE (ring, probing);
   INIT_PROFILE (ring, search);
   INIT_PROFILE (ring, stable);
   INIT_PROFILE (ring, walk);

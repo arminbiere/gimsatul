@@ -4,6 +4,7 @@
 #include "import.h"
 #include "message.h"
 #include "mode.h"
+#include "probe.h"
 #include "propagate.h"
 #include "reduce.h"
 #include "report.h"
@@ -77,7 +78,7 @@ conflict_limit_hit (struct ring *ring)
   return true;
 }
 
-static bool
+bool
 terminate_ring (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
@@ -134,6 +135,8 @@ search (struct ring *ring)
 	switch_mode (ring);
       else if (rephasing (ring))
 	rephase (ring);
+      else if (probing (ring))
+	res = probe (ring);
       else if (!import_shared (ring))
 	decide (ring);
       else if (ring->inconsistent)

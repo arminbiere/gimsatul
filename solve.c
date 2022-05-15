@@ -48,8 +48,10 @@ set_ring_limits (struct ring *ring, long long conflicts)
   limits->reduce = REDUCE_INTERVAL;
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
+  limits->probing = PROBING_INTERVAL;
   verbose (ring, "reduce interval of %" PRIu64 " conflict", limits->reduce);
   verbose (ring, "restart interval of %" PRIu64 " conflict", limits->restart);
+  verbose (ring, "probing interval of %" PRIu64 " conflict", limits->probing);
   verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
 	   limits->mode);
   if (conflicts >= 0)
@@ -75,9 +77,16 @@ solve_rings (struct ruler *ruler)
       fflush (stdout);
     }
   for (all_rings (ring))
-    set_ring_limits (ring, conflicts);
+      set_ring_limits (ring, conflicts);
   if (threads > 1)
     {
+      unsigned delta = ruler->size / threads;
+      unsigned probe = 0;
+      for (all_rings (ring))
+	{
+	  ring->probe = probe;
+	  probe += delta;
+	}
       message (0, "starting and running %zu ring threads", threads);
 
       for (all_rings (ring))

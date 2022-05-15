@@ -22,7 +22,8 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
 
   unsigned level = ring->level;
   struct variable *v = ring->variables + idx;
-  v->saved = SGN (lit) ? -1 : 1;
+  if (ring->context != PROBING_CONTEXT)
+    v->saved = SGN (lit) ? -1 : 1;
   v->level = level;
   if (!level)
     {

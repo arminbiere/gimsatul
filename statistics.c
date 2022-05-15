@@ -21,6 +21,8 @@ print_ring_statistics (struct ring *ring)
 	   decisions, average (decisions, search));
   PRINTLN ("%-21s %17u %13.2f %% variables", "solving-fixed:",
 	   s->fixed, percent (s->fixed, ring->size));
+  PRINTLN ("%-21s %17u %13.2f %% variables", "failed-literals:",
+	   s->failed, percent (s->failed, ring->size));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
 
@@ -103,6 +105,8 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-21s %17" PRIu64 " %13.2f millions per second",
 	   "propagations:", propagations, average (propagations,
 						   1e6 * search));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
+	   "probings:", s->probings, average (conflicts, s->probings));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	   "reductions:", s->reductions, average (conflicts, s->reductions));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",

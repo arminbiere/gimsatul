@@ -55,6 +55,7 @@ struct averages
 struct ring_profiles
 {
   struct profile focused;
+  struct profile probing;
   struct profile search;
   struct profile stable;
   struct profile walk;
@@ -65,6 +66,7 @@ struct ring_profiles
 struct ring_last
 {
   unsigned fixed;
+  uint64_t probing;
   uint64_t walk;
 };
 
@@ -91,6 +93,7 @@ struct context
 struct ring_statistics
 {
   uint64_t flips;
+  uint64_t probings;
   uint64_t reductions;
   uint64_t rephased;
   uint64_t restarts;
@@ -108,6 +111,7 @@ struct ring_statistics
   } literals;
 
   unsigned active;
+  unsigned failed;
   unsigned fixed;
 
   size_t irredundant;
@@ -170,8 +174,9 @@ struct ring
   bool iterating;
   bool stable;
   unsigned size;
-  unsigned context;
   unsigned level;
+  unsigned probe;
+  unsigned context;
   unsigned unassigned;
   unsigned target;
   unsigned best;
