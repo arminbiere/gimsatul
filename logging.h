@@ -65,6 +65,8 @@ do { \
 #define LOGCLAUSE(CLAUSE, ...) \
 do { \
   LOGPREFIX (__VA_ARGS__); \
+  if ((CLAUSE)->garbage) \
+    printf (" garbage"); \
   if ((CLAUSE)->redundant) \
     printf (" redundant glue %u", (CLAUSE)->glue); \
   else \
@@ -131,6 +133,8 @@ do { \
   else \
     { \
       ROGPREFIX (__VA_ARGS__); \
+      if ((CLAUSE)->garbage) \
+	printf (" garbage"); \
       if ((CLAUSE)->redundant) \
 	printf (" redundant glue %u", (CLAUSE)->glue); \
       else \

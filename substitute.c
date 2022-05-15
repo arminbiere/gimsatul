@@ -165,6 +165,7 @@ substitute_clause (struct ruler * ruler,
     }
   else
     {
+      assert (!clause->garbage);
       for (all_literals_in_clause (other, clause))
 	{
 	  if (other == src)
@@ -194,11 +195,10 @@ substitute_clause (struct ruler * ruler,
   add_resolvent (ruler);
 }
 
-static unsigned
+static void
 substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
 {
-  if (ruler->values[src])
-    return 0;
+  assert (!ruler->values[src]);
   ROG ("substituting literal %s with %s", ROGLIT (src), ROGLIT (dst));
   assert (!ruler->eliminated[IDX (src)]);
   assert (!ruler->eliminated[IDX (dst)]);
@@ -207,10 +207,12 @@ substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
   struct clauses * clauses = &OCCURRENCES (src);
   for (all_clauses (clause, *clauses))
     {
+      if (!binary_pointer (clause) && clause->garbage)
+	continue;
       substitute_clause (ruler, src, dst, clause);
       if (ruler->inconsistent)
 	break;
-      disconnect_and_delete_clause (ruler, clause, src);
+      recycle_clause (ruler, clause, src);
     }
   RELEASE (*clauses);
   struct unsigneds * extension = &ruler->extension;
@@ -230,7 +232,6 @@ substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
       assert (!ruler->eliminated[idx]);
       ruler->eliminated[idx] = 1;
     }
-  return 1;
 }
 
 static unsigned
@@ -247,13 +248,28 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
 	}
 
   unsigned substituted = 0;
-  for (all_ruler_literals (lit))
-    if ((other = repr[lit]) != lit)
-      {
-	substituted += substitute_literal (ruler, lit, other);
-	if (ruler->inconsistent)
-	  break;
-      }
+  signed char * values = (signed char*) ruler->values;
+  for (all_ruler_indices (idx))
+    {
+      unsigned lit = LIT (idx);
+      if (values[lit])
+	continue;
+      unsigned other = repr[lit];
+      if (other == lit)
+	continue;
+      substitute_literal (ruler, lit, other);
+      substituted++;
+      if (ruler->inconsistent)
+        break;
+      if (values[lit])
+	continue;
+      unsigned not_lit = NOT (lit);
+      unsigned not_other = NOT (other);
+      assert (repr[not_lit] == not_other);
+      substitute_literal (ruler, not_lit, not_other);
+      if (ruler->inconsistent)
+        break;
+    }
 
   if (ruler->options.proof.file)
     for (all_positive_ruler_literals (lit))

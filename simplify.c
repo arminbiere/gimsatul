@@ -178,7 +178,7 @@ mark_satisfied_ruler_clauses (struct ruler * ruler)
 }
 
 static void
-flush_satisfied_ruler_occurrences (struct ruler * ruler)
+flush_ruler_occurrences (struct ruler * ruler)
 {
   signed char * values = (signed char*) ruler->values;
   size_t flushed = 0;
@@ -320,13 +320,13 @@ propagate_and_flush_ruler_units (struct ruler * ruler)
     return false;
   struct ruler_last * last = &ruler->last;
   if (last->fixed != ruler->statistics.fixed.total)
-    {
       mark_satisfied_ruler_clauses (ruler);
-      flush_satisfied_ruler_occurrences (ruler);
-    }
   if (last->fixed != ruler->statistics.fixed.total ||
       last->garbage != ruler->statistics.garbage)
-    delete_large_garbage_ruler_clauses (ruler);
+    {
+      flush_ruler_occurrences (ruler);
+      delete_large_garbage_ruler_clauses (ruler);
+    }
   last->fixed = ruler->statistics.fixed.total;
   last->garbage = ruler->statistics.garbage;
   assert (!ruler->inconsistent);
