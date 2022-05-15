@@ -144,7 +144,7 @@ parse_options (int argc, char **argv, struct options *opts)
       else if ((arg = parse_long_option (opt, "threads")))
 	{
 	  if (opts->threads)
-	    die ("multiple '--threads=%u' and '%s'", opts->seconds, opt);
+	    die ("multiple '--threads=%u' and '%s'", opts->threads, opt);
 	  if (sscanf (arg, "%u", &opts->threads) != 1)
 	    die ("invalid argument in '%s'", opt);
 	  if (!opts->threads)
