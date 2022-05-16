@@ -75,7 +75,21 @@ assign_decision (struct ring *ring, unsigned decision)
 {
   assert (ring->level);
   assign (ring, decision, 0);
-  LOG ("assign %s decision score %g",
-       LOGLIT (decision), ring->heap.nodes[IDX (decision)].score);
+#ifdef LOGGING
+  if (ring->context == WALK_CONTEXT)
+    LOG ("assign %s decision warm-up", LOGLIT (decision));
+  else if (ring->context == PROBING_CONTEXT)
+    LOG ("assign %s decision probe", LOGLIT (decision));
+  else 
+    {
+      assert (ring->context == SEARCH_CONTEXT);
+      if (ring->stable)
+	LOG ("assign %s decision score %g",
+	     LOGLIT (decision), ring->heap.nodes[IDX (decision)].score);
+      else
+	LOG ("assign %s decision stamp %" PRIu64,
+	     LOGLIT (decision), ring->queue.links[IDX (decision)].stamp);
+    }
+#endif
 }
 
