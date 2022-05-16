@@ -1,5 +1,7 @@
 #include "assign.h"
 #include "backtrack.h"
+#include "export.h"
+#include "import.h"
 #include "message.h"
 #include "probe.h"
 #include "propagate.h"
@@ -70,6 +72,17 @@ probe (struct ring * ring)
 	break;
       if (start == INVALID)
 	start = probe;
+      if (import_shared (ring))
+	{
+	  if (ring_propagate (ring, false, 0))
+	    {
+	      trace_add_empty (&ring->trace);
+	      set_inconsistent (ring, "propagating imported unit fails");
+	      break;
+	    }
+	  if (values[probe])
+	    continue;
+	}
       assert (!ring->values[probe]);
       ring->statistics.contexts[PROBING_CONTEXT].decisions++;
       assert (!ring->level);
@@ -81,6 +94,7 @@ probe (struct ring * ring)
       unsigned * saved = trail->propagate;
       assert (saved + 1 == trail->end);
       bool ok = !ring_propagate (ring, false, 0);
+      unsigned unit = INVALID;
       if (ok)
 	{
 	  unsigned not_probe = NOT (probe);
@@ -119,7 +133,7 @@ probe (struct ring * ring)
 	      backtrack (ring, 0);
 	      for (unsigned * p = lift.begin; p != lift.end; p++)
 		{
-		  unsigned unit = *p;
+		  unit = *p;
 		  signed char value = values[unit];
 		  if (value > 0)
 		    continue;
@@ -161,7 +175,7 @@ probe (struct ring * ring)
           LOG ("failed literal %s", LOGLIT (probe));
 	  ring->statistics.failed++;
 	  failed++;
-	  unsigned unit = NOT (probe);
+	  unit = NOT (probe);
 	  trace_add_unit (&ring->trace, unit);
 	  assign_ring_unit (ring, unit);
 	  if (ring_propagate (ring, false, 0))
@@ -175,6 +189,8 @@ probe (struct ring * ring)
       last = probe;
       if (++probe == max_lit)
 	probe = 0;
+      if (unit != INVALID)
+	export_units (ring);
     }
   RELEASE (lift);
   free (stamps);
