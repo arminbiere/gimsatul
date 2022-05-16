@@ -4,6 +4,7 @@
 #include "probe.h"
 #include "ring.h"
 #include "vivify.h"
+#include "utilities.h"
 
 bool
 probing (struct ring * ring)
