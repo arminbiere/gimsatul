@@ -249,5 +249,7 @@ parse_options (int argc, char **argv, struct options *opts)
     prefix_format = "c%-4u ";
   else
     prefix_format = "c%-5u ";
-}
 
+  if (opts->proof.file == stdout && verbosity >= 0)
+    opts->proof.lock = true;
+}

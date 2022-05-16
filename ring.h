@@ -113,6 +113,7 @@ struct ring_statistics
   unsigned active;
   unsigned failed;
   unsigned fixed;
+  unsigned lifted;
 
   size_t irredundant;
   size_t redundant;

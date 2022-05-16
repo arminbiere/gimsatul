@@ -23,6 +23,8 @@ print_ring_statistics (struct ring *ring)
 	   s->fixed, percent (s->fixed, ring->size));
   PRINTLN ("%-21s %17u %13.2f %% variables", "failed-literals:",
 	   s->failed, percent (s->failed, ring->size));
+  PRINTLN ("%-21s %17u %13.2f %% variables", "lifted-literals:",
+	   s->lifted, percent (s->lifted, ring->size));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
 
