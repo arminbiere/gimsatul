@@ -59,6 +59,7 @@ struct ring_profiles
   struct profile probing;
   struct profile search;
   struct profile stable;
+  struct profile vivify;
   struct profile walk;
 
   struct profile solving;

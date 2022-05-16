@@ -25,6 +25,10 @@ probe (struct ring * ring)
   vivify_clauses (ring);
   ring->context = SEARCH_CONTEXT;
   ring->last.probing = SEARCH_TICKS;
+  struct ring_statistics * statistics = &ring->statistics;
+  struct ring_limits * limits = &ring->limits;
+  limits->probing = SEARCH_CONFLICTS;
+  limits->probing += PROBING_INTERVAL * nlogn (statistics->probings);
   STOP_AND_START_SEARCH (probing);
   return ring->inconsistent ? 20 : 0;
 }

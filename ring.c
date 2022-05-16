@@ -53,6 +53,7 @@ init_ring_profiles (struct ring *ring)
   INIT_PROFILE (ring, probing);
   INIT_PROFILE (ring, search);
   INIT_PROFILE (ring, stable);
+  INIT_PROFILE (ring, vivify);
   INIT_PROFILE (ring, walk);
   INIT_PROFILE (ring, solving);
   START (ring, solving);
