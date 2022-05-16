@@ -22,23 +22,24 @@ highest priority, followed by glucose level one clauses, then tier 1 clauses
 Binary original clauses (after preprocessing) are not allocated but kept
 virtual in separate watcher stacks, which then are shared among all threads
 (as they are not changed).  Learned binary clauses are virtual too but
-kept in thread local local watcher lists, and thus are the only part
-really physically copied.
+kept in thread local watcher lists, and thus are the only part really
+physically copied.
 
 ## Proofs
 
 From a memory as well as proof perspective these shared large clauses occur
 only once and are only deleted when their atomic reference count reaches
-zero.  Without physically sharing learned clauses the copied clauses also
-have to be duplicated in the proof trace (using multi-set semantics).  This
-feature allows to produce compact global DRAT proofs too.  Checking those
-proofs is not trivial trough with a sequential proof checker as proof lines
-are produced at a much higher rate than in a sequential solver.
+zero.  Without physically sharing learned clauses, as in most other parallel
+solvers, the copied clauses also have to be duplicated in the proof trace
+(using multi-set semantics).  Thus physically sharing clauses allows to
+produce more compact global DRAT proofs.  Checking those proofs is still not
+trivial trough, at least with a sequential proof checker, as proof lines are
+produced at a much higher rate than in a sequential solver.
 
 ## Preprocessing
 
-As far preprocessing is concerned equivalent literal substitution,
-subsumption including strengthening and of course bounded variable
+As far preprocessing is concerned equivalent literal substitution, subsumed
+clause elimination including strengthening and of course bounded variable
 elimination are currently implemented and simply run before solvers are
 cloned to share original irredundant clauses.  Inprocessing is not supported
 yet.  It would also be useful to parallelize preprocessing, which currently
