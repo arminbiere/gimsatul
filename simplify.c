@@ -463,9 +463,7 @@ simplify_ruler (struct ruler * ruler)
 	done = false;
       if (!propagate_and_flush_ruler_units (ruler))
 	break;
-#if 0
-      break;
-#endif
+
       if (remove_duplicated_binaries (ruler, round))
 	done = false;
       if (!propagate_and_flush_ruler_units (ruler))
