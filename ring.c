@@ -281,8 +281,7 @@ mark_satisfied_ring_clauses_as_garbage (struct ring *ring)
 	}
       if (!satisfied)
 	continue;
-      LOGCLAUSE (clause, "marking satisfied garbage");
-      watch->garbage = true;
+      mark_garbage_watch (ring, watch);
       marked++;
     }
   ring->last.fixed = ring->statistics.fixed;

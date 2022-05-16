@@ -49,6 +49,8 @@ check_clause_statistics (struct ring *ring)
 
   for (all_watches (watch, ring->watches))
     {
+      if (watch->garbage)
+	continue;
       assert (!binary_pointer (watch));
       struct clause *clause = watch->clause;
       assert (clause->glue == watch->glue);
@@ -144,9 +146,7 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
   size_t reduced = 0;
   for (all_watches (watch, *candidates))
     {
-      LOGCLAUSE (watch->clause, "marking garbage");
-      assert (!watch->garbage);
-      watch->garbage = true;
+      mark_garbage_watch (ring, watch);
       if (++reduced == target)
 	break;
     }

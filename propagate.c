@@ -4,6 +4,8 @@
 #include "ruler.h"
 #include "utilities.h"
 
+#include "cover.h"
+
 struct watch *
 ring_propagate (struct ring *ring, bool stop_at_conflict, struct watch * ignore)
 {
@@ -80,11 +82,12 @@ ring_propagate (struct ring *ring, bool stop_at_conflict, struct watch * ignore)
 	    }
 	  else
 	    {
-	      assert (!watch->garbage);
+	      ticks++;
+	      if (watch->garbage)
+		continue;
 	      other = watch->sum ^ not_lit;
 	      assert (other < 2 * ring->size);
 	      other_value = values[other];
-	      ticks++;
 	      if (other_value > 0)
 		continue;
 	      struct clause *clause = watch->clause;

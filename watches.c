@@ -73,7 +73,6 @@ watch_large_clause (struct ring *ring, struct clause *clause)
   watch->garbage = false;
   watch->reason = false;
   watch->redundant = redundant;
-  watch->vivify = false;
   if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
     watch->used = 2;
   else if (redundant && glue >= TIER2_GLUE_LIMIT)
@@ -136,7 +135,6 @@ static void
 delete_watch (struct ring *ring, struct watch *watch)
 {
   struct clause *clause = watch->clause;
-  dec_clauses (ring, clause->redundant);
   dereference_clause (ring, clause);
   free (watch);
 }
@@ -166,3 +164,12 @@ flush_watches (struct ring *ring)
 	   flushed, deleted, percent (deleted, flushed));
 }
 
+void
+mark_garbage_watch (struct ring * ring, struct watch * watch)
+{
+  LOGWATCH (watch, "marking garbage");
+  assert (!binary_pointer (watch));
+  assert (!watch->garbage);
+  watch->garbage = true;
+  dec_clauses (ring, watch->redundant);
+}
