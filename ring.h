@@ -54,6 +54,7 @@ struct averages
 
 struct ring_profiles
 {
+  struct profile failed;
   struct profile focused;
   struct profile probing;
   struct profile search;

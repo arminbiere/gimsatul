@@ -48,6 +48,7 @@ message (struct ring *ring, const char *fmt, ...)
 static void
 init_ring_profiles (struct ring *ring)
 {
+  INIT_PROFILE (ring, failed);
   INIT_PROFILE (ring, focused);
   INIT_PROFILE (ring, probing);
   INIT_PROFILE (ring, search);
