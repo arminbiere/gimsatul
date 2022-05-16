@@ -27,5 +27,6 @@ vivify_clauses (struct ring * ring)
                 "clauses after %" PRIu64 " ticks (%s)", subsumed,
 		strengthened, PROBING_TICKS - probing_ticks_before,
 		(PROBING_TICKS > limit ? "limit hit" : "completed"));
+  report (ring, 'v');
   STOP (ring, vivify);
 }
