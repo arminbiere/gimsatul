@@ -74,6 +74,8 @@ probe (struct ring * ring)
 	start = probe;
       if (import_shared (ring))
 	{
+	  if (ring->inconsistent)
+	    break;
 	  if (ring_propagate (ring, false, 0))
 	    {
 	      trace_add_empty (&ring->trace);
