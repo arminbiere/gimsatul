@@ -10,7 +10,7 @@
 
 static pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void
+static void
 message_lock_failure (const char *str)
 {
   char buffer[128];

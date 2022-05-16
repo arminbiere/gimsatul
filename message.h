@@ -10,7 +10,6 @@ extern int verbosity;
 extern volatile uint64_t clause_ids;
 #endif
 
-void message_lock_failure (const char *str);
 void acquire_message_lock (void);
 void release_message_lock (void);
 
