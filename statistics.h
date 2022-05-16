@@ -3,6 +3,13 @@
 
 #include <stdint.h>
 
+/*------------------------------------------------------------------------*/
+
+struct ring;
+struct ruler;
+
+/*------------------------------------------------------------------------*/
+
 struct context
 {
   uint64_t propagations;
@@ -75,11 +82,37 @@ struct ring_statistics
 #define PROBING_TICKS \
   ring->statistics.contexts[PROBING_CONTEXT].ticks
 
-struct ring;
-struct ruler;
+struct ruler_statistics
+{
+  uint64_t garbage;
+  uint64_t binaries;
+  unsigned active;
+  unsigned original;
+  unsigned deduplicated;
+  unsigned eliminated;
+  unsigned definitions;
+  unsigned strengthened;
+  unsigned subsumed;
+  unsigned substituted;
+  unsigned selfsubsumed;
+  struct
+  {
+    uint64_t elimination;
+    uint64_t subsumption;
+  } ticks;
+  struct {
+    unsigned simplifying;
+    unsigned solving;
+    unsigned total;
+  } fixed;
+};
+
+/*------------------------------------------------------------------------*/
 
 void print_ring_statistics (struct ring *);
 void print_ruler_statistics (struct ruler *);
+
+/*------------------------------------------------------------------------*/
 
 #endif
 

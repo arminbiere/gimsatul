@@ -10,6 +10,33 @@ struct profile
   volatile double time;
 };
 
+struct ring_profiles
+{
+  struct profile failed;
+  struct profile focused;
+  struct profile probing;
+  struct profile search;
+  struct profile stable;
+  struct profile vivify;
+  struct profile walk;
+
+  struct profile solving;
+};
+
+struct ruler_profiles
+{
+  struct profile cloning;
+  struct profile eliminating;
+  struct profile deduplicating;
+  struct profile parsing;
+  struct profile solving;
+  struct profile simplifying;
+  struct profile substituting;
+  struct profile subsuming;
+
+  struct profile total;
+};
+
 /*------------------------------------------------------------------------*/
 
 #define START(OWNER,NAME) \

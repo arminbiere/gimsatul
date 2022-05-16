@@ -10,20 +10,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct ruler_profiles
-{
-  struct profile cloning;
-  struct profile eliminating;
-  struct profile deduplicating;
-  struct profile parsing;
-  struct profile solving;
-  struct profile simplifying;
-  struct profile substituting;
-  struct profile subsuming;
-
-  struct profile total;
-};
-
 struct ruler_trail
 {
   unsigned *begin;
@@ -51,31 +37,6 @@ struct ruler_limits
 {
   uint64_t elimination;
   uint64_t subsumption;
-};
-
-struct ruler_statistics
-{
-  uint64_t garbage;
-  uint64_t binaries;
-  unsigned active;
-  unsigned original;
-  unsigned deduplicated;
-  unsigned eliminated;
-  unsigned definitions;
-  unsigned strengthened;
-  unsigned subsumed;
-  unsigned substituted;
-  unsigned selfsubsumed;
-  struct
-  {
-    uint64_t elimination;
-    uint64_t subsumption;
-  } ticks;
-  struct {
-    unsigned simplifying;
-    unsigned solving;
-    unsigned total;
-  } fixed;
 };
 
 struct ruler
