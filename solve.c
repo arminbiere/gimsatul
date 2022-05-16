@@ -48,9 +48,7 @@ set_ring_limits (struct ring *ring, long long conflicts)
   limits->reduce = REDUCE_INTERVAL;
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
-#if 0
   limits->probing = PROBING_INTERVAL;
-#endif
   verbose (ring, "reduce interval of %" PRIu64 " conflict", limits->reduce);
   verbose (ring, "restart interval of %" PRIu64 " conflict", limits->restart);
   verbose (ring, "probing interval of %" PRIu64 " conflict", limits->probing);
