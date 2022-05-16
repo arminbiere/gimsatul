@@ -3,6 +3,7 @@
 #include "failed.h"
 #include "probe.h"
 #include "ring.h"
+#include "vivify.h"
 
 bool
 probing (struct ring * ring)
@@ -21,6 +22,7 @@ probe (struct ring * ring)
   if (ring->level)
     backtrack (ring, 0);
   failed_literal_probing (ring);
+  vivify_clauses (ring);
   ring->context = SEARCH_CONTEXT;
   ring->last.probing = SEARCH_TICKS;
   STOP_AND_START_SEARCH (probing);

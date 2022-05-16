@@ -19,9 +19,9 @@ failed_literal_probing (struct ring * ring)
   START (ring, failed);
   assert (SEARCH_TICKS >= ring->last.probing);
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
-  uint64_t delta_probing_ticks = PROBING_EFFORT * delta_search_ticks;
+  uint64_t delta_probing_ticks = FAILED_EFFORT * delta_search_ticks;
   verbose (ring, "probing effort of %" PRIu64 " = %g * %" PRIu64
-           " search ticks", delta_probing_ticks, (double) PROBING_EFFORT,
+           " search ticks", delta_probing_ticks, (double) FAILED_EFFORT,
 	   delta_search_ticks);
   uint64_t probing_ticks_before = PROBING_TICKS;
   uint64_t limit = probing_ticks_before + delta_probing_ticks;

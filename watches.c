@@ -73,6 +73,7 @@ watch_large_clause (struct ring *ring, struct clause *clause)
   watch->garbage = false;
   watch->reason = false;
   watch->redundant = redundant;
+  watch->vivify = false;
   if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
     watch->used = 2;
   else if (redundant && glue >= TIER2_GLUE_LIMIT)

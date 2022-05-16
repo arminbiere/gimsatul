@@ -80,6 +80,7 @@ ring_propagate (struct ring *ring, bool stop_at_conflict, struct watch * ignore)
 	    }
 	  else
 	    {
+	      assert (!watch->garbage);
 	      other = watch->sum ^ not_lit;
 	      assert (other < 2 * ring->size);
 	      other_value = values[other];

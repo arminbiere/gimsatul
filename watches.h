@@ -13,6 +13,7 @@ struct watch
   bool garbage:1;
   bool reason:1;
   bool redundant:1;
+  bool vivify:1;
   unsigned middle;
   unsigned sum;
   struct clause *clause;
