@@ -85,14 +85,13 @@ vivify_clauses (struct ring * ring)
 		{
 	     IMPLIED:
 		  LOGWATCH (watch, "vivification implied");
-		  mark_garbage_watch (ring, watch);
 		  ring->statistics.vivified++;
 		  ring->statistics.implied++;
 		  vivified++;
 		  implied++;
-		  break;
 		}
-	      LOGWATCH (watch, "root-level satisfied");
+	      else
+		LOGWATCH (watch, "root-level satisfied");
 	      mark_garbage_watch (ring, watch);
 	      break;
 	    }

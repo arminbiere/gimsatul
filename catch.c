@@ -89,9 +89,10 @@ catch_signal (int sig)
   if (atomic_exchange (&caught_signal, sig))
     return;
   caught_message (sig);
+  struct ruler * ruler = (struct ruler *) one_global_ruler;
   reset_signal_handlers ();
-  if (one_global_ruler)
-    print_ruler_statistics ((struct ruler *) one_global_ruler);
+  if (ruler)
+    print_ruler_statistics (ruler);
   raise (sig);
 }
 

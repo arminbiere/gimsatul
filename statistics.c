@@ -182,4 +182,3 @@ print_ruler_statistics (struct ruler *ruler)
 
   fflush (stdout);
 }
-
