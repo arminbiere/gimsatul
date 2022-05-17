@@ -74,37 +74,11 @@ vivify_clauses (struct ring * ring)
       assert (watched_vivification_candidate (watch));
       watch->vivify = false;
       struct clause * clause = watch->clause;
+      unsigned non_root_level_falsified = 0;
       for (all_literals_in_clause (lit, clause))
 	{
-	  const unsigned idx = IDX (lit);
-	  struct variable * v = ring->variables + idx;
 	  signed char value = values[lit];
-	  if (value > 0)
-	    {
-	      if (v->level)
-		{
-	     IMPLIED:
-		  LOGWATCH (watch, "vivification implied");
-		  ring->statistics.vivified++;
-		  ring->statistics.implied++;
-		  vivified++;
-		  implied++;
-		}
-	      else
-		LOGWATCH (watch, "root-level satisfied");
-	      mark_garbage_watch (ring, watch);
-	      break;
-	    }
-	  else if (value < 0)
-	    {
-	      if (v->level)
-		{
-		  ring->statistics.vivified++;
-		  strengthened++;
-		}
-	      break;
-	    }
-	  else
+	  if (!value)
 	    {
 	      ring->level++;
 	      ring->statistics.contexts[PROBING_CONTEXT].decisions++;
@@ -114,6 +88,37 @@ vivify_clauses (struct ring * ring)
 	      if (ring_propagate (ring, false, watch))
 		goto IMPLIED;
 	    }
+	  else
+	    {
+	      const unsigned idx = IDX (lit);
+	      struct variable * v = ring->variables + idx;
+	      if (value > 0)
+		{
+		  if (v->level)
+		    {
+		 IMPLIED:
+		      LOGWATCH (watch, "vivification implied");
+		      ring->statistics.vivify.succeeded++;
+		      ring->statistics.vivify.implied++;
+		      vivified++;
+		      implied++;
+		    }
+		  else
+		    LOGWATCH (watch, "root-level satisfied");
+		  mark_garbage_watch (ring, watch);
+		  break;
+		}
+	      else if (value < 0)
+		{
+		  if (v->level)
+		    non_root_level_falsified++;
+		}
+	    }
+	}
+      if (!watch->garbage && non_root_level_falsified)
+	{
+	  ring->statistics.vivify.succeeded++;
+	  ring->statistics.vivify.strengthened++;
 	}
       if (ring->level)
 	backtrack (ring, 0);

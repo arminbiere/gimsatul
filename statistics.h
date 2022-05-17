@@ -48,10 +48,15 @@ struct ring_statistics
   unsigned fixed;
   unsigned lifted;
 
-  size_t implied;
   size_t irredundant;
   size_t redundant;
-  size_t vivified;
+
+  struct
+  {
+    size_t strengthened;
+    size_t succeeded;
+    size_t implied;
+  } vivify;
 
   struct
   {

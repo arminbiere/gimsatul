@@ -29,11 +29,11 @@ print_ring_statistics (struct ring *ring)
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
   
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per learned clause",
-	   "vivified-clauses:", s->vivified,
-	   percent (s->vivified, s->learned.clauses));
+	   "vivified-clauses:", s->vivify.succeeded,
+	   percent (s->vivify.succeeded, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per vivified clause",
-	   "vivified-implied:", s->implied,
-	   percent (s->implied, s->vivified));
+	   "vivify-implied:", s->vivify.implied,
+	   percent (s->vivify.implied, s->vivify.succeeded));
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per learned clause",
 	   "learned-literals:", s->literals.learned,
