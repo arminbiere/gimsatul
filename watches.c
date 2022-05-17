@@ -5,6 +5,7 @@
 #include "trace.h"
 #include "watches.h"
 #include "utilities.h"
+#include "vivify.h"
 
 void
 release_references (struct ring *ring)
@@ -73,6 +74,7 @@ watch_large_clause (struct ring *ring, struct clause *clause)
   watch->garbage = false;
   watch->reason = false;
   watch->redundant = redundant;
+  watch->vivify = false;
   if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
     watch->used = 2;
   else if (redundant && glue >= TIER2_GLUE_LIMIT)
@@ -146,6 +148,7 @@ flush_watches (struct ring *ring)
   struct watch **begin = watches->begin, **q = begin;
   struct watch **end = watches->end;
   size_t flushed = 0, deleted = 0;
+
   for (struct watch ** p = begin; p != end; p++)
     {
       struct watch *watch = *q++ = *p;

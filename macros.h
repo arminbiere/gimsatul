@@ -2,6 +2,7 @@
 #define _macros_h_INCLUDED
 
 #define INVALID UINT_MAX
+#define MAX_SIZE_T (~(size_t)0)
 
 #define IDX(LIT) ((LIT) >> 1)
 #define LIT(IDX) ((IDX) << 1)

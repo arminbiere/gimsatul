@@ -105,7 +105,6 @@ struct ring
   bool *active;
   struct variable *variables;
   struct watches watches;
-  size_t vivify;
   struct references *references;
   struct unsigneds levels;
   struct heap heap;
