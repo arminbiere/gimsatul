@@ -52,7 +52,7 @@
 #define MAX_THREADS (1u<<16)
 
 #define FAILED_EFFORT 0.02
-#define VIVIFY_EFFORT 0.05
+#define VIVIFY_EFFORT 0.01
 #define PROBING_INTERVAL 2000
 
 struct file;
