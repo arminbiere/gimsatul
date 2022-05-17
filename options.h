@@ -17,11 +17,7 @@
 
 #define MODE_INTERVAL 3e3
 
-#if 1
 #define REDUCE_INTERVAL 1e3
-#else
-#define REDUCE_INTERVAL 1
-#endif
 #define REDUCE_FRACTION 0.75
 
 #define REPHASE_INTERVAL 1e3
