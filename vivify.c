@@ -31,6 +31,26 @@ schedule_vivification_candidates (struct ring * ring,
   return SIZE (*candidates);
 }
 
+#define ANALYZE
+
+struct watch *
+vivify_strengthen (struct ring * ring, struct watch * reason)
+{
+  LOGWATCH (reason, "vivify strengthening");
+  assert (EMPTY (ring->clause));
+  signed char *values = ring->values;
+#if 0
+  signed char * marks = ring->marks;
+#endif
+  assert (!binary_pointer (reason));
+  for (all_literals_in_clause (lit, reason->clause))
+    {
+      signed char value = values[lit];
+      assert (value < 0);
+    }
+  return 0;
+}
+
 void
 vivify_clauses (struct ring * ring)
 {
@@ -97,7 +117,7 @@ vivify_clauses (struct ring * ring)
 		  if (v->level)
 		    {
 		 IMPLIED:
-		      LOGWATCH (watch, "vivification implied");
+		      LOGWATCH (watch, "vivify implied");
 		      ring->statistics.vivify.succeeded++;
 		      ring->statistics.vivify.implied++;
 		      vivified++;
@@ -119,8 +139,22 @@ vivify_clauses (struct ring * ring)
 	{
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.strengthened++;
+	  struct watch * other = vivify_strengthen (ring, watch);
+#if 0
+	  mark_garbage_watch (ring, watch);
+	  if (ring->inconsistent)
+	    break;
+	  if (!binary_pointer (other))
+	    {
+	      assert (watched_vivification_candidate (other));
+	      PUSH (candidates, other);
+	    }
+#else
+	  assert (ring->level);
+	  backtrack (ring, 0);
+#endif
 	}
-      if (ring->level)
+      else if (ring->level)
 	backtrack (ring, 0);
     }
   if (p != end && !(*p)->vivify)
