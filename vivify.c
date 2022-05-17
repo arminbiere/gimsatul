@@ -1,3 +1,4 @@
+#include "analyze.h"
 #include "assign.h"
 #include "backtrack.h"
 #include "message.h"
@@ -7,6 +8,8 @@
 #include "search.h"
 #include "utilities.h"
 #include "vivify.h"
+
+#include "cover.h"
 
 #include <inttypes.h>
 
@@ -31,23 +34,79 @@ schedule_vivification_candidates (struct ring * ring,
   return SIZE (*candidates);
 }
 
-#define ANALYZE
+#define ANALYZE(OTHER) \
+do { \
+  unsigned idx = IDX (other); \
+  struct variable * v = variables + idx; \
+  if (v->seen) \
+    break; \
+  if (!v->level) \
+    break; \
+  assert (ring->values[other] < 0); \
+  v->seen = true; \
+  PUSH (*analyzed, idx); \
+  open++; \
+  if (!v->reason) \
+    PUSH (*clause, other); \
+} while (0)
 
 struct watch *
 vivify_strengthen (struct ring * ring, struct watch * reason)
 {
+  verbosity = INT_MAX;
   LOGWATCH (reason, "vivify strengthening");
-  assert (EMPTY (ring->clause));
-  signed char *values = ring->values;
-#if 0
-  signed char * marks = ring->marks;
-#endif
   assert (!binary_pointer (reason));
-  for (all_literals_in_clause (lit, reason->clause))
+  struct unsigneds * analyzed = &ring->analyzed;
+  struct variable * variables = ring->variables;
+  struct unsigneds * clause = &ring->clause;
+  struct ring_trail * trail = &ring->trail;
+  assert (EMPTY (*analyzed));
+  assert (EMPTY (*clause));
+  unsigned * t = trail->end;
+  unsigned open = 0;
+  do
     {
-      signed char value = values[lit];
-      assert (value < 0);
+      assert (reason);
+      LOGWATCH (reason, "vivify analyzing");
+      if (binary_pointer (reason))
+	{
+	  unsigned other = other_pointer (reason);
+	  ANALYZE (other);
+	}
+      else
+	{
+	  for (all_literals_in_clause (other, reason->clause))
+	    ANALYZE (other);
+	}
+      assert (open);
+      if (!--open)
+	break;
+      assert (t != trail->begin);
+      while (open)
+	{
+	  unsigned lit;
+	  for (;;)
+	    {
+	      assert (t != trail->begin);
+	      lit = *--t;
+	      unsigned idx = IDX (lit);
+	      struct variable * v = variables + idx;
+	      if (v->seen)
+		{
+		  reason = v->reason;
+		  break;
+		}
+	    }
+	  if (reason)
+	    break;
+	  open--;
+	}
     }
+  while (open);
+  LOGTMP ("vivify strengthened");
+  COVER ("hit");
+  clear_analyzed (ring);
+  CLEAR (*clause);
   return 0;
 }
 

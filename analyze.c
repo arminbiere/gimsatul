@@ -65,6 +65,26 @@ bump_reason_side_literals (struct ring *ring)
     }
 }
 
+void
+clear_analyzed (struct ring * ring)
+{
+  struct unsigneds *analyzed = &ring->analyzed;
+  struct variable * variables = ring->variables;
+  for (all_elements_on_stack (unsigned, idx, *analyzed))
+    {
+      struct variable *v = variables + idx;
+      assert (v->seen);
+      v->seen = false;
+    }
+  CLEAR (*analyzed);
+
+  struct unsigneds *levels = &ring->levels;
+  bool * used = ring->used;
+  for (all_elements_on_stack (unsigned, used_level, *levels))
+      used[used_level] = false;
+  CLEAR (*levels);
+}
+
 #define ANALYZE_LITERAL(OTHER) \
 do { \
   if (OTHER == uip) \
@@ -224,17 +244,7 @@ analyze (struct ring *ring, struct watch *reason)
     }
   CLEAR (*clause);
 
-  for (all_elements_on_stack (unsigned, idx, *analyzed))
-    {
-      struct variable *v = variables + idx;
-      assert (v->seen);
-      v->seen = false;
-    }
-  CLEAR (*analyzed);
-
-  for (all_elements_on_stack (unsigned, used_level, *levels))
-      used[used_level] = false;
-  CLEAR (*levels);
+  clear_analyzed (ring);
 
   return true;
 }
