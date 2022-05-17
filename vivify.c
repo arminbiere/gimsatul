@@ -1,4 +1,7 @@
+#include "assign.h"
+#include "backtrack.h"
 #include "message.h"
+#include "propagate.h"
 #include "report.h"
 #include "ring.h"
 #include "search.h"
@@ -45,7 +48,7 @@ vivify_clauses (struct ring * ring)
 	   delta_search_ticks);
   uint64_t probing_ticks_before = PROBING_TICKS;
   uint64_t limit = probing_ticks_before + delta_probing_ticks;
-  size_t subsumed = 0, strengthened = 0, tried = 0, vivified = 0;
+  size_t implied = 0, strengthened = 0, tried = 0, vivified = 0;
   struct watches candidates;
   INIT (candidates);
   size_t rescheduled = reschedule_vivification_candidates (ring, &candidates);
@@ -54,6 +57,7 @@ vivify_clauses (struct ring * ring)
   size_t scheduled = schedule_vivification_candidates (ring, &candidates);
   very_verbose (ring, "scheduled %zu vivification candidates in total",
                 scheduled);
+  signed char * values = ring->values;
   struct watch ** begin = candidates.begin;
   struct watch ** end = candidates.end;
   struct watch ** p = begin;
@@ -63,14 +67,57 @@ vivify_clauses (struct ring * ring)
 	break;
       if (terminate_ring (ring))
 	break;
+      tried++;
+      assert (!ring->level);
       struct watch * watch = *p++;
-#if 1
-      if (2*tried >= scheduled)
-	break;
-#endif
+      assert (!binary_pointer (watch));
       assert (watched_vivification_candidate (watch));
       watch->vivify = false;
-      tried++;
+      struct clause * clause = watch->clause;
+      for (all_literals_in_clause (lit, clause))
+	{
+	  const unsigned idx = IDX (lit);
+	  struct variable * v = ring->variables + idx;
+	  signed char value = values[lit];
+	  if (value > 0)
+	    {
+	      if (v->level)
+		{
+	     IMPLIED:
+		  LOGWATCH (watch, "vivification implied");
+		  mark_garbage_watch (ring, watch);
+		  ring->statistics.vivified++;
+		  ring->statistics.implied++;
+		  vivified++;
+		  implied++;
+		  break;
+		}
+	      LOGWATCH (watch, "root-level satisfied");
+	      mark_garbage_watch (ring, watch);
+	      break;
+	    }
+	  else if (value < 0)
+	    {
+	      if (v->level)
+		{
+		  ring->statistics.vivified++;
+		  strengthened++;
+		}
+	      break;
+	    }
+	  else
+	    {
+	      ring->level++;
+	      ring->statistics.contexts[PROBING_CONTEXT].decisions++;
+	      unsigned not_lit = NOT (lit);
+	      LOG ("assuming %s", LOGLIT (not_lit));
+	      assign_decision (ring, not_lit);
+	      if (ring_propagate (ring, false, watch))
+		goto IMPLIED;
+	    }
+	}
+      if (ring->level)
+	backtrack (ring, 0);
     }
   if (p != end && !(*p)->vivify)
     while (p != end)
@@ -83,9 +130,9 @@ vivify_clauses (struct ring * ring)
 		tried, percent (tried, scheduled),
 		PROBING_TICKS - probing_ticks_before,
 		(PROBING_TICKS > limit ? "limit hit" : "completed"));
-  very_verbose (ring, "subsumed %zu clauses %.0f%% of vivified "
+  very_verbose (ring, "implied %zu clauses %.0f%% of vivified "
                 "and strengthened %zu clauses %.0f%%",
-		subsumed, percent (subsumed, vivified),
+		implied, percent (implied, vivified),
 		strengthened, percent (strengthened, vivified));
   report (ring, 'v');
   STOP (ring, vivify);

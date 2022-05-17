@@ -27,6 +27,13 @@ print_ring_statistics (struct ring *ring)
 	   s->lifted, percent (s->lifted, ring->size));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
+  
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per learned clause",
+	   "vivified-clauses:", s->vivified,
+	   percent (s->vivified, s->learned.clauses));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per vivified clause",
+	   "vivified-implied:", s->implied,
+	   percent (s->implied, s->vivified));
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per learned clause",
 	   "learned-literals:", s->literals.learned,
