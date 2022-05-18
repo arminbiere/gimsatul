@@ -74,9 +74,11 @@ feature:
 > `./gimsatul cnf/prime4294967297.cnf --threads=16`
 
 Otherwise the number of threads defaults to one thread.  Information about
-other command line options can be obtained with:
+other command line options can be obtained with
 
 > `./gimsatul -h`
+
+and is also available in [usage.h](usage.h).
 
 The solver reads (optionally compressed) files in DIMACS format
 and if requested is able to produce DRUP/DRAT proofs. To generate a
