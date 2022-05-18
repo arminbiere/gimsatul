@@ -134,7 +134,7 @@ decide (struct ring *ring)
   uint64_t decisions = context->decisions++;
 
   unsigned idx;
-  if (ring->id && decisions < RANDOM_DECISIONS)
+  if (ring->id && decisions < ring->options.random_decisions)
     idx = random_decision (ring);
   else if (ring->stable)
     idx = best_decision_on_heap (ring);
