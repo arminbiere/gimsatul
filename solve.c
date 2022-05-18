@@ -59,7 +59,7 @@ set_ring_limits (struct ring *ring, long long conflicts)
 	}
     }
   else
-    verbose (ring, "keeping global options");
+    very_verbose (ring, "keeping global options");
 
   if (ring->options.switch_mode)
     {
