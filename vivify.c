@@ -1,6 +1,8 @@
 #include "analyze.h"
 #include "assign.h"
 #include "backtrack.h"
+#include "export.h"
+#include "import.h"
 #include "message.h"
 #include "propagate.h"
 #include "report.h"
@@ -40,11 +42,17 @@ do { \
   struct variable * v = variables + idx; \
   if (v->seen) \
     break; \
-  if (!v->level) \
+  unsigned level = v->level; \
+  if (!level) \
     break; \
   assert (ring->values[other] < 0); \
   v->seen = true; \
   PUSH (*analyzed, idx); \
+  if (level != ring->level && !used[level]) \
+    { \
+      used[level] = true; \
+      PUSH (*levels, level); \
+    } \
   open++; \
   if (!v->reason) \
     PUSH (*clause, other); \
@@ -58,6 +66,8 @@ vivify_strengthen (struct ring * ring, struct watch * candidate)
   struct unsigneds * analyzed = &ring->analyzed;
   struct variable * variables = ring->variables;
   struct unsigneds * clause = &ring->clause;
+  struct unsigneds * levels = &ring->levels;
+  bool * used = ring->used;
   struct ring_trail * trail = &ring->trail;
   assert (EMPTY (*analyzed));
   assert (EMPTY (*clause));
@@ -107,9 +117,50 @@ vivify_strengthen (struct ring * ring, struct watch * candidate)
   size_t size = SIZE (*clause);
   assert (size);
   assert (size < candidate->clause->size);
+  unsigned * literals = clause->begin;
+  struct watch * res = 0;
+  if (size == 1)
+    {
+      unsigned unit = literals[0];
+      assert (ring->level);
+      backtrack (ring, 0);
+      trace_add_unit (&ring->trace, unit);
+      if (ring_propagate (ring, false, 0))
+	set_inconsistent (ring, "propagation of strengthened clause unit fails");
+      else
+        export_units (ring);
+    }
+  else if (size == 2)
+    {
+      unsigned lit = literals[0], other = literals[1];
+      res = new_local_binary_clause (ring, true, lit, other);
+      trace_add_binary (&ring->trace, lit, other);
+      export_binary (ring, res);
+    }
+  else
+    {
+      unsigned glue = SIZE (*levels);
+      LOG ("computed glue %u", glue);
+      if (glue > candidate->glue)
+	{
+	  glue = candidate->glue;
+	  LOG ("but candidate glue %u smaller", glue);
+	}
+      assert (glue < size);
+      struct clause * clause =
+        new_large_clause (size, literals, true, glue);
+      res = watch_first_two_literals_in_large_clause (ring, clause);
+      trace_add_clause (&ring->trace, clause);
+      if (glue <= 1)
+	export_glue1_clause (ring, clause);
+      else if (glue <= TIER1_GLUE_LIMIT)
+	export_tier1_clause (ring, clause);
+      else if (glue <= TIER2_GLUE_LIMIT)
+	export_tier2_clause (ring, clause);
+    }
   clear_analyzed (ring);
   CLEAR (*clause);
-  return 0;
+  return res;
 }
 
 void
@@ -148,6 +199,18 @@ vivify_clauses (struct ring * ring)
 	break;
       if (terminate_ring (ring))
 	break;
+      if (import_shared (ring))
+	{
+	  if (ring->inconsistent)
+	    break;
+	  if (ring_propagate (ring, false, 0))
+	    {
+	      set_inconsistent (ring,
+	                        "propagation of imported clauses "
+				"during vivification fails");
+	      break;
+	    }
+	}
       tried++;
       assert (!ring->level);
       struct watch * watch = *p++;
@@ -207,7 +270,14 @@ vivify_clauses (struct ring * ring)
 	  if (strengthened && !binary_pointer (strengthened))
 	    {
 	      assert (watched_vivification_candidate (strengthened));
+	      size_t pos = p - begin;
 	      PUSH (candidates, strengthened);
+	      if (candidates.begin != begin)
+		{
+		  begin = candidates.begin;
+		  end = candidates.end;
+		  p = begin + pos;
+		}
 	    }
 	}
       if (ring->level)
