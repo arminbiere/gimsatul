@@ -76,6 +76,7 @@ open_and_read_from_pipe (const char *path, const char *fmt)
 void
 initialize_options (struct options * opts)
 {
+  memset (opts, 0, sizeof *opts);
   opts->conflicts = -1;
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
   opts->NAME = (TYPE) DEFAULT;
@@ -100,11 +101,29 @@ normalize_options (struct options * opts)
     opts->fail = opts->vivify = false;
 }
 
+static bool
+parse_option (const char * opt, const char * name)
+{
+  const char * o = opt, * n = name;
+  char och;
+  while ((och = *o++))
+    {
+      int nch = *n++;
+      if (och == nch)
+	continue;
+      if (nch != '_')
+	return false;
+      if (och == '-')
+	continue;
+      o--;
+    }
+  return !*n;
+}
+
 void
 parse_options (int argc, char **argv, struct options *opts)
 {
   initialize_options (opts);
-  memset (opts, 0, sizeof *opts);
   const char *quiet_opt = 0;
   const char *verbose_opt = 0;
   for (int i = 1; i != argc; i++)
@@ -191,8 +210,20 @@ parse_options (int argc, char **argv, struct options *opts)
 	    die ("invalid zero argument in '%s'", opt);
 	}
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
-      else if (!strcmp (opt, "--no-" #NAME)) \
+      else if (opt[0] == '-' && \
+	       opt[1] == '-' && \
+	       opt[2] == 'n' && \
+	       opt[3] == 'o' && \
+	       opt[4] == '-' && \
+	       parse_option (opt + 5, #NAME)) \
         opts->NAME = false;
+      OPTIONS
+#undef OPTION
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+      else if (opt[0] == '-' && \
+               opt[1] == '-' && \
+               parse_option (opt + 2, #NAME)) \
+        opts->NAME = true;
       OPTIONS
 #undef OPTION
       else if (opt[0] == '-' && opt[1])
