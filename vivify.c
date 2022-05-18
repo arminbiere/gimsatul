@@ -51,16 +51,17 @@ do { \
 } while (0)
 
 struct watch *
-vivify_strengthen (struct ring * ring, struct watch * reason)
+vivify_strengthen (struct ring * ring, struct watch * candidate)
 {
-  LOGWATCH (reason, "vivify strengthening");
-  assert (!binary_pointer (reason));
+  LOGWATCH (candidate, "vivify strengthening");
+  assert (!binary_pointer (candidate));
   struct unsigneds * analyzed = &ring->analyzed;
   struct variable * variables = ring->variables;
   struct unsigneds * clause = &ring->clause;
   struct ring_trail * trail = &ring->trail;
   assert (EMPTY (*analyzed));
   assert (EMPTY (*clause));
+  struct watch * reason = candidate;
   unsigned * t = trail->end;
   unsigned open = 0;
   do
@@ -103,6 +104,9 @@ vivify_strengthen (struct ring * ring, struct watch * reason)
     }
   while (open);
   LOGTMP ("vivify strengthened");
+  size_t size = SIZE (*clause);
+  assert (size);
+  assert (size < candidate->clause->size);
   clear_analyzed (ring);
   CLEAR (*clause);
   return 0;
@@ -196,22 +200,17 @@ vivify_clauses (struct ring * ring)
 	{
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.strengthened++;
-	  struct watch * other = vivify_strengthen (ring, watch);
-#if 0
+	  struct watch * strengthened = vivify_strengthen (ring, watch);
 	  mark_garbage_watch (ring, watch);
 	  if (ring->inconsistent)
 	    break;
-	  if (!binary_pointer (other))
+	  if (strengthened && !binary_pointer (strengthened))
 	    {
-	      assert (watched_vivification_candidate (other));
-	      PUSH (candidates, other);
+	      assert (watched_vivification_candidate (strengthened));
+	      PUSH (candidates, strengthened);
 	    }
-#else
-	  assert (ring->level);
-	  backtrack (ring, 0);
-#endif
 	}
-      else if (ring->level)
+      if (ring->level)
 	backtrack (ring, 0);
     }
   if (p != end && !(*p)->vivify)

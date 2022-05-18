@@ -102,6 +102,7 @@ parse_dimacs_header (struct options * options,
       fflush (stdout);
     }
   int ch;
+#ifndef NDEBUG
   struct buffer buffer;
   INIT (buffer);
   while ((ch = next_char (dimacs)) == 'c')
@@ -127,6 +128,14 @@ parse_dimacs_header (struct options * options,
     }
   normalize_options (options);
   RELEASE (buffer);
+#else
+  while ((ch = next_char (dimacs)) == 'c')
+    {
+      while ((ch = next_char (dimacs)) != '\n')
+	if (ch == EOF)
+	  parse_error (dimacs, "unexpected end-of-file in header comment");
+    }
+#endif
   if (ch != 'p')
     parse_error (dimacs, "expected 'c' or 'p'");
   int variables, clauses;
