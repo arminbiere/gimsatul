@@ -32,6 +32,7 @@ main (int argc, char **argv)
   struct ruler * ruler = new_ruler (variables, &options);
   set_signal_handlers (ruler);
   parse_dimacs_body (ruler, variables, clauses);
+  report_non_default_options (&options);
   simplify_ruler (ruler);
   clone_rings (ruler);
   struct ring *winner = solve_rings (ruler);

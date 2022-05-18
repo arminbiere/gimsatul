@@ -17,7 +17,6 @@
 
 #define MODE_INTERVAL 3e3
 
-#define REDUCE_INTERVAL 1e3
 #define REDUCE_FRACTION 0.75
 
 #define REPHASE_INTERVAL 1e3
@@ -54,24 +53,25 @@
 
 #define FAILED_EFFORT 0.02
 #define VIVIFY_EFFORT 0.01
-#define PROBING_INTERVAL 2000
 
 #define OPTIONS \
-OPTION (bool,	binary,		1, 0, 1) \
-OPTION (bool,	deduplicate,	1, 0, 1) \
-OPTION (bool,	eliminate,	1, 0, 1) \
-OPTION (bool,	fail,		1, 0, 1) \
-OPTION (bool,	force,		0, 0, 1) \
-OPTION (bool,	inprocessing,	1, 0, 1) \
-OPTION (bool,	preprocessing,	1, 0, 1) \
-OPTION (bool,	probe,		1, 0, 1) \
-OPTION (bool,	simplify,	1, 0, 1) \
-OPTION (bool,	substitute,	1, 0, 1) \
-OPTION (bool,	subsume,	1, 0, 1) \
-OPTION (bool,	vivify,		1, 0, 1) \
-OPTION (bool,	walk,		1, 0, 1) \
-OPTION (bool,	walk_initially,	0, 0, 1) \
-OPTION (bool,	witness,	1, 0, 1) \
+OPTION (bool,     binary,          1, 0, 1) \
+OPTION (bool,     deduplicate,     1, 0, 1) \
+OPTION (bool,     eliminate,       1, 0, 1) \
+OPTION (bool,     fail,            1, 0, 1) \
+OPTION (bool,     force,           0, 0, 1) \
+OPTION (bool,     inprocessing,    1, 0, 1) \
+OPTION (bool,     preprocessing,   1, 0, 1) \
+OPTION (bool,     probe,           1, 0, 1) \
+OPTION (unsigned, probe_interval,  2e3, 1, INT_MAX) \
+OPTION (unsigned, reduce_interval, 1e3, 1, INT_MAX) \
+OPTION (bool,     simplify,        1, 0, 1) \
+OPTION (bool,     substitute,      1, 0, 1) \
+OPTION (bool,     subsume,         1, 0, 1) \
+OPTION (bool,     vivify,          1, 0, 1) \
+OPTION (bool,     walk,            1, 0, 1) \
+OPTION (bool,     walk_initially,  0, 0, 1) \
+OPTION (bool,     witness,         1, 0, 1) \
 
 struct options
 {
@@ -80,11 +80,6 @@ struct options
   unsigned threads;
 
   unsigned optimize;
-
-  struct {
-    unsigned reduce;
-    unsigned probe;
-  } interval;
 
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
   TYPE NAME;
@@ -101,5 +96,6 @@ void normalize_options (struct options *);
 void initialize_options (struct options *);
 const char * match_and_find_option_argument (const char *, const char *);
 bool parse_option_with_value (struct options *, const char *);
+void report_non_default_options (struct options *);
 
 #endif

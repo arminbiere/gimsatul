@@ -11,7 +11,7 @@ probing (struct ring * ring)
 {
   if (!ring->options->probe)
     return false;
-  return SEARCH_CONFLICTS > ring->limits.probing;
+  return SEARCH_CONFLICTS > ring->limits.probe;
 }
 
 int
@@ -31,8 +31,10 @@ probe (struct ring * ring)
   ring->last.probing = SEARCH_TICKS;
   struct ring_statistics * statistics = &ring->statistics;
   struct ring_limits * limits = &ring->limits;
-  limits->probing = SEARCH_CONFLICTS;
-  limits->probing += PROBING_INTERVAL * nlogn (statistics->probings);
+  limits->probe = SEARCH_CONFLICTS;
+  unsigned interval = ring->options->probe_interval;
+  assert (interval);
+  limits->probe += interval * nlogn (statistics->probings);
   STOP_AND_START_SEARCH (probe);
   return ring->inconsistent ? 20 : 0;
 }

@@ -30,7 +30,7 @@ struct reluctant
 struct ring_limits
 {
   uint64_t mode;
-  uint64_t probing;
+  uint64_t probe;
   uint64_t reduce;
   uint64_t rephase;
   uint64_t restart;

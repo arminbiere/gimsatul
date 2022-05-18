@@ -45,13 +45,13 @@ set_ring_limits (struct ring *ring, long long conflicts)
   assert (!SEARCH_CONFLICTS);
   struct ring_limits *limits = &ring->limits;
   limits->mode = MODE_INTERVAL;
-  limits->reduce = REDUCE_INTERVAL;
+  limits->probe = ring->options->probe_interval;
+  limits->reduce = ring->options->reduce_interval;
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
-  limits->probing = PROBING_INTERVAL;
   verbose (ring, "reduce interval of %" PRIu64 " conflict", limits->reduce);
   verbose (ring, "restart interval of %" PRIu64 " conflict", limits->restart);
-  verbose (ring, "probing interval of %" PRIu64 " conflict", limits->probing);
+  verbose (ring, "probe interval of %" PRIu64 " conflict", limits->probe);
   verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
 	   limits->mode);
   if (conflicts >= 0)

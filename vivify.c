@@ -53,7 +53,6 @@ do { \
 struct watch *
 vivify_strengthen (struct ring * ring, struct watch * reason)
 {
-  verbosity = INT_MAX;
   LOGWATCH (reason, "vivify strengthening");
   assert (!binary_pointer (reason));
   struct unsigneds * analyzed = &ring->analyzed;

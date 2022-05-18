@@ -255,7 +255,9 @@ reduce (struct ring *ring)
   check_clause_statistics (ring);
   unmark_reasons (ring);
   limits->reduce = SEARCH_CONFLICTS;
-  limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
+  unsigned interval = ring->options->reduce_interval;
+  assert (interval);
+  limits->reduce += interval * sqrt (statistics->reductions + 1);
   verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
 	   limits->reduce);
   report (ring, '-');

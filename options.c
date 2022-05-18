@@ -4,6 +4,7 @@
 #include "options.h"
 #include "message.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <string.h>
 
@@ -61,9 +62,18 @@ match_and_find_option_argument (const char *arg, const char *match)
   if (arg[1] != '-')
     return 0;
   const char *p = arg + 2;
-  for (const char *q = match; *q; q++, p++)
-    if (*q != *p)
-      return 0;
+  int mch;
+  for (const char *q = match; (mch = *q); q++, p++)
+    {
+      int ach = *p;
+      if (ach == mch)
+	continue;
+      if (mch != '_')
+	return 0;
+      if (ach == '-')
+	continue;
+      p--;
+    }
   if (*p++ != '=')
     return 0;
   if (!strcmp (p, "false"))
@@ -89,6 +99,7 @@ initialize_options (struct options * opts)
   memset (opts, 0, sizeof *opts);
   opts->conflicts = -1;
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+  assert ((TYPE) MIN <= (TYPE) MAX); \
   opts->NAME = (TYPE) DEFAULT;
   OPTIONS
 #undef OPTION
@@ -133,7 +144,7 @@ parse_option (const char * opt, const char * name)
 static bool
 parse_bool_option_value (const char * opt,
                          const char * str, bool * value_ptr,
-		         bool default_value, bool min_value, bool max_value)
+		         bool min_value, bool max_value)
 {
   const char * arg = match_and_find_option_argument (opt, str);
   if (!arg)
@@ -147,12 +158,29 @@ parse_bool_option_value (const char * opt,
   return true;
 }
 
+static bool
+parse_unsigned_option_value (const char * opt,
+                             const char * str, unsigned * value_ptr,
+		             unsigned min_value, unsigned max_value)
+{
+  const char * arg = match_and_find_option_argument (opt, str);
+  if (!arg)
+    return false;
+  if (sscanf (arg, "%u", value_ptr) != 1)
+    return false;
+  if (*value_ptr < min_value)
+    return false;
+  if (*value_ptr > max_value)
+    return false;
+  return true;
+}
+
 bool
 parse_option_with_value (struct options * options, const char * str)
 {
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
   if (parse_ ## TYPE ## _option_value (str, #NAME, \
-                                       &options->NAME, DEFAULT, MIN, MAX)) \
+                                       &options->NAME, MIN, MAX)) \
     return true;
   OPTIONS
 #undef OPTION
@@ -320,17 +348,20 @@ parse_options (int argc, char **argv, struct options *opts)
 	    }
 	  else if (has_suffix (opt, ".bz2"))
 	    {
-	      opts->dimacs.file = open_and_read_from_pipe (opt, "bzip2 -c -d %s");
+	      opts->dimacs.file =
+	        open_and_read_from_pipe (opt, "bzip2 -c -d %s");
 	      opts->dimacs.close = 2;
 	    }
 	  else if (has_suffix (opt, ".gz"))
 	    {
-	      opts->dimacs.file = open_and_read_from_pipe (opt, "gzip -c -d %s");
+	      opts->dimacs.file =
+	        open_and_read_from_pipe (opt, "gzip -c -d %s");
 	      opts->dimacs.close = 2;
 	    }
 	  else if (has_suffix (opt, ".xz"))
 	    {
-	      opts->dimacs.file = open_and_read_from_pipe (opt, "xz -c -d %s");
+	      opts->dimacs.file =
+	        open_and_read_from_pipe (opt, "xz -c -d %s");
 	      opts->dimacs.close = 2;
 	    }
 	  else
@@ -368,4 +399,61 @@ parse_options (int argc, char **argv, struct options *opts)
     opts->proof.lock = true;
 
   normalize_options (opts);
+}
+
+static const char *
+bool_to_string (bool value)
+{
+  return value ? "true" : "false";
+}
+
+static void
+report_non_default_bool_option (const char * name,
+                                bool actual_value, bool default_value)
+{
+  assert (actual_value != default_value);
+  const char * actual_string = bool_to_string (actual_value);
+  const char * default_string = bool_to_string (default_value);
+  printf ("c non-default option '--%s=%s' (default '--%s=%s')\n",
+          name, actual_string, name, default_string);
+}
+
+static void
+unsigned_to_string (unsigned value, char * res)
+{
+  sprintf (res, "%u", value);
+}
+
+static void
+report_non_default_unsigned_option (const char * name,
+                                    unsigned actual_value,
+				    unsigned default_value)
+{
+  assert (actual_value != default_value);
+  char actual_string[32];
+  char default_string[32];
+  unsigned_to_string (actual_value, actual_string);
+  unsigned_to_string (default_value, default_string);
+  assert (strlen (actual_string) < sizeof actual_string);
+  assert (strlen (default_string) < sizeof default_string);
+  printf ("c non-default option '--%s=%s' (default '--%s=%s')\n",
+          name, actual_string, name, default_string);
+}
+
+void
+report_non_default_options (struct options * options)
+{
+  if (verbosity < 0)
+    return;
+  unsigned reported = 0;
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+do { \
+  if (options->NAME == (TYPE) DEFAULT) \
+    break; \
+  if (!reported++) \
+    fputs ("c\n", stdout); \
+  report_non_default_ ## TYPE ## _option (#NAME, options->NAME, (TYPE) DEFAULT); \
+} while (0);
+  OPTIONS
+#undef OPTION
 }
