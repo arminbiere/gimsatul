@@ -1,4 +1,5 @@
 #include "message.h"
+#include "options.h"
 #include "parse.h"
 #include "ruler.h"
 
@@ -90,9 +91,10 @@ parse_int (struct file * dimacs, int *res_ptr, int prev, int *next)
 }
 
 void
-parse_dimacs_header (struct file * dimacs,
+parse_dimacs_header (struct options * options,
                      int * variables_ptr, int * clauses_ptr)
 {
+  struct file * dimacs = &options->dimacs;
   if (verbosity >= 0)
     {
       printf ("c\nc parsing DIMACS file '%s'\n", dimacs->path);

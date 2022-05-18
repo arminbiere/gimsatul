@@ -32,7 +32,7 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   int variables, clauses;
-  parse_dimacs_header (&options.dimacs, &variables, &clauses);
+  parse_dimacs_header (&options, &variables, &clauses);
   struct ruler * ruler = new_ruler (variables, &options);
   set_signal_handlers (ruler);
   parse_dimacs_body (ruler, variables, clauses);
