@@ -48,15 +48,15 @@ message (struct ring *ring, const char *fmt, ...)
 static void
 init_ring_profiles (struct ring *ring)
 {
-  INIT_PROFILE (ring, failed);
-  INIT_PROFILE (ring, focused);
-  INIT_PROFILE (ring, probing);
+  INIT_PROFILE (ring, fail);
+  INIT_PROFILE (ring, focus);
+  INIT_PROFILE (ring, probe);
   INIT_PROFILE (ring, search);
   INIT_PROFILE (ring, stable);
   INIT_PROFILE (ring, vivify);
   INIT_PROFILE (ring, walk);
-  INIT_PROFILE (ring, solving);
-  START (ring, solving);
+  INIT_PROFILE (ring, solve);
+  START (ring, solve);
 }
 
 struct ring *
@@ -68,6 +68,7 @@ new_ring (struct ruler *ruler)
   init_ring_profiles (ring);
   push_ring (ruler, ring);
   ring->size = size;
+  ring->options = &ruler->options;
   if ((ring->trace.file = ruler->trace.file))
     ring->trace.binary = ruler->trace.binary;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);

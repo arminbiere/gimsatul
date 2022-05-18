@@ -16,7 +16,7 @@
 void
 failed_literal_probing (struct ring * ring)
 {
-  START (ring, failed);
+  START (ring, fail);
   assert (SEARCH_TICKS >= ring->last.probing);
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   uint64_t delta_probing_ticks = FAILED_EFFORT * delta_search_ticks;
@@ -194,5 +194,5 @@ failed_literal_probing (struct ring * ring)
 	   percent (probed, max_lit), failed,
 	   percent (failed, probed), lifted);
   report (ring, 'f');
-  STOP (ring, failed);
+  STOP (ring, fail);
 }

@@ -10,7 +10,7 @@ print_ring_statistics (struct ring *ring)
 {
   print_ring_profiles (ring);
   double search = ring->profiles.search.time;
-  double walk = ring->profiles.solving.time;
+  double walk = ring->profiles.solve.time;
   struct ring_statistics *s = &ring->statistics;
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
   uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;

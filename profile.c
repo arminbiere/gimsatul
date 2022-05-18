@@ -54,7 +54,7 @@ cmp_profiles (struct profile *a, struct profile *b)
 /*------------------------------------------------------------------------*/
 
 #define begin_ring_profiles ((struct profile *)(&ring->profiles))
-#define end_ring_profiles (&ring->profiles.solving)
+#define end_ring_profiles (&ring->profiles.solve)
 
 #define all_ring_profiles(PROFILE) \
 struct profile * PROFILE = begin_ring_profiles, \
@@ -70,7 +70,7 @@ flush_ring_profiles (struct ring *ring)
     if (profile->start >= 0)
       flush_profile (time, profile);
 
-  flush_profile (time, &ring->profiles.solving);
+  flush_profile (time, &ring->profiles.solve);
   return time;
 }
 
@@ -78,7 +78,7 @@ void
 print_ring_profiles (struct ring *ring)
 {
   flush_ring_profiles (ring);
-  double solving = ring->profiles.solving.time;
+  double solving = ring->profiles.solve.time;
   struct profile *prev = 0;
   fputs ("c\n", stdout);
   for (;;)

@@ -12,27 +12,27 @@ struct profile
 
 struct ring_profiles
 {
-  struct profile failed;
-  struct profile focused;
-  struct profile probing;
+  struct profile fail;
+  struct profile focus;
+  struct profile probe;
   struct profile search;
   struct profile stable;
   struct profile vivify;
   struct profile walk;
 
-  struct profile solving;
+  struct profile solve;
 };
 
 struct ruler_profiles
 {
-  struct profile cloning;
-  struct profile eliminating;
-  struct profile deduplicating;
-  struct profile parsing;
-  struct profile solving;
-  struct profile simplifying;
-  struct profile substituting;
-  struct profile subsuming;
+  struct profile clone;
+  struct profile eliminate;
+  struct profile deduplicate;
+  struct profile parse;
+  struct profile solve;
+  struct profile simplify;
+  struct profile substitute;
+  struct profile subsume;
 
   struct profile total;
 };
@@ -46,7 +46,7 @@ struct ruler_profiles
   stop_profile (&OWNER->profiles.NAME, current_time ())
 
 #define MODE_PROFILE \
-  (ring->stable ? &ring->profiles.stable : &ring->profiles.focused)
+  (ring->stable ? &ring->profiles.stable : &ring->profiles.focus)
 
 #define STOP_SEARCH_AND_START(NAME) \
 do { \

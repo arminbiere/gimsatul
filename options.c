@@ -74,15 +74,13 @@ parse_options (int argc, char **argv, struct options *opts)
 {
   memset (opts, 0, sizeof *opts);
   opts->conflicts = -1;
-  opts->witness = true;
-  opts->binary = true;
   const char *quiet_opt = 0;
   const char *verbose_opt = 0;
   for (int i = 1; i != argc; i++)
     {
       const char *opt = argv[i], *arg;
       if (!strcmp (opt, "-a") || !strcmp (opt, "--ascii"))
-	opts->binary = false;
+	opts->no_binary = true;
       else if (!strcmp (opt, "-f") || !strcmp (opt, "--force"))
 	opts->force = true;
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
@@ -98,7 +96,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	die ("invalid option '%s' (compiled without logging support)", opt);
 #endif
       else if (!strcmp (opt, "-n") || !strcmp (opt, "--no-witness"))
-	opts->witness = false;
+	opts->no_witness = true;
       else if (!strcmp (opt, "-O"))
 	opts->optimize = 1;
       else if (opt[0] == '-' && opt[1] == 'O')
@@ -185,7 +183,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	    {
 	      opts->proof.path = "<stdout>";
 	      opts->proof.file = stdout;
-	      opts->binary = false;
+	      opts->no_binary = true;
 	    }
 	  else if (!opts->force && looks_like_dimacs (opt))
 	    die ("proof file '%s' looks like a DIMACS file (use '-f')", opt);

@@ -14,7 +14,7 @@ switch_to_focused_mode (struct ring *ring)
   report (ring, ']');
   STOP (ring, stable);
   ring->stable = false;
-  START (ring, focused);
+  START (ring, focus);
   report (ring, '{');
   struct ring_limits *limits = &ring->limits;
   limits->restart = SEARCH_CONFLICTS + FOCUSED_RESTART_INTERVAL;
@@ -25,7 +25,7 @@ switch_to_stable_mode (struct ring *ring)
 {
   assert (!ring->stable);
   report (ring, '}');
-  STOP (ring, focused);
+  STOP (ring, focus);
   ring->stable = true;
   START (ring, stable);
   report (ring, '[');

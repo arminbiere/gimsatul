@@ -104,7 +104,6 @@ vivify_strengthen (struct ring * ring, struct watch * reason)
     }
   while (open);
   LOGTMP ("vivify strengthened");
-  COVER ("hit");
   clear_analyzed (ring);
   CLEAR (*clause);
   return 0;

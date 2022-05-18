@@ -7,7 +7,7 @@ const char * gimsatul_usage =
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
-"  -a|--ascii               use ASCII format for proof output\n"
+"  -a|--ascii|--no-binary   use ASCII format for proof output\n"
 "  -f|--force               force reading and writing\n"
 "  -h|--help                print this command line option summary\n"
 #ifdef LOGGING   
@@ -17,18 +17,28 @@ const char * gimsatul_usage =
 "  -O|-O<level>             increase simplification ticks and round limits\n"
 "  -q|--quiet               disable all additional messages\n"
 "  -v|--verbose             increase verbosity\n"
-"  --version                print version\n"
+"  -V|--version             print version\n"
 "\n"
 "  --conflicts=<conflicts>  limit conflicts (0,1,... - default unlimited)\n"
 "  --threads=<number>       set number of threads (1,...,%zu - default 1)\n"
 "  --time=<seconds>         limit time (1,2,3,... - default unlimited)\n"
 "\n"
-"  --no-simplify            disable preprocessing\n"
-"  --no-walk                disable local search\n"
-"  --walk-initially         initial local search\n"
+"  --walk-initially         one additional round of initial local search\n"
+"\n"
+"  --no-fail                disable failed literal probing\n"
+"  --no-eliminate           disable clause subsumption and strengthening\n"
+"  --no-probe               disable probing (fail + vivify)\n"
+"  --no-simplify            disable all preprocessing and inprocessing\n"
+"  --no-substitute          disable equivalent literal substitution\n"
+"  --no-subsume             disable failed literal probing\n"
+"  --no-vivify              disable redundant clause vivification\n"
+"  --no-walk                disable local search during rephasing\n"
+"\n"
+"  --reduce-interval        clause reduction conflict interval\n"
+"  --probe-interval         clause reduction conflict interval\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
-"and '<proof>' the proof output file in 'DRAT' format (no proof if missing).\n"
+"and '<proof>' the proof trace file in 'DRAT' format (no proof if missing).\n"
 ;
 
 // *INDENT-ON*
@@ -61,7 +71,7 @@ main (int argc, char **argv)
   if (verbosity >= 0 && options.proof.file)
     {
       printf ("c\nc writing %s proof trace to '%s'\n",
-	      options.binary ? "binary" : "ASCII", options.proof.path);
+	      options.no_binary ? "ASCII" : "binary", options.proof.path);
       fflush (stdout);
     }
   int variables, clauses;
@@ -89,7 +99,7 @@ main (int argc, char **argv)
       if (verbosity >= 0)
 	printf ("c\n");
       printf ("s SATISFIABLE\n");
-      if (options.witness)
+      if (!options.no_witness)
 	print_witness (winner);
       fflush (stdout);
     }

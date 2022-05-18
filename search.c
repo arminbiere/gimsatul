@@ -38,7 +38,7 @@ start_search (struct ring *ring)
 {
   START (ring, search);
   assert (!ring->stable);
-  START (ring, focused);
+  START (ring, focus);
   report (ring, '{');
 }
 
@@ -53,7 +53,7 @@ stop_search (struct ring *ring, int res)
   else
     {
       report (ring, '}');
-      STOP (ring, focused);
+      STOP (ring, focus);
     }
   if (res == 10)
     report (ring, '1');

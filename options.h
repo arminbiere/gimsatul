@@ -21,7 +21,10 @@
 #define REDUCE_FRACTION 0.75
 
 #define REPHASE_INTERVAL 1e3
+
 #define STABLE_RESTART_INTERVAL 500
+#define FOCUSED_RESTART_INTERVAL 50
+
 #define RANDOM_DECISIONS 100
 
 #define DECAY 0.95
@@ -33,8 +36,6 @@
 #define FAST_ALPHA 3e-2
 #define SLOW_ALPHA 1e-5
 #define RESTART_MARGIN 1.1
-
-#define FOCUSED_RESTART_INTERVAL 50
 
 #define WALK_EFFORT 0.02
 
@@ -62,13 +63,29 @@ struct options
   long long conflicts;
   unsigned seconds;
   unsigned threads;
+
   unsigned optimize;
-  bool binary;
+
+  struct {
+    unsigned reduce;
+    unsigned probe;
+  } interval;
+
   bool force;
-  bool no_walk;
-  bool no_simplify;
   bool walk_initially;
-  bool witness;
+
+  bool no_binary;
+  bool no_witness;
+
+  bool no_failed;
+  bool no_eliminate;
+  bool no_probing;
+  bool no_simplify;
+  bool no_substitute;
+  bool no_subsume;
+  bool no_vivify;
+  bool no_walk;
+
   struct file dimacs;
   struct file proof;
 };

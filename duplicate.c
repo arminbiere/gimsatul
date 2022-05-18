@@ -68,7 +68,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 bool
 remove_duplicated_binaries (struct ruler * ruler, unsigned round)
 {
-  double start_deduplication = START (ruler, deduplicating);
+  double start_deduplication = START (ruler, deduplicate);
   bool * eliminated = ruler->eliminated;
   signed char * values = (signed char*) ruler->values;
   unsigned units_before = ruler->statistics.fixed.total;
@@ -87,7 +87,7 @@ remove_duplicated_binaries (struct ruler * ruler, unsigned round)
   if (units_after > units_before)
     verbose (0, "[%u] deduplicating found %u units",
              round, units_after - units_before);
-  double stop_deduplication = STOP (ruler, deduplicating);
+  double stop_deduplication = STOP (ruler, deduplicate);
   message (0, "[%u] removed %zu duplicated binary clauses %.0f%% "
            "in %.2f seconds", round,
            removed, percent (removed, ruler->statistics.original),
