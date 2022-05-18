@@ -7,6 +7,12 @@
 #include <ctype.h>
 #include <string.h>
 
+// *INDENT-OFF*
+static const char * usage =
+#include "usage.h"
+;
+// *INDENT-ON*
+
 static bool
 has_suffix (const char *str, const char *suffix)
 {
@@ -85,7 +91,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	opts->force = true;
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
 	{
-	  printf (gimsatul_usage, (size_t) MAX_THREADS);
+	  printf (usage, (size_t) MAX_THREADS);
 	  exit (0);
 	}
       else if (!strcmp (opt, "-l") ||
@@ -124,7 +130,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (verbosity < INT_MAX)
 	    verbosity++;
 	}
-      else if (!strcmp (opt, "--version"))
+      else if (!strcmp (opt, "-V") || !strcmp (opt, "--version"))
 	{
 	  print_version ();
 	  exit (0);
