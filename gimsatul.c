@@ -1,7 +1,5 @@
 // Copyright (c) 2022 Armin Biere University of Freiburg
 
-/*------------------------------------------------------------------------*/
-
 #include "build.h"
 #include "catch.h"
 #include "clone.h"
@@ -15,8 +13,6 @@
 #include "types.h"
 #include "witness.h"
 
-/*------------------------------------------------------------------------*/
-
 int
 main (int argc, char **argv)
 {
@@ -28,7 +24,7 @@ main (int argc, char **argv)
   if (verbosity >= 0 && options.proof.file)
     {
       printf ("c\nc writing %s proof trace to '%s'\n",
-	      options.no_binary ? "ASCII" : "binary", options.proof.path);
+	      options.binary ? "binary" : "ASCII", options.proof.path);
       fflush (stdout);
     }
   int variables, clauses;
@@ -56,7 +52,7 @@ main (int argc, char **argv)
       if (verbosity >= 0)
 	printf ("c\n");
       printf ("s SATISFIABLE\n");
-      if (!options.no_witness)
+      if (options.witness)
 	print_witness (winner);
       fflush (stdout);
     }

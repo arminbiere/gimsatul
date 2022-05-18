@@ -68,7 +68,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 bool
 remove_duplicated_binaries (struct ruler * ruler, unsigned round)
 {
-  if (ruler->options.no_deduplicate)
+  if (!ruler->options.deduplicate)
     return false;
   double start_deduplication = START (ruler, deduplicate);
   bool * eliminated = ruler->eliminated;

@@ -74,34 +74,44 @@ open_and_read_from_pipe (const char *path, const char *fmt)
 }
 
 void
+initialize_options (struct options * opts)
+{
+  opts->conflicts = -1;
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+  opts->NAME = (TYPE) DEFAULT;
+  OPTIONS
+#undef OPTION
+}
+
+void
 normalize_options (struct options * opts)
 {
-  if (opts->no_simplify)
-    opts->no_preprocessing = opts->no_inprocessing = true;
+  if (!opts->simplify)
+    opts->preprocessing = opts->inprocessing = false;
 
-  if (opts->no_preprocessing)
-    opts->no_deduplicate = opts->no_eliminate = opts->no_subsume = 
-    opts->no_substitute = true;
+  if (!opts->preprocessing)
+    opts->deduplicate = opts->eliminate = opts->subsume =
+    opts->substitute = false;
 
-  if (opts->no_inprocessing)
-    opts->no_probe = true;
+  if (!opts->inprocessing)
+    opts->probe = false;
 
-  if (opts->no_probe)
-    opts->no_fail = opts->no_vivify = true;
+  if (!opts->probe)
+    opts->fail = opts->vivify = false;
 }
 
 void
 parse_options (int argc, char **argv, struct options *opts)
 {
+  initialize_options (opts);
   memset (opts, 0, sizeof *opts);
-  opts->conflicts = -1;
   const char *quiet_opt = 0;
   const char *verbose_opt = 0;
   for (int i = 1; i != argc; i++)
     {
       const char *opt = argv[i], *arg;
       if (!strcmp (opt, "-a") || !strcmp (opt, "--ascii"))
-	opts->no_binary = true;
+	opts->binary = false;
       else if (!strcmp (opt, "-f") || !strcmp (opt, "--force"))
 	opts->force = true;
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
@@ -117,7 +127,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	die ("invalid option '%s' (compiled without logging support)", opt);
 #endif
       else if (!strcmp (opt, "-n") || !strcmp (opt, "--no-witness"))
-	opts->no_witness = true;
+	opts->witness = false;
       else if (!strcmp (opt, "-O"))
 	opts->optimize = 1;
       else if (opt[0] == '-' && opt[1] == 'O')
@@ -180,36 +190,11 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (!opts->seconds)
 	    die ("invalid zero argument in '%s'", opt);
 	}
-      else if (!strcmp (opt, "--no-eliminate"))
-	opts->no_eliminate = true;
-      else if (!strcmp (opt, "--no-fail"))
-	opts->no_fail = true;
-      else if (!strcmp (opt, "--no-inprocessing"))
-	opts->no_inprocessing = true;
-      else if (!strcmp (opt, "--no-preprocessing"))
-	opts->no_preprocessing = true;
-      else if (!strcmp (opt, "--no-probe"))
-	opts->no_probe = true;
-      else if (!strcmp (opt, "--no-simplify"))
-	opts->no_simplify = true;
-      else if (!strcmp (opt, "--no-substitute"))
-	opts->no_substitute = true;
-      else if (!strcmp (opt, "--no-subsume"))
-	opts->no_subsume = true;
-      else if (!strcmp (opt, "--no-vivify"))
-	opts->no_vivify = true;
-      else if (!strcmp (opt, "--no-walk"))
-	{
-	  if (opts->walk_initially)
-	    die ("can not combine '--walk-initially' and '--no-walk'");
-	  opts->no_walk = true;
-	}
-      else if (!strcmp (opt, "--walk-initially"))
-	{
-	  if (opts->no_walk)
-	    die ("can not combine '--no-walk' and '--walk-initially'");
-	  opts->walk_initially = true;
-	}
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+      else if (!strcmp (opt, "--no-" #NAME)) \
+        opts->NAME = false;
+      OPTIONS
+#undef OPTION
       else if (opt[0] == '-' && opt[1])
 	die ("invalid option '%s' (try '-h')", opt);
       else if (opts->proof.file)
@@ -220,7 +205,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	    {
 	      opts->proof.path = "<stdout>";
 	      opts->proof.file = stdout;
-	      opts->no_binary = true;
+	      opts->binary = false;
 	    }
 	  else if (!opts->force && looks_like_dimacs (opt))
 	    die ("proof file '%s' looks like a DIMACS file (use '-f')", opt);

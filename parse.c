@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdarg.h>
+#include <string.h>
 
 static void parse_error (struct file * dimacs, const char *, ...)
   __attribute__((format (printf, 2, 3)));
@@ -90,6 +91,11 @@ parse_int (struct file * dimacs, int *res_ptr, int prev, int *next)
   return true;
 }
 
+static void
+parse_embedded_option (struct options * options, const char * str)
+{
+}
+
 void
 parse_dimacs_header (struct options * options,
                      int * variables_ptr, int * clauses_ptr)
@@ -101,12 +107,29 @@ parse_dimacs_header (struct options * options,
       fflush (stdout);
     }
   int ch;
+  struct buffer buffer;
+  INIT (buffer);
   while ((ch = next_char (dimacs)) == 'c')
     {
-      while ((ch = next_char (dimacs)) != '\n')
+      while ((ch = next_char (dimacs)) == ' ' || ch == '\t')
+	;
+      assert (EMPTY (buffer));
+      int first = ch;
+      do
 	if (ch == EOF)
 	  parse_error (dimacs, "unexpected end-of-file in header comment");
+	else if (first == '-')
+	  PUSH (buffer, ch);
+      while ((ch = next_char (dimacs)) != '\n');
+      if (first == '-')
+	{
+	  PUSH (buffer, 0);
+	  parse_embedded_option (options, buffer.begin);
+	  CLEAR (buffer);
+	}
     }
+  normalize_options (options);
+  RELEASE (buffer);
   if (ch != 'p')
     parse_error (dimacs, "expected 'c' or 'p'");
   int variables, clauses;

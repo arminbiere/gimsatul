@@ -474,7 +474,7 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 bool
 eliminate_variables (struct ruler * ruler, unsigned round)
 {
-  if (ruler->options.no_eliminate)
+  if (!ruler->options.eliminate)
     return false;
   if (elimination_ticks_limit_hit (ruler))
     return false;

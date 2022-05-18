@@ -9,7 +9,7 @@
 bool
 probing (struct ring * ring)
 {
-  if (ring->options->no_probe)
+  if (!ring->options->probe)
     return false;
   return SEARCH_CONFLICTS > ring->limits.probing;
 }
@@ -18,7 +18,7 @@ int
 probe (struct ring * ring)
 {
   assert (ring->size);
-  assert (!ring->options->no_probe);
+  assert (ring->options->probe);
   STOP_SEARCH_AND_START (probe);
   assert (ring->context == SEARCH_CONTEXT);
   ring->context = PROBING_CONTEXT;

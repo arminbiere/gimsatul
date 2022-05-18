@@ -412,9 +412,6 @@ current_ruler_clauses (struct ruler * ruler)
 void
 simplify_ruler (struct ruler * ruler)
 {
-  if (ruler->options.no_preprocessing)
-    return;
-
   if (ruler->inconsistent)
     return;
 
@@ -422,7 +419,7 @@ simplify_ruler (struct ruler * ruler)
   assert (!ruler->simplifying);
   ruler->simplifying = true;
 
-  if (ruler->options.no_simplify)
+  if (!ruler->options.preprocessing)
     {
       if (verbosity >= 0)
 	{

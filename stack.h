@@ -75,7 +75,7 @@ struct unsigneds
 
 struct buffer
 {
-  unsigned char *begin, *end, *allocated;
+  char *begin, *end, *allocated;
 };
 
 #define all_elements_on_stack(TYPE,ELEM,STACK) \

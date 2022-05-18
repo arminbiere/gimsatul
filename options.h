@@ -56,7 +56,22 @@
 #define VIVIFY_EFFORT 0.01
 #define PROBING_INTERVAL 2000
 
-struct file;
+#define OPTIONS \
+OPTION (bool,	binary,		1, 0, 1) \
+OPTION (bool,	deduplicate,	1, 0, 1) \
+OPTION (bool,	eliminate,	1, 0, 1) \
+OPTION (bool,	fail,		1, 0, 1) \
+OPTION (bool,	force,		0, 0, 1) \
+OPTION (bool,	inprocessing,	1, 0, 1) \
+OPTION (bool,	preprocessing,	1, 0, 1) \
+OPTION (bool,	probe,		1, 0, 1) \
+OPTION (bool,	simplify,	1, 0, 1) \
+OPTION (bool,	substitute,	1, 0, 1) \
+OPTION (bool,	subsume,	1, 0, 1) \
+OPTION (bool,	vivify,		1, 0, 1) \
+OPTION (bool,	walk,		1, 0, 1) \
+OPTION (bool,	walk_initially,	0, 0, 1) \
+OPTION (bool,	witness,	1, 0, 1) \
 
 struct options
 {
@@ -71,28 +86,18 @@ struct options
     unsigned probe;
   } interval;
 
-  bool force;
-  bool walk_initially;
-
-  bool no_binary;
-  bool no_witness;
-
-  bool no_deduplicate;
-  bool no_eliminate;
-  bool no_fail;
-  bool no_inprocessing;
-  bool no_preprocessing;
-  bool no_probe;
-  bool no_simplify;
-  bool no_substitute;
-  bool no_subsume;
-  bool no_vivify;
-  bool no_walk;
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+  TYPE NAME;
+  OPTIONS
+#undef OPTION
 
   struct file dimacs;
   struct file proof;
 };
 
 void parse_options (int argc, char **argv, struct options *);
+
+void normalize_options (struct options *);
+void initialize_options (struct options *);
 
 #endif

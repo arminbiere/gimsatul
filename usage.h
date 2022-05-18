@@ -3,7 +3,7 @@
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
-"  -a|--ascii|--no-binary   use ASCII format for proof output\n"
+"  -a|--ascii               use ASCII format for proof output\n"
 "  -f|--force               force reading and writing\n"
 "  -h|--help                print this command line option summary\n"
 #ifdef LOGGING   
