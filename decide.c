@@ -5,6 +5,12 @@
 #include "random.h"
 #include "ring.h"
 
+signed char
+initial_phase (struct ring * ring)
+{
+  return ring->options.phase ? 1 : -1;
+}
+
 static signed char
 decide_phase (struct ring *ring, struct variable *v)
 {
@@ -14,7 +20,7 @@ decide_phase (struct ring *ring, struct variable *v)
   if (!phase)
     phase = v->saved;
   if (!phase)
-    phase = INITIAL_PHASE;
+    phase = initial_phase (ring);
   return phase;
 }
 

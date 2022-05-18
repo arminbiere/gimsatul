@@ -9,7 +9,7 @@
 #include <string.h>
 
 // *INDENT-OFF*
-static const char * usage =
+static const char * usage_prefix =
 #include "usage.h"
 ;
 // *INDENT-ON*
@@ -220,7 +220,9 @@ parse_options (int argc, char **argv, struct options *opts)
 	opts->force = true;
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
 	{
-	  printf (usage, (size_t) MAX_THREADS);
+	  printf (usage_prefix, (size_t) MAX_THREADS);
+	  printf ("\nThere is another list of less commonly used options:\n\n");
+	  print_usage_of_options ();
 	  exit (0);
 	}
       else if (!strcmp (opt, "-l") ||
@@ -456,4 +458,34 @@ do { \
 } while (0);
   OPTIONS
 #undef OPTION
+}
+
+void
+print_usage_of_options (void)
+{
+#if 0
+"  --walk-initially         one additional round of initial local search\n"
+"\n"
+"  --no-deduplicate         disable removal of duplicated binary clauses\n"
+"  --no-eliminate           disable clause subsumption and strengthening\n"
+"  --no-fail                disable failed literal probing\n"
+"  --no-inprocessing        disable all inprocessing (currently only 'probe')\n"
+"  --no-portfolio           disable diversification through option portfolio\n"
+"  --no-preprocessing       disable all preprocessing ('eliminate' etc.)\n"
+"  --no-probe               disable probing inprocessing ('fail' + 'vivify')\n"
+"  --no-simplify            disable all preprocessing and inprocessing\n"
+"  --no-substitute          disable equivalent literal substitution\n"
+"  --no-subsume             disable failed literal probing\n"
+"  --no-vivify              disable redundant clause vivification\n"
+"  --no-walk                disable local search during rephasing\n"
+"\n"
+"  --reduce-interval        clause reduction conflict interval\n"
+"  --probe-interval         clause reduction conflict interval\n"
+#else
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+  printf ("--%s=%u..%u (default %u)\n", \
+          #NAME, (unsigned) MIN, (unsigned) MAX, (unsigned) DEFAULT);
+  OPTIONS
+#undef OPTION
+#endif
 }

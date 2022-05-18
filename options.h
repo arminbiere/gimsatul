@@ -11,8 +11,6 @@
 
 #define MAX_GLUE 255
 
-#define INITIAL_PHASE 1
-
 #define MINIMIZE_DEPTH 1000
 
 #define MODE_INTERVAL 3e3
@@ -62,6 +60,7 @@ OPTION (bool,     fail,            1, 0, 1) \
 OPTION (bool,     focus_initially, 1, 0, 1) \
 OPTION (bool,     force,           0, 0, 1) \
 OPTION (bool,     inprocessing,    1, 0, 1) \
+OPTION (bool,     phase,           1, 0, 1) \
 OPTION (bool,     portfolio,       1, 0, 1) \
 OPTION (bool,     preprocessing,   1, 0, 1) \
 OPTION (bool,     probe,           1, 0, 1) \
@@ -99,5 +98,6 @@ void initialize_options (struct options *);
 const char * match_and_find_option_argument (const char *, const char *);
 bool parse_option_with_value (struct options *, const char *);
 void report_non_default_options (struct options *);
+void print_usage_of_options (void);
 
 #endif

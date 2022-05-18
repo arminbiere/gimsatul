@@ -1,4 +1,5 @@
 #include "backtrack.h"
+#include "decide.h"
 #include "message.h"
 #include "rephase.h"
 #include "report.h"
@@ -30,7 +31,7 @@ static char
 rephase_inverted (struct ring *ring)
 {
   for (all_variables (v))
-    v->target = v->saved = -INITIAL_PHASE;
+    v->target = v->saved = -initial_phase (ring);
   return 'I';
 }
 
@@ -38,7 +39,7 @@ static char
 rephase_original (struct ring *ring)
 {
   for (all_variables (v))
-    v->target = v->saved = INITIAL_PHASE;
+    v->target = v->saved = initial_phase (ring);
   return 'O';
 }
 
