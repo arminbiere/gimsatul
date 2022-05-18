@@ -109,6 +109,8 @@ parse_dimacs_header (struct options * options,
       while ((ch = next_char (dimacs)) == ' ' || ch == '\t')
 	;
       assert (EMPTY (buffer));
+      if (ch == '\n')
+	continue;
       int first = ch;
       do
 	if (ch == EOF)
