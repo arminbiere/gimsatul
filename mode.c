@@ -37,6 +37,8 @@ switch_to_stable_mode (struct ring *ring)
 bool
 switching_mode (struct ring *ring)
 {
+  if (!ring->options.switch_mode)
+    return false;
   struct ring_limits *l = &ring->limits;
   if (ring->statistics.switched)
     return SEARCH_TICKS > l->mode;

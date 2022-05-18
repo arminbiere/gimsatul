@@ -36,10 +36,18 @@ iterate (struct ring *ring)
 static void
 start_search (struct ring *ring)
 {
+  ring->stable = !ring->options.focus_initially;
   START (ring, search);
-  assert (!ring->stable);
-  START (ring, focus);
-  report (ring, '{');
+  if (ring->stable)
+    {
+      report (ring, '[');
+      START (ring, stable);
+    }
+  else
+    {
+      report (ring, '{');
+      START (ring, focus);
+    }
 }
 
 static void

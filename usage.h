@@ -25,6 +25,7 @@
 "  --no-eliminate           disable clause subsumption and strengthening\n"
 "  --no-fail                disable failed literal probing\n"
 "  --no-inprocessing        disable all inprocessing (currently only 'probe')\n"
+"  --no-portfolio           disable diversification through option portfolio\n"
 "  --no-preprocessing       disable all preprocessing ('eliminate' etc.)\n"
 "  --no-probe               disable probing inprocessing ('fail' + 'vivify')\n"
 "  --no-simplify            disable all preprocessing and inprocessing\n"
