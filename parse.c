@@ -91,11 +91,6 @@ parse_int (struct file * dimacs, int *res_ptr, int prev, int *next)
   return true;
 }
 
-static void
-parse_embedded_option (struct options * options, const char * str)
-{
-}
-
 void
 parse_dimacs_header (struct options * options,
                      int * variables_ptr, int * clauses_ptr)
@@ -124,7 +119,7 @@ parse_dimacs_header (struct options * options,
       if (first == '-')
 	{
 	  PUSH (buffer, 0);
-	  parse_embedded_option (options, buffer.begin);
+	  (void) parse_option_with_value (options, buffer.begin);
 	  CLEAR (buffer);
 	}
     }

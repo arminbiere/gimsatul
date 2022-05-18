@@ -47,8 +47,14 @@ is_positive_number_string (const char *arg)
   return true;
 }
 
-static const char *
-parse_long_option (const char *arg, const char *match)
+static bool
+is_number_string (const char * arg)
+{
+  return is_positive_number_string (arg + (*arg == '-'));
+}
+
+const char *
+match_and_find_option_argument (const char *arg, const char *match)
 {
   if (arg[0] != '-')
     return 0;
@@ -60,7 +66,11 @@ parse_long_option (const char *arg, const char *match)
       return 0;
   if (*p++ != '=')
     return 0;
-  return is_positive_number_string (p) ? p : 0;
+  if (!strcmp (p, "false"))
+    return p;
+  if (!strcmp (p, "true"))
+    return p;
+  return is_number_string (p) ? p : 0;
 }
 
 static FILE *
@@ -118,6 +128,53 @@ parse_option (const char * opt, const char * name)
       o--;
     }
   return !*n;
+}
+
+static bool
+parse_bool_option_value (const char * opt,
+                         const char * str, bool * value_ptr,
+		         bool default_value, bool min_value, bool max_value)
+{
+  const char * arg = match_and_find_option_argument (opt, str);
+  if (!arg)
+    return false;
+  if (!strcmp (arg, "0") || !strcmp (arg, "false"))
+    *value_ptr = false;
+  else if (!strcmp (arg, "1") || !strcmp (arg, "true"))
+    *value_ptr = true;
+  else
+    return false;
+  return true;
+}
+
+bool
+parse_option_with_value (struct options * options, const char * str)
+{
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+  if (parse_ ## TYPE ## _option_value (str, #NAME, \
+                                       &options->NAME, DEFAULT, MIN, MAX)) \
+    return true;
+  OPTIONS
+#undef OPTION
+  return false;
+}
+
+static void
+print_embedded_options (void)
+{
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+  printf ("c --%s=%d\n", #NAME, (int) DEFAULT);
+  OPTIONS
+#undef OPTION
+}
+
+static void
+print_option_ranges (void)
+{
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+  printf ("%s %d %d %d\n", #NAME, (int) DEFAULT, (int) MIN, (int) MAX);
+  OPTIONS
+#undef OPTION
 }
 
 void
@@ -179,7 +236,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  print_version ();
 	  exit (0);
 	}
-      else if ((arg = parse_long_option (opt, "conflicts")))
+      else if ((arg = match_and_find_option_argument (opt, "conflicts")))
 	{
 	  if (opts->conflicts >= 0)
 	    die ("multiple '--conflicts=%lld' and '%s'", opts->conflicts,
@@ -189,7 +246,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (opts->conflicts < 0)
 	    die ("invalid negative argument in '%s'", opt);
 	}
-      else if ((arg = parse_long_option (opt, "threads")))
+      else if ((arg = match_and_find_option_argument (opt, "threads")))
 	{
 	  if (opts->threads)
 	    die ("multiple '--threads=%u' and '%s'", opts->seconds, opt);
@@ -200,7 +257,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (opts->threads > MAX_THREADS)
 	    die ("invalid argument in '%s' (maximum %u)", opt, MAX_THREADS);
 	}
-      else if ((arg = parse_long_option (opt, "time")))
+      else if ((arg = match_and_find_option_argument (opt, "time")))
 	{
 	  if (opts->seconds)
 	    die ("multiple '--time=%u' and '%s'", opts->seconds, opt);
@@ -226,6 +283,12 @@ parse_options (int argc, char **argv, struct options *opts)
         opts->NAME = true;
       OPTIONS
 #undef OPTION
+      else if (parse_option_with_value (opts, opt))
+	;
+      else if (!strcmp (opt, "--embedded"))
+	print_embedded_options (), exit (0);
+      else if (!strcmp (opt, "--range"))
+	print_option_ranges (), exit (0);
       else if (opt[0] == '-' && opt[1])
 	die ("invalid option '%s' (try '-h')", opt);
       else if (opts->proof.file)

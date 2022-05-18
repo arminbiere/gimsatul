@@ -99,5 +99,7 @@ void parse_options (int argc, char **argv, struct options *);
 
 void normalize_options (struct options *);
 void initialize_options (struct options *);
+const char * match_and_find_option_argument (const char *, const char *);
+bool parse_option_with_value (struct options *, const char *);
 
 #endif
