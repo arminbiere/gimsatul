@@ -44,7 +44,42 @@ set_ring_limits (struct ring *ring, long long conflicts)
   assert (!ring->stable);
   assert (!SEARCH_CONFLICTS);
   struct ring_limits *limits = &ring->limits;
+  if (ring->options.portfolio)
+    {
+      switch (ring->id % 3)
+	{
+	  case 1:
+	    ring->options.switch_mode = false;
+	    ring->options.focus_initially = false;
+	    break;
+	  case 2:
+	    ring->options.switch_mode = false;
+	    ring->options.focus_initially = true;
+	    break;
+	}
+    }
+  else
+    verbose (ring, "keeping global options");
+
+  if (ring->options.switch_mode)
+    {
+      if (ring->options.focus_initially)
+	verbose (ring, "starting in focused mode");
+      else
+	verbose (ring, "starting in stable mode");
+    }
+  else
+    {
+      if (ring->options.focus_initially)
+	verbose (ring, "only running in focussed mode");
+      else
+	verbose (ring, "only running in stable mode");
+    }
   limits->mode = MODE_INTERVAL;
+  if (ring->options.switch_mode)
+    verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
+	     limits->mode);
+
   limits->probe = ring->options.probe_interval;
   limits->reduce = ring->options.reduce_interval;
   limits->restart = FOCUSED_RESTART_INTERVAL;
@@ -52,13 +87,14 @@ set_ring_limits (struct ring *ring, long long conflicts)
   verbose (ring, "reduce interval of %" PRIu64 " conflicts", limits->reduce);
   verbose (ring, "restart interval of %" PRIu64 " conflicts", limits->restart);
   verbose (ring, "probe interval of %" PRIu64 " conflicts", limits->probe);
-  verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
-	   limits->mode);
+
   if (conflicts >= 0)
     {
       limits->conflicts = conflicts;
       verbose (ring, "conflict limit set to %lld conflicts", conflicts);
     }
+  if (verbosity > 0)
+    printf ("c\n");
 }
 
 struct ring *
