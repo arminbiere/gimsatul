@@ -1,7 +1,7 @@
 #include "assign.h"
 #include "backtrack.h"
 #include "export.h"
-#include "failed.h"
+#include "fail.h"
 #include "import.h"
 #include "message.h"
 #include "probe.h"
@@ -16,6 +16,8 @@
 void
 failed_literal_probing (struct ring * ring)
 {
+  if (ring->options->no_fail)
+    return;
   START (ring, fail);
   assert (SEARCH_TICKS >= ring->last.probing);
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;

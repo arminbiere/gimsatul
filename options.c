@@ -73,7 +73,22 @@ open_and_read_from_pipe (const char *path, const char *fmt)
   return file;
 }
 
-extern const char * gimsatul_usage;
+void
+normalize_options (struct options * opts)
+{
+  if (opts->no_simplify)
+    opts->no_preprocessing = opts->no_inprocessing = true;
+
+  if (opts->no_preprocessing)
+    opts->no_deduplicate = opts->no_eliminate = opts->no_subsume = 
+    opts->no_substitute = true;
+
+  if (opts->no_inprocessing)
+    opts->no_probe = true;
+
+  if (opts->no_probe)
+    opts->no_fail = opts->no_vivify = true;
+}
 
 void
 parse_options (int argc, char **argv, struct options *opts)
@@ -165,8 +180,24 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (!opts->seconds)
 	    die ("invalid zero argument in '%s'", opt);
 	}
+      else if (!strcmp (opt, "--no-eliminate"))
+	opts->no_eliminate = true;
+      else if (!strcmp (opt, "--no-fail"))
+	opts->no_fail = true;
+      else if (!strcmp (opt, "--no-inprocessing"))
+	opts->no_inprocessing = true;
+      else if (!strcmp (opt, "--no-preprocessing"))
+	opts->no_preprocessing = true;
+      else if (!strcmp (opt, "--no-probe"))
+	opts->no_probe = true;
       else if (!strcmp (opt, "--no-simplify"))
 	opts->no_simplify = true;
+      else if (!strcmp (opt, "--no-substitute"))
+	opts->no_substitute = true;
+      else if (!strcmp (opt, "--no-subsume"))
+	opts->no_subsume = true;
+      else if (!strcmp (opt, "--no-vivify"))
+	opts->no_vivify = true;
       else if (!strcmp (opt, "--no-walk"))
 	{
 	  if (opts->walk_initially)
@@ -256,4 +287,6 @@ parse_options (int argc, char **argv, struct options *opts)
 
   if (opts->proof.file == stdout && verbosity >= 0)
     opts->proof.lock = true;
+
+  normalize_options (opts);
 }

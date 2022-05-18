@@ -1,4 +1,4 @@
-#include "duplicate.h"
+#include "deduplicate.h"
 #include "eliminate.h"
 #include "message.h"
 #include "simplify.h"
@@ -412,6 +412,9 @@ current_ruler_clauses (struct ruler * ruler)
 void
 simplify_ruler (struct ruler * ruler)
 {
+  if (ruler->options.no_preprocessing)
+    return;
+
   if (ruler->inconsistent)
     return;
 
@@ -536,4 +539,3 @@ DONE:
   message (0, "simplification took %.2f seconds",
            end_simplification - start_simplification);
 }
-

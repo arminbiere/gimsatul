@@ -77,9 +77,12 @@ struct options
   bool no_binary;
   bool no_witness;
 
-  bool no_failed;
+  bool no_deduplicate;
   bool no_eliminate;
-  bool no_probing;
+  bool no_fail;
+  bool no_inprocessing;
+  bool no_preprocessing;
+  bool no_probe;
   bool no_simplify;
   bool no_substitute;
   bool no_subsume;
