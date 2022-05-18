@@ -57,6 +57,9 @@ set_ring_limits (struct ring *ring, long long conflicts)
 	    ring->options.focus_initially = true;
 	    break;
 	}
+
+      if  (ring->id % 2)
+	ring->options.phase = !ring->options.phase;
     }
   else
     very_verbose (ring, "keeping global options");
@@ -79,6 +82,11 @@ set_ring_limits (struct ring *ring, long long conflicts)
   if (ring->options.switch_mode)
     verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
 	     limits->mode);
+
+  if (ring->options.phase)
+    verbose (ring, "initial 'true' decision phase");
+  else
+    verbose (ring, "initial 'false' decision phase");
 
   limits->probe = ring->options.probe_interval;
   limits->reduce = ring->options.reduce_interval;
