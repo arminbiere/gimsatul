@@ -120,7 +120,7 @@ struct ring
   struct reluctant reluctant;
   struct ring_statistics statistics;
   struct ring_profiles profiles;
-  struct options * options;
+  struct options options;
   struct ring_last last;
   uint64_t random;
 };

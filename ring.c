@@ -68,7 +68,7 @@ new_ring (struct ruler *ruler)
   init_ring_profiles (ring);
   push_ring (ruler, ring);
   ring->size = size;
-  ring->options = &ruler->options;
+  ring->options = ruler->options;
   if ((ring->trace.file = ruler->trace.file))
     ring->trace.binary = ruler->trace.binary;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);

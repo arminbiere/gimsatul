@@ -16,7 +16,7 @@
 void
 failed_literal_probing (struct ring * ring)
 {
-  if (!ring->options->fail)
+  if (!ring->options.fail)
     return;
   START (ring, fail);
   assert (SEARCH_TICKS >= ring->last.probing);

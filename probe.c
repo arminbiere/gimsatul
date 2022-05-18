@@ -9,7 +9,7 @@
 bool
 probing (struct ring * ring)
 {
-  if (!ring->options->probe)
+  if (!ring->options.probe)
     return false;
   return SEARCH_CONFLICTS > ring->limits.probe;
 }
@@ -18,7 +18,7 @@ int
 probe (struct ring * ring)
 {
   assert (ring->size);
-  assert (ring->options->probe);
+  assert (ring->options.probe);
   STOP_SEARCH_AND_START (probe);
   assert (ring->context == SEARCH_CONTEXT);
   ring->context = PROBING_CONTEXT;
@@ -32,7 +32,7 @@ probe (struct ring * ring)
   struct ring_statistics * statistics = &ring->statistics;
   struct ring_limits * limits = &ring->limits;
   limits->probe = SEARCH_CONFLICTS;
-  unsigned interval = ring->options->probe_interval;
+  unsigned interval = ring->options.probe_interval;
   assert (interval);
   limits->probe += interval * nlogn (statistics->probings);
   STOP_AND_START_SEARCH (probe);

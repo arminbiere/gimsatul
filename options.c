@@ -214,9 +214,9 @@ parse_options (int argc, char **argv, struct options *opts)
   for (int i = 1; i != argc; i++)
     {
       const char *opt = argv[i], *arg;
-      if (!strcmp (opt, "-a") || !strcmp (opt, "--ascii"))
+      if (!strcmp (opt, "-a"))
 	opts->binary = false;
-      else if (!strcmp (opt, "-f") || !strcmp (opt, "--force"))
+      else if (!strcmp (opt, "-f"))
 	opts->force = true;
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
 	{
@@ -230,7 +230,7 @@ parse_options (int argc, char **argv, struct options *opts)
 #else
 	die ("invalid option '%s' (compiled without logging support)", opt);
 #endif
-      else if (!strcmp (opt, "-n") || !strcmp (opt, "--no-witness"))
+      else if (!strcmp (opt, "-n"))
 	opts->witness = false;
       else if (!strcmp (opt, "-O"))
 	opts->optimize = 1;
