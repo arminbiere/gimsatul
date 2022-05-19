@@ -54,6 +54,7 @@ struct ruler
   struct ring *volatile winner;
   volatile signed char *values;
   signed char *marks;
+  unsigned * map;
   bool *eliminated;
   bool *eliminate;
   bool *subsume;

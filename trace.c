@@ -40,7 +40,7 @@ ascii_proof_line (struct trace * trace,
       unsigned lit = *p;
       if (lit == except)
 	continue;
-      sprintf (tmp, "%d", export_literal (lit));
+      sprintf (tmp, "%d", export_literal (trace->map, lit));
       for (char *q = tmp, ch; (ch = *q); q++)
 	PUSH (trace->buffer, ch);
       PUSH (trace->buffer, ' ');

@@ -8,36 +8,20 @@
 #include <stdio.h>
 #include <string.h>
 
-void
+signed char *
 extend_witness (struct ring * ring)
 {
   LOG ("extending witness");
   struct ruler * ruler = ring->ruler;
-#ifndef NDEBUG
-  bool * eliminated = ruler->eliminated;
-#endif
-  signed char * ring_values = ring->values;
-  signed char * ruler_values = (signed char*) ruler->values;
-  unsigned initialized = 0;
-  for (all_ring_indices (idx))
+  signed char * values = allocate_array (ruler->size, sizeof *values);
+  memcpy (values, ring->values, 2*ring->size);
+  for (unsigned idx = ring->size; idx != ruler->size; idx++)
     {
       unsigned lit = LIT (idx);
-      if (ring_values[lit])
-	continue;
-      signed char value = ruler_values[lit];
-      if (!value)
-	{
-	  assert (eliminated[idx]);
-	  value = 1;
-	}
-      else
-	assert (!eliminated[idx]);
       unsigned not_lit = NOT (lit);
-      ring_values[lit] = value;
-      ring_values[not_lit] = -value;
-      initialized++;
+      values[lit] = 1;
+      values[not_lit] = -1;
     }
-  LOG ("initialized %u unassigned/eliminated variables", initialized);
   struct unsigneds * extension = &ruler->extension;
   unsigned * begin = extension->begin;
   unsigned * p = extension->end;
@@ -73,31 +57,31 @@ extend_witness (struct ring * ring)
 	      LOG ("flipping %s", LOGLIT (pivot));
 	      assert (pivot != INVALID);
 	      unsigned not_pivot = NOT (pivot);
-	      assert (ring_values[pivot] < 0);
-	      assert (ring_values[not_pivot] > 0);
-	      ring_values[pivot] = 1;
-	      ring_values[not_pivot] = -1;
+	      assert (values[pivot] < 0);
+	      assert (values[not_pivot] > 0);
+	      values[pivot] = 1;
+	      values[not_pivot] = -1;
 	      flipped++;
 	    }
 	  satisfied = false;
 	}
       else if (!satisfied)
 	{
-	  signed char value = ring_values[lit];
+	  signed char value = values[lit];
 	  if (value > 0)
 	    satisfied = true;
 	}
       pivot = lit;
     }
   verbose (ring, "flipped %zu literals", flipped);
+  return values;
 }
 
 #ifndef NDEBUG
 
 void
-check_witness (struct ring *ring, struct unsigneds * original)
+check_witness (unsigned * map, signed char * values, struct unsigneds * original)
 {
-  signed char *values = ring->values;
   size_t clauses = 0;
   for (unsigned *c = original->begin, *p; c != original->end; c = p + 1)
     {
@@ -111,7 +95,7 @@ check_witness (struct ring *ring, struct unsigneds * original)
       acquire_message_lock ();
       fprintf (stderr, "gimsatul: error: unsatisfied clause[%zu]", clauses);
       for (unsigned *q = c; q != p; q++)
-	fprintf (stderr, " %d", export_literal (*q));
+	fprintf (stderr, " %d", export_literal (map, *q));
       fputs (" 0\n", stderr);
       release_message_lock ();
       abort ();
@@ -159,12 +143,11 @@ print_unsigned_literal (struct line * line,
 }
 
 void
-print_witness (struct ring *ring)
+print_witness (unsigned size, signed char * values)
 {
-  signed char *values = ring->values;
   struct line line;
   line.size = 0;
-  for (all_ring_indices (idx))
+  for (unsigned idx = 0; idx != size; idx++)
     print_unsigned_literal (&line, values, LIT (idx));
   print_signed_literal (&line, 0);
   if (line.size)

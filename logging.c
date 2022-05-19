@@ -25,7 +25,7 @@ const char *
 loglit (struct ring *ring, unsigned unsigned_lit)
 {
   char *res = next_loglitbuf ();
-  int signed_lit = export_literal (unsigned_lit);
+  int signed_lit = export_literal (ring->ruler->map, unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
   signed char value = ring->values[unsigned_lit];
   if (value)
@@ -53,7 +53,7 @@ const char *
 roglit (struct ruler *ruler, unsigned unsigned_lit)
 {
   char *res = next_loglitbuf ();
-  int signed_lit = export_literal (unsigned_lit);
+  int signed_lit = export_literal (ruler->map, unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
   signed char value = ruler->values[unsigned_lit];
   if (value)

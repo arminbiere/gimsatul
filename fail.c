@@ -9,6 +9,7 @@
 #include "search.h"
 #include "report.h"
 #include "ring.h"
+#include "ruler.h"
 #include "utilities.h"
 
 #include <inttypes.h>
@@ -51,7 +52,7 @@ failed_literal_probing (struct ring * ring)
 	}
       if (!probed)
 	very_verbose (ring, "failed literal probing starts at literal %d",
-		      export_literal (probe));
+		      export_literal (ring->ruler->map, probe));
       if (terminate_ring (ring))
 	break;
       if (probe == start)
@@ -187,7 +188,7 @@ failed_literal_probing (struct ring * ring)
   RELEASE (lift);
   free (stamps);
   very_verbose (ring, "failed literal probing ends at literal %d after %"
-                PRIu64 " ticks (%s)", export_literal (probe),
+                PRIu64 " ticks (%s)", export_literal (ring->ruler->map, probe),
 		PROBING_TICKS - probing_ticks_before,
 		(PROBING_TICKS > limit ? "limit hit" : "completed"));
   ring->probe = probe;

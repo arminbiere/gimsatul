@@ -3,13 +3,13 @@
 
 struct ring;
 
-void extend_witness (struct ring *); 
-void print_witness (struct ring *);
+signed char * extend_witness (struct ring *); 
+void print_witness (unsigned size, signed char * values);
 
 #ifndef NDEBUG
 
 struct unsigneds;
-void check_witness (struct ring *, struct unsigneds *);
+void check_witness (unsigned * map, signed char * values, struct unsigneds *);
 
 #else
 

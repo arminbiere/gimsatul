@@ -32,7 +32,8 @@ export_units (struct ring *ring)
       if (value)
 	continue;
 
-      very_verbose (ring, "exporting unit %d", export_literal (unit));
+      very_verbose (ring, "exporting unit %d",
+                    export_literal (ruler->map, unit));
       assign_ruler_unit (ruler, unit);
       ring->statistics.exported.clauses++;
       ring->statistics.exported.units++;

@@ -49,10 +49,20 @@ marked_literal (signed char * marks, unsigned lit)
 }
 
 static inline int
-export_literal (unsigned unsigned_lit)
+export_literal (unsigned * map, unsigned unsigned_lit)
 {
-  int signed_lit = unsigned_lit / 2 + 1;
-  if (SGN (unsigned_lit))
+  unsigned mapped_lit;
+  if (map)
+    {
+      unsigned unsigned_idx = IDX (unsigned_lit);
+      mapped_lit = map[unsigned_idx];
+      if (SGN (unsigned_lit))
+	mapped_lit = NOT (mapped_lit);
+    }
+  else
+    mapped_lit = unsigned_lit;
+  int signed_lit = mapped_lit / 2 + 1;
+  if (SGN (mapped_lit))
     signed_lit *= -1;
   return signed_lit;
 }

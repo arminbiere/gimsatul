@@ -48,14 +48,15 @@ main (int argc, char **argv)
     }
   else if (res == 10)
     {
-      extend_witness (winner);
-      check_witness (winner, ruler->original);
+      signed char * witness = extend_witness (winner);
+      check_witness (ruler->map, witness, ruler->original);
       if (verbosity >= 0)
 	printf ("c\n");
       printf ("s SATISFIABLE\n");
       if (options.witness)
-	print_witness (winner);
+	print_witness (ruler->size, witness);
       fflush (stdout);
+      free (witness);
     }
   print_ruler_statistics (ruler);
   detach_and_delete_rings (ruler);
