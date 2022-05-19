@@ -64,7 +64,7 @@ struct ruler
   struct unsigneds resolvent;
   struct unsigneds * original;
   struct clauses gate[2], nogate[2];
-  struct unsigneds extension[3];
+  struct unsigneds extension;
   struct ruler_trail units;
   struct trace trace;
   struct ruler_profiles profiles;

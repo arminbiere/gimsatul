@@ -80,11 +80,7 @@ compact_ruler (struct ruler * ruler)
   ruler->map = unmap;
   unsigned * map = allocate_array (ruler->size, sizeof *map);
   unsigned mapped = 0;
-#if 0
-  struct unsigneds * extension = ruler->extension + 2;
-#else
-  struct unsigneds * extension = ruler->extension + 0;
-#endif
+  struct unsigneds * extension = &ruler->extension;
   for (all_ruler_indices (idx))
     {
       if (eliminated[idx])
@@ -94,26 +90,19 @@ compact_ruler (struct ruler * ruler)
 	continue;
       unmap[mapped] = idx;
       map[idx] = mapped;
-#if 0
-      PUSH (*extension, LIT (idx));
-      PUSH (*extension, LIT (mapped));
-#else
-      {
-	unsigned src = LIT (idx);
-	unsigned dst = LIT (mapped);
-	unsigned not_src = NOT (src);
-	unsigned not_dst = NOT (dst);
-	PUSH (*extension, INVALID);
-	PUSH (*extension, src);
-	PUSH (*extension, not_dst);
-	PUSH (*extension, INVALID);
-	PUSH (*extension, not_src);
-	PUSH (*extension, dst);
-      }
-#endif
+      unsigned src = LIT (idx);
+      unsigned dst = LIT (mapped);
+      unsigned not_src = NOT (src);
+      unsigned not_dst = NOT (dst);
+      PUSH (*extension, INVALID);
+      PUSH (*extension, src);
+      PUSH (*extension, not_dst);
+      PUSH (*extension, INVALID);
+      PUSH (*extension, not_src);
+      PUSH (*extension, dst);
       mapped++;
     }
-  SHRINK_STACK (ruler->extension[2]);
+  SHRINK_STACK (ruler->extension);
   for (all_ruler_indices (idx))
     {
       unsigned lit = LIT (idx);
