@@ -8,7 +8,6 @@
 
 #include <inttypes.h>
 #include <math.h>
-#include <string.h>
 
 bool
 reducing (struct ring *ring)
@@ -114,27 +113,6 @@ gather_reduce_candidates (struct ring *ring, struct watches *candidates)
   verbose (ring, "gathered %zu reduce candidates clauses %.0f%%",
 	   SIZE (*candidates),
 	   percent (SIZE (*candidates), ring->statistics.redundant));
-}
-
-static void
-sort_reduce_candidates (struct watches *candidates)
-{
-  size_t size_candidates = SIZE (*candidates);
-  if (size_candidates < 2)
-    return;
-  size_t size_count = MAX_GLUE + 1, count[size_count];
-  memset (count, 0, sizeof count);
-  for (all_watches (watch, *candidates))
-    assert (watch->glue <= MAX_GLUE), count[watch->glue]++;
-  size_t pos = 0, *c = count + size_count, size;
-  while (c-- != count)
-    size = *c, *c = pos, pos += size;
-  size_t bytes = size_candidates * sizeof (struct watch *);
-  struct watch **tmp = allocate_block (bytes);
-  for (all_watches (watch, *candidates))
-    tmp[count[watch->glue]++] = watch;
-  memcpy (candidates->begin, tmp, bytes);
-  free (tmp);
 }
 
 static void
@@ -247,7 +225,7 @@ reduce (struct ring *ring)
   if (fixed)
     mark_satisfied_ring_clauses_as_garbage (ring);
   gather_reduce_candidates (ring, &candidates);
-  sort_reduce_candidates (&candidates);
+  sort_redundant_watches (SIZE (candidates), candidates.begin);
   mark_reduce_candidates_as_garbage (ring, &candidates);
   RELEASE (candidates);
   flush_references (ring, fixed);

@@ -7,6 +7,8 @@
 #include "utilities.h"
 #include "vivify.h"
 
+#include <string.h>
+
 void
 release_references (struct ring *ring)
 {
@@ -176,3 +178,33 @@ mark_garbage_watch (struct ring * ring, struct watch * watch)
   watch->garbage = true;
   dec_clauses (ring, watch->redundant);
 }
+
+void
+sort_redundant_watches (size_t size_candidates,
+                        struct watch **candidates)
+{
+  if (size_candidates < 2)
+    return;
+  size_t size_count = MAX_GLUE + 1, count[size_count];
+  memset (count, 0, sizeof count);
+  struct watch ** end = candidates + size_candidates;
+  for (struct watch ** p = candidates; p != end; p++)
+    {
+      struct watch * watch = *p;
+      assert (watch->redundant), assert (watch->glue <= MAX_GLUE);
+      count[watch->glue]++;
+    }
+  size_t pos = 0, *c = count + size_count, size;
+  while (c-- != count)
+    size = *c, *c = pos, pos += size;
+  size_t bytes = size_candidates * sizeof (struct watch *);
+  struct watch **tmp = allocate_block (bytes);
+  for (struct watch ** p = candidates; p != end; p++)
+    {
+      struct watch * watch = *p;
+      tmp[count[watch->glue]++] = watch;
+    }
+  memcpy (candidates, tmp, bytes);
+  free (tmp);
+}
+

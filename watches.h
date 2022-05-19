@@ -55,6 +55,7 @@ void reconnect_watches (struct ring *, struct watches *saved);
 
 void release_references (struct ring *);
 void disconnect_references (struct ring *, struct watches *);
+void sort_redundant_watches (size_t size, struct watch **);
 
 /*------------------------------------------------------------------------*/
 

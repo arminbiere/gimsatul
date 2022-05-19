@@ -21,17 +21,23 @@ reschedule_vivification_candidates (struct ring * ring,
   for (all_watches (watch, ring->watches))
     if (watch->vivify && !watch->garbage)
       PUSH (*candidates, watch);
-  return SIZE (*candidates);
+  size_t size = SIZE (*candidates);
+  sort_redundant_watches (size, candidates->begin);
+  return size;
 }
 
 static size_t
 schedule_vivification_candidates (struct ring * ring,
                                   struct watches * candidates)
 {
+  size_t before = SIZE (*candidates);
   for (all_watches (watch, ring->watches))
     if (!watch->vivify && watched_vivification_candidate (watch))
       PUSH (*candidates, watch);
-  return SIZE (*candidates);
+  size_t after = SIZE (*candidates);
+  size_t delta = after - before;
+  sort_redundant_watches (delta, candidates->begin + before);
+  return after;
 }
 
 #define ANALYZE(OTHER) \
