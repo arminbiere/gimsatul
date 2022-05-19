@@ -38,13 +38,13 @@ produced at a much higher rate than in a sequential solver.
 
 ## Preprocessing
 
-As far preprocessing is concerned equivalent literal substitution, subsumed
-clause elimination including strengthening and of course bounded variable
-elimination are currently implemented and simply run before solvers are
-cloned to share original irredundant clauses.  Inprocessing is not supported
-yet.  It would also be useful to parallelize preprocessing, which currently
-is only run in a single thread initially before cloning and starting the
-solver threads.
+As far preprocessing is concerned equivalent literal substitution,
+subsumption including strengthening and of course bounded variable
+elimination are simply run before solvers are cloned to share original
+irredundant clauses.  Inprocessing is scheduled in form of failed literal
+proping and vivification locally in each solver thread.  It would also be
+useful to parallelize preprocessing, which currently is only run in a single
+thread initially before cloning and starting the solver threads.
 
 ## Naming
 
