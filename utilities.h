@@ -20,6 +20,7 @@ percent (double a, double b)
 }
 
 double nlogn (uint64_t count);
+unsigned gcd (unsigned, unsigned);
 
 static inline void
 mark_literal (signed char * marks, unsigned lit)

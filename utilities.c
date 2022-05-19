@@ -14,3 +14,15 @@ nlogn (uint64_t count)
 {
   return count * logn (count);
 }
+
+unsigned
+gcd (unsigned a, unsigned b)
+{
+  while (b)
+    {
+      unsigned r = a % b;
+      a = b, b = r;
+    }
+  return a;
+}
+

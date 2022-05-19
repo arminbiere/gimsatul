@@ -4,6 +4,7 @@
 #include "options.h"
 #include "random.h"
 #include "ring.h"
+#include "utilities.h"
 
 signed char
 initial_phase (struct ring * ring)
@@ -22,17 +23,6 @@ decide_phase (struct ring *ring, struct variable *v)
   if (!phase)
     phase = initial_phase (ring);
   return phase;
-}
-
-static unsigned
-gcd (unsigned a, unsigned b)
-{
-  while (b)
-    {
-      unsigned r = a % b;
-      a = b, b = r;
-    }
-  return a;
 }
 
 static unsigned
