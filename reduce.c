@@ -214,7 +214,9 @@ void
 reduce (struct ring *ring)
 {
   check_clause_statistics (ring);
+#if 0
   rendezvous (ring, reduce, "reduce");
+#endif
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
   statistics->reductions++;
