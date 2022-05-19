@@ -48,7 +48,7 @@
 #define MAX_THREADS (1u<<16)
 
 #define FAILED_EFFORT 0.02
-#define VIVIFY_EFFORT 0.05
+#define VIVIFY_EFFORT 0.03
 
 #define OPTIONS \
 OPTION (bool,     binary,           1, 0, 1) \
