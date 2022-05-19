@@ -10,6 +10,7 @@
 #include "profile.h"
 #include "queue.h"
 #include "stack.h"
+#include "statistics.h"
 #include "tagging.h"
 #include "trace.h"
 #include "variable.h"
@@ -29,6 +30,7 @@ struct reluctant
 struct ring_limits
 {
   uint64_t mode;
+  uint64_t probe;
   uint64_t reduce;
   uint64_t rephase;
   uint64_t restart;
@@ -51,19 +53,10 @@ struct averages
   struct average trail;
 };
 
-struct ring_profiles
-{
-  struct profile focused;
-  struct profile search;
-  struct profile stable;
-  struct profile walk;
-
-  struct profile solving;
-};
-
 struct ring_last
 {
   unsigned fixed;
+  uint64_t probing;
   uint64_t walk;
 };
 
@@ -73,71 +66,6 @@ struct ring_trail
   unsigned *propagate, *iterate;
   unsigned *export;
 };
-
-struct context
-{
-  uint64_t conflicts;
-  uint64_t decisions;
-  uint64_t propagations;
-  uint64_t ticks;
-};
-
-#define SEARCH_CONTEXT 0
-#define WALK_CONTEXT 1
-#define SIZE_CONTEXTS 2
-
-struct ring_statistics
-{
-  uint64_t flips;
-  uint64_t reductions;
-  uint64_t rephased;
-  uint64_t restarts;
-  uint64_t switched;
-  uint64_t walked;
-
-  struct context contexts[SIZE_CONTEXTS];
-
-  struct
-  {
-    uint64_t learned;
-    uint64_t deduced;
-    uint64_t minimized;
-    uint64_t shrunken;
-  } literals;
-
-  unsigned active;
-  unsigned fixed;
-
-  size_t irredundant;
-  size_t redundant;
-
-  struct
-  {
-    uint64_t units;
-    uint64_t binary;
-    uint64_t clauses;
-    uint64_t glue1;
-    uint64_t tier1;
-    uint64_t tier2;
-    uint64_t tier3;
-  } learned;
-
-  struct
-  {
-    uint64_t units;
-    uint64_t binary;
-    uint64_t clauses;
-    uint64_t glue1;
-    uint64_t tier1;
-    uint64_t tier2;
-  } exported, imported;
-};
-
-#define SEARCH_CONFLICTS \
-  ring->statistics.contexts[SEARCH_CONTEXT].conflicts
-
-#define SEARCH_TICKS \
-  ring->statistics.contexts[SEARCH_CONTEXT].ticks
 
 #define BINARY_SHARED 0
 #define GLUE1_SHARED 1
@@ -165,8 +93,9 @@ struct ring
   bool iterating;
   bool stable;
   unsigned size;
-  unsigned context;
   unsigned level;
+  unsigned probe;
+  unsigned context;
   unsigned unassigned;
   unsigned target;
   unsigned best;
@@ -191,6 +120,7 @@ struct ring
   struct reluctant reluctant;
   struct ring_statistics statistics;
   struct ring_profiles profiles;
+  struct options options;
   struct ring_last last;
   uint64_t random;
 };

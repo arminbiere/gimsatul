@@ -4,17 +4,20 @@
 #include "ruler.h"
 #include "utilities.h"
 
+#include "cover.h"
+
 struct watch *
-ring_propagate (struct ring *ring, bool search)
+ring_propagate (struct ring *ring, bool stop_at_conflict, struct watch * ignore)
 {
   assert (!ring->inconsistent);
+  assert (ignore || !binary_pointer (ignore));
   struct ring_trail *trail = &ring->trail;
   struct watch *conflict = 0;
   signed char *values = ring->values;
   uint64_t ticks = 0, propagations = 0;
   while (trail->propagate != trail->end)
     {
-      if (search && conflict)
+      if (stop_at_conflict && conflict)
 	break;
       unsigned lit = *trail->propagate++;
       LOG ("propagating %s", LOGLIT (lit));
@@ -32,7 +35,7 @@ ring_propagate (struct ring *ring, bool search)
 	      if (other_value < 0)
 		{
 		  conflict = watch;
-		  if (search)
+		  if (stop_at_conflict)
 		    break;
 		}
 	      else if (!other_value)
@@ -43,7 +46,7 @@ ring_propagate (struct ring *ring, bool search)
 		}
 	    }
 	  ticks += cache_lines (p, binaries);
-	  if (search && conflict)
+	  if (stop_at_conflict && conflict)
 	    break;
 	}
       struct watch **begin = watches->begin, **q = begin;
@@ -51,8 +54,10 @@ ring_propagate (struct ring *ring, bool search)
       ticks++;
       while (p != end)
 	{
-	  assert (!search || !conflict);
+	  assert (!stop_at_conflict || !conflict);
 	  struct watch *watch = *q++ = *p++;
+	  if (ignore && watch == ignore)
+	    continue;
 	  unsigned other;
 	  signed char other_value;
 	  if (binary_pointer (watch))
@@ -65,7 +70,7 @@ ring_propagate (struct ring *ring, bool search)
 	      if (other_value < 0)
 		{
 		  conflict = watch;
-		  if (search)
+		  if (stop_at_conflict)
 		    break;
 		}
 	      else
@@ -77,10 +82,12 @@ ring_propagate (struct ring *ring, bool search)
 	    }
 	  else
 	    {
+	      ticks++;
+	      if (watch->garbage)
+		continue;
 	      other = watch->sum ^ not_lit;
 	      assert (other < 2 * ring->size);
 	      other_value = values[other];
-	      ticks++;
 	      if (other_value > 0)
 		continue;
 	      struct clause *clause = watch->clause;
@@ -131,7 +138,7 @@ ring_propagate (struct ring *ring, bool search)
 		{
 		  assert (other_value < 0);
 		  conflict = watch;
-		  if (search)
+		  if (stop_at_conflict)
 		    break;
 		}
 	      else

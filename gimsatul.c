@@ -1,40 +1,5 @@
 // Copyright (c) 2022 Armin Biere University of Freiburg
 
-// *INDENT-OFF*
-
-const char * gimsatul_usage =
-"usage: gimsatul [ <option> ... ] [ <dimacs> [ <proof> ] ]\n"
-"\n"
-"where '<option>' is one of the following\n"
-"\n"
-"  -a|--ascii               use ASCII format for proof output\n"
-"  -f|--force               force reading and writing\n"
-"  -h|--help                print this command line option summary\n"
-#ifdef LOGGING   
-"  -l|--log[ging]           enable very verbose internal logging\n"
-#endif                   
-"  -n|--no-witness          do not print satisfying assignments\n"
-"  -O|-O<level>             increase simplification ticks and round limits\n"
-"  -q|--quiet               disable all additional messages\n"
-"  -v|--verbose             increase verbosity\n"
-"  --version                print version\n"
-"\n"
-"  --conflicts=<conflicts>  limit conflicts (0,1,... - default unlimited)\n"
-"  --threads=<number>       set number of threads (1,...,%zu - default 1)\n"
-"  --time=<seconds>         limit time (1,2,3,... - default unlimited)\n"
-"\n"
-"  --no-simplify            disable preprocessing\n"
-"  --no-walk                disable local search\n"
-"  --walk-initially         initial local search\n"
-"\n"
-"and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
-"and '<proof>' the proof output file in 'DRAT' format (no proof if missing).\n"
-;
-
-// *INDENT-ON*
-
-/*------------------------------------------------------------------------*/
-
 #include "build.h"
 #include "catch.h"
 #include "clone.h"
@@ -47,8 +12,6 @@ const char * gimsatul_usage =
 #include "statistics.h"
 #include "types.h"
 #include "witness.h"
-
-/*------------------------------------------------------------------------*/
 
 int
 main (int argc, char **argv)
@@ -65,10 +28,11 @@ main (int argc, char **argv)
       fflush (stdout);
     }
   int variables, clauses;
-  parse_dimacs_header (&options.dimacs, &variables, &clauses);
+  parse_dimacs_header (&options, &variables, &clauses);
   struct ruler * ruler = new_ruler (variables, &options);
   set_signal_handlers (ruler);
   parse_dimacs_body (ruler, variables, clauses);
+  report_non_default_options (&options);
   simplify_ruler (ruler);
   clone_rings (ruler);
   struct ring *winner = solve_rings (ruler);

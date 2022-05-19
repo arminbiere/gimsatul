@@ -287,7 +287,7 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
 bool
 equivalent_literal_substitution (struct ruler * ruler, unsigned round)
 {
-  double substitution_start = START (ruler, substituting);
+  double substitution_start = START (ruler, substitute);
   unsigned * repr = find_equivalent_literals (ruler, round);
   unsigned substituted = 0;
   if (repr)
@@ -295,7 +295,7 @@ equivalent_literal_substitution (struct ruler * ruler, unsigned round)
       substituted = substitute_equivalent_literals (ruler, repr);
       free (repr);
     }
-  double substitution_end = STOP (ruler, substituting);
+  double substitution_end = STOP (ruler, substitute);
   if (verbosity >= 0)
     fputs ("c\n", stdout);
   message (0, "[%u] substituted %u variables %.0f%% in %.2f seconds",

@@ -1,4 +1,4 @@
-#include "duplicate.h"
+#include "deduplicate.h"
 #include "eliminate.h"
 #include "message.h"
 #include "simplify.h"
@@ -415,11 +415,11 @@ simplify_ruler (struct ruler * ruler)
   if (ruler->inconsistent)
     return;
 
-  double start_simplification = START (ruler, simplifying);
+  double start_simplification = START (ruler, simplify);
   assert (!ruler->simplifying);
   ruler->simplifying = true;
 
-  if (ruler->options.no_simplify)
+  if (!ruler->options.preprocessing)
     {
       if (verbosity >= 0)
 	{
@@ -463,9 +463,7 @@ simplify_ruler (struct ruler * ruler)
 	done = false;
       if (!propagate_and_flush_ruler_units (ruler))
 	break;
-#if 0
-      break;
-#endif
+
       if (remove_duplicated_binaries (ruler, round))
 	done = false;
       if (!propagate_and_flush_ruler_units (ruler))
@@ -534,8 +532,7 @@ simplify_ruler (struct ruler * ruler)
 DONE:
   assert (ruler->simplifying);
   ruler->simplifying = false;
-  double end_simplification = STOP (ruler, simplifying);
+  double end_simplification = STOP (ruler, simplify);
   message (0, "simplification took %.2f seconds",
            end_simplification - start_simplification);
 }
-

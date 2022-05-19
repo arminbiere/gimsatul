@@ -1,5 +1,5 @@
-#ifndef _duplicate_h_INCLUDED
-#define _duplicate_h_INCLUDED
+#ifndef _deduplicate_h_INCLUDED
+#define _deduplicate_h_INCLUDED
 
 #include <stdbool.h>
 

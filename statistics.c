@@ -10,7 +10,7 @@ print_ring_statistics (struct ring *ring)
 {
   print_ring_profiles (ring);
   double search = ring->profiles.search.time;
-  double walk = ring->profiles.solving.time;
+  double walk = ring->profiles.solve.time;
   struct ring_statistics *s = &ring->statistics;
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
   uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;
@@ -21,8 +21,22 @@ print_ring_statistics (struct ring *ring)
 	   decisions, average (decisions, search));
   PRINTLN ("%-21s %17u %13.2f %% variables", "solving-fixed:",
 	   s->fixed, percent (s->fixed, ring->size));
+  PRINTLN ("%-21s %17u %13.2f %% variables", "failed-literals:",
+	   s->failed, percent (s->failed, ring->size));
+  PRINTLN ("%-21s %17u %13.2f %% variables", "lifted-literals:",
+	   s->lifted, percent (s->lifted, ring->size));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
+  
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per learned clause",
+	   "vivified-clauses:", s->vivify.succeeded,
+	   percent (s->vivify.succeeded, s->learned.clauses));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per vivified clause",
+	   "vivify-implied:", s->vivify.implied,
+	   percent (s->vivify.implied, s->vivify.succeeded));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per vivified clause",
+	   "vivify-strengthened:", s->vivify.strengthened,
+	   percent (s->vivify.strengthened, s->vivify.succeeded));
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per learned clause",
 	   "learned-literals:", s->literals.learned,
@@ -104,6 +118,8 @@ print_ring_statistics (struct ring *ring)
 	   "propagations:", propagations, average (propagations,
 						   1e6 * search));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
+	   "probings:", s->probings, average (conflicts, s->probings));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	   "reductions:", s->reductions, average (conflicts, s->reductions));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	   "rephased:", s->rephased, average (conflicts, s->rephased));
@@ -169,4 +185,3 @@ print_ruler_statistics (struct ruler *ruler)
 
   fflush (stdout);
 }
-

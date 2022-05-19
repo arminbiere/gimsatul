@@ -4,6 +4,7 @@
 #include "import.h"
 #include "message.h"
 #include "mode.h"
+#include "probe.h"
 #include "propagate.h"
 #include "reduce.h"
 #include "report.h"
@@ -35,10 +36,18 @@ iterate (struct ring *ring)
 static void
 start_search (struct ring *ring)
 {
+  ring->stable = !ring->options.focus_initially;
   START (ring, search);
-  assert (!ring->stable);
-  START (ring, focused);
-  report (ring, '{');
+  if (ring->stable)
+    {
+      report (ring, '[');
+      START (ring, stable);
+    }
+  else
+    {
+      report (ring, '{');
+      START (ring, focus);
+    }
 }
 
 static void
@@ -52,7 +61,7 @@ stop_search (struct ring *ring, int res)
   else
     {
       report (ring, '}');
-      STOP (ring, focused);
+      STOP (ring, focus);
     }
   if (res == 10)
     report (ring, '1');
@@ -77,7 +86,7 @@ conflict_limit_hit (struct ring *ring)
   return true;
 }
 
-static bool
+bool
 terminate_ring (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
@@ -106,7 +115,7 @@ search (struct ring *ring)
   int res = ring->inconsistent ? 20 : 0;
   while (!res)
     {
-      struct watch *conflict = ring_propagate (ring, true);
+      struct watch *conflict = ring_propagate (ring, true, 0);
       if (conflict)
 	{
 	  if (!analyze (ring, conflict))
@@ -134,6 +143,8 @@ search (struct ring *ring)
 	switch_mode (ring);
       else if (rephasing (ring))
 	rephase (ring);
+      else if (probing (ring))
+	res = probe (ring);
       else if (!import_shared (ring))
 	decide (ring);
       else if (ring->inconsistent)

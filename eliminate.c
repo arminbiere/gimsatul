@@ -474,9 +474,11 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 bool
 eliminate_variables (struct ruler * ruler, unsigned round)
 {
+  if (!ruler->options.eliminate)
+    return false;
   if (elimination_ticks_limit_hit (ruler))
     return false;
-  double start_round = START (ruler, eliminating);
+  double start_round = START (ruler, eliminate);
   assert (!ruler->eliminating);
   ruler->eliminating = true;
   unsigned eliminated = 0;
@@ -511,11 +513,10 @@ eliminate_variables (struct ruler * ruler, unsigned round)
   RELEASE (ruler->nogate[1]);
   assert (ruler->eliminating);
   ruler->eliminating = false;
-  double end_round = STOP (ruler, eliminating);
+  double end_round = STOP (ruler, eliminate);
   message (0, "[%u] eliminated %u variables %.0f%% "
            "margin %u in %.2f seconds", round,
 	   eliminated, percent (eliminated, ruler->size),
 	   margin, end_round - start_round);
   return eliminated;
 }
-

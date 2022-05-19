@@ -19,6 +19,8 @@ percent (double a, double b)
   return average (100 * a, b);
 }
 
+double nlogn (uint64_t count);
+
 static inline void
 mark_literal (signed char * marks, unsigned lit)
 {

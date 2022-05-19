@@ -1,4 +1,5 @@
 #include "message.h"
+#include "options.h"
 #include "parse.h"
 #include "ruler.h"
 
@@ -6,6 +7,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdarg.h>
+#include <string.h>
 
 static void parse_error (struct file * dimacs, const char *, ...)
   __attribute__((format (printf, 2, 3)));
@@ -90,21 +92,50 @@ parse_int (struct file * dimacs, int *res_ptr, int prev, int *next)
 }
 
 void
-parse_dimacs_header (struct file * dimacs,
+parse_dimacs_header (struct options * options,
                      int * variables_ptr, int * clauses_ptr)
 {
+  struct file * dimacs = &options->dimacs;
   if (verbosity >= 0)
     {
       printf ("c\nc parsing DIMACS file '%s'\n", dimacs->path);
       fflush (stdout);
     }
   int ch;
+#ifndef NDEBUG
+  struct buffer buffer;
+  INIT (buffer);
+  while ((ch = next_char (dimacs)) == 'c')
+    {
+      while ((ch = next_char (dimacs)) == ' ' || ch == '\t')
+	;
+      assert (EMPTY (buffer));
+      if (ch == '\n')
+	continue;
+      int first = ch;
+      do
+	if (ch == EOF)
+	  parse_error (dimacs, "unexpected end-of-file in header comment");
+	else if (first == '-')
+	  PUSH (buffer, ch);
+      while ((ch = next_char (dimacs)) != '\n');
+      if (first == '-')
+	{
+	  PUSH (buffer, 0);
+	  (void) parse_option_with_value (options, buffer.begin);
+	  CLEAR (buffer);
+	}
+    }
+  normalize_options (options);
+  RELEASE (buffer);
+#else
   while ((ch = next_char (dimacs)) == 'c')
     {
       while ((ch = next_char (dimacs)) != '\n')
 	if (ch == EOF)
 	  parse_error (dimacs, "unexpected end-of-file in header comment");
     }
+#endif
   if (ch != 'p')
     parse_error (dimacs, "expected 'c' or 'p'");
   int variables, clauses;
@@ -131,7 +162,7 @@ parse_dimacs_header (struct file * dimacs,
 void
 parse_dimacs_body (struct ruler * ruler, int variables, int expected)
 {
-  double start_parsing = START (ruler, parsing);
+  double start_parsing = START (ruler, parse);
   struct file * dimacs = &ruler->options.dimacs;
   signed char *marked = ruler->marks;
   struct unsigneds clause;
@@ -250,7 +281,7 @@ parse_dimacs_body (struct ruler * ruler, int variables, int expected)
     pclose (dimacs->file);
   RELEASE (clause);
   ruler->statistics.original = parsed;
-  double end_parsing = STOP (ruler, parsing);
+  double end_parsing = STOP (ruler, parse);
   message (0, "parsing took %.2f seconds", end_parsing - start_parsing);
 }
 

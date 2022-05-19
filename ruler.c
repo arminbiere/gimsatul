@@ -9,14 +9,14 @@
 static void
 init_ruler_profiles (struct ruler *ruler)
 {
-  INIT_PROFILE (ruler, cloning);
-  INIT_PROFILE (ruler, deduplicating);
-  INIT_PROFILE (ruler, eliminating);
-  INIT_PROFILE (ruler, parsing);
-  INIT_PROFILE (ruler, solving);
-  INIT_PROFILE (ruler, simplifying);
-  INIT_PROFILE (ruler, subsuming);
-  INIT_PROFILE (ruler, substituting);
+  INIT_PROFILE (ruler, clone);
+  INIT_PROFILE (ruler, deduplicate);
+  INIT_PROFILE (ruler, eliminate);
+  INIT_PROFILE (ruler, parse);
+  INIT_PROFILE (ruler, solve);
+  INIT_PROFILE (ruler, simplify);
+  INIT_PROFILE (ruler, subsume);
+  INIT_PROFILE (ruler, substitute);
   INIT_PROFILE (ruler, total);
   START (ruler, total);
 }

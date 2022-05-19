@@ -49,6 +49,8 @@ check_clause_statistics (struct ring *ring)
 
   for (all_watches (watch, ring->watches))
     {
+      if (watch->garbage)
+	continue;
       assert (!binary_pointer (watch));
       struct clause *clause = watch->clause;
       assert (clause->glue == watch->glue);
@@ -144,9 +146,7 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
   size_t reduced = 0;
   for (all_watches (watch, *candidates))
     {
-      LOGCLAUSE (watch->clause, "marking garbage");
-      assert (!watch->garbage);
-      watch->garbage = true;
+      mark_garbage_watch (ring, watch);
       if (++reduced == target)
 	break;
     }
@@ -255,7 +255,9 @@ reduce (struct ring *ring)
   check_clause_statistics (ring);
   unmark_reasons (ring);
   limits->reduce = SEARCH_CONFLICTS;
-  limits->reduce += REDUCE_INTERVAL * sqrt (statistics->reductions + 1);
+  unsigned interval = ring->options.reduce_interval;
+  assert (interval);
+  limits->reduce += interval * sqrt (statistics->reductions + 1);
   verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
 	   limits->reduce);
   report (ring, '-');

@@ -44,25 +44,71 @@ set_ring_limits (struct ring *ring, long long conflicts)
   assert (!ring->stable);
   assert (!SEARCH_CONFLICTS);
   struct ring_limits *limits = &ring->limits;
+  if (ring->options.portfolio)
+    {
+      switch (ring->id % 3)
+	{
+	  case 1:
+	    ring->options.switch_mode = false;
+	    ring->options.focus_initially = false;
+	    break;
+	  case 2:
+	    ring->options.switch_mode = false;
+	    ring->options.focus_initially = true;
+	    break;
+	}
+
+      if  (ring->id % 2)
+	ring->options.phase = !ring->options.phase;
+    }
+  else
+    very_verbose (ring, "keeping global options");
+
+  if (ring->options.switch_mode)
+    {
+      if (ring->options.focus_initially)
+	verbose (ring, "starting in focused mode");
+      else
+	verbose (ring, "starting in stable mode");
+    }
+  else
+    {
+      if (ring->options.focus_initially)
+	verbose (ring, "only running in focussed mode");
+      else
+	verbose (ring, "only running in stable mode");
+    }
   limits->mode = MODE_INTERVAL;
-  limits->reduce = REDUCE_INTERVAL;
+  if (ring->options.switch_mode)
+    verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
+	     limits->mode);
+
+  if (ring->options.phase)
+    verbose (ring, "initial 'true' decision phase");
+  else
+    verbose (ring, "initial 'false' decision phase");
+
+  limits->probe = ring->options.probe_interval;
+  limits->reduce = ring->options.reduce_interval;
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
-  verbose (ring, "reduce interval of %" PRIu64 " conflict", limits->reduce);
-  verbose (ring, "restart interval of %" PRIu64 " conflict", limits->restart);
-  verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
-	   limits->mode);
+  verbose (ring, "reduce interval of %" PRIu64 " conflicts", limits->reduce);
+  verbose (ring, "restart interval of %" PRIu64 " conflicts", limits->restart);
+  verbose (ring, "probe interval of %" PRIu64 " conflicts", limits->probe);
+
   if (conflicts >= 0)
     {
       limits->conflicts = conflicts;
       verbose (ring, "conflict limit set to %lld conflicts", conflicts);
     }
+  if (verbosity > 0)
+    printf ("c\n");
 }
 
 struct ring *
 solve_rings (struct ruler *ruler)
 {
-  double start_solving = START (ruler, solving);
+  double start_solving = START (ruler, solve);
   assert (!ruler->solving);
   ruler->solving = true;
   size_t threads = SIZE (ruler->rings);
@@ -75,9 +121,16 @@ solve_rings (struct ruler *ruler)
       fflush (stdout);
     }
   for (all_rings (ring))
-    set_ring_limits (ring, conflicts);
+      set_ring_limits (ring, conflicts);
   if (threads > 1)
     {
+      unsigned delta = ruler->size / threads;
+      unsigned probe = 0;
+      for (all_rings (ring))
+	{
+	  ring->probe = probe;
+	  probe += delta;
+	}
       message (0, "starting and running %zu ring threads", threads);
 
       for (all_rings (ring))
@@ -94,7 +147,7 @@ solve_rings (struct ruler *ruler)
     }
   assert (ruler->solving);
   ruler->solving = false;
-  double end_solving = STOP (ruler, solving);
+  double end_solving = STOP (ruler, solve);
   verbose (0, "finished solving using %zu threads in %.2f seconds",
            threads, end_solving - start_solving);
   return (struct ring *) ruler->winner;

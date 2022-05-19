@@ -28,7 +28,7 @@ extend_witness (struct ring * ring)
       if (!value)
 	{
 	  assert (eliminated[idx]);
-	  value = INITIAL_PHASE;
+	  value = 1;
 	}
       else
 	assert (!eliminated[idx]);

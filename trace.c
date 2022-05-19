@@ -23,7 +23,8 @@ binary_proof_line (struct trace * trace,
 	  PUSH (trace->buffer, ch);
 	  tmp >>= 7;
 	}
-      PUSH (trace->buffer, (unsigned char) tmp);
+      unsigned char ch = tmp;
+      PUSH (trace->buffer, ch);
     }
   PUSH (trace->buffer, 0);
 }

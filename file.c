@@ -11,8 +11,12 @@ void
 write_buffer (struct buffer *buffer, struct file * file)
 {
   assert (file);
+  if (file->lock)
+    acquire_message_lock ();
   size_t size = SIZE (*buffer);
   fwrite (buffer->begin, size, 1, file->file);
+  if (file->lock)
+    release_message_lock ();
   CLEAR (*buffer);
   atomic_fetch_add (&file->lines, 1);
 }
