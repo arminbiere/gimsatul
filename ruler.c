@@ -86,6 +86,7 @@ delete_ruler (struct ruler *ruler)
   RELEASE (ruler->trace.buffer);
   RELEASE (ruler->extension[0]);
   RELEASE (ruler->extension[1]);
+  RELEASE (ruler->extension[2]);
   if (ruler->original)
     {
       RELEASE (*ruler->original);

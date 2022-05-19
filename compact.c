@@ -80,6 +80,7 @@ compact_ruler (struct ruler * ruler)
   ruler->map = unmap;
   unsigned * map = allocate_array (ruler->size, sizeof *map);
   unsigned mapped = 0;
+  struct unsigneds * extension = ruler->extension + 2;
   for (all_ruler_indices (idx))
     {
       if (eliminated[idx])
@@ -89,8 +90,11 @@ compact_ruler (struct ruler * ruler)
 	continue;
       unmap[mapped] = idx;
       map[idx] = mapped;
+      PUSH (*extension, LIT (idx));
+      PUSH (*extension, LIT (mapped));
       mapped++;
     }
+  SHRINK_STACK (ruler->extension[2]);
   for (all_ruler_indices (idx))
     {
       unsigned lit = LIT (idx);
@@ -109,8 +113,7 @@ compact_ruler (struct ruler * ruler)
   assert (compact == mapped);
   ruler->compact = compact;
   map_clauses (ruler, map);
-  message (0, "mapped %u variables to %u variables",
-           ruler->size, mapped);
+  message (0, "mapped %u variables to %u variables", ruler->size, mapped);
   free (ruler->eliminated);
   ruler->eliminated = 0;
   free (map);

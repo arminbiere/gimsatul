@@ -24,72 +24,92 @@ extend_witness (struct ring * ring)
       values[lit] = 1;
       values[not_lit] = -1;
     }
-  struct unsigneds * extension = ruler->extension;
-  unsigned * begin = extension->begin;
-  unsigned * p = extension->end;
-  unsigned pivot = INVALID;
-  bool satisfied = false;
+  free (ruler->map);
+  ruler->map = 0;
   size_t flipped = 0;
-  LOG ("going through extension stack of size %zu", (size_t)(p - begin));
+  {
+    struct unsigneds * extension = ruler->extension + 2;
+    while (!EMPTY (*extension))
+      {
+	unsigned src = POP (*extension);
+	unsigned dst = POP (*extension);
+	signed dst_value = values[dst];
+	if (values[src] == dst_value)
+	  continue;
+	unsigned not_dst = NOT (dst);
+	values[dst] = -dst_value;
+	values[not_dst] = dst_value;
+	flipped++;
+      }
+  }
+  {
+    struct unsigneds * extension = ruler->extension + 1;
+    while (!EMPTY (*extension))
+      {
+	unsigned unit = POP (*extension);
+	if (values[unit] > 0)
+	  continue;
+	assert (values[unit] < 0);
+	unsigned not_unit = NOT (unit);
+	assert (values[not_unit] > 0);
+	LOG ("flipping %s", LOGLIT (unit));
+	values[unit] = 1;
+	values[not_unit] = -1;
+	flipped++;
+      }
+  }
+  {
+    struct unsigneds * extension = ruler->extension + 0;
+    unsigned * begin = extension->begin;
+    unsigned * p = extension->end;
+    unsigned pivot = INVALID;
+    bool satisfied = false;
+    LOG ("going through extension stack of size %zu", (size_t)(p - begin));
 #ifdef LOGGING
-  if (verbosity == INT_MAX)
-    {
-      LOG ("extension stack in reverse order:");
-      unsigned * q = p;
-      while (q != begin)
-	{
-	  unsigned * next = q;
-	  while (*--next != INVALID)
-	    ;
-	  LOGPREFIX ("extension clause");
-	  for (unsigned * c = next + 1; c != q; c++)
-	    printf (" %s", LOGLIT (*c));
-	  LOGSUFFIX ();
-	  q = next;
-	}
-    }
+    if (verbosity == INT_MAX)
+      {
+	LOG ("extension stack in reverse order:");
+	unsigned * q = p;
+	while (q != begin)
+	  {
+	    unsigned * next = q;
+	    while (*--next != INVALID)
+	      ;
+	    LOGPREFIX ("extension clause");
+	    for (unsigned * c = next + 1; c != q; c++)
+	      printf (" %s", LOGLIT (*c));
+	    LOGSUFFIX ();
+	    q = next;
+	  }
+      }
 #endif
-  while (p != begin)
-    {
-      unsigned lit = *--p;
-      if (lit == INVALID)
-	{
-	  if (!satisfied)
-	    {
-	      LOG ("flipping %s", LOGLIT (pivot));
-	      assert (pivot != INVALID);
-	      unsigned not_pivot = NOT (pivot);
-	      assert (values[pivot] < 0);
-	      assert (values[not_pivot] > 0);
-	      values[pivot] = 1;
-	      values[not_pivot] = -1;
-	      flipped++;
-	    }
-	  satisfied = false;
-	}
-      else if (!satisfied)
-	{
-	  signed char value = values[lit];
-	  if (value > 0)
-	    satisfied = true;
-	}
-      pivot = lit;
-    }
-  extension = ruler->extension + 1;
-  while (!EMPTY (*extension))
-    {
-      unsigned unit = POP (*extension);
-      if (values[unit] > 0)
-	continue;
-      assert (values[unit] < 0);
-      unsigned not_unit = NOT (unit);
-      assert (values[not_unit] > 0);
-      LOG ("flipping %s", LOGLIT (unit));
-      values[unit] = 1;
-      values[not_unit] = -1;
-      flipped++;
-
-    }
+    while (p != begin)
+      {
+	unsigned lit = *--p;
+	if (lit == INVALID)
+	  {
+	    if (!satisfied)
+	      {
+		LOG ("flipping %s", LOGLIT (pivot));
+		assert (pivot != INVALID);
+		unsigned not_pivot = NOT (pivot);
+		assert (values[pivot] < 0);
+		assert (values[not_pivot] > 0);
+		values[pivot] = 1;
+		values[not_pivot] = -1;
+		flipped++;
+	      }
+	    satisfied = false;
+	  }
+	else if (!satisfied)
+	  {
+	    signed char value = values[lit];
+	    if (value > 0)
+	      satisfied = true;
+	  }
+	pivot = lit;
+      }
+  }
   verbose (ring, "flipped %zu literals", flipped);
   return values;
 }
