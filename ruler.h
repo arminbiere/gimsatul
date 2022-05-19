@@ -22,10 +22,8 @@ struct ruler_locks
 {
   pthread_mutex_t rings;
   pthread_mutex_t units;
-#ifdef NFASTPATH
   pthread_mutex_t terminate;
   pthread_mutex_t winner;
-#endif
 };
 
 struct ruler_last
@@ -116,6 +114,8 @@ void recycle_clauses (struct ruler *, struct clauses *, unsigned except);
 void push_ring (struct ruler *, struct ring *);
 void detach_ring (struct ring *);
 void set_winner (struct ring *);
+
+void set_terminate (struct ruler * ruler);
 
 void print_ruler_profiles (struct ruler *);
 

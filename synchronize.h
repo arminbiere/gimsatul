@@ -22,4 +22,6 @@ void rendezvous (struct ring *,
                  struct synchronize *,
                  void(*function)(struct ring*), const char*);
 
+void disable_synchronize (struct synchronize *);
+
 #endif

@@ -13,12 +13,27 @@ init_synchronize (struct synchronize * synchronize, unsigned participants)
 }
 
 void
-rendezvous (struct ring * ring,
+disable_synchronization (struct synchronize * synchronize)
+{
+  if (!pthread_mutex_lock (&synchronize->mutex))
+    fatal_error ("failed to acquire synchronization lock during disabling");
+  if (synchronize->count)
+    {
+      synchronize->function = 0;
+      synchronize->name = 0;
+      synchronize->count = 0;
+      pthread_cond_broadcast (&synchronize->condition);
+    }
+  if (!pthread_mutex_unlock (&synchronize->mutex))
+    fatal_error ("failed to release synchronization lock during disabling");
+}
+
+void rendezvous (struct ring * ring,
 	    struct synchronize * synchronize,
 	    void(*function)(struct ring*), const char* name)
 {
   if (!pthread_mutex_lock (&synchronize->mutex))
-    fatal_error ("failed to acquire synchronization lock");
+    fatal_error ("failed to acquire synchronization lock during rendezvous");
 
   if (synchronize->function)
     {
@@ -47,5 +62,5 @@ rendezvous (struct ring * ring,
   pthread_cond_broadcast (&synchronize->condition);
 
   if (!pthread_mutex_unlock (&synchronize->mutex))
-    fatal_error ("failed to release synchronization lock");
+    fatal_error ("failed to release synchronization lock during rendezvous");
 }

@@ -108,7 +108,7 @@ catch_alarm (int sig)
     caught_message (sig);
   reset_alarm_handler ();
   assert (one_global_ruler);
-  one_global_ruler->terminate = true;
+  set_terminate ((struct ruler*) one_global_ruler);
   caught_signal = 0;
 }
 
