@@ -11,10 +11,22 @@
 signed char *
 extend_witness (struct ring * ring)
 {
-  LOG ("extending witness");
   struct ruler * ruler = ring->ruler;
-  signed char * values = allocate_array (ruler->size, sizeof *values);
+  LOG ("extending witness from %u to %u variables",
+       ring->size, ruler->size);
+  signed char * values = allocate_array (2*ruler->size, sizeof *values);
   memcpy (values, ring->values, 2*ring->size);
+#if 1
+  for (unsigned idx = 0; idx != ruler->size; idx++)
+    {
+      unsigned lit = LIT (idx);
+      if (values[lit])
+	continue;
+      unsigned not_lit = NOT (lit);
+      values[lit] = 1;
+      values[not_lit] = -1;
+    }
+#else
   for (unsigned idx = ring->size; idx != ruler->size; idx++)
     {
       unsigned lit = LIT (idx);
@@ -22,6 +34,7 @@ extend_witness (struct ring * ring)
       values[lit] = 1;
       values[not_lit] = -1;
     }
+#endif
   struct unsigneds * extension = &ruler->extension;
   unsigned * begin = extension->begin;
   unsigned * p = extension->end;

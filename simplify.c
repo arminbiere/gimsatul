@@ -409,6 +409,20 @@ current_ruler_clauses (struct ruler * ruler)
   return SIZE (ruler->clauses) + ruler->statistics.binaries;
 }
 
+static void
+push_ruler_units_to_extension_stack (struct ruler * ruler)
+{
+  struct unsigneds * extension = &ruler->extension;;
+  unsigned pushed = 0;
+  for (all_elements_on_stack (unsigned, lit, ruler->units))
+    {
+      PUSH (*extension, INVALID);
+      PUSH (*extension, lit);
+      pushed++;
+    }
+  verbose (0, "pushed %u units on extension stack", pushed);
+}
+
 void
 simplify_ruler (struct ruler * ruler)
 {
@@ -530,6 +544,7 @@ simplify_ruler (struct ruler * ruler)
            ruler->statistics.ticks.elimination,
 	   elimination_ticks_limit_hit (ruler) ? " (limit hit)" : "");
 DONE:
+  push_ruler_units_to_extension_stack (ruler);
   assert (ruler->simplifying);
   ruler->simplifying = false;
   double end_simplification = STOP (ruler, simplify);
