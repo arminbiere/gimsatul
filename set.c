@@ -1,8 +1,11 @@
 #include "allocate.h"
+#include "random.h"
 #include "set.h"
 
 #include <assert.h>
 #include <stdbool.h>
+
+#define DELETED ((void*) ~(size_t) 0)
 
 static size_t
 hash_pointer (struct set * set, void * ptr)
@@ -221,5 +224,22 @@ shrink_set (struct set *set)
   size_t old_allocated = set->allocated;
   size_t new_allocated = old_allocated / 2;
   resize_set (set, new_allocated);
+}
+
+void *
+random_set (uint64_t *random, struct set *set)
+{
+  assert (set->size);
+  size_t allocated = set->allocated;
+  size_t pos = random_modulo (random, allocated);
+  void **table = set->table;
+  void *res = table[pos];
+  while (!res || res == DELETED)
+    {
+      if (++pos == allocated)
+	pos = 0;
+      res = table[pos];
+    }
+  return res;
 }
 

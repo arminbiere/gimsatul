@@ -655,29 +655,12 @@ pick_literal_to_flip (struct walker *walker, size_t size, unsigned *literals)
   return res;
 }
 
-static void *
-random_set (struct ring *ring, struct set *set)
-{
-  assert (set->size);
-  size_t allocated = set->allocated;
-  size_t pos = random_modulo (&ring->random, allocated);
-  void **table = set->table;
-  void *res = table[pos];
-  while (!res || res == DELETED)
-    {
-      if (++pos == allocated)
-	pos = 0;
-      res = table[pos];
-    }
-  return res;
-}
-
 static void
 walking_step (struct walker *walker)
 {
   struct set *unsatisfied = &walker->unsatisfied;
   struct ring *ring = walker->ring;
-  struct counter *counter = random_set (ring, unsatisfied);
+  struct counter *counter = random_set (&ring->random, unsatisfied);
   unsigned lit;
   if (binary_pointer (counter))
     {

@@ -2,6 +2,7 @@
 #define _set_h_INCLUDED
 
 #include <stdlib.h>
+#include <stdint.h>
 
 struct set
 {
@@ -15,10 +16,9 @@ struct set
   } hash;
 };
 
-#define DELETED ((void*) ~(size_t) 0)
-
 void set_insert (struct set *, void *);
 void set_remove (struct set *, void *);
+void * random_set (uint64_t *, struct set *);
 
 #endif
 
