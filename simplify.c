@@ -421,6 +421,7 @@ push_ruler_units_to_extension_stack (struct ruler * ruler)
       pushed++;
     }
   verbose (0, "pushed %u units on extension stack", pushed);
+  ruler->units.end = ruler->units.propagate = ruler->units.begin;
 }
 
 void
