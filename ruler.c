@@ -6,7 +6,7 @@
 
 #include <string.h>
 
-static void
+void
 init_ruler_profiles (struct ruler *ruler)
 {
   INIT_PROFILE (ruler, clone);
@@ -27,6 +27,8 @@ new_ruler (size_t size, struct options * opts)
   assert (0 < opts->threads);
   assert (opts->threads <= MAX_THREADS);
   struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
+  ruler->size = size;
+  ruler->statistics.active = size;
   memcpy (&ruler->options, opts, sizeof *opts);
   ruler->trace.binary = opts->binary;
   ruler->trace.file = opts->proof.file ? &opts->proof : 0;
@@ -39,8 +41,7 @@ new_ruler (size_t size, struct options * opts)
   pthread_mutex_init (&ruler->locks.terminate, 0);
   pthread_mutex_init (&ruler->locks.winner, 0);
 #endif
-  ruler->size = size;
-  ruler->statistics.active = size;
+  init_synchronize (&ruler->synchronize, size);
   ruler->values = allocate_and_clear_block (2 * size);
   ruler->marks = allocate_and_clear_block (2 * size);
   assert (sizeof (bool) == 1);

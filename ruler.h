@@ -5,6 +5,7 @@
 #include "profile.h"
 #include "clause.h"
 #include "ring.h"
+#include "synchronize.h"
 
 #include <pthread.h>
 #include <stdbool.h>
@@ -49,6 +50,7 @@ struct ruler
   bool solving;
   bool subsuming;
   struct ruler_locks locks;
+  struct synchronize synchronize;
   struct rings rings;
   pthread_t *threads;
   struct ring *volatile winner;
