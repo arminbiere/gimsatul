@@ -27,7 +27,7 @@ new_ruler (size_t size, struct options * opts)
   assert (0 < opts->threads);
   assert (opts->threads <= MAX_THREADS);
   struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
-  ruler->size = size;
+  ruler->size = ruler->compact = size;
   ruler->statistics.active = size;
   memcpy (&ruler->options, opts, sizeof *opts);
   ruler->trace.binary = opts->binary;
@@ -84,7 +84,8 @@ delete_ruler (struct ruler *ruler)
 #endif
   RELEASE (ruler->rings);
   RELEASE (ruler->trace.buffer);
-  RELEASE (ruler->extension);
+  RELEASE (ruler->extension[0]);
+  RELEASE (ruler->extension[1]);
   if (ruler->original)
     {
       RELEASE (*ruler->original);
@@ -94,6 +95,7 @@ delete_ruler (struct ruler *ruler)
   release_clauses (ruler);
   free ((void *) ruler->values);
   free (ruler->marks);
+  free (ruler->map);
   free (ruler->eliminated);
   free (ruler->eliminate);
   free (ruler->subsume);

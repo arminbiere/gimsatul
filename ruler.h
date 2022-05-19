@@ -64,7 +64,7 @@ struct ruler
   struct unsigneds resolvent;
   struct unsigneds * original;
   struct clauses gate[2], nogate[2];
-  struct unsigneds extension;
+  struct unsigneds extension[2];
   struct ruler_trail units;
   struct trace trace;
   struct ruler_profiles profiles;
@@ -84,17 +84,17 @@ struct ruler
   all_pointers_on_stack(struct ring, RING, ruler->rings)
 
 #define all_ruler_indices(IDX) \
-  unsigned IDX = 0, END_ ## IDX = ruler->size; \
+  unsigned IDX = 0, END_ ## IDX = ruler->compact; \
   IDX != END_ ## IDX; \
   ++IDX
 
 #define all_ruler_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
+  unsigned LIT = 0, END_ ## LIT = 2*ruler->compact; \
   LIT != END_ ## LIT; \
   ++LIT
 
 #define all_positive_ruler_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*ruler->size; \
+  unsigned LIT = 0, END_ ## LIT = 2*ruler->compact; \
   LIT != END_ ## LIT; \
   LIT += 2
 

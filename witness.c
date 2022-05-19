@@ -16,17 +16,7 @@ extend_witness (struct ring * ring)
        ring->size, ruler->size);
   signed char * values = allocate_array (2*ruler->size, sizeof *values);
   memcpy (values, ring->values, 2*ring->size);
-#if 1
-  for (unsigned idx = 0; idx != ruler->size; idx++)
-    {
-      unsigned lit = LIT (idx);
-      if (values[lit])
-	continue;
-      unsigned not_lit = NOT (lit);
-      values[lit] = 1;
-      values[not_lit] = -1;
-    }
-#else
+  assert (ring->size == ruler->compact);
   for (unsigned idx = ring->size; idx != ruler->size; idx++)
     {
       unsigned lit = LIT (idx);
@@ -34,8 +24,7 @@ extend_witness (struct ring * ring)
       values[lit] = 1;
       values[not_lit] = -1;
     }
-#endif
-  struct unsigneds * extension = &ruler->extension;
+  struct unsigneds * extension = ruler->extension;
   unsigned * begin = extension->begin;
   unsigned * p = extension->end;
   unsigned pivot = INVALID;
@@ -85,6 +74,21 @@ extend_witness (struct ring * ring)
 	    satisfied = true;
 	}
       pivot = lit;
+    }
+  extension = ruler->extension + 1;
+  while (!EMPTY (*extension))
+    {
+      unsigned unit = POP (*extension);
+      if (values[unit] > 0)
+	continue;
+      assert (values[unit] < 0);
+      unsigned not_unit = NOT (unit);
+      assert (values[not_unit] > 0);
+      LOG ("flipping %s", LOGLIT (unit));
+      values[unit] = 1;
+      values[not_unit] = -1;
+      flipped++;
+
     }
   verbose (ring, "flipped %zu literals", flipped);
   return values;

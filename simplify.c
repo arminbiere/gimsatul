@@ -413,15 +413,10 @@ current_ruler_clauses (struct ruler * ruler)
 static void
 push_ruler_units_to_extension_stack (struct ruler * ruler)
 {
-  struct unsigneds * extension = &ruler->extension;;
-  unsigned pushed = 0;
+  struct unsigneds * extension = ruler->extension + 1;
   for (all_elements_on_stack (unsigned, lit, ruler->units))
-    {
-      PUSH (*extension, INVALID);
-      PUSH (*extension, lit);
-      pushed++;
-    }
-  verbose (0, "pushed %u units on extension stack", pushed);
+    PUSH (*extension, lit);
+  verbose (0, "pushed %zu units on extension stack", SIZE (*extension));
   ruler->units.end = ruler->units.propagate = ruler->units.begin;
 }
 

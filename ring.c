@@ -89,26 +89,13 @@ new_ring (struct ruler *ruler)
   heap->increment[0] = heap->increment[1] = 1;
   struct queue *queue = &ring->queue;
   queue->links = allocate_and_clear_array (size, sizeof *heap->nodes);
-  bool * eliminated = ruler->eliminated;
   unsigned active = 0;
-  signed char * ruler_values = (signed char*) ruler->values;
   struct node * n = heap->nodes;
   struct link * l = queue->links;
   for (all_ring_indices (idx))
     {
       struct node * node = n++;
       struct link * link = l++;
-      if (eliminated[idx])
-	{
-	  LOG ("skipping eliminated %s", LOGVAR (idx));
-	  continue;
-	}
-      unsigned lit = LIT (idx);
-      if (ruler_values[lit])
-	{
-	  LOG ("skipping simplification-fixed %s", LOGVAR (idx));
-	  continue;
-	}
       LOG ("pushing active %s", LOGVAR (idx));
       ring->active[idx] = true;
       push_heap (heap, node);
@@ -117,6 +104,7 @@ new_ring (struct ruler *ruler)
     }
   ring->statistics.active = ring->unassigned = active;
   LOG ("found %u active variables", active);
+  assert (active == ring->size);
   for (all_averages (a))
     a->exp = 1.0;
   ring->limits.conflicts = -1;

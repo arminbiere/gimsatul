@@ -77,9 +77,8 @@ compact_ruler (struct ruler * ruler)
       compact++;
     }
   unsigned * unmap = allocate_array (compact, sizeof *unmap);
-  unsigned * map = allocate_array (ruler->size, sizeof *map);
-  ruler->compact = compact;
   ruler->map = unmap;
+  unsigned * map = allocate_array (ruler->size, sizeof *map);
   unsigned mapped = 0;
   for (all_ruler_indices (idx))
     {
@@ -108,8 +107,11 @@ compact_ruler (struct ruler * ruler)
 	}
     }
   assert (compact == mapped);
+  ruler->compact = compact;
   map_clauses (ruler, map);
   message (0, "mapped %u variables to %u variables",
            ruler->size, mapped);
+  free (ruler->eliminated);
+  ruler->eliminated = 0;
   free (map);
 }
