@@ -13,6 +13,10 @@
 
 #include "cover.h"
 
+#if 1
+#include "random.h"
+#endif
+
 #include <inttypes.h>
 
 static size_t
@@ -190,10 +194,14 @@ vivify_clauses (struct ring * ring)
   very_verbose (ring, "scheduled %zu vivification candidates in total",
                 scheduled);
   signed char * values = ring->values;
+#if 0
   struct watch ** begin = candidates.begin;
   struct watch ** end = candidates.end;
   struct watch ** p = begin;
   while (p != end)
+#else
+  while (!EMPTY (candidates))
+#endif
     {
       if (PROBING_TICKS > limit)
 	break;
@@ -213,7 +221,15 @@ vivify_clauses (struct ring * ring)
 	}
       tried++;
       assert (!ring->level);
+#if 0
       struct watch * watch = *p++;
+#else
+      size_t size = SIZE (candidates);
+      size_t pos = random_modulo (&ring->random, size);
+      if (pos != size - 1)
+	SWAP (candidates.begin[size-1], candidates.begin[pos]);
+      struct watch * watch = POP (candidates);
+#endif
       assert (!binary_pointer (watch));
       assert (watched_vivification_candidate (watch));
       watch->vivify = false;
@@ -270,22 +286,31 @@ vivify_clauses (struct ring * ring)
 	  if (strengthened && !binary_pointer (strengthened))
 	    {
 	      assert (watched_vivification_candidate (strengthened));
+#if 0
 	      size_t pos = p - begin;
+#endif
 	      PUSH (candidates, strengthened);
+#if 0
 	      if (candidates.begin != begin)
 		{
 		  begin = candidates.begin;
 		  end = candidates.end;
 		  p = begin + pos;
 		}
+#endif
 	    }
 	}
       if (ring->level)
 	backtrack (ring, 0);
     }
+#if 0
   if (p != end && !(*p)->vivify)
     while (p != end)
       (*p++)->vivify = true;
+#else
+  for (all_pointers_on_stack (struct watch, watch, candidates))
+    watch->vivify = true;
+#endif
   RELEASE (candidates);
   very_verbose (ring,
                 "vivified %zu clauses %.0f%% from %zu tried %.0f%% "
