@@ -18,15 +18,23 @@ copy_ruler_binaries (struct ring *ring)
     {
       struct clauses *occurrences = &OCCURRENCES (lit);
       struct references *references = &REFERENCES (lit);
+#if 0
       size_t size = 0;
       for (all_clauses (clause, *occurrences))
 	if (binary_pointer (clause))
 	  size++;
+      assert (size == SIZE (*occurrences));
+#else
+      size_t size = SIZE (*occurrences);
+#endif
       unsigned *binaries = allocate_array (size + 1, sizeof *binaries);
       unsigned *b = references->binaries = binaries;
       for (all_clauses (clause, *occurrences))
+#if 0
 	if (binary_pointer (clause))
+#endif
 	  {
+	    assert (binary_pointer (clause));
 	    assert (lit_pointer (clause) == lit);
 	    assert (!redundant_pointer (clause));
 	    unsigned other = other_pointer (clause);

@@ -41,6 +41,7 @@ struct ruler_limits
 struct ruler
 {
   unsigned size;
+  unsigned compact;
   volatile bool terminate;
   bool eliminating;
   bool inconsistent;

@@ -1,3 +1,4 @@
+#include "compact.h"
 #include "deduplicate.h"
 #include "eliminate.h"
 #include "message.h"
@@ -546,6 +547,7 @@ simplify_ruler (struct ruler * ruler)
 	   elimination_ticks_limit_hit (ruler) ? " (limit hit)" : "");
 DONE:
   push_ruler_units_to_extension_stack (ruler);
+  compact_ruler (ruler);
   assert (ruler->simplifying);
   ruler->simplifying = false;
   double end_simplification = STOP (ruler, simplify);
