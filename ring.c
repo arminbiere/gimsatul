@@ -62,7 +62,7 @@ init_ring_profiles (struct ring *ring)
 struct ring *
 new_ring (struct ruler *ruler)
 {
-  unsigned size = ruler->size;
+  unsigned size = ruler->compact;
   assert (size < (1u << 30));
   struct ring *ring = allocate_and_clear_block (sizeof *ring);
   init_ring_profiles (ring);
