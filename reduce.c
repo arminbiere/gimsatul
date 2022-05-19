@@ -4,6 +4,7 @@
 #include "report.h"
 #include "ring.h"
 #include "trace.h"
+#include "synchronize.h"
 #include "utilities.h"
 
 #include <inttypes.h>
@@ -213,6 +214,7 @@ void
 reduce (struct ring *ring)
 {
   check_clause_statistics (ring);
+  rendezvous (ring, reduce, "reduce");
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
   statistics->reductions++;

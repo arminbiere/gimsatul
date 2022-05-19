@@ -133,6 +133,8 @@ solve_rings (struct ruler *ruler)
 	}
       message (0, "starting and running %zu ring threads", threads);
 
+      ruler->synchronize.size = threads;
+
       for (all_rings (ring))
 	start_running_ring (ring);
 

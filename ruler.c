@@ -39,7 +39,7 @@ new_ruler (size_t size, struct options * opts)
   pthread_mutex_init (&ruler->locks.rings, 0);
   pthread_mutex_init (&ruler->locks.terminate, 0);
   pthread_mutex_init (&ruler->locks.winner, 0);
-  init_synchronize (&ruler->synchronize, size);
+  init_synchronization (&ruler->synchronize);
   ruler->values = allocate_and_clear_block (2 * size);
   ruler->marks = allocate_and_clear_block (2 * size);
   assert (sizeof (bool) == 1);
@@ -271,6 +271,7 @@ set_winner (struct ring *ring)
   if (pthread_mutex_lock (&ruler->locks.winner))
     fatal_error ("failed to acquire winner lock");
   winner = ruler->winner;
+  assert (winner != ring);
   winning = !winner;
   if (winning)
     ruler->winner = ring;

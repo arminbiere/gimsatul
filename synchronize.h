@@ -16,12 +16,11 @@ struct synchronize
   unsigned size;
 };
 
-void init_synchronize (struct synchronize *, unsigned participants);
+void init_synchronization (struct synchronize *);
 
 void rendezvous (struct ring *,
-                 struct synchronize *,
                  void(*function)(struct ring*), const char*);
 
-void disable_synchronize (struct synchronize *);
+void disable_synchronization (struct synchronize *);
 
 #endif
