@@ -360,7 +360,7 @@ subsume_clauses (struct simplifier * simplifier, unsigned round)
   assert (!ruler->subsuming);
   ruler->subsuming = true;
   struct clause ** candidates;
-  size_t size_candidates = get_subsumption_candidates (ruler, &candidates);
+  size_t size_candidates = get_subsumption_candidates (simplifier, &candidates);
   verbose (0, "[%u] found %zu large forward subsumption candidates",
            round, size_candidates);
   struct { uint64_t before, after, delta; } subsumed, strengthened;

@@ -293,7 +293,7 @@ equivalent_literal_substitution (struct simplifier * simplifier, unsigned round)
 {
   struct ruler * ruler = simplifier->ruler;
   double substitution_start = START (ruler, substitute);
-  unsigned * repr = find_equivalent_literals (ruler, round);
+  unsigned * repr = find_equivalent_literals (simplifier, round);
   unsigned substituted = 0;
   if (repr)
     {

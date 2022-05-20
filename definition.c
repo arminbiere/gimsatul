@@ -91,7 +91,7 @@ find_definition (struct simplifier * simplifier, unsigned lit)
   struct clauses * gate = simplifier->gate;
   struct clauses * nogate = simplifier->nogate;
   {
-    unsigned other = find_equivalence_gate (ruler, lit);
+    unsigned other = find_equivalence_gate (simplifier, lit);
     if (other != INVALID)
       {
 	ROG ("found equivalence %s equal to %s",
@@ -128,7 +128,7 @@ find_definition (struct simplifier * simplifier, unsigned lit)
       }
   }
   unsigned resolve = lit;
-  struct clause * base = find_and_gate (ruler, resolve, &gate[1], &nogate[1]);
+  struct clause * base = find_and_gate (simplifier, resolve, &gate[1], &nogate[1]);
   if (base)
     {
       assert (SIZE (gate[1]) == base->size - 1);
@@ -142,7 +142,7 @@ find_definition (struct simplifier * simplifier, unsigned lit)
   else
     {
       resolve = NOT (lit);
-      base = find_and_gate (ruler, resolve, &gate[0], &nogate[0]);
+      base = find_and_gate (simplifier, resolve, &gate[0], &nogate[0]);
       if (base)
 	{
 	  assert (SIZE (gate[0]) == base->size - 1);
