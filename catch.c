@@ -89,7 +89,7 @@ catch_signal (int sig)
   if (atomic_exchange (&caught_signal, sig))
     return;
   caught_message (sig);
-  struct ruler * ruler = (struct ruler *) one_global_ruler;
+  struct ruler *ruler = (struct ruler *) one_global_ruler;
   reset_signal_handlers ();
   if (ruler)
     print_ruler_statistics (ruler);
@@ -108,7 +108,7 @@ catch_alarm (int sig)
     caught_message (sig);
   reset_alarm_handler ();
   assert (one_global_ruler);
-  set_terminate ((struct ruler*) one_global_ruler);
+  set_terminate ((struct ruler *) one_global_ruler);
   caught_signal = 0;
 }
 
@@ -123,7 +123,7 @@ set_alarm_handler (unsigned seconds)
 }
 
 void
-set_signal_handlers (struct ruler * ruler)
+set_signal_handlers (struct ruler *ruler)
 {
   unsigned seconds = ruler->options.seconds;
   one_global_ruler = ruler;

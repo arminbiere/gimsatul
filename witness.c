@@ -9,13 +9,12 @@
 #include <string.h>
 
 signed char *
-extend_witness (struct ring * ring)
+extend_witness (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
-  LOG ("extending witness from %u to %u variables",
-       ring->size, ruler->size);
-  signed char * values = allocate_array (2*ruler->size, sizeof *values);
-  memcpy (values, ring->values, 2*ring->size);
+  struct ruler *ruler = ring->ruler;
+  LOG ("extending witness from %u to %u variables", ring->size, ruler->size);
+  signed char *values = allocate_array (2 * ruler->size, sizeof *values);
+  memcpy (values, ring->values, 2 * ring->size);
   assert (ring->size == ruler->compact);
   for (unsigned idx = ring->size; idx != ruler->size; idx++)
     {
@@ -27,24 +26,24 @@ extend_witness (struct ring * ring)
   free (ruler->map);
   ruler->map = 0;
   size_t flipped = 0;
-  struct unsigneds * extension = &ruler->extension;
-  unsigned * begin = extension->begin;
-  unsigned * p = extension->end;
+  struct unsigneds *extension = &ruler->extension;
+  unsigned *begin = extension->begin;
+  unsigned *p = extension->end;
   unsigned pivot = INVALID;
   bool satisfied = false;
-  LOG ("going through extension stack of size %zu", (size_t)(p - begin));
+  LOG ("going through extension stack of size %zu", (size_t) (p - begin));
 #ifdef LOGGING
   if (verbosity == INT_MAX)
     {
       LOG ("extension stack in reverse order:");
-      unsigned * q = p;
+      unsigned *q = p;
       while (q != begin)
 	{
-	  unsigned * next = q;
+	  unsigned *next = q;
 	  while (*--next != INVALID)
 	    ;
 	  LOGPREFIX ("extension clause");
-	  for (unsigned * c = next + 1; c != q; c++)
+	  for (unsigned *c = next + 1; c != q; c++)
 	    printf (" %s", LOGLIT (*c));
 	  LOGSUFFIX ();
 	  q = next;
@@ -84,7 +83,7 @@ extend_witness (struct ring * ring)
 #ifndef NDEBUG
 
 void
-check_witness (unsigned * map, signed char * values, struct unsigneds * original)
+check_witness (unsigned *map, signed char *values, struct unsigneds *original)
 {
   size_t clauses = 0;
   for (unsigned *c = original->begin, *p; c != original->end; c = p + 1)
@@ -115,7 +114,7 @@ struct line
 };
 
 static void
-flush_line (struct line * line)
+flush_line (struct line *line)
 {
   fwrite (line->buffer, 1, line->size, stdout);
   fputc ('\n', stdout);
@@ -123,7 +122,7 @@ flush_line (struct line * line)
 }
 
 static void
-print_signed_literal (struct line * line, int lit)
+print_signed_literal (struct line *line, int lit)
 {
   char buffer[32];
   sprintf (buffer, " %d", lit);
@@ -137,8 +136,8 @@ print_signed_literal (struct line * line, int lit)
 }
 
 static void
-print_unsigned_literal (struct line * line,
-                        signed char *values, unsigned unsigned_lit)
+print_unsigned_literal (struct line *line,
+			signed char *values, unsigned unsigned_lit)
 {
   assert (unsigned_lit < (unsigned) INT_MAX);
   int signed_lit = IDX (unsigned_lit) + 1;
@@ -147,7 +146,7 @@ print_unsigned_literal (struct line * line,
 }
 
 void
-print_witness (unsigned size, signed char * values)
+print_witness (unsigned size, signed char *values)
 {
   struct line line;
   line.size = 0;
@@ -157,4 +156,3 @@ print_witness (unsigned size, signed char * values)
   if (line.size)
     flush_line (&line);
 }
-

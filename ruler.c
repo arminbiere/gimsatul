@@ -22,7 +22,7 @@ init_ruler_profiles (struct ruler *ruler)
 }
 
 struct ruler *
-new_ruler (size_t size, struct options * opts)
+new_ruler (size_t size, struct options *opts)
 {
   assert (0 < opts->threads);
   assert (opts->threads <= MAX_THREADS);
@@ -61,7 +61,7 @@ release_occurrences (struct ruler *ruler)
 }
 
 static void
-release_clauses (struct ruler * ruler)
+release_clauses (struct ruler *ruler)
 {
   for (all_clauses (clause, ruler->clauses))
     if (!binary_pointer (clause))
@@ -111,13 +111,12 @@ new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
 }
 
 void
-disconnect_literal (struct ruler * ruler,
-                    unsigned lit, struct clause * clause)
+disconnect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
 {
   ROGCLAUSE (clause, "disconnecting %s from", ROGLIT (lit));
-  struct clauses * clauses = &OCCURRENCES (lit);
-  struct clause ** begin = clauses->begin, ** q = begin;
-  struct clause ** end = clauses->end, ** p = q;
+  struct clauses *clauses = &OCCURRENCES (lit);
+  struct clause **begin = clauses->begin, **q = begin;
+  struct clause **end = clauses->end, **p = q;
   uint64_t ticks = 1 + cache_lines (end, begin);
   if (ruler->eliminating)
     ruler->statistics.ticks.elimination += ticks;
@@ -125,7 +124,7 @@ disconnect_literal (struct ruler * ruler,
     ruler->statistics.ticks.subsumption += ticks;
   while (p != end)
     {
-      struct clause * other_clause = *q++ = *p++;
+      struct clause *other_clause = *q++ = *p++;
       if (other_clause == clause)
 	{
 	  q--;
@@ -141,7 +140,7 @@ disconnect_literal (struct ruler * ruler,
 }
 
 void
-connect_large_clause (struct ruler * ruler, struct clause * clause)
+connect_large_clause (struct ruler *ruler, struct clause *clause)
 {
   assert (!binary_pointer (clause));
   for (all_literals_in_clause (lit, clause))
@@ -149,9 +148,9 @@ connect_large_clause (struct ruler * ruler, struct clause * clause)
 }
 
 void
-assign_ruler_unit (struct ruler * ruler, unsigned unit)
+assign_ruler_unit (struct ruler *ruler, unsigned unit)
 {
-  signed char * values = (signed char*) ruler->values;
+  signed char *values = (signed char *) ruler->values;
   unsigned not_unit = NOT (unit);
   assert (!values[unit]);
   assert (!values[not_unit]);
@@ -170,17 +169,16 @@ assign_ruler_unit (struct ruler * ruler, unsigned unit)
 }
 
 void
-recycle_clause (struct simplifier * simplifier,
-                                         struct clause * clause,
-					 unsigned lit)
+recycle_clause (struct simplifier *simplifier,
+		struct clause *clause, unsigned lit)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   if (binary_pointer (clause))
     {
       assert (lit == lit_pointer (clause));
       assert (!redundant_pointer (clause));
       unsigned other = other_pointer (clause);
-      struct clause * other_clause = tag_pointer (false, other, lit);
+      struct clause *other_clause = tag_pointer (false, other, lit);
       disconnect_literal (ruler, other, other_clause);
       ROGBINARY (lit, other, "disconnected and deleted");
       assert (ruler->statistics.binaries);
@@ -201,15 +199,15 @@ recycle_clause (struct simplifier * simplifier,
 }
 
 void
-recycle_clauses (struct simplifier * simplifier,
-                               struct clauses * clauses, unsigned except)
+recycle_clauses (struct simplifier *simplifier,
+		 struct clauses *clauses, unsigned except)
 {
 #ifdef LOGGING
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   ROG ("disconnecting and deleting clauses with %s", ROGLIT (except));
 #endif
   for (all_clauses (clause, *clauses))
-      recycle_clause (simplifier, clause, except);
+    recycle_clause (simplifier, clause, except);
   RELEASE (*clauses);
 }
 
@@ -247,7 +245,7 @@ detach_ring (struct ring *ring)
 /*------------------------------------------------------------------------*/
 
 void
-set_terminate (struct ruler * ruler)
+set_terminate (struct ruler *ruler)
 {
   if (pthread_mutex_lock (&ruler->locks.terminate))
     fatal_error ("failed to acquire terminate lock");

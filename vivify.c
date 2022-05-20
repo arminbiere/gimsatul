@@ -14,8 +14,8 @@
 #include <inttypes.h>
 
 static size_t
-reschedule_vivification_candidates (struct ring * ring,
-                                    struct watches * candidates)
+reschedule_vivification_candidates (struct ring *ring,
+				    struct watches *candidates)
 {
   assert (EMPTY (*candidates));
   for (all_watches (watch, ring->watches))
@@ -27,8 +27,8 @@ reschedule_vivification_candidates (struct ring * ring,
 }
 
 static size_t
-schedule_vivification_candidates (struct ring * ring,
-                                  struct watches * candidates)
+schedule_vivification_candidates (struct ring *ring,
+				  struct watches *candidates)
 {
   size_t before = SIZE (*candidates);
   for (all_watches (watch, ring->watches))
@@ -63,20 +63,20 @@ do { \
 } while (0)
 
 struct watch *
-vivify_strengthen (struct ring * ring, struct watch * candidate)
+vivify_strengthen (struct ring *ring, struct watch *candidate)
 {
   LOGWATCH (candidate, "vivify strengthening");
   assert (!binary_pointer (candidate));
-  struct unsigneds * analyzed = &ring->analyzed;
-  struct variable * variables = ring->variables;
-  struct unsigneds * clause = &ring->clause;
-  struct unsigneds * levels = &ring->levels;
-  bool * used = ring->used;
-  struct ring_trail * trail = &ring->trail;
+  struct unsigneds *analyzed = &ring->analyzed;
+  struct variable *variables = ring->variables;
+  struct unsigneds *clause = &ring->clause;
+  struct unsigneds *levels = &ring->levels;
+  bool *used = ring->used;
+  struct ring_trail *trail = &ring->trail;
   assert (EMPTY (*analyzed));
   assert (EMPTY (*clause));
-  struct watch * reason = candidate;
-  unsigned * t = trail->end;
+  struct watch *reason = candidate;
+  unsigned *t = trail->end;
   unsigned open = 0;
   do
     {
@@ -104,7 +104,7 @@ vivify_strengthen (struct ring * ring, struct watch * candidate)
 	      assert (t != trail->begin);
 	      lit = *--t;
 	      unsigned idx = IDX (lit);
-	      struct variable * v = variables + idx;
+	      struct variable *v = variables + idx;
 	      if (v->seen)
 		{
 		  reason = v->reason;
@@ -121,8 +121,8 @@ vivify_strengthen (struct ring * ring, struct watch * candidate)
   size_t size = SIZE (*clause);
   assert (size);
   assert (size < candidate->clause->size);
-  unsigned * literals = clause->begin;
-  struct watch * res = 0;
+  unsigned *literals = clause->begin;
+  struct watch *res = 0;
   if (size == 1)
     {
       unsigned unit = literals[0];
@@ -130,9 +130,10 @@ vivify_strengthen (struct ring * ring, struct watch * candidate)
       backtrack (ring, 0);
       trace_add_unit (&ring->trace, unit);
       if (ring_propagate (ring, false, 0))
-	set_inconsistent (ring, "propagation of strengthened clause unit fails");
+	set_inconsistent (ring,
+			  "propagation of strengthened clause unit fails");
       else
-        export_units (ring);
+	export_units (ring);
     }
   else if (size == 2)
     {
@@ -151,8 +152,7 @@ vivify_strengthen (struct ring * ring, struct watch * candidate)
 	  LOG ("but candidate glue %u smaller", glue);
 	}
       assert (glue < size);
-      struct clause * clause =
-        new_large_clause (size, literals, true, glue);
+      struct clause *clause = new_large_clause (size, literals, true, glue);
       res = watch_first_two_literals_in_large_clause (ring, clause);
       trace_add_clause (&ring->trace, clause);
       if (glue <= 1)
@@ -168,11 +168,11 @@ vivify_strengthen (struct ring * ring, struct watch * candidate)
 }
 
 void
-vivify_clauses (struct ring * ring)
+vivify_clauses (struct ring *ring)
 {
   if (ring->inconsistent)
     return;
-  struct watches * watches = &ring->watches;
+  struct watches *watches = &ring->watches;
   if (EMPTY (*watches))
     return;
   START (ring, vivify);
@@ -180,7 +180,7 @@ vivify_clauses (struct ring * ring)
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   uint64_t delta_probing_ticks = VIVIFY_EFFORT * delta_search_ticks;
   verbose (ring, "vivification effort of %" PRIu64 " = %g * %" PRIu64
-           " search ticks", delta_probing_ticks, (double) VIVIFY_EFFORT,
+	   " search ticks", delta_probing_ticks, (double) VIVIFY_EFFORT,
 	   delta_search_ticks);
   uint64_t probing_ticks_before = PROBING_TICKS;
   uint64_t limit = probing_ticks_before + delta_probing_ticks;
@@ -189,14 +189,14 @@ vivify_clauses (struct ring * ring)
   INIT (candidates);
   size_t rescheduled = reschedule_vivification_candidates (ring, &candidates);
   very_verbose (ring, "rescheduling %zu vivification candidates",
-                rescheduled);
+		rescheduled);
   size_t scheduled = schedule_vivification_candidates (ring, &candidates);
   very_verbose (ring, "scheduled %zu vivification candidates in total",
-                scheduled);
-  signed char * values = ring->values;
-  struct watch ** begin = candidates.begin;
-  struct watch ** end = candidates.end;
-  struct watch ** p = begin;
+		scheduled);
+  signed char *values = ring->values;
+  struct watch **begin = candidates.begin;
+  struct watch **end = candidates.end;
+  struct watch **p = begin;
   while (p != end)
     {
       if (PROBING_TICKS > limit)
@@ -210,18 +210,18 @@ vivify_clauses (struct ring * ring)
 	  if (ring_propagate (ring, false, 0))
 	    {
 	      set_inconsistent (ring,
-	                        "propagation of imported clauses "
+				"propagation of imported clauses "
 				"during vivification fails");
 	      break;
 	    }
 	}
       tried++;
       assert (!ring->level);
-      struct watch * watch = *p++;
+      struct watch *watch = *p++;
       assert (!binary_pointer (watch));
       assert (watched_vivification_candidate (watch));
       watch->vivify = false;
-      struct clause * clause = watch->clause;
+      struct clause *clause = watch->clause;
       unsigned non_root_level_falsified = 0;
       for (all_literals_in_clause (lit, clause))
 	{
@@ -239,12 +239,12 @@ vivify_clauses (struct ring * ring)
 	  else
 	    {
 	      const unsigned idx = IDX (lit);
-	      struct variable * v = ring->variables + idx;
+	      struct variable *v = ring->variables + idx;
 	      if (value > 0)
 		{
 		  if (v->level)
 		    {
-		 IMPLIED:
+		    IMPLIED:
 		      LOGWATCH (watch, "vivify implied");
 		      ring->statistics.vivify.succeeded++;
 		      ring->statistics.vivify.implied++;
@@ -267,7 +267,7 @@ vivify_clauses (struct ring * ring)
 	{
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.strengthened++;
-	  struct watch * strengthened = vivify_strengthen (ring, watch);
+	  struct watch *strengthened = vivify_strengthen (ring, watch);
 	  mark_garbage_watch (ring, watch);
 	  if (ring->inconsistent)
 	    break;
@@ -292,14 +292,14 @@ vivify_clauses (struct ring * ring)
       (*p++)->vivify = true;
   RELEASE (candidates);
   very_verbose (ring,
-                "vivified %zu clauses %.0f%% from %zu tried %.0f%% "
-                "after %" PRIu64 " ticks (%s)",
-                vivified, percent (vivified, tried),
+		"vivified %zu clauses %.0f%% from %zu tried %.0f%% "
+		"after %" PRIu64 " ticks (%s)",
+		vivified, percent (vivified, tried),
 		tried, percent (tried, scheduled),
 		PROBING_TICKS - probing_ticks_before,
 		(PROBING_TICKS > limit ? "limit hit" : "completed"));
   very_verbose (ring, "implied %zu clauses %.0f%% of vivified "
-                "and strengthened %zu clauses %.0f%%",
+		"and strengthened %zu clauses %.0f%%",
 		implied, percent (implied, vivified),
 		strengthened, percent (strengthened, vivified));
   report (ring, 'v');

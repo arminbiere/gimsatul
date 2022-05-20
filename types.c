@@ -28,14 +28,14 @@ check_types (void)
   CHECK_TYPE (int, 4);
   CHECK_TYPE (size_t, 8);
   CHECK_TYPE (void *, 8);
-  
+
   {
     if (MAX_THREADS & 7)
       fatal_error ("'MAX_THREADS = %u' not byte aligned", MAX_THREADS);
     size_t bytes_of_shared_field = sizeof ((struct clause *) 0)->shared;
     if ((MAX_THREADS >> 3) > (1u << (bytes_of_shared_field * 8 - 3)))
       fatal_error ("shared field of clauses with %zu bytes "
-                   "does not fit 'MAX_THREADS = %u'",
+		   "does not fit 'MAX_THREADS = %u'",
 		   bytes_of_shared_field, MAX_THREADS);
   }
 

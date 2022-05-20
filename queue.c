@@ -1,7 +1,7 @@
 #include "queue.h"
 
 void
-enqueue (struct queue * queue, struct link * link, bool update)
+enqueue (struct queue *queue, struct link *link, bool update)
 {
   if (queue->last)
     queue->last->next = link;
@@ -16,7 +16,7 @@ enqueue (struct queue * queue, struct link * link, bool update)
 }
 
 void
-dequeue (struct queue * queue, struct link * link)
+dequeue (struct queue *queue, struct link *link)
 {
   assert (queue->search);
   if (link->prev)

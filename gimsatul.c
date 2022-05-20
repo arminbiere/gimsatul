@@ -29,7 +29,7 @@ main (int argc, char **argv)
     }
   int variables, clauses;
   parse_dimacs_header (&options, &variables, &clauses);
-  struct ruler * ruler = new_ruler (variables, &options);
+  struct ruler *ruler = new_ruler (variables, &options);
   set_signal_handlers (ruler);
   parse_dimacs_body (ruler, variables, clauses);
   report_non_default_options (&options);
@@ -48,7 +48,7 @@ main (int argc, char **argv)
     }
   else if (res == 10)
     {
-      signed char * witness = extend_witness (winner);
+      signed char *witness = extend_witness (winner);
       check_witness (ruler->map, witness, ruler->original);
       if (verbosity >= 0)
 	printf ("c\n");

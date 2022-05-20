@@ -10,16 +10,16 @@ struct synchronize
 {
   pthread_mutex_t mutex;
   pthread_cond_t condition;
-  volatile void (*function)(struct ring*);
+  volatile void (*function) (struct ring *);
   volatile unsigned count;
-  const char * name;
+  const char *name;
   unsigned size;
 };
 
 void init_synchronization (struct synchronize *);
 
 void rendezvous (struct ring *,
-                 void(*function)(struct ring*), const char*);
+		 void (*function) (struct ring *), const char *);
 
 void disable_synchronization (struct synchronize *);
 

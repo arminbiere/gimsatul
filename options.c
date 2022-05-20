@@ -36,7 +36,7 @@ looks_like_dimacs (const char *path)
 static bool
 is_positive_number_string (const char *arg)
 {
-  const char * p = arg;
+  const char *p = arg;
   int ch;
   if (!(ch = *p++))
     return false;
@@ -49,7 +49,7 @@ is_positive_number_string (const char *arg)
 }
 
 static bool
-is_number_string (const char * arg)
+is_number_string (const char *arg)
 {
   return is_positive_number_string (arg + (*arg == '-'));
 }
@@ -94,7 +94,7 @@ open_and_read_from_pipe (const char *path, const char *fmt)
 }
 
 void
-initialize_options (struct options * opts)
+initialize_options (struct options *opts)
 {
   memset (opts, 0, sizeof *opts);
   opts->conflicts = -1;
@@ -106,14 +106,14 @@ initialize_options (struct options * opts)
 }
 
 void
-normalize_options (struct options * opts)
+normalize_options (struct options *opts)
 {
   if (!opts->simplify)
     opts->preprocessing = opts->inprocessing = false;
 
   if (!opts->preprocessing)
     opts->deduplicate = opts->eliminate = opts->subsume =
-    opts->substitute = false;
+      opts->substitute = false;
 
   if (!opts->inprocessing)
     opts->probe = false;
@@ -123,9 +123,9 @@ normalize_options (struct options * opts)
 }
 
 static bool
-parse_option (const char * opt, const char * name)
+parse_option (const char *opt, const char *name)
 {
-  const char * o = opt, * n = name;
+  const char *o = opt, *n = name;
   char och;
   while ((och = *o++))
     {
@@ -142,11 +142,11 @@ parse_option (const char * opt, const char * name)
 }
 
 static bool
-parse_bool_option_value (const char * opt,
-                         const char * str, bool * value_ptr,
-		         bool min_value, bool max_value)
+parse_bool_option_value (const char *opt,
+			 const char *str, bool *value_ptr,
+			 bool min_value, bool max_value)
 {
-  const char * arg = match_and_find_option_argument (opt, str);
+  const char *arg = match_and_find_option_argument (opt, str);
   if (!arg)
     return false;
   if (!strcmp (arg, "0") || !strcmp (arg, "false"))
@@ -159,11 +159,11 @@ parse_bool_option_value (const char * opt,
 }
 
 static bool
-parse_unsigned_option_value (const char * opt,
-                             const char * str, unsigned * value_ptr,
-		             unsigned min_value, unsigned max_value)
+parse_unsigned_option_value (const char *opt,
+			     const char *str, unsigned *value_ptr,
+			     unsigned min_value, unsigned max_value)
 {
-  const char * arg = match_and_find_option_argument (opt, str);
+  const char *arg = match_and_find_option_argument (opt, str);
   if (!arg)
     return false;
   if (sscanf (arg, "%u", value_ptr) != 1)
@@ -176,7 +176,7 @@ parse_unsigned_option_value (const char * opt,
 }
 
 bool
-parse_option_with_value (struct options * options, const char * str)
+parse_option_with_value (struct options *options, const char *str)
 {
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
   if (parse_ ## TYPE ## _option_value (str, #NAME, \
@@ -184,7 +184,7 @@ parse_option_with_value (struct options * options, const char * str)
     return true;
   OPTIONS
 #undef OPTION
-  return false;
+    return false;
 }
 
 static void
@@ -221,7 +221,8 @@ parse_options (int argc, char **argv, struct options *opts)
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
 	{
 	  printf (usage_prefix, (size_t) MAX_THREADS);
-	  printf ("\nThere is another list of less commonly used options:\n\n");
+	  printf
+	    ("\nThere is another list of less commonly used options:\n\n");
 	  print_usage_of_options ();
 	  exit (0);
 	}
@@ -311,9 +312,9 @@ parse_options (int argc, char **argv, struct options *opts)
                opt[1] == '-' && \
                parse_option (opt + 2, #NAME)) \
         opts->NAME = true;
-      OPTIONS
+	OPTIONS
 #undef OPTION
-      else if (parse_option_with_value (opts, opt))
+	else if (parse_option_with_value (opts, opt))
 	;
       else if (!strcmp (opt, "--embedded"))
 	print_embedded_options (), exit (0);
@@ -351,19 +352,19 @@ parse_options (int argc, char **argv, struct options *opts)
 	  else if (has_suffix (opt, ".bz2"))
 	    {
 	      opts->dimacs.file =
-	        open_and_read_from_pipe (opt, "bzip2 -c -d %s");
+		open_and_read_from_pipe (opt, "bzip2 -c -d %s");
 	      opts->dimacs.close = 2;
 	    }
 	  else if (has_suffix (opt, ".gz"))
 	    {
 	      opts->dimacs.file =
-	        open_and_read_from_pipe (opt, "gzip -c -d %s");
+		open_and_read_from_pipe (opt, "gzip -c -d %s");
 	      opts->dimacs.close = 2;
 	    }
 	  else if (has_suffix (opt, ".xz"))
 	    {
 	      opts->dimacs.file =
-	        open_and_read_from_pipe (opt, "xz -c -d %s");
+		open_and_read_from_pipe (opt, "xz -c -d %s");
 	      opts->dimacs.close = 2;
 	    }
 	  else
@@ -410,25 +411,25 @@ bool_to_string (bool value)
 }
 
 static void
-report_non_default_bool_option (const char * name,
-                                bool actual_value, bool default_value)
+report_non_default_bool_option (const char *name,
+				bool actual_value, bool default_value)
 {
   assert (actual_value != default_value);
-  const char * actual_string = bool_to_string (actual_value);
-  const char * default_string = bool_to_string (default_value);
+  const char *actual_string = bool_to_string (actual_value);
+  const char *default_string = bool_to_string (default_value);
   printf ("c non-default option '--%s=%s' (default '--%s=%s')\n",
-          name, actual_string, name, default_string);
+	  name, actual_string, name, default_string);
 }
 
 static void
-unsigned_to_string (unsigned value, char * res)
+unsigned_to_string (unsigned value, char *res)
 {
   sprintf (res, "%u", value);
 }
 
 static void
-report_non_default_unsigned_option (const char * name,
-                                    unsigned actual_value,
+report_non_default_unsigned_option (const char *name,
+				    unsigned actual_value,
 				    unsigned default_value)
 {
   assert (actual_value != default_value);
@@ -439,11 +440,11 @@ report_non_default_unsigned_option (const char * name,
   assert (strlen (actual_string) < sizeof actual_string);
   assert (strlen (default_string) < sizeof default_string);
   printf ("c non-default option '--%s=%s' (default '--%s=%s')\n",
-          name, actual_string, name, default_string);
+	  name, actual_string, name, default_string);
 }
 
 void
-report_non_default_options (struct options * options)
+report_non_default_options (struct options *options)
 {
   if (verbosity < 0)
     return;
@@ -464,23 +465,23 @@ void
 print_usage_of_options (void)
 {
 #if 0
-"  --walk-initially         one additional round of initial local search\n"
-"\n"
-"  --no-deduplicate         disable removal of duplicated binary clauses\n"
-"  --no-eliminate           disable clause subsumption and strengthening\n"
-"  --no-fail                disable failed literal probing\n"
-"  --no-inprocessing        disable all inprocessing (currently only 'probe')\n"
-"  --no-portfolio           disable diversification through option portfolio\n"
-"  --no-preprocessing       disable all preprocessing ('eliminate' etc.)\n"
-"  --no-probe               disable probing inprocessing ('fail' + 'vivify')\n"
-"  --no-simplify            disable all preprocessing and inprocessing\n"
-"  --no-substitute          disable equivalent literal substitution\n"
-"  --no-subsume             disable failed literal probing\n"
-"  --no-vivify              disable redundant clause vivification\n"
-"  --no-walk                disable local search during rephasing\n"
-"\n"
-"  --reduce-interval        clause reduction conflict interval\n"
-"  --probe-interval         clause reduction conflict interval\n"
+  "  --walk-initially         one additional round of initial local search\n"
+    "\n"
+    "  --no-deduplicate         disable removal of duplicated binary clauses\n"
+    "  --no-eliminate           disable clause subsumption and strengthening\n"
+    "  --no-fail                disable failed literal probing\n"
+    "  --no-inprocessing        disable all inprocessing (currently only 'probe')\n"
+    "  --no-portfolio           disable diversification through option portfolio\n"
+    "  --no-preprocessing       disable all preprocessing ('eliminate' etc.)\n"
+    "  --no-probe               disable probing inprocessing ('fail' + 'vivify')\n"
+    "  --no-simplify            disable all preprocessing and inprocessing\n"
+    "  --no-substitute          disable equivalent literal substitution\n"
+    "  --no-subsume             disable failed literal probing\n"
+    "  --no-vivify              disable redundant clause vivification\n"
+    "  --no-walk                disable local search during rephasing\n"
+    "\n"
+    "  --reduce-interval        clause reduction conflict interval\n"
+    "  --probe-interval         clause reduction conflict interval\n"
 #else
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
   printf ("--%s=%u..%u (default %u)\n", \

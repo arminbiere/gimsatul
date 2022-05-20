@@ -48,17 +48,17 @@ set_ring_limits (struct ring *ring, long long conflicts)
     {
       switch (ring->id % 3)
 	{
-	  case 1:
-	    ring->options.switch_mode = false;
-	    ring->options.focus_initially = false;
-	    break;
-	  case 2:
-	    ring->options.switch_mode = false;
-	    ring->options.focus_initially = true;
-	    break;
+	case 1:
+	  ring->options.switch_mode = false;
+	  ring->options.focus_initially = false;
+	  break;
+	case 2:
+	  ring->options.switch_mode = false;
+	  ring->options.focus_initially = true;
+	  break;
 	}
 
-      if  (ring->id % 2)
+      if (ring->id % 2)
 	ring->options.phase = !ring->options.phase;
     }
   else
@@ -93,7 +93,8 @@ set_ring_limits (struct ring *ring, long long conflicts)
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = REPHASE_INTERVAL;
   verbose (ring, "reduce interval of %" PRIu64 " conflicts", limits->reduce);
-  verbose (ring, "restart interval of %" PRIu64 " conflicts", limits->restart);
+  verbose (ring, "restart interval of %" PRIu64 " conflicts",
+	   limits->restart);
   verbose (ring, "probe interval of %" PRIu64 " conflicts", limits->probe);
 
   if (conflicts >= 0)
@@ -121,7 +122,7 @@ solve_rings (struct ruler *ruler)
       fflush (stdout);
     }
   for (all_rings (ring))
-      set_ring_limits (ring, conflicts);
+    set_ring_limits (ring, conflicts);
   if (threads > 1)
     {
       unsigned delta = ruler->compact / threads;
@@ -151,6 +152,6 @@ solve_rings (struct ruler *ruler)
   ruler->solving = false;
   double end_solving = STOP (ruler, solve);
   verbose (0, "finished solving using %zu threads in %.2f seconds",
-           threads, end_solving - start_solving);
+	   threads, end_solving - start_solving);
   return (struct ring *) ruler->winner;
 }

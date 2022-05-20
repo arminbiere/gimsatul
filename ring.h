@@ -161,7 +161,7 @@ struct rings
 
 /*------------------------------------------------------------------------*/
 
-struct ring * new_ring (struct ruler *);
+struct ring *new_ring (struct ruler *);
 void delete_ring (struct ring *);
 
 void init_pool (struct ring *, unsigned threads);

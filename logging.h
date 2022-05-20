@@ -12,10 +12,10 @@
 struct ring;
 struct ruler;
 
-const char * loglit (struct ring *, unsigned lit);
-const char * logvar (struct ring *, unsigned idx);
-const char * roglit (struct ruler *, unsigned lit);
-const char * rogvar (struct ruler *, unsigned idx);
+const char *loglit (struct ring *, unsigned lit);
+const char *logvar (struct ring *, unsigned idx);
+const char *roglit (struct ruler *, unsigned lit);
+const char *rogvar (struct ruler *, unsigned idx);
 
 #define LOGLIT(...) loglit (ring, __VA_ARGS__)
 #define LOGVAR(...) logvar (ring, __VA_ARGS__)

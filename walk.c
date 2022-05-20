@@ -298,12 +298,12 @@ set_walking_limits (struct walker *walker)
 }
 
 static size_t
-hash_counter_or_binary (void * state, void * ptr)
+hash_counter_or_binary (void *state, void *ptr)
 {
   if (binary_pointer (ptr))
     return (size_t) ptr;
-  struct counter * counters = state;
-  struct counter * counter = ptr;
+  struct counter *counters = state;
+  struct counter *counter = ptr;
   assert (counters <= counter);
   size_t res = counter - counters;
   return res;

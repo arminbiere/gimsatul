@@ -78,4 +78,3 @@ switch_mode (struct ring *ring)
   l->mode = SEARCH_TICKS + square (s->switched / 2 + 1) * i->mode;
   verbose (ring, "next mode switching limit at %" PRIu64 " ticks", l->mode);
 }
-

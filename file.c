@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 void
-write_buffer (struct buffer *buffer, struct file * file)
+write_buffer (struct buffer *buffer, struct file *file)
 {
   assert (file);
   if (file->lock)
@@ -22,7 +22,7 @@ write_buffer (struct buffer *buffer, struct file * file)
 }
 
 void
-close_proof (struct file * proof)
+close_proof (struct file *proof)
 {
   if (!proof->file)
     return;

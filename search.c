@@ -103,7 +103,7 @@ terminate_ring (struct ring *ring)
 }
 
 static bool
-walk_initially (struct ring * ring)
+walk_initially (struct ring *ring)
 {
   return !ring->statistics.walked && ring->ruler->options.walk_initially;
 }

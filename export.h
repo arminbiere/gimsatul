@@ -12,4 +12,3 @@ void export_tier1_clause (struct ring *, struct clause *);
 void export_tier2_clause (struct ring *, struct clause *);
 
 #endif
-

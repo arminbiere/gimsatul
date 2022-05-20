@@ -6,8 +6,8 @@
 struct watch;
 struct ring;
 
-struct watch * ring_propagate (struct ring *,
-                               bool stop_at_conflict,
-			       struct watch* ignored_large_clause);
+struct watch *ring_propagate (struct ring *,
+			      bool stop_at_conflict,
+			      struct watch *ignored_large_clause);
 
 #endif

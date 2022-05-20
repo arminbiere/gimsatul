@@ -5,7 +5,7 @@
 
 struct ring;
 
-int search (struct ring *) ;
+int search (struct ring *);
 bool terminate_ring (struct ring *ring);
 
 #endif

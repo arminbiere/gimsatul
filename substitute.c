@@ -6,21 +6,21 @@
 #include "utilities.h"
 
 static unsigned *
-find_equivalent_literals (struct simplifier * simplifier, unsigned round)
+find_equivalent_literals (struct simplifier *simplifier, unsigned round)
 {
-  struct ruler * ruler = simplifier->ruler;
-  size_t bytes = 2*ruler->size * sizeof (unsigned);
-  unsigned * marks = allocate_and_clear_block (bytes);
-  unsigned * reaches = allocate_and_clear_block (bytes);
-  unsigned * repr = allocate_block (bytes);
+  struct ruler *ruler = simplifier->ruler;
+  size_t bytes = 2 * ruler->size * sizeof (unsigned);
+  unsigned *marks = allocate_and_clear_block (bytes);
+  unsigned *reaches = allocate_and_clear_block (bytes);
+  unsigned *repr = allocate_block (bytes);
   for (all_ruler_literals (lit))
     repr[lit] = lit;
   struct unsigneds scc;
   struct unsigneds work;
   INIT (scc);
   INIT (work);
-  bool * eliminated = simplifier->eliminated;
-  signed char * values = (signed char*) ruler->values;
+  bool *eliminated = simplifier->eliminated;
+  signed char *values = (signed char *) ruler->values;
   unsigned marked = 0, equivalences = 0;
   for (all_ruler_literals (root))
     {
@@ -42,7 +42,7 @@ find_equivalent_literals (struct simplifier * simplifier, unsigned round)
 	      lit = POP (work);
 	      unsigned not_lit = NOT (lit);
 	      unsigned lit_reaches = reaches[lit];
-              struct clauses * clauses = &OCCURRENCES (not_lit);
+	      struct clauses *clauses = &OCCURRENCES (not_lit);
 	      for (all_clauses (clause, *clauses))
 		{
 		  if (!binary_pointer (clause))
@@ -60,7 +60,7 @@ find_equivalent_literals (struct simplifier * simplifier, unsigned round)
 	      unsigned lit_mark = marks[lit];
 	      if (lit_reaches != lit_mark)
 		continue;
-	      unsigned * end = scc.end, * p = end, other, new_repr = lit;
+	      unsigned *end = scc.end, *p = end, other, new_repr = lit;
 	      while ((other = *--p) != lit)
 		if (other < new_repr)
 		  new_repr = other;
@@ -96,7 +96,7 @@ find_equivalent_literals (struct simplifier * simplifier, unsigned round)
 	      PUSH (work, INVALID);
 	      PUSH (scc, lit);
 	      unsigned not_lit = NOT (lit);
-              struct clauses * clauses = &OCCURRENCES (not_lit);
+	      struct clauses *clauses = &OCCURRENCES (not_lit);
 	      for (all_clauses (clause, *clauses))
 		{
 		  if (!binary_pointer (clause))
@@ -119,7 +119,7 @@ DONE:
   free (reaches);
   free (marks);
   verbose (0, "[%u] found %u new equivalent literal pairs",
-	  round, equivalences);
+	   round, equivalences);
   if (equivalences && !ruler->inconsistent)
     return repr;
   free (repr);
@@ -127,19 +127,19 @@ DONE:
 }
 
 static void
-substitute_clause (struct simplifier * simplifier,
-                   unsigned src, unsigned dst, struct clause * clause)
+substitute_clause (struct simplifier *simplifier,
+		   unsigned src, unsigned dst, struct clause *clause)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   ROGCLAUSE (clause, "substituting");
-  signed char * values = (signed char*) ruler->values;
+  signed char *values = (signed char *) ruler->values;
   signed char dst_value = values[dst];
   if (dst_value > 0)
     {
       ROG ("satisfied replacement literal %s", ROGLIT (dst));
       return;
     }
-  struct unsigneds * resolvent = &simplifier->resolvent;
+  struct unsigneds *resolvent = &simplifier->resolvent;
   CLEAR (*resolvent);
   unsigned not_dst = NOT (dst);
   if (binary_pointer (clause))
@@ -149,8 +149,7 @@ substitute_clause (struct simplifier * simplifier,
       if (other == not_dst)
 	{
 	  ROG ("resulting clause tautological since it "
-	       "contains both %s and %s",
-	       ROGLIT (dst), ROGLIT (other));
+	       "contains both %s and %s", ROGLIT (dst), ROGLIT (other));
 	  return;
 	}
       if (other != dst)
@@ -177,8 +176,7 @@ substitute_clause (struct simplifier * simplifier,
 	  if (other == not_dst)
 	    {
 	      ROG ("resulting clause tautological since it "
-		   "contains both %s and %s",
-		   ROGLIT (dst), ROGLIT (other));
+		   "contains both %s and %s", ROGLIT (dst), ROGLIT (other));
 	      return;
 	    }
 	  signed char other_value = values[other];
@@ -198,16 +196,16 @@ substitute_clause (struct simplifier * simplifier,
 }
 
 static void
-substitute_literal (struct simplifier * simplifier, unsigned src, unsigned dst)
+substitute_literal (struct simplifier *simplifier, unsigned src, unsigned dst)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   assert (!ruler->values[src]);
   ROG ("substituting literal %s with %s", ROGLIT (src), ROGLIT (dst));
   assert (!simplifier->eliminated[IDX (src)]);
   assert (!simplifier->eliminated[IDX (dst)]);
   assert (src != NOT (dst));
   assert (dst < src);
-  struct clauses * clauses = &OCCURRENCES (src);
+  struct clauses *clauses = &OCCURRENCES (src);
   for (all_clauses (clause, *clauses))
     {
       if (!binary_pointer (clause) && clause->garbage)
@@ -218,9 +216,9 @@ substitute_literal (struct simplifier * simplifier, unsigned src, unsigned dst)
       recycle_clause (simplifier, clause, src);
     }
   RELEASE (*clauses);
-  struct unsigneds * extension = &ruler->extension;
+  struct unsigneds *extension = &ruler->extension;
   ROGBINARY (NOT (src), dst,
-             "pushing on extension stack with witness literal %s",
+	     "pushing on extension stack with witness literal %s",
 	     ROGLIT (NOT (src)));
   PUSH (*extension, INVALID);
   PUSH (*extension, src);
@@ -238,9 +236,9 @@ substitute_literal (struct simplifier * simplifier, unsigned src, unsigned dst)
 }
 
 static unsigned
-substitute_equivalent_literals (struct simplifier * simplifier, unsigned * repr)
+substitute_equivalent_literals (struct simplifier *simplifier, unsigned *repr)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
 
   unsigned other;
   if (ruler->options.proof.file)
@@ -252,7 +250,7 @@ substitute_equivalent_literals (struct simplifier * simplifier, unsigned * repr)
 	}
 
   unsigned substituted = 0;
-  signed char * values = (signed char*) ruler->values;
+  signed char *values = (signed char *) ruler->values;
   for (all_ruler_indices (idx))
     {
       unsigned lit = LIT (idx);
@@ -264,7 +262,7 @@ substitute_equivalent_literals (struct simplifier * simplifier, unsigned * repr)
       substitute_literal (simplifier, lit, other);
       substituted++;
       if (ruler->inconsistent)
-        break;
+	break;
       if (values[lit])
 	continue;
       unsigned not_lit = NOT (lit);
@@ -272,7 +270,7 @@ substitute_equivalent_literals (struct simplifier * simplifier, unsigned * repr)
       assert (repr[not_lit] == not_other);
       substitute_literal (simplifier, not_lit, not_other);
       if (ruler->inconsistent)
-        break;
+	break;
     }
 
   if (ruler->options.proof.file)
@@ -289,11 +287,12 @@ substitute_equivalent_literals (struct simplifier * simplifier, unsigned * repr)
 }
 
 bool
-equivalent_literal_substitution (struct simplifier * simplifier, unsigned round)
+equivalent_literal_substitution (struct simplifier *simplifier,
+				 unsigned round)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   double substitution_start = START (ruler, substitute);
-  unsigned * repr = find_equivalent_literals (simplifier, round);
+  unsigned *repr = find_equivalent_literals (simplifier, round);
   unsigned substituted = 0;
   if (repr)
     {
@@ -304,8 +303,7 @@ equivalent_literal_substitution (struct simplifier * simplifier, unsigned round)
   if (verbosity >= 0)
     fputs ("c\n", stdout);
   message (0, "[%u] substituted %u variables %.0f%% in %.2f seconds",
-           round, substituted, percent (substituted, ruler->size),
+	   round, substituted, percent (substituted, ruler->size),
 	   substitution_end - substitution_start);
   return substituted;
 }
-

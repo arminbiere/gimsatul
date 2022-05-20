@@ -33,7 +33,7 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
       ring->statistics.fixed++;
       if (!ring->pool)
 	{
-	  struct ruler * ruler = ring->ruler;
+	  struct ruler *ruler = ring->ruler;
 	  ruler->statistics.fixed.solving++;
 	  ruler->statistics.fixed.total++;
 	  assert (ruler->statistics.active);
@@ -80,7 +80,7 @@ assign_decision (struct ring *ring, unsigned decision)
     LOG ("assign %s decision warm-up", LOGLIT (decision));
   else if (ring->context == PROBING_CONTEXT)
     LOG ("assign %s decision probe", LOGLIT (decision));
-  else 
+  else
     {
       assert (ring->context == SEARCH_CONTEXT);
       if (ring->stable)
@@ -92,4 +92,3 @@ assign_decision (struct ring *ring, unsigned decision)
     }
 #endif
 }
-

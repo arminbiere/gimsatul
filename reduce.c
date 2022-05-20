@@ -244,4 +244,3 @@ reduce (struct ring *ring)
 	   limits->reduce);
   report (ring, '-');
 }
-

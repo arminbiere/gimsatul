@@ -23,7 +23,7 @@ rescale_variable_scores (struct ring *ring)
 }
 
 void
-bump_variable_on_heap (struct ring * ring, unsigned idx)
+bump_variable_on_heap (struct ring *ring, unsigned idx)
 {
   struct heap *heap = &ring->heap;
   struct node *node = heap->nodes + idx;
@@ -37,7 +37,7 @@ bump_variable_on_heap (struct ring * ring, unsigned idx)
 }
 
 static void
-bump_variable_on_queue (struct ring * ring, unsigned idx)
+bump_variable_on_queue (struct ring *ring, unsigned idx)
 {
   struct queue *queue = &ring->queue;
   struct link *link = queue->links + idx;
@@ -56,17 +56,17 @@ bump_variable_on_queue (struct ring * ring, unsigned idx)
 }
 
 static struct node *
-first_active_node (struct ring * ring)
+first_active_node (struct ring *ring)
 {
   struct heap *heap = &ring->heap;
-  struct node * nodes = heap->nodes;
-  struct node * end = nodes + ring->size;
-  struct node * res = nodes;
-  bool * active = ring->active;
+  struct node *nodes = heap->nodes;
+  struct node *end = nodes + ring->size;
+  struct node *res = nodes;
+  bool *active = ring->active;
   while (res != end)
     {
       unsigned idx = res - nodes;
-      if (active [idx])
+      if (active[idx])
 	return res;
       res++;
     }
@@ -74,19 +74,19 @@ first_active_node (struct ring * ring)
 }
 
 static struct node *
-next_active_node (struct ring * ring, struct node * node)
+next_active_node (struct ring *ring, struct node *node)
 {
   struct heap *heap = &ring->heap;
-  struct node * nodes = heap->nodes;
-  struct node * end = nodes + ring->size;
+  struct node *nodes = heap->nodes;
+  struct node *end = nodes + ring->size;
   assert (nodes <= node);
   assert (node < end);
-  struct node * res = node + 1; 
-  bool * active = ring->active;
+  struct node *res = node + 1;
+  bool *active = ring->active;
   while (res != end)
     {
       unsigned idx = res - nodes;
-      if (active [idx])
+      if (active[idx])
 	return res;
       res++;
     }
@@ -103,7 +103,7 @@ void
 rebuild_heap (struct ring *ring)
 {
   struct heap *heap = &ring->heap;
-  struct node * nodes = heap->nodes;
+  struct node *nodes = heap->nodes;
   memset (nodes, 0, ring->size * sizeof *nodes);
   heap->root = 0;
   for (all_active_nodes (node))
@@ -130,14 +130,14 @@ bump_score_increment (struct ring *ring)
 }
 
 static void
-sort_analyzed_variable_according_to_stamp (struct ring * ring)
+sort_analyzed_variable_according_to_stamp (struct ring *ring)
 {
-  struct link * links = ring->queue.links;
-  struct unsigneds * analyzed = &ring->analyzed;
+  struct link *links = ring->queue.links;
+  struct unsigneds *analyzed = &ring->analyzed;
   size_t size = SIZE (*analyzed), count[256];
-  unsigned * begin = analyzed->begin;
+  unsigned *begin = analyzed->begin;
   size_t bytes = size * sizeof *begin;
-  unsigned * tmp = 0, * a = begin, * b = 0, * c = a;
+  unsigned *tmp = 0, *a = begin, *b = 0, *c = a;
   uint64_t masked_lower = 0, masked_upper = 255;
   uint64_t upper = 0, lower = ~upper, shifted_mask = 255;
   bool bounded = false;
@@ -146,11 +146,11 @@ sort_analyzed_variable_according_to_stamp (struct ring * ring)
       if (bounded && (lower & shifted_mask) == (upper & shifted_mask))
 	continue;
       memset (count + masked_lower, 0,
-              (masked_upper - masked_lower + 1) * sizeof *count);
-      unsigned * end = c + size;
+	      (masked_upper - masked_lower + 1) * sizeof *count);
+      unsigned *end = c + size;
       bool sorted = true;
       uint64_t last = 0;
-      for (unsigned * p = c; p != end; p++)
+      for (unsigned *p = c; p != end; p++)
 	{
 	  unsigned idx = *p;
 	  uint64_t r = links[idx].stamp;
@@ -187,8 +187,8 @@ sort_analyzed_variable_according_to_stamp (struct ring * ring)
 	  b = tmp = allocate_block (bytes);
 	}
       assert (b == tmp);
-      unsigned * d = (c == a) ? b : a;
-      for (unsigned * p = c; p != end; p++)
+      unsigned *d = (c == a) ? b : a;
+      for (unsigned *p = c; p != end; p++)
 	{
 	  unsigned idx = *p;
 	  uint64_t r = links[idx].stamp;
@@ -210,14 +210,14 @@ sort_analyzed_variable_according_to_stamp (struct ring * ring)
 }
 
 static void
-bump_analyze_variables_on_queue (struct ring * ring)
+bump_analyze_variables_on_queue (struct ring *ring)
 {
   for (all_elements_on_stack (unsigned, idx, ring->analyzed))
-    bump_variable_on_queue (ring, idx);
+      bump_variable_on_queue (ring, idx);
 }
 
 void
-sort_and_bump_analyzed_variables_on_queue (struct ring * ring)
+sort_and_bump_analyzed_variables_on_queue (struct ring *ring)
 {
   sort_analyzed_variable_according_to_stamp (ring);
   bump_analyze_variables_on_queue (ring);

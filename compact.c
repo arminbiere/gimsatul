@@ -4,7 +4,7 @@
 #include "simplify.h"
 
 static unsigned
-map_literal (unsigned * map, unsigned original_lit)
+map_literal (unsigned *map, unsigned original_lit)
 {
   unsigned original_idx = IDX (original_lit);
   unsigned mapped_idx = map[original_idx];
@@ -15,59 +15,59 @@ map_literal (unsigned * map, unsigned original_lit)
 }
 
 static void
-map_occurrences (struct ruler * ruler, unsigned * map, unsigned src)
+map_occurrences (struct ruler *ruler, unsigned *map, unsigned src)
 {
   unsigned dst = map_literal (map, src);
-  struct clauses * src_occurrences = &OCCURRENCES (src);
-  struct clauses * dst_occurrences = &OCCURRENCES (dst);
+  struct clauses *src_occurrences = &OCCURRENCES (src);
+  struct clauses *dst_occurrences = &OCCURRENCES (dst);
   *dst_occurrences = *src_occurrences;
-  struct clause ** begin = dst_occurrences->begin;
-  struct clause ** end = dst_occurrences->end;
-  struct clause ** q = begin;
+  struct clause **begin = dst_occurrences->begin;
+  struct clause **end = dst_occurrences->end;
+  struct clause **q = begin;
   for (struct clause ** p = begin; p != end; p++)
     {
-      struct clause * src_clause = *p;
+      struct clause *src_clause = *p;
       if (!binary_pointer (src_clause))
 	continue;
       assert (lit_pointer (src_clause) == src);
       unsigned src_other = other_pointer (src_clause);
       unsigned dst_other = map_literal (map, src_other);
       assert (!redundant_pointer (src_clause));
-      struct clause * dst_clause = tag_pointer (false, dst, dst_other);
+      struct clause *dst_clause = tag_pointer (false, dst, dst_other);
       *q++ = dst_clause;
     }
   dst_occurrences->end = q;
 }
 
 static void
-map_large_clause (unsigned * map, struct clause * clause)
+map_large_clause (unsigned *map, struct clause *clause)
 {
   assert (!binary_pointer (clause));
   assert (!clause->redundant);
-  unsigned * literals = clause->literals;
-  unsigned * end = literals + clause->size;
-  for (unsigned * p = literals; p != end; p++)
+  unsigned *literals = clause->literals;
+  unsigned *end = literals + clause->size;
+  for (unsigned *p = literals; p != end; p++)
     *p = map_literal (map, *p);
 }
 
 static void
-map_clauses (struct ruler * ruler, unsigned * map)
+map_clauses (struct ruler *ruler, unsigned *map)
 {
-  struct clauses * clauses = &ruler->clauses;
-  struct clause ** begin = clauses->begin;
-  struct clause ** end = clauses->end;
+  struct clauses *clauses = &ruler->clauses;
+  struct clause **begin = clauses->begin;
+  struct clause **end = clauses->end;
   for (struct clause ** p = begin; p != end; p++)
     map_large_clause (map, *p);
 }
 
 void
-compact_ruler (struct simplifier * simplifier)
+compact_ruler (struct simplifier *simplifier)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   if (ruler->inconsistent)
     return;
-  bool * eliminated = simplifier->eliminated;
-  signed char * values = (signed char*) ruler->values;
+  bool *eliminated = simplifier->eliminated;
+  signed char *values = (signed char *) ruler->values;
   unsigned compact = 0;
   for (all_ruler_indices (idx))
     {
@@ -78,11 +78,11 @@ compact_ruler (struct simplifier * simplifier)
 	continue;
       compact++;
     }
-  unsigned * unmap = allocate_array (compact, sizeof *unmap);
+  unsigned *unmap = allocate_array (compact, sizeof *unmap);
   ruler->map = unmap;
-  unsigned * map = allocate_array (ruler->size, sizeof *map);
+  unsigned *map = allocate_array (ruler->size, sizeof *map);
   unsigned mapped = 0;
-  struct unsigneds * extension = &ruler->extension;
+  struct unsigneds *extension = &ruler->extension;
   for (all_ruler_indices (idx))
     {
       if (eliminated[idx])
@@ -126,8 +126,8 @@ compact_ruler (struct simplifier * simplifier)
   map_clauses (ruler, map);
   free (map);
 
-  free ((void*) ruler->values);
-  ruler->values = allocate_and_clear_block (2*compact);
+  free ((void *) ruler->values);
+  ruler->values = allocate_and_clear_block (2 * compact);
 
   free (ruler->units.begin);
   ruler->units.begin = allocate_array (compact, sizeof (unsigned));

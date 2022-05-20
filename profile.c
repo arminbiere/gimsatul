@@ -125,7 +125,7 @@ flush_ruler_profiles (struct ruler *ruler)
 void
 print_ruler_profiles (struct ruler *ruler)
 {
-  struct ring * ring = 0;
+  struct ring *ring = 0;
   flush_ruler_profiles (ruler);
   double total = ruler->profiles.total.time;
   struct profile *prev = 0;
@@ -146,4 +146,3 @@ print_ruler_profiles (struct ruler *ruler)
   fputs ("c\n", stdout);
   fflush (stdout);
 }
-

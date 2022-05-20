@@ -9,22 +9,21 @@
 #include <string.h>
 
 static bool
-literal_with_too_many_occurrences (struct ruler * ruler, unsigned lit)
+literal_with_too_many_occurrences (struct ruler *ruler, unsigned lit)
 {
   ruler->statistics.ticks.elimination++;
-  struct clauses * clauses = &OCCURRENCES (lit);
+  struct clauses *clauses = &OCCURRENCES (lit);
   size_t size = SIZE (*clauses);
   bool res = size > OCCURRENCE_LIMIT;
   if (res)
     ROG ("literal %s occurs %zu times (limit %zu)",
-         ROGLIT (lit), size, (size_t) OCCURRENCE_LIMIT);
+	 ROGLIT (lit), size, (size_t) OCCURRENCE_LIMIT);
   return res;
 }
 
 static bool
-clause_with_too_many_occurrences (struct ruler * ruler,
-                                  struct clause * clause,
-				  unsigned except)
+clause_with_too_many_occurrences (struct ruler *ruler,
+				  struct clause *clause, unsigned except)
 {
   if (binary_pointer (clause))
     {
@@ -35,27 +34,26 @@ clause_with_too_many_occurrences (struct ruler * ruler,
   if (clause->size > CLAUSE_SIZE_LIMIT)
     {
       ROGCLAUSE (clause, "antecedent size %zu exceeded by",
-                 (size_t) CLAUSE_SIZE_LIMIT);
+		 (size_t) CLAUSE_SIZE_LIMIT);
       return true;
     }
 
   for (all_literals_in_clause (other, clause))
-      if (other != except &&
-	  literal_with_too_many_occurrences (ruler, other))
-	return true;
+    if (other != except && literal_with_too_many_occurrences (ruler, other))
+      return true;
 
   return false;
 }
 
 static size_t
-actual_occurrences (struct clauses * clauses)
+actual_occurrences (struct clauses *clauses)
 {
-  struct clause ** begin = clauses->begin, ** q = begin;
-  struct clause ** end = clauses->end, ** p = q;
+  struct clause **begin = clauses->begin, **q = begin;
+  struct clause **end = clauses->end, **p = q;
   uint64_t ticks = 1 + cache_lines (end, begin);
   while (p != end)
     {
-      struct clause * clause = *q++ = *p++;
+      struct clause *clause = *q++ = *p++;
       if (binary_pointer (clause))
 	continue;
       ticks++;
@@ -68,12 +66,12 @@ actual_occurrences (struct clauses * clauses)
 }
 
 static bool
-can_resolve_clause (struct simplifier * simplifier,
-                    struct clause * clause, unsigned except)
+can_resolve_clause (struct simplifier *simplifier,
+		    struct clause *clause, unsigned except)
 {
-  signed char * marks = simplifier->marks;
-  struct ruler * ruler = simplifier->ruler;
-  signed char * values = (signed char*) ruler->values;
+  signed char *marks = simplifier->marks;
+  struct ruler *ruler = simplifier->ruler;
+  signed char *values = (signed char *) ruler->values;
   if (binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
@@ -105,20 +103,20 @@ can_resolve_clause (struct simplifier * simplifier,
 	  if (mark < 0)
 	    return false;
 	}
-	return true;
+      return true;
     }
 }
 
 static bool
-can_eliminate_variable (struct simplifier * simplifier,
-                        unsigned idx, unsigned margin)
+can_eliminate_variable (struct simplifier *simplifier,
+			unsigned idx, unsigned margin)
 {
   if (simplifier->eliminated[idx])
     return false;
   if (!simplifier->eliminate[idx])
     return false;
 
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return false;
@@ -126,32 +124,30 @@ can_eliminate_variable (struct simplifier * simplifier,
   ROG ("trying next elimination candidate %s", ROGVAR (idx));
   simplifier->eliminate[idx] = false;
 
-  struct clauses * pos_clauses = &OCCURRENCES (pivot);
+  struct clauses *pos_clauses = &OCCURRENCES (pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
   size_t pos_size = actual_occurrences (pos_clauses);
   if (pos_size > OCCURRENCE_LIMIT)
     {
       ROG ("pivot literal %s occurs %zu times (limit %zu)",
-           ROGLIT (pivot), pos_size,
-	   (size_t) OCCURRENCE_LIMIT);
+	   ROGLIT (pivot), pos_size, (size_t) OCCURRENCE_LIMIT);
       return false;
     }
 
   unsigned not_pivot = NOT (pivot);
-  struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
+  struct clauses *neg_clauses = &OCCURRENCES (not_pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (not_pivot));
   size_t neg_size = actual_occurrences (neg_clauses);
   if (neg_size > OCCURRENCE_LIMIT)
     {
       ROG ("negative pivot literal %s occurs %zu times (limit %zu)",
-           ROGLIT (not_pivot),neg_size,
-	   (size_t) OCCURRENCE_LIMIT);
+	   ROGLIT (not_pivot), neg_size, (size_t) OCCURRENCE_LIMIT);
       return false;
     }
 
   size_t occurrences = pos_size + neg_size;
   ROG ("candidate %s has %zu = %zu + %zu occurrences",
-        ROGVAR (idx), occurrences, pos_size, neg_size);
+       ROGVAR (idx), occurrences, pos_size, neg_size);
 
   for (all_clauses (clause, *pos_clauses))
     if (clause_with_too_many_occurrences (ruler, clause, pivot))
@@ -172,8 +168,8 @@ can_eliminate_variable (struct simplifier * simplifier,
 
   if (find_definition (simplifier, pivot))
     {
-      struct clauses * gate = simplifier->gate;
-      struct clauses * nogate = simplifier->nogate;
+      struct clauses *gate = simplifier->gate;
+      struct clauses *nogate = simplifier->nogate;
 
       for (unsigned i = 0; i != 2; i++)
 	{
@@ -225,10 +221,12 @@ can_eliminate_variable (struct simplifier * simplifier,
     }
 
 #if 0
-  message (0, "candidate %d has %zu = %zu + %zu occurrences took %zu resolutions %" PRIu64 " ticks total %" PRIu64,
-        export_literal (pivot), limit, pos_size, neg_size, resolutions,
-	ruler->statistics.ticks.elimination - ticks,
-	ruler->statistics.ticks.elimination);
+  message (0,
+	   "candidate %d has %zu = %zu + %zu occurrences took %zu resolutions %"
+	   PRIu64 " ticks total %" PRIu64, export_literal (pivot), limit,
+	   pos_size, neg_size, resolutions,
+	   ruler->statistics.ticks.elimination - ticks,
+	   ruler->statistics.ticks.elimination);
 #endif
 
   if (elimination_ticks_limit_hit (simplifier))
@@ -240,18 +238,18 @@ can_eliminate_variable (struct simplifier * simplifier,
     ROG ("number of resolvents %zu stays below limit %zu", resolvents, limit);
   else
     ROG ("number of resolvents exceeds limit %zu", limit);
-            
+
   return resolvents <= limit;
 }
 
 static bool
-add_first_antecedent_literals (struct simplifier * simplifier,
-                               struct clause * clause, unsigned pivot)
+add_first_antecedent_literals (struct simplifier *simplifier,
+			       struct clause *clause, unsigned pivot)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   ROGCLAUSE (clause, "1st %s antecedent", ROGLIT (pivot));
-  signed char * values = (signed char*) ruler->values;
-  struct unsigneds * resolvent = &simplifier->resolvent;
+  signed char *values = (signed char *) ruler->values;
+  struct unsigneds *resolvent = &simplifier->resolvent;
   if (binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
@@ -292,14 +290,14 @@ add_first_antecedent_literals (struct simplifier * simplifier,
 }
 
 static bool
-add_second_antecedent_literals (struct simplifier * simplifier,
-                                struct clause * clause, unsigned not_pivot)
+add_second_antecedent_literals (struct simplifier *simplifier,
+				struct clause *clause, unsigned not_pivot)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   ROGCLAUSE (clause, "2nd %s antecedent", ROGLIT (not_pivot));
-  signed char * values = (signed char*) ruler->values;
-  signed char * marks = simplifier->marks;
-  struct unsigneds * resolvent = &simplifier->resolvent;
+  signed char *values = (signed char *) ruler->values;
+  signed char *marks = simplifier->marks;
+  struct unsigneds *resolvent = &simplifier->resolvent;
   if (binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
@@ -357,9 +355,9 @@ add_second_antecedent_literals (struct simplifier * simplifier,
 }
 
 static void
-eliminate_variable (struct simplifier * simplifier, unsigned idx)
+eliminate_variable (struct simplifier *simplifier, unsigned idx)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return;
@@ -371,11 +369,11 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
   ruler->statistics.active--;
   ROG ("adding resolvents on %s", ROGVAR (idx));
   unsigned not_pivot = NOT (pivot);
-  struct clauses * pos_clauses = &OCCURRENCES (pivot);
-  struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
+  struct clauses *pos_clauses = &OCCURRENCES (pivot);
+  struct clauses *neg_clauses = &OCCURRENCES (not_pivot);
   size_t resolvents = 0;
-  signed char * marks = simplifier->marks;
-  struct clauses * gate = simplifier->gate;
+  signed char *marks = simplifier->marks;
+  struct clauses *gate = simplifier->gate;
   if (EMPTY (*gate))
     {
       for (all_clauses (pos_clause, *pos_clauses))
@@ -385,9 +383,9 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
 	    {
 	      assert (EMPTY (simplifier->resolvent));
 	      if (add_first_antecedent_literals (simplifier,
-		                                 pos_clause, pivot) &&
+						 pos_clause, pivot) &&
 		  add_second_antecedent_literals (simplifier,
-		                                  neg_clause, not_pivot))
+						  neg_clause, not_pivot))
 		{
 		  add_resolvent (simplifier);
 		  resolvents++;
@@ -405,8 +403,8 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
     {
       ruler->statistics.definitions++;
 
-      struct clauses * gate = simplifier->gate;
-      struct clauses * nogate = simplifier->nogate;
+      struct clauses *gate = simplifier->gate;
+      struct clauses *nogate = simplifier->nogate;
 
       for (unsigned i = 0; i != 2; i++)
 	{
@@ -451,12 +449,12 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
     }
   ROG ("adding %zu clauses with %s to extension stack",
        pos_size, ROGLIT (pivot));
-  struct unsigneds * extension = &ruler->extension;
+  struct unsigneds *extension = &ruler->extension;
   for (all_clauses (clause, *pos_clauses))
     {
       ROGCLAUSE (clause,
-        "pushing with witness literal %s on extension stack",
-	ROGLIT (pivot));
+		 "pushing with witness literal %s on extension stack",
+		 ROGLIT (pivot));
       PUSH (*extension, INVALID);
       PUSH (*extension, pivot);
       if (binary_pointer (clause))
@@ -479,9 +477,9 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
 }
 
 bool
-eliminate_variables (struct simplifier * simplifier, unsigned round)
+eliminate_variables (struct simplifier *simplifier, unsigned round)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   if (!ruler->options.eliminate)
     return false;
   if (elimination_ticks_limit_hit (simplifier))
@@ -495,7 +493,7 @@ eliminate_variables (struct simplifier * simplifier, unsigned round)
     margin = 0;
   else
     {
-      unsigned shift = (round - 1)/2;
+      unsigned shift = (round - 1) / 2;
       if (shift > LD_MAX_ELIMINATE_MARGIN)
 	shift = LD_MAX_ELIMINATE_MARGIN;
       margin = 1u << shift;
@@ -523,7 +521,7 @@ eliminate_variables (struct simplifier * simplifier, unsigned round)
   ruler->eliminating = false;
   double end_round = STOP (ruler, eliminate);
   message (0, "[%u] eliminated %u variables %.0f%% "
-           "margin %u in %.2f seconds", round,
+	   "margin %u in %.2f seconds", round,
 	   eliminated, percent (eliminated, ruler->size),
 	   margin, end_round - start_round);
   return eliminated;

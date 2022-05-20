@@ -8,7 +8,7 @@
 #define DELETED ((void*) ~(size_t) 0)
 
 static size_t
-hash_pointer (struct set * set, void * ptr)
+hash_pointer (struct set *set, void *ptr)
 {
   size_t res;
   if (set->hash.function)
@@ -19,7 +19,7 @@ hash_pointer (struct set * set, void * ptr)
 }
 
 static size_t
-hash_pointer_to_position (struct set * set, void *ptr)
+hash_pointer_to_position (struct set *set, void *ptr)
 {
   size_t res = hash_pointer (set, ptr);
   res *= 1111111121u;
@@ -27,7 +27,7 @@ hash_pointer_to_position (struct set * set, void *ptr)
 }
 
 static size_t
-hash_pointer_to_delta (struct set * set, void *ptr)
+hash_pointer_to_delta (struct set *set, void *ptr)
 {
   size_t res = hash_pointer (set, ptr);
   res *= 2222222243u;
@@ -227,7 +227,7 @@ shrink_set (struct set *set)
 }
 
 void *
-random_set (uint64_t *random, struct set *set)
+random_set (uint64_t * random, struct set *set)
 {
   assert (set->size);
   size_t allocated = set->allocated;
@@ -242,4 +242,3 @@ random_set (uint64_t *random, struct set *set)
     }
   return res;
 }
-

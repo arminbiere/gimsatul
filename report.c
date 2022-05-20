@@ -40,4 +40,3 @@ report (struct ring *ring, char type)
 
   release_message_lock ();
 }
-

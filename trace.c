@@ -7,8 +7,8 @@
 #include <inttypes.h>
 
 static void
-binary_proof_line (struct trace * trace,
-                   size_t size, unsigned *literals, unsigned except)
+binary_proof_line (struct trace *trace,
+		   size_t size, unsigned *literals, unsigned except)
 {
   const unsigned *end = literals + size;
   for (const unsigned *p = literals; p != end; p++)
@@ -30,8 +30,8 @@ binary_proof_line (struct trace * trace,
 }
 
 static void
-ascii_proof_line (struct trace * trace,
-                  size_t size, unsigned *literals, unsigned except)
+ascii_proof_line (struct trace *trace,
+		  size_t size, unsigned *literals, unsigned except)
 {
   const unsigned *end = literals + size;
   char tmp[32];
@@ -50,9 +50,8 @@ ascii_proof_line (struct trace * trace,
 }
 
 void
-trace_add_literals (struct trace * trace,
-                           size_t size, unsigned *literals,
-			   unsigned except)
+trace_add_literals (struct trace *trace,
+		    size_t size, unsigned *literals, unsigned except)
 {
   if (!trace->file)
     return;
@@ -68,7 +67,7 @@ trace_add_literals (struct trace * trace,
 }
 
 void
-trace_add_empty (struct trace * trace)
+trace_add_empty (struct trace *trace)
 {
   if (!trace->file)
     return;
@@ -76,7 +75,7 @@ trace_add_empty (struct trace * trace)
 }
 
 void
-trace_add_unit (struct trace * trace, unsigned unit)
+trace_add_unit (struct trace *trace, unsigned unit)
 {
   if (!trace->file)
     return;
@@ -84,7 +83,7 @@ trace_add_unit (struct trace * trace, unsigned unit)
 }
 
 void
-trace_add_binary (struct trace * trace, unsigned lit, unsigned other)
+trace_add_binary (struct trace *trace, unsigned lit, unsigned other)
 {
   if (!trace->file)
     return;
@@ -93,7 +92,7 @@ trace_add_binary (struct trace * trace, unsigned lit, unsigned other)
 }
 
 void
-trace_delete_literals (struct trace * trace, size_t size, unsigned *literals)
+trace_delete_literals (struct trace *trace, size_t size, unsigned *literals)
 {
   if (!trace->file)
     return;
@@ -110,7 +109,7 @@ trace_delete_literals (struct trace * trace, size_t size, unsigned *literals)
 }
 
 void
-trace_delete_binary (struct trace * trace, unsigned lit, unsigned other)
+trace_delete_binary (struct trace *trace, unsigned lit, unsigned other)
 {
   if (!trace->file)
     return;

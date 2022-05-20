@@ -3,10 +3,10 @@
 
 #include <stdlib.h>
 
-void * allocate_block (size_t bytes);
-void * allocate_and_clear_block (size_t bytes);
-void * allocate_array (size_t num, size_t bytes);
-void * allocate_and_clear_array (size_t num, size_t bytes);
-void * reallocate_block (void *ptr, size_t bytes);
+void *allocate_block (size_t bytes);
+void *allocate_and_clear_block (size_t bytes);
+void *allocate_array (size_t num, size_t bytes);
+void *allocate_and_clear_array (size_t num, size_t bytes);
+void *reallocate_block (void *ptr, size_t bytes);
 
 #endif

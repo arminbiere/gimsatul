@@ -15,7 +15,7 @@
 #include <inttypes.h>
 
 void
-failed_literal_probing (struct ring * ring)
+failed_literal_probing (struct ring *ring)
 {
   if (!ring->options.fail)
     return;
@@ -24,19 +24,19 @@ failed_literal_probing (struct ring * ring)
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   uint64_t delta_probing_ticks = FAILED_EFFORT * delta_search_ticks;
   verbose (ring, "failed literal probing effort of %" PRIu64
-           " = %g * %" PRIu64 " search ticks", delta_probing_ticks,
+	   " = %g * %" PRIu64 " search ticks", delta_probing_ticks,
 	   (double) FAILED_EFFORT, delta_search_ticks);
   uint64_t probing_ticks_before = PROBING_TICKS;
   uint64_t limit = probing_ticks_before + delta_probing_ticks;
-  signed char * values = ring->values;
-  bool * active = ring->active;
+  signed char *values = ring->values;
+  bool *active = ring->active;
   unsigned start = INVALID;
-  unsigned max_lit = 2*ring->size;
+  unsigned max_lit = 2 * ring->size;
   unsigned probe = ring->probe;
   if (probe >= max_lit)
     probe = 0;
   unsigned failed = 0, lifted = 0, probed = 0, last = INVALID;
-  unsigned * stamps = allocate_and_clear_array (max_lit, sizeof *stamps);
+  unsigned *stamps = allocate_and_clear_array (max_lit, sizeof *stamps);
   struct unsigneds lift;
   INIT (lift);
   while (PROBING_TICKS <= limit)
@@ -67,8 +67,8 @@ failed_literal_probing (struct ring * ring)
 	    {
 	      trace_add_empty (&ring->trace);
 	      set_inconsistent (ring,
-	         "unit propagation fails after importing shared clauses "
-		 "during failed literal probing");
+				"unit propagation fails after importing shared clauses "
+				"during failed literal probing");
 	      break;
 	    }
 	  if (values[probe])
@@ -81,8 +81,8 @@ failed_literal_probing (struct ring * ring)
       probed++;
       LOG ("probing literal %s", LOGLIT (probe));
       assign_decision (ring, probe);
-      struct ring_trail * trail = &ring->trail;
-      unsigned * saved = trail->propagate;
+      struct ring_trail *trail = &ring->trail;
+      unsigned *saved = trail->propagate;
       assert (saved + 1 == trail->end);
       bool ok = !ring_propagate (ring, false, 0);
       unsigned unit = INVALID;
@@ -92,8 +92,8 @@ failed_literal_probing (struct ring * ring)
 	  if (last == not_probe)
 	    {
 	      assert (probe & 1);
-	      unsigned * q = lift.begin;
-	      for (unsigned * p = q; p != lift.end; p++)
+	      unsigned *q = lift.begin;
+	      for (unsigned *p = q; p != lift.end; p++)
 		if (values[*p] > 0)
 		  *q++ = *p;
 	      lift.end = q;
@@ -102,18 +102,17 @@ failed_literal_probing (struct ring * ring)
 	    CLEAR (lift);
 	  if (EMPTY (lift))
 	    {
-	      unsigned * end = trail->end;
-	      LOG ("stamping %zu literals not to be probed",
-		   end - saved);
+	      unsigned *end = trail->end;
+	      LOG ("stamping %zu literals not to be probed", end - saved);
 	      assert (failed < UINT_MAX);
 	      unsigned stamp = failed + 1;
-	      for (unsigned * p = saved; p != end; p++)
+	      for (unsigned *p = saved; p != end; p++)
 		stamps[*p] = stamp;
 	      if (!(probe & 1))
 		{
 		  CLEAR (lift);
 		  assert (saved < end);
-		  for (unsigned * p = saved + 1; p != end; p++)
+		  for (unsigned *p = saved + 1; p != end; p++)
 		    PUSH (lift, *p);
 		}
 	    }
@@ -122,7 +121,7 @@ failed_literal_probing (struct ring * ring)
 	      assert (probe & 1);
 	      assert (last == NOT (probe));
 	      backtrack (ring, 0);
-	      for (unsigned * p = lift.begin; p != lift.end; p++)
+	      for (unsigned *p = lift.begin; p != lift.end; p++)
 		{
 		  unit = *p;
 		  signed char value = values[unit];
@@ -132,8 +131,8 @@ failed_literal_probing (struct ring * ring)
 		    {
 		      trace_add_empty (&ring->trace);
 		      set_inconsistent (ring,
-			"falsified lifted literal yields empty clause "
-			"during failed literal probing");
+					"falsified lifted literal yields empty clause "
+					"during failed literal probing");
 		      break;
 		    }
 		  LOG ("lifted literal %s", LOGLIT (unit));
@@ -149,8 +148,8 @@ failed_literal_probing (struct ring * ring)
 		    {
 		      trace_add_empty (&ring->trace);
 		      set_inconsistent (ring,
-			"propagating of lifted literal yields empty clause "
-			"during failed literal probing");
+					"propagating of lifted literal yields empty clause "
+					"during failed literal probing");
 		      break;
 		    }
 		}
@@ -165,7 +164,7 @@ failed_literal_probing (struct ring * ring)
       assert (!ring->level);
       if (!ok)
 	{
-          LOG ("failed literal %s", LOGLIT (probe));
+	  LOG ("failed literal %s", LOGLIT (probe));
 	  ring->statistics.failed++;
 	  failed++;
 	  unit = NOT (probe);
@@ -175,7 +174,7 @@ failed_literal_probing (struct ring * ring)
 	    {
 	      trace_add_empty (&ring->trace);
 	      set_inconsistent (ring,
-		"propagation of failed literal yields empty clause");
+				"propagation of failed literal yields empty clause");
 	      break;
 	    }
 	}
@@ -188,12 +187,13 @@ failed_literal_probing (struct ring * ring)
   RELEASE (lift);
   free (stamps);
   very_verbose (ring, "failed literal probing ends at literal %d after %"
-                PRIu64 " ticks (%s)", export_literal (ring->ruler->map, probe),
+		PRIu64 " ticks (%s)", export_literal (ring->ruler->map,
+						      probe),
 		PROBING_TICKS - probing_ticks_before,
 		(PROBING_TICKS > limit ? "limit hit" : "completed"));
   ring->probe = probe;
   verbose (ring, "probed %u literals %.0f%% and "
-           "found %u failed literals %.0f%% lifted %u", probed,
+	   "found %u failed literals %.0f%% lifted %u", probed,
 	   percent (probed, max_lit), failed,
 	   percent (failed, probed), lifted);
   report (ring, 'f');

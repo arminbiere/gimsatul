@@ -170,7 +170,7 @@ flush_watches (struct ring *ring)
 }
 
 void
-mark_garbage_watch (struct ring * ring, struct watch * watch)
+mark_garbage_watch (struct ring *ring, struct watch *watch)
 {
   LOGWATCH (watch, "marking garbage");
   assert (!binary_pointer (watch));
@@ -180,17 +180,16 @@ mark_garbage_watch (struct ring * ring, struct watch * watch)
 }
 
 void
-sort_redundant_watches (size_t size_candidates,
-                        struct watch **candidates)
+sort_redundant_watches (size_t size_candidates, struct watch **candidates)
 {
   if (size_candidates < 2)
     return;
   size_t size_count = MAX_GLUE + 1, count[size_count];
   memset (count, 0, sizeof count);
-  struct watch ** end = candidates + size_candidates;
+  struct watch **end = candidates + size_candidates;
   for (struct watch ** p = candidates; p != end; p++)
     {
-      struct watch * watch = *p;
+      struct watch *watch = *p;
       assert (watch->redundant), assert (watch->glue <= MAX_GLUE);
       count[watch->glue]++;
     }
@@ -201,10 +200,9 @@ sort_redundant_watches (size_t size_candidates,
   struct watch **tmp = allocate_block (bytes);
   for (struct watch ** p = candidates; p != end; p++)
     {
-      struct watch * watch = *p;
+      struct watch *watch = *p;
       tmp[count[watch->glue]++] = watch;
     }
   memcpy (candidates, tmp, bytes);
   free (tmp);
 }
-

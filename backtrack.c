@@ -25,7 +25,7 @@ unassign (struct ring *ring, unsigned lit)
   else
     {
       struct queue *queue = &ring->queue;
-      struct link * link = queue->links + idx;
+      struct link *link = queue->links + idx;
       update_queue_search (queue, link);
     }
 }
@@ -84,4 +84,3 @@ update_best_and_target_phases (struct ring *ring)
 	}
     }
 }
-

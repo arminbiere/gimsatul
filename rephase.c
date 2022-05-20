@@ -82,4 +82,3 @@ rephase (struct ring *ring)
 	   limits->rephase);
   report (ring, type);
 }
-

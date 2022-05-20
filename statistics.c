@@ -27,7 +27,7 @@ print_ring_statistics (struct ring *ring)
 	   s->lifted, percent (s->lifted, ring->size));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
-  
+
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per learned clause",
 	   "vivified-clauses:", s->vivify.succeeded,
 	   percent (s->vivify.succeeded, s->learned.clauses));
@@ -150,30 +150,31 @@ print_ruler_statistics (struct ruler *ruler)
   double total = current_time () - start_time;
   double memory = maximum_resident_set_size () / (double) (1 << 20);
 
-  struct ruler_statistics * s = &ruler->statistics;
+  struct ruler_statistics *s = &ruler->statistics;
 
   unsigned variables = ruler->size;
 
   printf ("c %-22s %17u %13.2f %% variables\n", "eliminated:",
-          s->eliminated, percent (s->eliminated, variables));
+	  s->eliminated, percent (s->eliminated, variables));
   printf ("c %-22s %17u %13.2f %% eliminated variables\n", "definitions:",
-          s->definitions, percent (s->definitions, s->eliminated));
+	  s->definitions, percent (s->definitions, s->eliminated));
   printf ("c %-22s %17u %13.2f %% variables\n", "substituted:",
-          s->substituted, percent (s->substituted, variables));
+	  s->substituted, percent (s->substituted, variables));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "deduplicated:",
-          s->deduplicated, percent (s->deduplicated, s->subsumed));
+	  s->deduplicated, percent (s->deduplicated, s->subsumed));
   printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "self-subsumed::",
-          s->selfsubsumed, percent (s->selfsubsumed, s->subsumed));
+	  s->selfsubsumed, percent (s->selfsubsumed, s->subsumed));
   printf ("c %-22s %17u %13.2f %% original clauses\n", "strengthened:",
-          s->strengthened, percent (s->strengthened, s->original));
+	  s->strengthened, percent (s->strengthened, s->original));
   printf ("c %-22s %17u %13.2f %% original clauses\n", "subsumed:",
-          s->subsumed, percent (s->subsumed, s->original));
+	  s->subsumed, percent (s->subsumed, s->original));
   printf ("c %-22s %17u %13.2f %% total-fixed\n", "simplifying-fixed:",
-          s->fixed.simplifying, percent (s->fixed.simplifying, s->fixed.total));
+	  s->fixed.simplifying, percent (s->fixed.simplifying,
+					 s->fixed.total));
   printf ("c %-22s %17u %13.2f %% total-fixed\n", "solving-fixed:",
-          s->fixed.solving, percent (s->fixed.solving, s->fixed.total));
+	  s->fixed.solving, percent (s->fixed.solving, s->fixed.total));
   printf ("c %-22s %17u %13.2f %% variables\n", "total-fixed:",
-          s->fixed.total, percent (s->fixed.total, variables));
+	  s->fixed.total, percent (s->fixed.total, variables));
 
   printf ("c\n");
 

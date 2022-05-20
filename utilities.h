@@ -23,7 +23,7 @@ double nlogn (uint64_t count);
 unsigned gcd (unsigned, unsigned);
 
 static inline void
-mark_literal (signed char * marks, unsigned lit)
+mark_literal (signed char *marks, unsigned lit)
 {
   unsigned idx = IDX (lit);
   assert (!marks[idx]);
@@ -31,7 +31,7 @@ mark_literal (signed char * marks, unsigned lit)
 }
 
 static inline void
-unmark_literal (signed char * marks, unsigned lit)
+unmark_literal (signed char *marks, unsigned lit)
 {
   unsigned idx = IDX (lit);
   assert (marks[idx]);
@@ -39,7 +39,7 @@ unmark_literal (signed char * marks, unsigned lit)
 }
 
 static inline signed char
-marked_literal (signed char * marks, unsigned lit)
+marked_literal (signed char *marks, unsigned lit)
 {
   unsigned idx = IDX (lit);
   signed char res = marks[idx];
@@ -49,7 +49,7 @@ marked_literal (signed char * marks, unsigned lit)
 }
 
 static inline int
-export_literal (unsigned * map, unsigned unsigned_lit)
+export_literal (unsigned *map, unsigned unsigned_lit)
 {
   unsigned mapped_idx;
   if (map)

@@ -4,22 +4,22 @@
 #include "simplify.h"
 
 static bool
-find_binary_and_gate_clauses (struct simplifier * simplifier,
-                              unsigned lit, struct clause * clause,
-			      struct clauses * gate, struct clauses * nogate)
+find_binary_and_gate_clauses (struct simplifier *simplifier,
+			      unsigned lit, struct clause *clause,
+			      struct clauses *gate, struct clauses *nogate)
 {
   assert (!clause->garbage);
   if (clause->size > CLAUSE_SIZE_LIMIT)
     return false;
   CLEAR (*gate);
   CLEAR (*nogate);
-  signed char * marks = simplifier->marks;
+  signed char *marks = simplifier->marks;
   for (all_literals_in_clause (other, clause))
     if (other != lit)
       marks[other] = 1;
   unsigned not_lit = NOT (lit);
-  struct ruler * ruler = simplifier->ruler;
-  struct clauses * not_lit_clauses = &OCCURRENCES (not_lit);
+  struct ruler *ruler = simplifier->ruler;
+  struct clauses *not_lit_clauses = &OCCURRENCES (not_lit);
   unsigned marked = 0;
   for (all_clauses (not_lit_clause, *not_lit_clauses))
     if (binary_pointer (not_lit_clause))
@@ -45,10 +45,10 @@ find_binary_and_gate_clauses (struct simplifier * simplifier,
 }
 
 static struct clause *
-find_and_gate (struct simplifier * simplifier, unsigned lit,
-               struct clauses * gate, struct clauses * nogate)
+find_and_gate (struct simplifier *simplifier, unsigned lit,
+	       struct clauses *gate, struct clauses *nogate)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   for (all_clauses (clause, OCCURRENCES (lit)))
     if (!binary_pointer (clause))
       if (find_binary_and_gate_clauses (simplifier, lit, clause,
@@ -58,10 +58,10 @@ find_and_gate (struct simplifier * simplifier, unsigned lit,
 }
 
 static unsigned
-find_equivalence_gate (struct simplifier * simplifier, unsigned lit)
+find_equivalence_gate (struct simplifier *simplifier, unsigned lit)
 {
-  signed char * marks = simplifier->marks;
-  struct ruler * ruler = simplifier->ruler;
+  signed char *marks = simplifier->marks;
+  struct ruler *ruler = simplifier->ruler;
   for (all_clauses (clause, OCCURRENCES (lit)))
     if (binary_pointer (clause))
       marks[other_pointer (clause)] = 1;
@@ -85,11 +85,11 @@ find_equivalence_gate (struct simplifier * simplifier, unsigned lit)
 }
 
 bool
-find_definition (struct simplifier * simplifier, unsigned lit)
+find_definition (struct simplifier *simplifier, unsigned lit)
 {
-  struct ruler * ruler = simplifier->ruler;
-  struct clauses * gate = simplifier->gate;
-  struct clauses * nogate = simplifier->nogate;
+  struct ruler *ruler = simplifier->ruler;
+  struct clauses *gate = simplifier->gate;
+  struct clauses *nogate = simplifier->nogate;
   {
     unsigned other = find_equivalence_gate (simplifier, lit);
     if (other != INVALID)
@@ -100,7 +100,7 @@ find_definition (struct simplifier * simplifier, unsigned lit)
 	  CLEAR (gate[0]);
 	  CLEAR (nogate[0]);
 	  unsigned not_other = NOT (other);
-	  struct clause * lit_clause = tag_pointer (false, lit, not_other);
+	  struct clause *lit_clause = tag_pointer (false, lit, not_other);
 	  bool found = false;
 	  PUSH (gate[0], lit_clause);
 	  for (all_clauses (clause, OCCURRENCES (lit)))
@@ -114,7 +114,7 @@ find_definition (struct simplifier * simplifier, unsigned lit)
 	  CLEAR (gate[1]);
 	  CLEAR (nogate[1]);
 	  unsigned not_lit = NOT (lit);
-	  struct clause * not_lit_clause = tag_pointer (false, not_lit, other);
+	  struct clause *not_lit_clause = tag_pointer (false, not_lit, other);
 	  bool found = false;
 	  PUSH (gate[1], not_lit_clause);
 	  for (all_clauses (clause, OCCURRENCES (not_lit)))
@@ -128,7 +128,8 @@ find_definition (struct simplifier * simplifier, unsigned lit)
       }
   }
   unsigned resolve = lit;
-  struct clause * base = find_and_gate (simplifier, resolve, &gate[1], &nogate[1]);
+  struct clause *base =
+    find_and_gate (simplifier, resolve, &gate[1], &nogate[1]);
   if (base)
     {
       assert (SIZE (gate[1]) == base->size - 1);
@@ -160,7 +161,7 @@ find_definition (struct simplifier * simplifier, unsigned lit)
   do
     {
       ROGPREFIX ("found %u-ary and-gate with %s defined as ",
-                 base->size - 1, ROGLIT (resolve));
+		 base->size - 1, ROGLIT (resolve));
       bool first = true;
       for (all_literals_in_clause (other, base))
 	{
@@ -179,4 +180,3 @@ find_definition (struct simplifier * simplifier, unsigned lit)
 #endif
   return true;
 }
-

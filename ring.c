@@ -90,12 +90,12 @@ new_ring (struct ruler *ruler)
   struct queue *queue = &ring->queue;
   queue->links = allocate_and_clear_array (size, sizeof *heap->nodes);
   unsigned active = 0;
-  struct node * n = heap->nodes;
-  struct link * l = queue->links;
+  struct node *n = heap->nodes;
+  struct link *l = queue->links;
   for (all_ring_indices (idx))
     {
-      struct node * node = n++;
-      struct link * link = l++;
+      struct node *node = n++;
+      struct link *link = l++;
       LOG ("pushing active %s", LOGVAR (idx));
       ring->active[idx] = true;
       push_heap (heap, node);
@@ -168,7 +168,7 @@ release_pool (struct ring *ring)
 }
 
 static void
-release_binaries (struct ring * ring)
+release_binaries (struct ring *ring)
 {
   for (all_ring_literals (lit))
     free (REFERENCES (lit).binaries);

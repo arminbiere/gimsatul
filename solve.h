@@ -4,6 +4,6 @@
 struct ring;
 struct ruler;
 
-struct ring * solve_rings (struct ruler *);
+struct ring *solve_rings (struct ruler *);
 
 #endif

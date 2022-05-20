@@ -7,36 +7,36 @@
 
 struct link
 {
-  struct link * prev, * next;
+  struct link *prev, *next;
   uint64_t stamp;
 };
 
 struct queue
 {
-  struct link * links;
-  struct link * first, * last;
-  struct link * search;
+  struct link *links;
+  struct link *first, *last;
+  struct link *search;
   uint64_t stamp;
 };
 
 /*------------------------------------------------------------------------*/
 
-void enqueue (struct queue * queue, struct link * link, bool update);
-void dequeue (struct queue * queue, struct link * link);
+void enqueue (struct queue *queue, struct link *link, bool update);
+void dequeue (struct queue *queue, struct link *link);
 
 /*------------------------------------------------------------------------*/
 
 static inline void
-update_queue_search (struct queue * queue, struct link * link)
+update_queue_search (struct queue *queue, struct link *link)
 {
-  struct link * search = queue->search;
+  struct link *search = queue->search;
   assert (search);
   if (search->stamp < link->stamp)
     queue->search = link;
 }
 
 static inline void
-reset_queue_search (struct queue * queue)
+reset_queue_search (struct queue *queue)
 {
   queue->search = queue->last;
 }

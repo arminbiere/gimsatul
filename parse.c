@@ -9,11 +9,11 @@
 #include <stdarg.h>
 #include <string.h>
 
-static void parse_error (struct file * dimacs, const char *, ...)
+static void parse_error (struct file *dimacs, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
 static void
-parse_error (struct file * dimacs, const char *fmt, ...)
+parse_error (struct file *dimacs, const char *fmt, ...)
 {
   fprintf (stderr, "gimsatul: parse error: at line %" PRIu64 " in '%s': ",
 	   dimacs->lines, dimacs->path);
@@ -28,7 +28,7 @@ parse_error (struct file * dimacs, const char *fmt, ...)
 /*------------------------------------------------------------------------*/
 
 static int
-next_char (struct file * dimacs)
+next_char (struct file *dimacs)
 {
   int res = getc (dimacs->file);
   if (res == '\r')
@@ -43,7 +43,7 @@ next_char (struct file * dimacs)
 }
 
 static bool
-parse_int (struct file * dimacs, int *res_ptr, int prev, int *next)
+parse_int (struct file *dimacs, int *res_ptr, int prev, int *next)
 {
   int ch = prev == EOF ? next_char (dimacs) : prev;
   int sign = 1;
@@ -92,10 +92,10 @@ parse_int (struct file * dimacs, int *res_ptr, int prev, int *next)
 }
 
 void
-parse_dimacs_header (struct options * options,
-                     int * variables_ptr, int * clauses_ptr)
+parse_dimacs_header (struct options *options,
+		     int *variables_ptr, int *clauses_ptr)
 {
-  struct file * dimacs = &options->dimacs;
+  struct file *dimacs = &options->dimacs;
   if (verbosity >= 0)
     {
       printf ("c\nc parsing DIMACS file '%s'\n", dimacs->path);
@@ -160,22 +160,22 @@ parse_dimacs_header (struct options * options,
 }
 
 void
-parse_dimacs_body (struct ruler * ruler, int variables, int expected)
+parse_dimacs_body (struct ruler *ruler, int variables, int expected)
 {
   double start_parsing = START (ruler, parse);
-  struct file * dimacs = &ruler->options.dimacs;
+  struct file *dimacs = &ruler->options.dimacs;
   signed char *marked = allocate_and_clear_block (variables);
   struct unsigneds clause;
   INIT (clause);
   int signed_lit = 0, parsed = 0;
-  struct unsigneds * original = ruler->original;
+  struct unsigneds *original = ruler->original;
   bool trivial = false;
   for (;;)
     {
       int ch = next_char (dimacs);
       if (ch == EOF)
 	{
-      END_OF_FILE:
+	END_OF_FILE:
 	  if (signed_lit)
 	    parse_error (dimacs, "terminating zero missing");
 	  if (parsed != expected)
@@ -285,4 +285,3 @@ parse_dimacs_body (struct ruler * ruler, int variables, int expected)
   double end_parsing = STOP (ruler, parse);
   message (0, "parsing took %.2f seconds", end_parsing - start_parsing);
 }
-

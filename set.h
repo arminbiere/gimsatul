@@ -10,15 +10,15 @@ struct set
   size_t deleted;
   size_t allocated;
   void **table;
-  struct {
-    size_t (*function)(void* state, void* ptr);
-    void * state;
+  struct
+  {
+    size_t (*function) (void *state, void *ptr);
+    void *state;
   } hash;
 };
 
 void set_insert (struct set *, void *);
 void set_remove (struct set *, void *);
-void * random_set (uint64_t *, struct set *);
+void *random_set (uint64_t *, struct set *);
 
 #endif
-

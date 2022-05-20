@@ -19,7 +19,7 @@ config.h: makefile VERSION
 clean:
 	rm -f makfile config.h *.o gimsatul *~ *.backup
 indent:
-	indent gimsatul.c
+	indent *.[ch]
 test: all
 	cnf/test.sh
 docker: clean

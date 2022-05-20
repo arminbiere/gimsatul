@@ -56,10 +56,10 @@ struct ruler
   volatile signed char *values;
   struct clauses *occurrences;
   struct clauses clauses;
-  struct unsigneds * original;
+  struct unsigneds *original;
   struct unsigneds extension;
   struct ruler_trail units;
-  unsigned * map;
+  unsigned *map;
   struct trace trace;
   struct ruler_profiles profiles;
   struct ruler_statistics statistics;
@@ -94,7 +94,7 @@ struct ruler
 
 /*------------------------------------------------------------------------*/
 
-struct ruler * new_ruler (size_t size, struct options *);
+struct ruler *new_ruler (size_t size, struct options *);
 void delete_ruler (struct ruler *);
 
 void new_ruler_binary_clause (struct ruler *, unsigned, unsigned);
@@ -108,14 +108,14 @@ void push_ring (struct ruler *, struct ring *);
 void detach_ring (struct ring *);
 void set_winner (struct ring *);
 
-void set_terminate (struct ruler * ruler);
+void set_terminate (struct ruler *ruler);
 
 void print_ruler_profiles (struct ruler *);
 
 /*------------------------------------------------------------------------*/
 
 static inline void
-connect_literal (struct ruler * ruler, unsigned lit, struct clause * clause)
+connect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
 {
   PUSH (OCCURRENCES (lit), clause);
 }

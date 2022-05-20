@@ -89,4 +89,3 @@ struct buffer
   ++P_ ## ELEM
 
 #endif
-

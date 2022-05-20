@@ -29,7 +29,7 @@ copy_ruler_binaries (struct ring *ring)
 	  unsigned other = other_pointer (clause);
 	  if (other < lit)
 	    {
-	      LOGBINARY (false, lit, other , "copying");
+	      LOGBINARY (false, lit, other, "copying");
 	      copied++;
 	    }
 	  *b++ = other;
@@ -165,12 +165,12 @@ clone_rings (struct ruler *ruler)
   START (ruler, clone);
   double before = 0;
   if (verbosity >= 0)
-      before = current_resident_set_size () / (double) (1 << 20);
+    before = current_resident_set_size () / (double) (1 << 20);
   clone_ruler (ruler);
   if (threads > 1)
     {
       message (0, "cloning %u rings from first to support %u threads",
-		  threads - 1, threads);
+	       threads - 1, threads);
       ruler->threads = allocate_array (threads, sizeof *ruler->threads);
       struct ring *first = first_ring (ruler);
       init_pool (first, threads);

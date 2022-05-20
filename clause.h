@@ -44,11 +44,11 @@ struct clauses
 
 /*------------------------------------------------------------------------*/
 
-struct clause * new_large_clause (size_t, unsigned *,
-                                  bool redundant, unsigned glue);
+struct clause *new_large_clause (size_t, unsigned *,
+				 bool redundant, unsigned glue);
 
-void mark_clause (signed char * marks, struct clause *, unsigned except);
-void unmark_clause (signed char * marks, struct clause *, unsigned except);
+void mark_clause (signed char *marks, struct clause *, unsigned except);
+void unmark_clause (signed char *marks, struct clause *, unsigned except);
 
 void reference_clause (struct ring *, struct clause *, unsigned inc);
 void dereference_clause (struct ring *, struct clause *);

@@ -12,10 +12,10 @@
 #include <string.h>
 
 struct simplifier *
-new_simplifier (struct ruler * ruler)
+new_simplifier (struct ruler *ruler)
 {
   size_t size = ruler->compact;
-  struct simplifier * simplifier =
+  struct simplifier *simplifier =
     allocate_and_clear_block (sizeof *simplifier);
   simplifier->ruler = ruler;
   simplifier->marks = allocate_and_clear_block (2 * size);
@@ -28,7 +28,7 @@ new_simplifier (struct ruler * ruler)
 }
 
 void
-delete_simplifier (struct simplifier * simplifier)
+delete_simplifier (struct simplifier *simplifier)
 {
   free (simplifier->marks);
   free (simplifier->eliminated);
@@ -38,12 +38,12 @@ delete_simplifier (struct simplifier * simplifier)
 }
 
 void
-add_resolvent (struct simplifier * simplifier)
+add_resolvent (struct simplifier *simplifier)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   assert (!ruler->inconsistent);
-  struct unsigneds * resolvent = &simplifier->resolvent;
-  unsigned * literals = resolvent->begin;
+  struct unsigneds *resolvent = &simplifier->resolvent;
+  unsigned *literals = resolvent->begin;
   size_t size = SIZE (*resolvent);
   trace_add_literals (&ruler->trace, size, literals, INVALID);
   if (!size)
@@ -81,18 +81,18 @@ add_resolvent (struct simplifier * simplifier)
 /*------------------------------------------------------------------------*/
 
 static bool
-ruler_propagate (struct simplifier * simplifier)
+ruler_propagate (struct simplifier *simplifier)
 {
-  struct ruler * ruler = simplifier->ruler;
-  signed char * values = (signed char*) ruler->values;
-  struct ruler_trail * units = &ruler->units;
+  struct ruler *ruler = simplifier->ruler;
+  signed char *values = (signed char *) ruler->values;
+  struct ruler_trail *units = &ruler->units;
   size_t garbage = 0;
   while (!ruler->inconsistent && units->propagate != units->end)
     {
       unsigned lit = *units->propagate++;
       ROG ("propagating unit %s", ROGLIT (lit));
       unsigned not_lit = NOT (lit);
-      struct clauses * clauses = &OCCURRENCES (not_lit);
+      struct clauses *clauses = &OCCURRENCES (not_lit);
       for (all_clauses (clause, *clauses))
 	{
 	  bool satisfied = false;
@@ -107,7 +107,7 @@ ruler_propagate (struct simplifier * simplifier)
 		continue;
 	      if (value < 0)
 		{
-	          ROGBINARY (not_lit, other, "conflict");
+		  ROGBINARY (not_lit, other, "conflict");
 		  goto CONFLICT;
 		}
 	      ROGBINARY (not_lit, other, "unit %s forcing", ROGLIT (other));
@@ -165,10 +165,10 @@ ruler_propagate (struct simplifier * simplifier)
 }
 
 static void
-mark_satisfied_ruler_clauses (struct simplifier * simplifier)
+mark_satisfied_ruler_clauses (struct simplifier *simplifier)
 {
-  struct ruler * ruler = simplifier->ruler;
-  signed char * values = (signed char*) ruler->values;
+  struct ruler *ruler = simplifier->ruler;
+  signed char *values = (signed char *) ruler->values;
   size_t marked_satisfied = 0, marked_dirty = 0;
   for (all_clauses (clause, ruler->clauses))
     {
@@ -204,26 +204,26 @@ mark_satisfied_ruler_clauses (struct simplifier * simplifier)
 	}
     }
   very_verbose (0,
-     "found %zu additional large satisfied clauses and marked %zu dirty",
-     marked_satisfied, marked_dirty);
+		"found %zu additional large satisfied clauses and marked %zu dirty",
+		marked_satisfied, marked_dirty);
 }
 
 static void
-flush_ruler_occurrences (struct simplifier * simplifier)
+flush_ruler_occurrences (struct simplifier *simplifier)
 {
-  struct ruler * ruler = simplifier->ruler;
-  signed char * values = (signed char*) ruler->values;
+  struct ruler *ruler = simplifier->ruler;
+  signed char *values = (signed char *) ruler->values;
   size_t flushed = 0;
   size_t deleted = 0;
   for (all_ruler_literals (lit))
     {
       signed char lit_value = values[lit];
-      struct clauses * clauses = &OCCURRENCES (lit);
-      struct clause ** begin = clauses->begin, ** q = begin;
-      struct clause ** end = clauses->end, ** p = q;
+      struct clauses *clauses = &OCCURRENCES (lit);
+      struct clause **begin = clauses->begin, **q = begin;
+      struct clause **end = clauses->end, **p = q;
       while (p != end)
 	{
-	  struct clause * clause = *q++ = *p++;
+	  struct clause *clause = *q++ = *p++;
 	  if (binary_pointer (clause))
 	    {
 	      assert (lit_pointer (clause) == lit);
@@ -271,20 +271,20 @@ flush_ruler_occurrences (struct simplifier * simplifier)
 }
 
 static void
-delete_large_garbage_ruler_clauses (struct simplifier * simplifier)
+delete_large_garbage_ruler_clauses (struct simplifier *simplifier)
 {
-  struct ruler * ruler = simplifier->ruler;
-  struct clauses * clauses = &ruler->clauses;
-  struct clause ** begin_clauses = clauses->begin, ** q = begin_clauses;
-  struct clause ** end_clauses = clauses->end, ** p = q;
+  struct ruler *ruler = simplifier->ruler;
+  struct clauses *clauses = &ruler->clauses;
+  struct clause **begin_clauses = clauses->begin, **q = begin_clauses;
+  struct clause **end_clauses = clauses->end, **p = q;
   size_t deleted = 0, shrunken = 0;
-  signed char * values = (signed char*) ruler->values;
+  signed char *values = (signed char *) ruler->values;
   bool trace = ruler->options.proof.file;
   struct unsigneds remove;
   INIT (remove);
   while (p != end_clauses)
     {
-      struct clause * clause = *q++ = *p++;
+      struct clause *clause = *q++ = *p++;
       if (clause->garbage)
 	{
 	  ROGCLAUSE (clause, "finally deleting");
@@ -297,11 +297,11 @@ delete_large_garbage_ruler_clauses (struct simplifier * simplifier)
 	  assert (EMPTY (remove));
 	  shrunken++;
 	  ROGCLAUSE (clause, "shrinking dirty");
-	  unsigned * literals = clause->literals;
+	  unsigned *literals = clause->literals;
 	  unsigned old_size = clause->size;
 	  assert (old_size > 2);
-	  unsigned * end_literals = literals + old_size;
-	  unsigned * l = literals, * k = l;
+	  unsigned *end_literals = literals + old_size;
+	  unsigned *l = literals, *k = l;
 	  while (l != end_literals)
 	    {
 	      unsigned lit = *k++ = *l++;
@@ -347,14 +347,14 @@ delete_large_garbage_ruler_clauses (struct simplifier * simplifier)
 }
 
 static bool
-propagate_and_flush_ruler_units (struct simplifier * simplifier)
+propagate_and_flush_ruler_units (struct simplifier *simplifier)
 {
   if (!ruler_propagate (simplifier))
     return false;
-  struct ruler * ruler = simplifier->ruler;
-  struct ruler_last * last = &ruler->last;
+  struct ruler *ruler = simplifier->ruler;
+  struct ruler_last *last = &ruler->last;
   if (last->fixed != ruler->statistics.fixed.total)
-      mark_satisfied_ruler_clauses (simplifier);
+    mark_satisfied_ruler_clauses (simplifier);
   if (last->fixed != ruler->statistics.fixed.total ||
       last->garbage != ruler->statistics.garbage)
     {
@@ -368,7 +368,7 @@ propagate_and_flush_ruler_units (struct simplifier * simplifier)
 }
 
 static void
-connect_all_large_clauses (struct ruler * ruler)
+connect_all_large_clauses (struct ruler *ruler)
 {
   ROG ("connecting all large clauses");
   for (all_clauses (clause, ruler->clauses))
@@ -382,7 +382,7 @@ scale_ticks_limit (unsigned optimized, unsigned base)
   res *= 1e6;
   for (unsigned i = 0; i != optimized; i++)
     {
-      if (UINT64_MAX/10 > res)
+      if (UINT64_MAX / 10 > res)
 	res *= 10;
       else
 	{
@@ -394,7 +394,7 @@ scale_ticks_limit (unsigned optimized, unsigned base)
 }
 
 static void
-set_ruler_limits (struct ruler * ruler, unsigned optimize)
+set_ruler_limits (struct ruler *ruler, unsigned optimize)
 {
   message (0, "simplification optimization level %u", optimize);
   if (optimize)
@@ -410,12 +410,12 @@ set_ruler_limits (struct ruler * ruler, unsigned optimize)
   ruler->limits.elimination =
     scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
   message (0, "setting elimination limit to %" PRIu64 " ticks",
-           ruler->limits.elimination);
+	   ruler->limits.elimination);
 
   ruler->limits.subsumption =
     scale_ticks_limit (optimize, SUBSUMPTION_TICKS_LIMIT);
   message (0, "setting subsumption limit to %" PRIu64 " ticks",
-           ruler->limits.subsumption);
+	   ruler->limits.subsumption);
 }
 
 static unsigned
@@ -425,7 +425,7 @@ set_max_rounds (unsigned optimize)
   if (optimize)
     {
       unsigned scale = optimize + 1;
-      if ((UINT_MAX - 1)/scale >= SIMPLIFICATION_ROUNDS)
+      if ((UINT_MAX - 1) / scale >= SIMPLIFICATION_ROUNDS)
 	res *= scale;
       else
 	res = UINT_MAX - 1;
@@ -438,15 +438,15 @@ set_max_rounds (unsigned optimize)
 }
 
 static size_t
-current_ruler_clauses (struct ruler * ruler)
+current_ruler_clauses (struct ruler *ruler)
 {
   return SIZE (ruler->clauses) + ruler->statistics.binaries;
 }
 
 static void
-push_ruler_units_to_extension_stack (struct ruler * ruler)
+push_ruler_units_to_extension_stack (struct ruler *ruler)
 {
-  struct unsigneds * extension = &ruler->extension;
+  struct unsigneds *extension = &ruler->extension;
   for (all_elements_on_stack (unsigned, lit, ruler->units))
     {
       PUSH (*extension, INVALID);
@@ -457,7 +457,7 @@ push_ruler_units_to_extension_stack (struct ruler * ruler)
 }
 
 static void
-run_only_root_level_propagation (struct simplifier * simplifier)
+run_only_root_level_propagation (struct simplifier *simplifier)
 {
   if (verbosity >= 0)
     {
@@ -469,7 +469,7 @@ run_only_root_level_propagation (struct simplifier * simplifier)
 }
 
 static void
-run_full_blown_simplification (struct simplifier * simplifier)
+run_full_blown_simplification (struct simplifier *simplifier)
 {
   if (verbosity >= 0)
     {
@@ -477,7 +477,7 @@ run_full_blown_simplification (struct simplifier * simplifier)
       fflush (stdout);
     }
 
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   connect_all_large_clauses (ruler);
 
   unsigned optimize = ruler->options.optimize;
@@ -530,12 +530,11 @@ run_full_blown_simplification (struct simplifier * simplifier)
   variables.delta = variables.before - variables.after;
 
   message (0, "simplification removed %zu variables %.0f%% "
-           "with %zu remaining %.0f%%",
+	   "with %zu remaining %.0f%%",
 	   variables.delta,
 	   percent (variables.delta, variables.before),
-	   variables.after,
-	   percent (variables.after, ruler->size));
-           
+	   variables.after, percent (variables.after, ruler->size));
+
 
   clauses.after = current_ruler_clauses (ruler);
   size_t original = ruler->statistics.original;
@@ -544,36 +543,34 @@ run_full_blown_simplification (struct simplifier * simplifier)
     {
       clauses.delta = clauses.before - clauses.after;
       message (0, "simplification removed %zu clauses %.0f%% "
-               "with %zu remaining %.0f%%",
+	       "with %zu remaining %.0f%%",
 	       clauses.delta,
 	       percent (clauses.delta, clauses.before),
-	       clauses.after,
-	       percent (clauses.after, original));
+	       clauses.after, percent (clauses.after, original));
     }
   else
     {
       clauses.delta = clauses.after - clauses.before;
       message (0, "simplification ADDED %zu clauses %.0f%% "
-               "with %zu remaining %.0f%%",
+	       "with %zu remaining %.0f%%",
 	       clauses.delta,
 	       percent (clauses.delta, clauses.before),
-	       clauses.after,
-	       percent (clauses.after, original));
+	       clauses.after, percent (clauses.after, original));
     }
 
   if (ruler->inconsistent)
     message (0, "simplification produced empty clause");
 
   message (0, "subsumption used %" PRIu64 " ticks%s",
-           ruler->statistics.ticks.subsumption,
+	   ruler->statistics.ticks.subsumption,
 	   subsumption_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
   message (0, "elimination used %" PRIu64 " ticks%s",
-           ruler->statistics.ticks.elimination,
+	   ruler->statistics.ticks.elimination,
 	   elimination_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
 }
 
 void
-simplify_ruler (struct ruler * ruler)
+simplify_ruler (struct ruler *ruler)
 {
   if (ruler->inconsistent)
     return;
@@ -583,7 +580,7 @@ simplify_ruler (struct ruler * ruler)
   assert (!ruler->simplifying);
   ruler->simplifying = true;
 
-  struct simplifier * simplifier = new_simplifier (ruler);
+  struct simplifier *simplifier = new_simplifier (ruler);
   if (ruler->options.preprocessing)
     run_full_blown_simplification (simplifier);
   else
@@ -598,5 +595,5 @@ simplify_ruler (struct ruler * ruler)
 
   double end_simplification = STOP (ruler, simplify);
   message (0, "simplification took %.2f seconds",
-           end_simplification - start_simplification);
+	   end_simplification - start_simplification);
 }

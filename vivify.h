@@ -12,7 +12,7 @@ struct watch;
 void vivify_clauses (struct ring *);
 
 static inline bool
-watched_vivification_candidate (struct watch * watch)
+watched_vivification_candidate (struct watch *watch)
 {
   if (watch->garbage)
     return false;

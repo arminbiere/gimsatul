@@ -26,4 +26,3 @@ warming_up_saved_phases (struct ring *ring)
 	   "warmed-up phases with %" PRIu64 " decisions and %" PRIu64
 	   " conflicts", decisions, conflicts);
 }
-

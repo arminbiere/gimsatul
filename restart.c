@@ -51,4 +51,3 @@ restart (struct ring *ring)
   if (verbosity > 0)
     report (ring, 'r');
 }
-

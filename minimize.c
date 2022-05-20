@@ -178,7 +178,7 @@ minimize_clause (struct ring *ring)
 void
 shrink_or_minimize_clause (struct ring *ring, unsigned glue)
 {
-  struct unsigneds * minimize = &ring->minimize;
+  struct unsigneds *minimize = &ring->minimize;
   assert (EMPTY (*minimize));
 
   size_t deduced = SIZE (ring->clause);

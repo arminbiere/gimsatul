@@ -37,20 +37,20 @@ struct references
 
 /*------------------------------------------------------------------------*/
 
-struct watch * new_local_binary_clause (struct ring *ring, bool redundant,
-			                unsigned lit, unsigned other);
+struct watch *new_local_binary_clause (struct ring *ring, bool redundant,
+				       unsigned lit, unsigned other);
 
-struct watch * watch_literals_in_large_clause (struct ring *,
-                                               struct clause *,
-				               unsigned first,
-					       unsigned second);
+struct watch *watch_literals_in_large_clause (struct ring *,
+					      struct clause *,
+					      unsigned first,
+					      unsigned second);
 
-struct watch * watch_first_two_literals_in_large_clause (struct ring *,
-					                 struct clause *);
+struct watch *watch_first_two_literals_in_large_clause (struct ring *,
+							struct clause *);
 
 void mark_garbage_watch (struct ring *, struct watch *);
 
-void flush_watches (struct ring*);
+void flush_watches (struct ring *);
 void reconnect_watches (struct ring *, struct watches *saved);
 
 void release_references (struct ring *);

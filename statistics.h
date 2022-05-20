@@ -107,7 +107,8 @@ struct ruler_statistics
     uint64_t elimination;
     uint64_t subsumption;
   } ticks;
-  struct {
+  struct
+  {
     unsigned simplifying;
     unsigned solving;
     unsigned total;
@@ -122,4 +123,3 @@ void print_ruler_statistics (struct ruler *);
 /*------------------------------------------------------------------------*/
 
 #endif
-

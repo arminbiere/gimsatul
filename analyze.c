@@ -66,10 +66,10 @@ bump_reason_side_literals (struct ring *ring)
 }
 
 void
-clear_analyzed (struct ring * ring)
+clear_analyzed (struct ring *ring)
 {
   struct unsigneds *analyzed = &ring->analyzed;
-  struct variable * variables = ring->variables;
+  struct variable *variables = ring->variables;
   for (all_elements_on_stack (unsigned, idx, *analyzed))
     {
       struct variable *v = variables + idx;
@@ -79,7 +79,7 @@ clear_analyzed (struct ring * ring)
   CLEAR (*analyzed);
 
   struct unsigneds *levels = &ring->levels;
-  bool * used = ring->used;
+  bool *used = ring->used;
   for (all_elements_on_stack (unsigned, used_level, *levels))
       used[used_level] = false;
   CLEAR (*levels);
@@ -128,8 +128,7 @@ analyze (struct ring *ring, struct watch *reason)
 #endif
   if (!ring->level)
     {
-      set_inconsistent (ring,
-			"conflict on root-level produces empty clause");
+      set_inconsistent (ring, "conflict on root-level produces empty clause");
       trace_add_empty (&ring->trace);
       return false;
     }
@@ -248,4 +247,3 @@ analyze (struct ring *ring, struct watch *reason)
 
   return true;
 }
-

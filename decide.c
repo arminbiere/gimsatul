@@ -7,7 +7,7 @@
 #include "utilities.h"
 
 signed char
-initial_phase (struct ring * ring)
+initial_phase (struct ring *ring)
 {
   return ring->options.phase ? 1 : -1;
 }
@@ -31,7 +31,7 @@ random_decision (struct ring *ring)
   assert (ring->unassigned);
 
   signed char *values = ring->values;
-  bool * active = ring->active;
+  bool *active = ring->active;
   unsigned size = ring->size;
 
   unsigned idx = random_modulo (&ring->random, size);
@@ -90,14 +90,14 @@ best_decision_on_heap (struct ring *ring)
 }
 
 static unsigned
-best_decision_on_queue (struct ring * ring)
+best_decision_on_queue (struct ring *ring)
 {
   assert (ring->unassigned);
 
   signed char *values = ring->values;
-  struct queue * queue = &ring->queue;
-  struct link * links = queue->links;
-  struct link * search = queue->search;
+  struct queue *queue = &ring->queue;
+  struct link *links = queue->links;
+  struct link *search = queue->search;
 
   unsigned lit, idx;
   for (;;)

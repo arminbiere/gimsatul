@@ -19,7 +19,7 @@ void fatal_error (const char *, ...) __attribute__((format (printf, 1, 2)));
 struct ring;
 
 void print_line_without_acquiring_lock (struct ring *, const char *, ...)
-__attribute__((format (printf, 2, 3)));
+  __attribute__((format (printf, 2, 3)));
 
 void message (struct ring *ring, const char *, ...)
   __attribute__((format (printf, 2, 3)));

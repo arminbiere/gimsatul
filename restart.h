@@ -5,7 +5,7 @@
 
 struct ring;
 
-bool restarting (struct ring*);
-void restart (struct ring*);
+bool restarting (struct ring *);
+void restart (struct ring *);
 
 #endif

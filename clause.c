@@ -31,7 +31,7 @@ new_large_clause (size_t size, unsigned *literals,
 }
 
 void
-mark_clause (signed char * marks, struct clause * clause, unsigned except)
+mark_clause (signed char *marks, struct clause *clause, unsigned except)
 {
   if (binary_pointer (clause))
     mark_literal (marks, other_pointer (clause));
@@ -42,7 +42,7 @@ mark_clause (signed char * marks, struct clause * clause, unsigned except)
 }
 
 void
-unmark_clause (signed char * marks, struct clause * clause, unsigned except)
+unmark_clause (signed char *marks, struct clause *clause, unsigned except)
 {
   if (binary_pointer (clause))
     unmark_literal (marks, other_pointer (clause));
