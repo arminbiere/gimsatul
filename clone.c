@@ -114,16 +114,6 @@ clone_clauses (struct ring *dst, struct ring *src)
       set_inconsistent (ring, "cloning inconsistent empty clause");
       return;
     }
-#if 0
-  unsigned units = 0;
-  for (all_elements_on_stack (unsigned, lit, src->trail))
-    {
-      LOG ("cloning unit %s", LOGLIT (lit));
-      assign_ring_unit (ring, lit);
-      units++;
-    }
-  very_verbose (ring, "cloned %u units", units);
-#endif
   size_t shared = 0;
   for (all_watches (src_watch, src->watches))
     {

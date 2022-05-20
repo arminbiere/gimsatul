@@ -122,7 +122,16 @@ compact_ruler (struct simplifier * simplifier)
     }
   assert (compact == mapped);
   ruler->compact = compact;
+
   map_clauses (ruler, map);
-  message (0, "mapped %u variables to %u variables", ruler->size, mapped);
   free (map);
+
+  free ((void*) ruler->values);
+  ruler->values = allocate_and_clear_block (2*compact);
+
+  free (ruler->units.begin);
+  ruler->units.begin = allocate_array (compact, sizeof (unsigned));
+  ruler->units.propagate = ruler->units.end = ruler->units.begin;
+
+  message (0, "mapped %u variables to %u variables", ruler->size, mapped);
 }
