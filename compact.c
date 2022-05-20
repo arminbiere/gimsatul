@@ -64,7 +64,7 @@ compact_ruler (struct ruler * ruler)
 {
   if (ruler->inconsistent)
     return;
-  bool * eliminated = ruler->eliminated;
+  bool * eliminated = ruler->simplifier.eliminated;
   signed char * values = (signed char*) ruler->values;
   unsigned compact = 0;
   for (all_ruler_indices (idx))
@@ -122,7 +122,7 @@ compact_ruler (struct ruler * ruler)
   ruler->compact = compact;
   map_clauses (ruler, map);
   message (0, "mapped %u variables to %u variables", ruler->size, mapped);
-  free (ruler->eliminated);
-  ruler->eliminated = 0;
+  free (ruler->simplifier.eliminated);
+  ruler->simplifier.eliminated = 0;
   free (map);
 }

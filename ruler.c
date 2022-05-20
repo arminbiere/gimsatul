@@ -1,7 +1,7 @@
 #include "message.h"
 #include "ruler.h"
-#include "simplify.h"
 #include "trace.h"
+#include "simplify.h"
 #include "utilities.h"
 
 #include <string.h>
@@ -41,13 +41,14 @@ new_ruler (size_t size, struct options * opts)
   pthread_mutex_init (&ruler->locks.winner, 0);
   init_synchronization (&ruler->synchronize);
   ruler->values = allocate_and_clear_block (2 * size);
-  ruler->marks = allocate_and_clear_block (2 * size);
-  assert (sizeof (bool) == 1);
-  ruler->eliminated = allocate_and_clear_block (size);
-  ruler->eliminate = allocate_and_clear_block (size);
-  ruler->subsume = allocate_and_clear_block (size);
-  memset (ruler->eliminate, 1, size);
-  memset (ruler->subsume, 1, size);
+
+  ruler->simplifier.marks = allocate_and_clear_block (2 * size);
+  ruler->simplifier.eliminated = allocate_and_clear_block (size);
+  ruler->simplifier.eliminate = allocate_and_clear_block (size);
+  ruler->simplifier.subsume = allocate_and_clear_block (size);
+  memset (ruler->simplifier.eliminate, 1, size);
+  memset (ruler->simplifier.subsume, 1, size);
+
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
@@ -93,11 +94,11 @@ delete_ruler (struct ruler *ruler)
   release_occurrences (ruler);
   release_clauses (ruler);
   free ((void *) ruler->values);
-  free (ruler->marks);
   free (ruler->map);
-  free (ruler->eliminated);
-  free (ruler->eliminate);
-  free (ruler->subsume);
+  free (ruler->simplifier.marks);
+  free (ruler->simplifier.eliminated);
+  free (ruler->simplifier.eliminate);
+  free (ruler->simplifier.subsume);
   free (ruler->units.begin);
   free (ruler->threads);
   free (ruler);

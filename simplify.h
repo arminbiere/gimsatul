@@ -3,6 +3,9 @@
 
 #include "macros.h"
 #include "ruler.h"
+#include "stack.h"
+
+#include <assert.h>
 
 /*------------------------------------------------------------------------*/
 
@@ -15,10 +18,11 @@ static inline void
 mark_eliminate_literal (struct ruler * ruler, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  if (ruler->eliminate[idx])
+  assert (ruler->simplifier.eliminate);
+  if (ruler->simplifier.eliminate[idx])
     return;
   ROG ("marking %s to be eliminated", ROGVAR (idx));
-  ruler->eliminate[idx] = 1;
+  ruler->simplifier.eliminate[idx] = 1;
 }
 
 static inline void
@@ -32,10 +36,11 @@ static inline void
 mark_subsume_literal (struct ruler * ruler, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  if (ruler->subsume[idx])
+  assert (ruler->simplifier.subsume);
+  if (ruler->simplifier.subsume[idx])
     return;
   ROG ("marking %s to be subsumed", ROGVAR (idx));
-  ruler->subsume[idx] = 1;
+  ruler->simplifier.subsume[idx] = 1;
 }
 
 static inline void

@@ -14,7 +14,7 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
   struct clause ** end = clauses->end, ** p = q;
   signed char * values = (signed char*) ruler->values;
   assert (!values[lit]);
-  signed char * marks = ruler->marks;
+  signed char * marks = ruler->simplifier.marks;
   size_t removed = 0;
   ruler->statistics.ticks.subsumption += cache_lines (end, begin);
   while (p != end)
@@ -71,7 +71,7 @@ remove_duplicated_binaries (struct ruler * ruler, unsigned round)
   if (!ruler->options.deduplicate)
     return false;
   double start_deduplication = START (ruler, deduplicate);
-  bool * eliminated = ruler->eliminated;
+  bool * eliminated = ruler->simplifier.eliminated;
   signed char * values = (signed char*) ruler->values;
   unsigned units_before = ruler->statistics.fixed.total;
   size_t removed = 0;

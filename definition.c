@@ -12,7 +12,7 @@ find_binary_and_gate_clauses (struct ruler * ruler,
     return false;
   CLEAR (*gate);
   CLEAR (*nogate);
-  signed char * marks = ruler->marks;
+  signed char * marks = ruler->simplifier.marks;
   for (all_literals_in_clause (other, clause))
     if (other != lit)
       marks[other] = 1;
@@ -57,7 +57,7 @@ find_and_gate (struct ruler * ruler, unsigned lit,
 static unsigned
 find_equivalence_gate (struct ruler * ruler, unsigned lit)
 {
-  signed char * marks = ruler->marks;
+  signed char * marks = ruler->simplifier.marks;
   for (all_clauses (clause, OCCURRENCES (lit)))
     if (binary_pointer (clause))
       marks[other_pointer (clause)] = 1;
@@ -83,8 +83,8 @@ find_equivalence_gate (struct ruler * ruler, unsigned lit)
 bool
 find_definition (struct ruler * ruler, unsigned lit)
 {
-  struct clauses * gate = ruler->gate;
-  struct clauses * nogate = ruler->nogate;
+  struct clauses * gate = ruler->simplifier.gate;
+  struct clauses * nogate = ruler->simplifier.nogate;
   {
     unsigned other = find_equivalence_gate (ruler, lit);
     if (other != INVALID)

@@ -38,6 +38,16 @@ struct ruler_limits
   uint64_t subsumption;
 };
 
+struct simplifier
+{
+  signed char *marks;
+  bool *eliminated;
+  bool *eliminate;
+  bool *subsume;
+  struct unsigneds resolvent;
+  struct clauses gate[2], nogate[2];
+};
+
 struct ruler
 {
   unsigned size;
@@ -54,24 +64,19 @@ struct ruler
   pthread_t *threads;
   struct ring *volatile winner;
   volatile signed char *values;
-  signed char *marks;
-  unsigned * map;
-  bool *eliminated;
-  bool *eliminate;
-  bool *subsume;
   struct clauses *occurrences;
   struct clauses clauses;
-  struct unsigneds resolvent;
   struct unsigneds * original;
-  struct clauses gate[2], nogate[2];
   struct unsigneds extension;
   struct ruler_trail units;
+  unsigned * map;
   struct trace trace;
   struct ruler_profiles profiles;
   struct ruler_statistics statistics;
   struct ruler_limits limits;
   struct options options;
   struct ruler_last last;
+  struct simplifier simplifier;
 };
 
 /*------------------------------------------------------------------------*/

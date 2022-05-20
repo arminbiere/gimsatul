@@ -14,7 +14,7 @@ void
 add_resolvent (struct ruler * ruler)
 {
   assert (!ruler->inconsistent);
-  struct unsigneds * resolvent = &ruler->resolvent;
+  struct unsigneds * resolvent = &ruler->simplifier.resolvent;
   unsigned * literals = resolvent->begin;
   size_t size = SIZE (*resolvent);
   trace_add_literals (&ruler->trace, size, literals, INVALID);
@@ -450,6 +450,9 @@ simplify_ruler (struct ruler * ruler)
       printf ("c\nc simplifying formula before cloning\n");
       fflush (stdout);
     }
+
+  assert (ruler->simplifier.eliminate);
+  assert (ruler->simplifier.subsume);
 
   connect_all_large_clauses (ruler);
 
