@@ -40,6 +40,7 @@ struct ruler_limits
 
 struct simplifier
 {
+  struct ruler * ruler;
   signed char *marks;
   bool *eliminated;
   bool *eliminate;

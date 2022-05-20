@@ -429,6 +429,9 @@ simplify_ruler (struct ruler * ruler)
   if (ruler->inconsistent)
     return;
 
+  struct simplifier * simplifier = &ruler->simplifier;
+  simplifier->ruler = ruler;
+
   double start_simplification = START (ruler, simplify);
   assert (!ruler->simplifying);
   ruler->simplifying = true;
@@ -481,7 +484,7 @@ simplify_ruler (struct ruler * ruler)
       if (!propagate_and_flush_ruler_units (ruler))
 	break;
 
-      if (remove_duplicated_binaries (ruler, round))
+      if (remove_duplicated_binaries (simplifier, round))
 	done = false;
       if (!propagate_and_flush_ruler_units (ruler))
 	break;
@@ -548,7 +551,7 @@ simplify_ruler (struct ruler * ruler)
 	   elimination_ticks_limit_hit (ruler) ? " (limit hit)" : "");
 DONE:
   push_ruler_units_to_extension_stack (ruler);
-  compact_ruler (ruler);
+  compact_ruler (simplifier);
   assert (ruler->simplifying);
   ruler->simplifying = false;
   double end_simplification = STOP (ruler, simplify);

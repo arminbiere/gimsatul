@@ -60,8 +60,9 @@ map_clauses (struct ruler * ruler, unsigned * map)
 }
 
 void
-compact_ruler (struct ruler * ruler)
+compact_ruler (struct simplifier * simplifier)
 {
+  struct ruler * ruler = simplifier->ruler;
   if (ruler->inconsistent)
     return;
   bool * eliminated = ruler->simplifier.eliminated;

@@ -1,8 +1,8 @@
 #ifndef _compact_h_INCLUDED
 #define _compact_h_INCLUDED
 
-struct ruler;
+struct simplifier;
 
-void compact_ruler (struct ruler *);
+void compact_ruler (struct simplifier *);
 
 #endif

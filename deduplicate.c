@@ -6,8 +6,9 @@
 #include "utilities.h"
 
 static size_t
-remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
+remove_duplicated_binaries_of_literal (struct simplifier * simplifier, unsigned lit)
 {
+  struct ruler * ruler = simplifier->ruler;
   ruler->statistics.ticks.subsumption++;
   struct clauses * clauses = &OCCURRENCES (lit);
   struct clause ** begin = clauses->begin, ** q = begin;
@@ -66,8 +67,9 @@ remove_duplicated_binaries_of_literal (struct ruler * ruler, unsigned lit)
 }
 
 bool
-remove_duplicated_binaries (struct ruler * ruler, unsigned round)
+remove_duplicated_binaries (struct simplifier * simplifier, unsigned round)
 {
+  struct ruler * ruler = simplifier->ruler;
   if (!ruler->options.deduplicate)
     return false;
   double start_deduplication = START (ruler, deduplicate);
@@ -81,7 +83,7 @@ remove_duplicated_binaries (struct ruler * ruler, unsigned round)
 	continue;
       if (eliminated[IDX (lit)])
 	continue;
-      removed += remove_duplicated_binaries_of_literal (ruler, lit);
+      removed += remove_duplicated_binaries_of_literal (simplifier, lit);
       if (ruler->inconsistent)
 	break;
     }

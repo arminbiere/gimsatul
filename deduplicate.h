@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-struct ruler;
+struct simplifier;
 
-bool remove_duplicated_binaries (struct ruler *, unsigned round);
+bool remove_duplicated_binaries (struct simplifier *, unsigned round);
 
 #endif
