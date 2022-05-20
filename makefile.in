@@ -17,7 +17,7 @@ config.h: makefile VERSION
 	./mkconfig.sh > $@
 
 clean:
-	rm -f makfile config.h *.o gimsatul *~ *.backup
+	rm -f makefile config.h *.o gimsatul *~ *.backup
 indent:
 	indent *.[ch]
 test: all
