@@ -42,13 +42,6 @@ new_ruler (size_t size, struct options * opts)
   init_synchronization (&ruler->synchronize);
   ruler->values = allocate_and_clear_block (2 * size);
 
-  ruler->simplifier.marks = allocate_and_clear_block (2 * size);
-  ruler->simplifier.eliminated = allocate_and_clear_block (size);
-  ruler->simplifier.eliminate = allocate_and_clear_block (size);
-  ruler->simplifier.subsume = allocate_and_clear_block (size);
-  memset (ruler->simplifier.eliminate, 1, size);
-  memset (ruler->simplifier.subsume, 1, size);
-
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
@@ -95,10 +88,6 @@ delete_ruler (struct ruler *ruler)
   release_clauses (ruler);
   free ((void *) ruler->values);
   free (ruler->map);
-  free (ruler->simplifier.marks);
-  free (ruler->simplifier.eliminated);
-  free (ruler->simplifier.eliminate);
-  free (ruler->simplifier.subsume);
   free (ruler->units.begin);
   free (ruler->threads);
   free (ruler);

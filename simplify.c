@@ -9,13 +9,40 @@
 #include "utilities.h"
 
 #include <inttypes.h>
+#include <string.h>
+
+struct simplifier *
+new_simplifier (struct ruler * ruler)
+{
+  size_t size = ruler->compact;
+  struct simplifier * simplifier =
+    allocate_and_clear_block (sizeof *simplifier);
+  simplifier->ruler = ruler;
+  simplifier->marks = allocate_and_clear_block (2 * size);
+  simplifier->eliminated = allocate_and_clear_block (size);
+  simplifier->eliminate = allocate_and_clear_block (size);
+  simplifier->subsume = allocate_and_clear_block (size);
+  memset (simplifier->eliminate, 1, size);
+  memset (simplifier->subsume, 1, size);
+  return simplifier;
+}
+
+void
+delete_simplifier (struct simplifier * simplifier)
+{
+  free (simplifier->marks);
+  free (simplifier->eliminated);
+  free (simplifier->eliminate);
+  free (simplifier->subsume);
+  free (simplifier);
+}
 
 void
 add_resolvent (struct simplifier * simplifier)
 {
   struct ruler * ruler = simplifier->ruler;
   assert (!ruler->inconsistent);
-  struct unsigneds * resolvent = &ruler->simplifier.resolvent;
+  struct unsigneds * resolvent = &simplifier->resolvent;
   unsigned * literals = resolvent->begin;
   size_t size = SIZE (*resolvent);
   trace_add_literals (&ruler->trace, size, literals, INVALID);
@@ -429,42 +456,28 @@ push_ruler_units_to_extension_stack (struct ruler * ruler)
   ruler->units.end = ruler->units.propagate = ruler->units.begin;
 }
 
-void
-simplify_ruler (struct ruler * ruler)
+static void
+run_only_root_level_propagation (struct simplifier * simplifier)
 {
-  if (ruler->inconsistent)
-    return;
-
-  struct simplifier * simplifier = &ruler->simplifier;
-  simplifier->ruler = ruler;
-
-  double start_simplification = START (ruler, simplify);
-  assert (!ruler->simplifying);
-  ruler->simplifying = true;
-
-  if (!ruler->options.preprocessing)
+  if (verbosity >= 0)
     {
-      if (verbosity >= 0)
-	{
-	  printf ("c\nc simplifying by root-level propagation only\n");
-	  fflush (stdout);
-	}
-      connect_all_large_clauses (ruler);
-      propagate_and_flush_ruler_units (simplifier);
-      goto DONE;
+      printf ("c\nc simplifying by root-level propagation only\n");
+      fflush (stdout);
     }
+  connect_all_large_clauses (simplifier->ruler);
+  propagate_and_flush_ruler_units (simplifier);
+}
 
+static void
+run_full_blown_simplification (struct simplifier * simplifier)
+{
   if (verbosity >= 0)
     {
       printf ("c\nc simplifying formula before cloning\n");
       fflush (stdout);
     }
 
-#if 1
-  assert (simplifier->eliminate);
-  assert (simplifier->subsume);
-#endif
-
+  struct ruler * ruler = simplifier->ruler;
   connect_all_large_clauses (ruler);
 
   unsigned optimize = ruler->options.optimize;
@@ -557,11 +570,32 @@ simplify_ruler (struct ruler * ruler)
   message (0, "elimination used %" PRIu64 " ticks%s",
            ruler->statistics.ticks.elimination,
 	   elimination_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
-DONE:
+}
+
+void
+simplify_ruler (struct ruler * ruler)
+{
+  if (ruler->inconsistent)
+    return;
+
+  double start_simplification = START (ruler, simplify);
+
+  assert (!ruler->simplifying);
+  ruler->simplifying = true;
+
+  struct simplifier * simplifier = new_simplifier (ruler);
+  if (ruler->options.preprocessing)
+    run_full_blown_simplification (simplifier);
+  else
+    run_only_root_level_propagation (simplifier);
+
   push_ruler_units_to_extension_stack (ruler);
   compact_ruler (simplifier);
+  delete_simplifier (simplifier);
+
   assert (ruler->simplifying);
   ruler->simplifying = false;
+
   double end_simplification = STOP (ruler, simplify);
   message (0, "simplification took %.2f seconds",
            end_simplification - start_simplification);

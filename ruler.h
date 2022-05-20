@@ -38,17 +38,6 @@ struct ruler_limits
   uint64_t subsumption;
 };
 
-struct simplifier
-{
-  struct ruler * ruler;
-  signed char *marks;
-  bool *eliminated;
-  bool *eliminate;
-  bool *subsume;
-  struct unsigneds resolvent;
-  struct clauses gate[2], nogate[2];
-};
-
 struct ruler
 {
   unsigned size;
@@ -77,7 +66,6 @@ struct ruler
   struct ruler_limits limits;
   struct options options;
   struct ruler_last last;
-  struct simplifier simplifier;
 };
 
 /*------------------------------------------------------------------------*/
@@ -115,9 +103,6 @@ void assign_ruler_unit (struct ruler *, unsigned unit);
 void connect_large_clause (struct ruler *, struct clause *);
 
 void disconnect_literal (struct ruler *, unsigned, struct clause *);
-
-void recycle_clause (struct simplifier *, struct clause *, unsigned except);
-void recycle_clauses (struct simplifier *, struct clauses *, unsigned except);
 
 void push_ring (struct ruler *, struct ring *);
 void detach_ring (struct ring *);

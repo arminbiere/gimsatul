@@ -6,8 +6,9 @@
 #include "utilities.h"
 
 static unsigned *
-find_equivalent_literals (struct ruler * ruler, unsigned round)
+find_equivalent_literals (struct simplifier * simplifier, unsigned round)
 {
+  struct ruler * ruler = simplifier->ruler;
   size_t bytes = 2*ruler->size * sizeof (unsigned);
   unsigned * marks = allocate_and_clear_block (bytes);
   unsigned * reaches = allocate_and_clear_block (bytes);
@@ -18,7 +19,7 @@ find_equivalent_literals (struct ruler * ruler, unsigned round)
   struct unsigneds work;
   INIT (scc);
   INIT (work);
-  bool * eliminated = ruler->simplifier.eliminated;
+  bool * eliminated = simplifier->eliminated;
   signed char * values = (signed char*) ruler->values;
   unsigned marked = 0, equivalences = 0;
   for (all_ruler_literals (root))
@@ -138,7 +139,7 @@ substitute_clause (struct simplifier * simplifier,
       ROG ("satisfied replacement literal %s", ROGLIT (dst));
       return;
     }
-  struct unsigneds * resolvent = &ruler->simplifier.resolvent;
+  struct unsigneds * resolvent = &simplifier->resolvent;
   CLEAR (*resolvent);
   unsigned not_dst = NOT (dst);
   if (binary_pointer (clause))
@@ -202,8 +203,8 @@ substitute_literal (struct simplifier * simplifier, unsigned src, unsigned dst)
   struct ruler * ruler = simplifier->ruler;
   assert (!ruler->values[src]);
   ROG ("substituting literal %s with %s", ROGLIT (src), ROGLIT (dst));
-  assert (!ruler->simplifier.eliminated[IDX (src)]);
-  assert (!ruler->simplifier.eliminated[IDX (dst)]);
+  assert (!simplifier->eliminated[IDX (src)]);
+  assert (!simplifier->eliminated[IDX (dst)]);
   assert (src != NOT (dst));
   assert (dst < src);
   struct clauses * clauses = &OCCURRENCES (src);
@@ -231,8 +232,8 @@ substitute_literal (struct simplifier * simplifier, unsigned src, unsigned dst)
       ruler->statistics.substituted++;
       assert (ruler->statistics.active);
       ruler->statistics.active--;
-      assert (!ruler->simplifier.eliminated[idx]);
-      ruler->simplifier.eliminated[idx] = 1;
+      assert (!simplifier->eliminated[idx]);
+      simplifier->eliminated[idx] = 1;
     }
 }
 
@@ -282,7 +283,7 @@ substitute_equivalent_literals (struct simplifier * simplifier, unsigned * repr)
 	  trace_delete_binary (&ruler->trace, lit, NOT (other));
 	}
 
-  RELEASE (ruler->simplifier.resolvent);
+  RELEASE (simplifier->resolvent);
 
   return substituted;
 }

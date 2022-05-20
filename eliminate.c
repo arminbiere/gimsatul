@@ -68,11 +68,12 @@ actual_occurrences (struct clauses * clauses)
 }
 
 static bool
-can_resolve_clause (struct ruler * ruler,
+can_resolve_clause (struct simplifier * simplifier,
                     struct clause * clause, unsigned except)
 {
+  signed char * marks = simplifier->marks;
+  struct ruler * ruler = simplifier->ruler;
   signed char * values = (signed char*) ruler->values;
-  signed char * marks = ruler->simplifier.marks;
   if (binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
@@ -123,7 +124,7 @@ can_eliminate_variable (struct simplifier * simplifier,
     return false;
 
   ROG ("trying next elimination candidate %s", ROGVAR (idx));
-  ruler->simplifier.eliminate[idx] = false;
+  simplifier->eliminate[idx] = false;
 
   struct clauses * pos_clauses = &OCCURRENCES (pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
@@ -169,27 +170,27 @@ can_eliminate_variable (struct simplifier * simplifier,
   uint64_t ticks = ruler->statistics.ticks.elimination;
 #endif
 
-  if (find_definition (ruler, pivot))
+  if (find_definition (simplifier, pivot))
     {
-      struct clauses * gate = ruler->simplifier.gate;
-      struct clauses * nogate = ruler->simplifier.nogate;
+      struct clauses * gate = simplifier->gate;
+      struct clauses * nogate = simplifier->nogate;
 
       for (unsigned i = 0; i != 2; i++)
 	{
 	  for (all_clauses (pos_clause, gate[i]))
 	    {
 	      ruler->statistics.ticks.elimination++;
-	      mark_clause (ruler->simplifier.marks, pos_clause, pivot);
+	      mark_clause (simplifier->marks, pos_clause, pivot);
 	      for (all_clauses (neg_clause, nogate[!i]))
 		{
 		  if (elimination_ticks_limit_hit (simplifier))
 		    break;
 		  resolutions++;
-		  if (can_resolve_clause (ruler, neg_clause, not_pivot))
+		  if (can_resolve_clause (simplifier, neg_clause, not_pivot))
 		    if (resolvents++ == limit)
 		      break;
 		}
-	      unmark_clause (ruler->simplifier.marks, pos_clause, pivot);
+	      unmark_clause (simplifier->marks, pos_clause, pivot);
 	      if (elimination_ticks_limit_hit (simplifier))
 		break;
 	    }
@@ -205,22 +206,22 @@ can_eliminate_variable (struct simplifier * simplifier,
       for (all_clauses (pos_clause, *pos_clauses))
 	{
 	  ruler->statistics.ticks.elimination++;
-	  mark_clause (ruler->simplifier.marks, pos_clause, pivot);
+	  mark_clause (simplifier->marks, pos_clause, pivot);
 	  for (all_clauses (neg_clause, *neg_clauses))
 	    {
 	      if (elimination_ticks_limit_hit (simplifier))
 		break;
 	      resolutions++;
-	      if (can_resolve_clause (ruler, neg_clause, not_pivot))
+	      if (can_resolve_clause (simplifier, neg_clause, not_pivot))
 		if (resolvents++ == limit)
 		  break;
 	    }
-	  unmark_clause (ruler->simplifier.marks, pos_clause, pivot);
+	  unmark_clause (simplifier->marks, pos_clause, pivot);
 	  if (elimination_ticks_limit_hit (simplifier))
 	    break;
 	}
 
-      CLEAR (*ruler->simplifier.gate);
+      CLEAR (*simplifier->gate);
     }
 
 #if 0
@@ -244,12 +245,13 @@ can_eliminate_variable (struct simplifier * simplifier,
 }
 
 static bool
-add_first_antecedent_literals (struct ruler * ruler,
+add_first_antecedent_literals (struct simplifier * simplifier,
                                struct clause * clause, unsigned pivot)
 {
+  struct ruler * ruler = simplifier->ruler;
   ROGCLAUSE (clause, "1st %s antecedent", ROGLIT (pivot));
   signed char * values = (signed char*) ruler->values;
-  struct unsigneds * resolvent = &ruler->simplifier.resolvent;
+  struct unsigneds * resolvent = &simplifier->resolvent;
   if (binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
@@ -290,13 +292,14 @@ add_first_antecedent_literals (struct ruler * ruler,
 }
 
 static bool
-add_second_antecedent_literals (struct ruler * ruler,
+add_second_antecedent_literals (struct simplifier * simplifier,
                                 struct clause * clause, unsigned not_pivot)
 {
+  struct ruler * ruler = simplifier->ruler;
   ROGCLAUSE (clause, "2nd %s antecedent", ROGLIT (not_pivot));
   signed char * values = (signed char*) ruler->values;
-  signed char * marks = ruler->simplifier.marks;
-  struct unsigneds * resolvent = &ruler->simplifier.resolvent;
+  signed char * marks = simplifier->marks;
+  struct unsigneds * resolvent = &simplifier->resolvent;
   if (binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
@@ -361,8 +364,8 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
   if (ruler->values[pivot])
     return;
   ROG ("eliminating %s", ROGVAR (idx));
-  assert (!ruler->simplifier.eliminated[idx]);
-  ruler->simplifier.eliminated[idx] = true;
+  assert (!simplifier->eliminated[idx]);
+  simplifier->eliminated[idx] = true;
   ruler->statistics.eliminated++;
   assert (ruler->statistics.active);
   ruler->statistics.active--;
@@ -371,8 +374,8 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
   struct clauses * pos_clauses = &OCCURRENCES (pivot);
   struct clauses * neg_clauses = &OCCURRENCES (not_pivot);
   size_t resolvents = 0;
-  signed char * marks = ruler->simplifier.marks;
-  struct clauses * gate = ruler->simplifier.gate;
+  signed char * marks = simplifier->marks;
+  struct clauses * gate = simplifier->gate;
   if (EMPTY (*gate))
     {
       for (all_clauses (pos_clause, *pos_clauses))
@@ -380,16 +383,16 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
 	  mark_clause (marks, pos_clause, pivot);
 	  for (all_clauses (neg_clause, *neg_clauses))
 	    {
-	      assert (EMPTY (ruler->simplifier.resolvent));
-	      if (add_first_antecedent_literals (ruler,
+	      assert (EMPTY (simplifier->resolvent));
+	      if (add_first_antecedent_literals (simplifier,
 		                                 pos_clause, pivot) &&
-		  add_second_antecedent_literals (ruler,
+		  add_second_antecedent_literals (simplifier,
 		                                  neg_clause, not_pivot))
 		{
 		  add_resolvent (simplifier);
 		  resolvents++;
 		}
-	      CLEAR (ruler->simplifier.resolvent);
+	      CLEAR (simplifier->resolvent);
 	      if (ruler->inconsistent)
 		break;
 	    }
@@ -402,8 +405,8 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
     {
       ruler->statistics.definitions++;
 
-      struct clauses * gate = ruler->simplifier.gate;
-      struct clauses * nogate = ruler->simplifier.nogate;
+      struct clauses * gate = simplifier->gate;
+      struct clauses * nogate = simplifier->nogate;
 
       for (unsigned i = 0; i != 2; i++)
 	{
@@ -412,16 +415,16 @@ eliminate_variable (struct simplifier * simplifier, unsigned idx)
 	      mark_clause (marks, pos_clause, pivot);
 	      for (all_clauses (neg_clause, nogate[!i]))
 		{
-		  assert (EMPTY (ruler->simplifier.resolvent));
-		  if (add_first_antecedent_literals (ruler,
+		  assert (EMPTY (simplifier->resolvent));
+		  if (add_first_antecedent_literals (simplifier,
 						     pos_clause, pivot) &&
-		      add_second_antecedent_literals (ruler,
+		      add_second_antecedent_literals (simplifier,
 						      neg_clause, not_pivot))
 		    {
 		      add_resolvent (simplifier);
 		      resolvents++;
 		    }
-		  CLEAR (ruler->simplifier.resolvent);
+		  CLEAR (simplifier->resolvent);
 		  if (ruler->inconsistent)
 		    break;
 		}
@@ -497,7 +500,7 @@ eliminate_variables (struct simplifier * simplifier, unsigned round)
 	shift = LD_MAX_ELIMINATE_MARGIN;
       margin = 1u << shift;
       if (shift != LD_MAX_ELIMINATE_MARGIN && (round & 1))
-	memset (ruler->simplifier.eliminate, 1, ruler->size);
+	memset (simplifier->eliminate, 1, ruler->size);
     }
   for (all_ruler_indices (idx))
     {
@@ -511,11 +514,11 @@ eliminate_variables (struct simplifier * simplifier, unsigned round)
 	  eliminated++;
 	}
     }
-  RELEASE (ruler->simplifier.resolvent);
-  RELEASE (ruler->simplifier.gate[0]);
-  RELEASE (ruler->simplifier.gate[1]);
-  RELEASE (ruler->simplifier.nogate[0]);
-  RELEASE (ruler->simplifier.nogate[1]);
+  RELEASE (simplifier->resolvent);
+  RELEASE (simplifier->gate[0]);
+  RELEASE (simplifier->gate[1]);
+  RELEASE (simplifier->nogate[0]);
+  RELEASE (simplifier->nogate[1]);
   assert (ruler->eliminating);
   ruler->eliminating = false;
   double end_round = STOP (ruler, eliminate);

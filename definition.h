@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-struct ruler;
-bool find_definition (struct ruler *, unsigned lit);
+struct simplifier;
+bool find_definition (struct simplifier *, unsigned lit);
 
 #endif

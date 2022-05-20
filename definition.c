@@ -1,9 +1,10 @@
 #include "definition.h"
 #include "macros.h"
 #include "ruler.h"
+#include "simplify.h"
 
 static bool
-find_binary_and_gate_clauses (struct ruler * ruler,
+find_binary_and_gate_clauses (struct simplifier * simplifier,
                               unsigned lit, struct clause * clause,
 			      struct clauses * gate, struct clauses * nogate)
 {
@@ -12,11 +13,12 @@ find_binary_and_gate_clauses (struct ruler * ruler,
     return false;
   CLEAR (*gate);
   CLEAR (*nogate);
-  signed char * marks = ruler->simplifier.marks;
+  signed char * marks = simplifier->marks;
   for (all_literals_in_clause (other, clause))
     if (other != lit)
       marks[other] = 1;
   unsigned not_lit = NOT (lit);
+  struct ruler * ruler = simplifier->ruler;
   struct clauses * not_lit_clauses = &OCCURRENCES (not_lit);
   unsigned marked = 0;
   for (all_clauses (not_lit_clause, *not_lit_clauses))
@@ -43,21 +45,23 @@ find_binary_and_gate_clauses (struct ruler * ruler,
 }
 
 static struct clause *
-find_and_gate (struct ruler * ruler, unsigned lit,
+find_and_gate (struct simplifier * simplifier, unsigned lit,
                struct clauses * gate, struct clauses * nogate)
 {
+  struct ruler * ruler = simplifier->ruler;
   for (all_clauses (clause, OCCURRENCES (lit)))
     if (!binary_pointer (clause))
-      if (find_binary_and_gate_clauses (ruler, lit, clause,
-	                                    gate, nogate))
+      if (find_binary_and_gate_clauses (simplifier, lit, clause,
+					gate, nogate))
 	return clause;
   return 0;
 }
 
 static unsigned
-find_equivalence_gate (struct ruler * ruler, unsigned lit)
+find_equivalence_gate (struct simplifier * simplifier, unsigned lit)
 {
-  signed char * marks = ruler->simplifier.marks;
+  signed char * marks = simplifier->marks;
+  struct ruler * ruler = simplifier->ruler;
   for (all_clauses (clause, OCCURRENCES (lit)))
     if (binary_pointer (clause))
       marks[other_pointer (clause)] = 1;
@@ -81,15 +85,17 @@ find_equivalence_gate (struct ruler * ruler, unsigned lit)
 }
 
 bool
-find_definition (struct ruler * ruler, unsigned lit)
+find_definition (struct simplifier * simplifier, unsigned lit)
 {
-  struct clauses * gate = ruler->simplifier.gate;
-  struct clauses * nogate = ruler->simplifier.nogate;
+  struct ruler * ruler = simplifier->ruler;
+  struct clauses * gate = simplifier->gate;
+  struct clauses * nogate = simplifier->nogate;
   {
     unsigned other = find_equivalence_gate (ruler, lit);
     if (other != INVALID)
       {
-	ROG ("found equivalence %s equal to %s", ROGLIT (lit), ROGLIT (other));
+	ROG ("found equivalence %s equal to %s",
+	     ROGLIT (lit), ROGLIT (other));
 	{
 	  CLEAR (gate[0]);
 	  CLEAR (nogate[0]);

@@ -9,10 +9,22 @@
 
 /*------------------------------------------------------------------------*/
 
-struct ruler;
-struct simplifier;
+struct simplifier
+{
+  struct ruler * ruler;
+  signed char *marks;
+  bool *eliminated;
+  bool *eliminate;
+  bool *subsume;
+  struct unsigneds resolvent;
+  struct clauses gate[2], nogate[2];
+};
+
+/*------------------------------------------------------------------------*/
 
 void add_resolvent (struct simplifier *);
+void recycle_clause (struct simplifier *, struct clause *, unsigned except);
+void recycle_clauses (struct simplifier *, struct clauses *, unsigned except);
 void simplify_ruler (struct ruler *);
 
 /*------------------------------------------------------------------------*/

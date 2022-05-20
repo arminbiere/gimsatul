@@ -1,6 +1,7 @@
 #include "compact.h"
 #include "message.h"
 #include "ruler.h"
+#include "simplify.h"
 
 static unsigned
 map_literal (unsigned * map, unsigned original_lit)
@@ -65,7 +66,7 @@ compact_ruler (struct simplifier * simplifier)
   struct ruler * ruler = simplifier->ruler;
   if (ruler->inconsistent)
     return;
-  bool * eliminated = ruler->simplifier.eliminated;
+  bool * eliminated = simplifier->eliminated;
   signed char * values = (signed char*) ruler->values;
   unsigned compact = 0;
   for (all_ruler_indices (idx))
@@ -123,7 +124,5 @@ compact_ruler (struct simplifier * simplifier)
   ruler->compact = compact;
   map_clauses (ruler, map);
   message (0, "mapped %u variables to %u variables", ruler->size, mapped);
-  free (ruler->simplifier.eliminated);
-  ruler->simplifier.eliminated = 0;
   free (map);
 }

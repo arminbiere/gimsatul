@@ -10,15 +10,17 @@
 #include <string.h>
 
 static bool
-is_subsumption_candidate (struct ruler * ruler, struct clause * clause)
+is_subsumption_candidate (struct simplifier * simplifier,
+                          struct clause * clause)
 {
   bool subsume = false;
+  struct ruler * ruler = simplifier->ruler;
   ruler->statistics.ticks.subsumption++;
   if (clause->size <= CLAUSE_SIZE_LIMIT && !clause->garbage)
     {
       unsigned count = 0;
       for (all_literals_in_clause (lit, clause))
-	if (ruler->simplifier.subsume[IDX (lit)])
+	if (simplifier->subsume[IDX (lit)])
 	  if (count++)
 	    break;
       subsume = (count > 1);
@@ -28,16 +30,17 @@ is_subsumption_candidate (struct ruler * ruler, struct clause * clause)
 }
 
 static size_t
-get_subsumption_candidates (struct ruler * ruler,
+get_subsumption_candidates (struct simplifier * simplifier,
                             struct clause *** candidates_ptr)
 {
+  struct ruler * ruler = simplifier->ruler;
   struct clauses * clauses = &ruler->clauses;
   ruler->statistics.ticks.subsumption += SIZE (*clauses);
   const size_t size_count = CLAUSE_SIZE_LIMIT + 1;
   size_t count[size_count];
   memset (count, 0, sizeof count);
   for (all_clauses (clause, *clauses))
-    if (is_subsumption_candidate (ruler, clause))
+    if (is_subsumption_candidate (simplifier, clause))
       count[clause->size]++;
   size_t * c = count, * end = c + size_count;
   size_t pos = 0, size;
@@ -48,17 +51,18 @@ get_subsumption_candidates (struct ruler * ruler,
   for (all_clauses (clause, *clauses))
     if (clause->subsume)
       candidates[count[clause->size]++] = clause;
-  memset (ruler->simplifier.subsume, 0, ruler->size);
+  memset (simplifier->subsume, 0, ruler->size);
   *candidates_ptr = candidates;
   return pos;
 }
 
 static struct clause *
-find_subsuming_clause (struct ruler * ruler, unsigned lit,
+find_subsuming_clause (struct simplifier * simplifier, unsigned lit,
                        bool strengthen_only, unsigned * remove_ptr)
 {
-  assert (!strengthen_only || marked_literal (ruler->simplifier.marks, lit) < 0);
-  assert (strengthen_only || marked_literal (ruler->simplifier.marks, lit) > 0);
+  assert (!strengthen_only || marked_literal (simplifier->marks, lit) < 0);
+  assert (strengthen_only || marked_literal (simplifier->marks, lit) > 0);
+  struct ruler * ruler = simplifier->ruler;
   struct clauses * clauses = &OCCURRENCES (lit);
   unsigned resolved;
   size_t size_clauses = SIZE (*clauses);
@@ -66,7 +70,7 @@ find_subsuming_clause (struct ruler * ruler, unsigned lit,
   uint64_t ticks = 1;
   if (size_clauses <= OCCURRENCE_LIMIT)
     {
-      signed char * marks = ruler->simplifier.marks;
+      signed char * marks = simplifier->marks;
       ticks += cache_lines (clauses->end, clauses->begin);
       for (all_clauses (clause, *clauses))
 	{
@@ -195,19 +199,19 @@ forward_subsume_large_clause (struct simplifier * simplifier,
   assert (!binary_pointer (clause));
   assert (!clause->garbage);
   assert (clause->size <= CLAUSE_SIZE_LIMIT);
-  mark_clause (ruler->simplifier.marks, clause, INVALID);
+  mark_clause (simplifier->marks, clause, INVALID);
   unsigned remove = INVALID, other = INVALID;
   struct clause * subsuming = 0;
   for (all_literals_in_clause (lit, clause))
     {
-      subsuming = find_subsuming_clause (ruler, lit, false, &remove);
+      subsuming = find_subsuming_clause (simplifier, lit, false, &remove);
       if (subsuming)
 	{
 	  other = lit;
 	  break;
 	}
       unsigned not_lit = NOT (lit);
-      subsuming = find_subsuming_clause (ruler, not_lit, true, &remove);
+      subsuming = find_subsuming_clause (simplifier, not_lit, true, &remove);
       if (subsuming)
 	{
 	  other = not_lit;
@@ -248,7 +252,7 @@ forward_subsume_large_clause (struct simplifier * simplifier,
 	    strengthen_very_large_clause (simplifier, clause, remove);
 	  ROGCLAUSE (clause, "strengthened");
 	  mark_eliminate_literal (simplifier, remove);
-	  unmark_literal (ruler->simplifier.marks, remove);
+	  unmark_literal (simplifier->marks, remove);
 	  if (selfsubsuming)
 	    {
 	      ruler->statistics.subsumed++;
@@ -286,11 +290,11 @@ forward_subsume_large_clause (struct simplifier * simplifier,
     {
       unsigned lit = lit_pointer (clause);
       unsigned other = other_pointer (clause);
-      unmark_literal (ruler->simplifier.marks, lit);
-      unmark_literal (ruler->simplifier.marks, other);
+      unmark_literal (simplifier->marks, lit);
+      unmark_literal (simplifier->marks, other);
     }
   else
-    unmark_clause (ruler->simplifier.marks, clause, INVALID);
+    unmark_clause (simplifier->marks, clause, INVALID);
 }
 
 static void
