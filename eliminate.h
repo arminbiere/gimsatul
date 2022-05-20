@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-struct ruler;
-bool eliminate_variables (struct ruler *, unsigned round);
+struct simplifier;
+bool eliminate_variables (struct simplifier *, unsigned round);
 
 #endif

@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-struct ruler;
+struct simplifier;
 
-bool equivalent_literal_substitution (struct ruler *, unsigned round);
+bool equivalent_literal_substitution (struct simplifier *, unsigned round);
 
 #endif

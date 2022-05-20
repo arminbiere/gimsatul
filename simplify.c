@@ -11,8 +11,9 @@
 #include <inttypes.h>
 
 void
-add_resolvent (struct ruler * ruler)
+add_resolvent (struct simplifier * simplifier)
 {
+  struct ruler * ruler = simplifier->ruler;
   assert (!ruler->inconsistent);
   struct unsigneds * resolvent = &ruler->simplifier.resolvent;
   unsigned * literals = resolvent->begin;
@@ -34,8 +35,8 @@ add_resolvent (struct ruler * ruler)
       unsigned lit = literals[0];
       unsigned other = literals[1];
       new_ruler_binary_clause (ruler, lit, other);
-      mark_subsume_literal (ruler, other);
-      mark_subsume_literal (ruler, lit);
+      mark_subsume_literal (simplifier, other);
+      mark_subsume_literal (simplifier, lit);
     }
   else
     {
@@ -44,7 +45,7 @@ add_resolvent (struct ruler * ruler)
 	ruler->statistics.ticks.elimination += size;
       struct clause *clause = new_large_clause (size, literals, false, 0);
       connect_large_clause (ruler, clause);
-      mark_subsume_clause (ruler, clause);
+      mark_subsume_clause (simplifier, clause);
       PUSH (ruler->clauses, clause);
       ROGCLAUSE (clause, "new");
     }
@@ -53,8 +54,9 @@ add_resolvent (struct ruler * ruler)
 /*------------------------------------------------------------------------*/
 
 static bool
-ruler_propagate (struct ruler * ruler)
+ruler_propagate (struct simplifier * simplifier)
 {
+  struct ruler * ruler = simplifier->ruler;
   signed char * values = (signed char*) ruler->values;
   struct ruler_trail * units = &ruler->units;
   size_t garbage = 0;
@@ -124,7 +126,7 @@ ruler_propagate (struct ruler * ruler)
 	    {
 	      ROGCLAUSE (clause, "marking satisfied garbage");
 	      trace_delete_clause (&ruler->trace, clause);
-	      mark_eliminate_clause (ruler, clause);
+	      mark_eliminate_clause (simplifier, clause);
 	      ruler->statistics.garbage++;
 	      clause->garbage = true;
 	      garbage++;
@@ -136,8 +138,9 @@ ruler_propagate (struct ruler * ruler)
 }
 
 static void
-mark_satisfied_ruler_clauses (struct ruler * ruler)
+mark_satisfied_ruler_clauses (struct simplifier * simplifier)
 {
+  struct ruler * ruler = simplifier->ruler;
   signed char * values = (signed char*) ruler->values;
   size_t marked_satisfied = 0, marked_dirty = 0;
   for (all_clauses (clause, ruler->clauses))
@@ -160,7 +163,7 @@ mark_satisfied_ruler_clauses (struct ruler * ruler)
 	{
 	  ROGCLAUSE (clause, "marking satisfied garbage");
 	  trace_delete_clause (&ruler->trace, clause);
-	  mark_eliminate_clause (ruler, clause);
+	  mark_eliminate_clause (simplifier, clause);
 	  ruler->statistics.garbage++;
 	  clause->garbage = true;
 	  marked_satisfied++;
@@ -179,8 +182,9 @@ mark_satisfied_ruler_clauses (struct ruler * ruler)
 }
 
 static void
-flush_ruler_occurrences (struct ruler * ruler)
+flush_ruler_occurrences (struct simplifier * simplifier)
 {
+  struct ruler * ruler = simplifier->ruler;
   signed char * values = (signed char*) ruler->values;
   size_t flushed = 0;
   size_t deleted = 0;
@@ -205,9 +209,9 @@ flush_ruler_occurrences (struct ruler * ruler)
 		      ROGBINARY (lit, other, "deleting satisfied");
 		      trace_delete_binary (&ruler->trace, lit, other);
 		      if (!lit_value)
-			mark_eliminate_literal ( ruler, lit);
+			mark_eliminate_literal (simplifier, lit);
 		      if (!other_value)
-			mark_eliminate_literal ( ruler, other);
+			mark_eliminate_literal (simplifier, other);
 		      deleted++;
 		    }
 		  flushed++;
@@ -240,8 +244,9 @@ flush_ruler_occurrences (struct ruler * ruler)
 }
 
 static void
-delete_large_garbage_ruler_clauses (struct ruler * ruler)
+delete_large_garbage_ruler_clauses (struct simplifier * simplifier)
 {
+  struct ruler * ruler = simplifier->ruler;
   struct clauses * clauses = &ruler->clauses;
   struct clause ** begin_clauses = clauses->begin, ** q = begin_clauses;
   struct clause ** end_clauses = clauses->end, ** p = q;
@@ -301,8 +306,8 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 	  disconnect_literal (ruler, other, clause);
 	  ROGCLAUSE (clause, "deleting shrunken dirty");
 	  new_ruler_binary_clause (ruler, lit, other);
-	  mark_subsume_literal (ruler, other);
-	  mark_subsume_literal (ruler, lit);
+	  mark_subsume_literal (simplifier, other);
+	  mark_subsume_literal (simplifier, lit);
 	  free (clause);
 	  q--;
 	}
@@ -315,18 +320,19 @@ delete_large_garbage_ruler_clauses (struct ruler * ruler)
 }
 
 static bool
-propagate_and_flush_ruler_units (struct ruler * ruler)
+propagate_and_flush_ruler_units (struct simplifier * simplifier)
 {
-  if (!ruler_propagate (ruler))
+  if (!ruler_propagate (simplifier))
     return false;
+  struct ruler * ruler = simplifier->ruler;
   struct ruler_last * last = &ruler->last;
   if (last->fixed != ruler->statistics.fixed.total)
-      mark_satisfied_ruler_clauses (ruler);
+      mark_satisfied_ruler_clauses (simplifier);
   if (last->fixed != ruler->statistics.fixed.total ||
       last->garbage != ruler->statistics.garbage)
     {
-      flush_ruler_occurrences (ruler);
-      delete_large_garbage_ruler_clauses (ruler);
+      flush_ruler_occurrences (simplifier);
+      delete_large_garbage_ruler_clauses (simplifier);
     }
   last->fixed = ruler->statistics.fixed.total;
   last->garbage = ruler->statistics.garbage;
@@ -444,7 +450,7 @@ simplify_ruler (struct ruler * ruler)
 	  fflush (stdout);
 	}
       connect_all_large_clauses (ruler);
-      propagate_and_flush_ruler_units (ruler);
+      propagate_and_flush_ruler_units (simplifier);
       goto DONE;
     }
 
@@ -454,8 +460,10 @@ simplify_ruler (struct ruler * ruler)
       fflush (stdout);
     }
 
-  assert (ruler->simplifier.eliminate);
-  assert (ruler->simplifier.subsume);
+#if 1
+  assert (simplifier->eliminate);
+  assert (simplifier->subsume);
+#endif
 
   connect_all_large_clauses (ruler);
 
@@ -476,29 +484,29 @@ simplify_ruler (struct ruler * ruler)
   for (unsigned round = 1; !done && round <= max_rounds; round++)
     {
       done = true;
-      if (!propagate_and_flush_ruler_units (ruler))
+      if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
-      if (equivalent_literal_substitution (ruler, round))
+      if (equivalent_literal_substitution (simplifier, round))
 	done = false;
-      if (!propagate_and_flush_ruler_units (ruler))
+      if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
       if (remove_duplicated_binaries (simplifier, round))
 	done = false;
-      if (!propagate_and_flush_ruler_units (ruler))
+      if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
-      if (subsume_clauses (ruler, round))
+      if (subsume_clauses (simplifier, round))
 	done = false;
-      if (!propagate_and_flush_ruler_units (ruler))
+      if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
-      if (eliminate_variables (ruler, round))
+      if (eliminate_variables (simplifier, round))
 	done = false;
-      if (!propagate_and_flush_ruler_units (ruler))
+      if (!propagate_and_flush_ruler_units (simplifier))
 	break;
-      if (elimination_ticks_limit_hit (ruler))
+      if (elimination_ticks_limit_hit (simplifier))
 	break;
     }
   if (verbosity >= 0)
@@ -545,10 +553,10 @@ simplify_ruler (struct ruler * ruler)
 
   message (0, "subsumption used %" PRIu64 " ticks%s",
            ruler->statistics.ticks.subsumption,
-	   subsumption_ticks_limit_hit (ruler) ? " (limit hit)" : "");
+	   subsumption_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
   message (0, "elimination used %" PRIu64 " ticks%s",
            ruler->statistics.ticks.elimination,
-	   elimination_ticks_limit_hit (ruler) ? " (limit hit)" : "");
+	   elimination_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
 DONE:
   push_ruler_units_to_extension_stack (ruler);
   compact_ruler (simplifier);

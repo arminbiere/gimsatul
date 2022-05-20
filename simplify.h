@@ -9,58 +9,71 @@
 
 /*------------------------------------------------------------------------*/
 
-void add_resolvent (struct ruler *);
+struct ruler;
+struct simplifier;
+
+void add_resolvent (struct simplifier *);
 void simplify_ruler (struct ruler *);
 
 /*------------------------------------------------------------------------*/
 
 static inline void
-mark_eliminate_literal (struct ruler * ruler, unsigned lit)
+mark_eliminate_literal (struct simplifier * simplifier, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  assert (ruler->simplifier.eliminate);
-  if (ruler->simplifier.eliminate[idx])
+  assert (simplifier->eliminate);
+  if (simplifier->eliminate[idx])
     return;
+#ifdef LOGGING
+  struct ruler * ruler = simplifier->ruler;
   ROG ("marking %s to be eliminated", ROGVAR (idx));
-  ruler->simplifier.eliminate[idx] = 1;
+#endif
+  simplifier->eliminate[idx] = 1;
 }
 
 static inline void
-mark_eliminate_clause (struct ruler * ruler, struct clause * clause)
+mark_eliminate_clause (struct simplifier * simplifier,
+                       struct clause * clause)
 {
   for (all_literals_in_clause (lit, clause))
-    mark_eliminate_literal (ruler, lit);
+    mark_eliminate_literal (simplifier, lit);
 }
 
 static inline void
-mark_subsume_literal (struct ruler * ruler, unsigned lit)
+mark_subsume_literal (struct simplifier * simplifier, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  assert (ruler->simplifier.subsume);
-  if (ruler->simplifier.subsume[idx])
+  assert (simplifier->subsume);
+  if (simplifier->subsume[idx])
     return;
+#ifdef LOGGING
+  struct ruler * ruler = simplifier->ruler;
   ROG ("marking %s to be subsumed", ROGVAR (idx));
-  ruler->simplifier.subsume[idx] = 1;
+#endif
+  simplifier->subsume[idx] = 1;
 }
 
 static inline void
-mark_subsume_clause (struct ruler * ruler, struct clause * clause)
+mark_subsume_clause (struct simplifier * simplifier,
+                     struct clause * clause)
 {
   for (all_literals_in_clause (lit, clause))
-    mark_subsume_literal (ruler, lit);
+    mark_subsume_literal (simplifier, lit);
 }
 
 static inline bool
-subsumption_ticks_limit_hit (struct ruler * ruler)
+subsumption_ticks_limit_hit (struct simplifier * simplifier)
 {
+  struct ruler * ruler = simplifier->ruler;
   struct ruler_statistics * statistics = &ruler->statistics;
   struct ruler_limits * limits = &ruler->limits;
   return statistics->ticks.subsumption > limits->subsumption;
 }
 
 static inline bool
-elimination_ticks_limit_hit (struct ruler * ruler)
+elimination_ticks_limit_hit (struct simplifier * simplifier)
 {
+  struct ruler * ruler = simplifier->ruler;
   struct ruler_statistics * statistics = &ruler->statistics;
   struct ruler_limits * limits = &ruler->limits;
   return statistics->ticks.elimination > limits->elimination;

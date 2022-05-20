@@ -181,10 +181,11 @@ assign_ruler_unit (struct ruler * ruler, unsigned unit)
 }
 
 void
-recycle_clause (struct ruler * ruler,
+recycle_clause (struct simplifier * simplifier,
                                          struct clause * clause,
 					 unsigned lit)
 {
+  struct ruler * ruler = simplifier->ruler;
   if (binary_pointer (clause))
     {
       assert (lit == lit_pointer (clause));
@@ -196,7 +197,7 @@ recycle_clause (struct ruler * ruler,
       assert (ruler->statistics.binaries);
       ruler->statistics.binaries--;
       trace_delete_binary (&ruler->trace, lit, other);
-      mark_eliminate_literal (ruler, other);
+      mark_eliminate_literal (simplifier, other);
     }
   else
     {
@@ -206,17 +207,20 @@ recycle_clause (struct ruler * ruler,
       clause->garbage = true;
       for (all_literals_in_clause (other, clause))
 	if (other != lit)
-	  mark_eliminate_literal (ruler, other);
+	  mark_eliminate_literal (simplifier, other);
     }
 }
 
 void
-recycle_clauses (struct ruler * ruler,
+recycle_clauses (struct simplifier * simplifier,
                                struct clauses * clauses, unsigned except)
 {
+#ifdef LOGGING
+  struct ruler * ruler = simplifier->ruler;
   ROG ("disconnecting and deleting clauses with %s", ROGLIT (except));
+#endif
   for (all_clauses (clause, *clauses))
-      recycle_clause (ruler, clause, except);
+      recycle_clause (simplifier, clause, except);
   RELEASE (*clauses);
 }
 

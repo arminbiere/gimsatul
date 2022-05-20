@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-struct ruler;
+struct simplifier;
 
-bool subsume_clauses (struct ruler *, unsigned round);
+bool subsume_clauses (struct simplifier *, unsigned round);
 
 #endif

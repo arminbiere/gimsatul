@@ -126,9 +126,10 @@ DONE:
 }
 
 static void
-substitute_clause (struct ruler * ruler,
+substitute_clause (struct simplifier * simplifier,
                    unsigned src, unsigned dst, struct clause * clause)
 {
+  struct ruler * ruler = simplifier->ruler;
   ROGCLAUSE (clause, "substituting");
   signed char * values = (signed char*) ruler->values;
   signed char dst_value = values[dst];
@@ -192,12 +193,13 @@ substitute_clause (struct ruler * ruler,
     }
   if (!dst_value)
     PUSH (*resolvent, dst);
-  add_resolvent (ruler);
+  add_resolvent (simplifier);
 }
 
 static void
-substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
+substitute_literal (struct simplifier * simplifier, unsigned src, unsigned dst)
 {
+  struct ruler * ruler = simplifier->ruler;
   assert (!ruler->values[src]);
   ROG ("substituting literal %s with %s", ROGLIT (src), ROGLIT (dst));
   assert (!ruler->simplifier.eliminated[IDX (src)]);
@@ -209,10 +211,10 @@ substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
     {
       if (!binary_pointer (clause) && clause->garbage)
 	continue;
-      substitute_clause (ruler, src, dst, clause);
+      substitute_clause (simplifier, src, dst, clause);
       if (ruler->inconsistent)
 	break;
-      recycle_clause (ruler, clause, src);
+      recycle_clause (simplifier, clause, src);
     }
   RELEASE (*clauses);
   struct unsigneds * extension = &ruler->extension;
@@ -235,10 +237,11 @@ substitute_literal (struct ruler * ruler, unsigned src, unsigned dst)
 }
 
 static unsigned
-substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
+substitute_equivalent_literals (struct simplifier * simplifier, unsigned * repr)
 {
-  unsigned other;
+  struct ruler * ruler = simplifier->ruler;
 
+  unsigned other;
   if (ruler->options.proof.file)
     for (all_positive_ruler_literals (lit))
       if ((other = repr[lit]) != lit)
@@ -257,7 +260,7 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
       unsigned other = repr[lit];
       if (other == lit)
 	continue;
-      substitute_literal (ruler, lit, other);
+      substitute_literal (simplifier, lit, other);
       substituted++;
       if (ruler->inconsistent)
         break;
@@ -266,7 +269,7 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
       unsigned not_lit = NOT (lit);
       unsigned not_other = NOT (other);
       assert (repr[not_lit] == not_other);
-      substitute_literal (ruler, not_lit, not_other);
+      substitute_literal (simplifier, not_lit, not_other);
       if (ruler->inconsistent)
         break;
     }
@@ -285,14 +288,15 @@ substitute_equivalent_literals (struct ruler * ruler, unsigned * repr)
 }
 
 bool
-equivalent_literal_substitution (struct ruler * ruler, unsigned round)
+equivalent_literal_substitution (struct simplifier * simplifier, unsigned round)
 {
+  struct ruler * ruler = simplifier->ruler;
   double substitution_start = START (ruler, substitute);
   unsigned * repr = find_equivalent_literals (ruler, round);
   unsigned substituted = 0;
   if (repr)
     {
-      substituted = substitute_equivalent_literals (ruler, repr);
+      substituted = substitute_equivalent_literals (simplifier, repr);
       free (repr);
     }
   double substitution_end = STOP (ruler, substitute);

@@ -116,8 +116,8 @@ void connect_large_clause (struct ruler *, struct clause *);
 
 void disconnect_literal (struct ruler *, unsigned, struct clause *);
 
-void recycle_clause (struct ruler *, struct clause *, unsigned except);
-void recycle_clauses (struct ruler *, struct clauses *, unsigned except);
+void recycle_clause (struct simplifier *, struct clause *, unsigned except);
+void recycle_clauses (struct simplifier *, struct clauses *, unsigned except);
 
 void push_ring (struct ruler *, struct ring *);
 void detach_ring (struct ring *);

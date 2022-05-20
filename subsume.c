@@ -124,7 +124,7 @@ find_subsuming_clause (struct ruler * ruler, unsigned lit,
 }
 
 static struct clause *
-strengthen_ternary_clause (struct ruler * ruler,
+strengthen_ternary_clause (struct simplifier * simplifier,
 			   struct clause * clause, unsigned remove)
 {
   assert (!binary_pointer (clause));
@@ -148,8 +148,9 @@ strengthen_ternary_clause (struct ruler * ruler,
     }
   assert (lit != INVALID);
   assert (other != INVALID);
-  mark_subsume_literal (ruler, lit);
-  mark_subsume_literal (ruler, other);
+  mark_subsume_literal (simplifier, lit);
+  mark_subsume_literal (simplifier, other);
+  struct ruler * ruler = simplifier->ruler;
   ruler->statistics.strengthened++;
   new_ruler_binary_clause (ruler, lit, other);
   trace_add_binary (&ruler->trace, lit, other);
@@ -161,9 +162,10 @@ strengthen_ternary_clause (struct ruler * ruler,
 }
 
 static void
-strengthen_very_large_clause (struct ruler * ruler,
+strengthen_very_large_clause (struct simplifier * simplifier,
                               struct clause * clause, unsigned remove)
 {
+  struct ruler * ruler = simplifier->ruler;
   ROGCLAUSE (clause, "strengthening by removing %s in", ROGLIT (remove));
   assert (!binary_pointer (clause));
   assert (remove != INVALID);
@@ -181,12 +183,14 @@ strengthen_very_large_clause (struct ruler * ruler,
   clause->size = new_size;
   assert (new_size > 2);
   ruler->statistics.strengthened++;
-  mark_subsume_clause (ruler, clause);
+  mark_subsume_clause (simplifier, clause);
 }
 
 static void
-forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
+forward_subsume_large_clause (struct simplifier * simplifier,
+                              struct clause * clause)
 {
+  struct ruler * ruler = simplifier->ruler;
   ROGCLAUSE (clause, "subsumption candidate");
   assert (!binary_pointer (clause));
   assert (!clause->garbage);
@@ -215,7 +219,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
       ROGCLAUSE (subsuming, "subsuming");
       ruler->statistics.subsumed++;
       ROGCLAUSE (clause, "marking garbage subsumed");
-      mark_eliminate_clause (ruler, clause);
+      mark_eliminate_clause (simplifier, clause);
       trace_delete_clause (&ruler->trace, clause);
       ruler->statistics.garbage++;
       clause->garbage = true;
@@ -234,16 +238,16 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	  else
 	    ROGCLAUSE (subsuming, "resolution on %s with",
 	               ROGLIT (NOT (remove)));
-	  mark_eliminate_literal (ruler, remove);
+	  mark_eliminate_literal (simplifier, remove);
 	  if (clause->size == 3)
 	    {
-	      clause = strengthen_ternary_clause (ruler, clause, remove);
+	      clause = strengthen_ternary_clause (simplifier, clause, remove);
 	      assert (binary_pointer (clause));
 	    }
 	  else
-	    strengthen_very_large_clause (ruler, clause, remove);
+	    strengthen_very_large_clause (simplifier, clause, remove);
 	  ROGCLAUSE (clause, "strengthened");
-	  mark_eliminate_literal (ruler, remove);
+	  mark_eliminate_literal (simplifier, remove);
 	  unmark_literal (ruler->simplifier.marks, remove);
 	  if (selfsubsuming)
 	    {
@@ -252,7 +256,7 @@ forward_subsume_large_clause (struct ruler * ruler, struct clause * clause)
 	      ROGCLAUSE (subsuming,
 	                "disconnecting and marking garbage subsumed");
 	      disconnect_literal (ruler, other, subsuming);
-	      mark_eliminate_clause (ruler, subsuming);
+	      mark_eliminate_clause (simplifier, subsuming);
 	      trace_delete_clause (&ruler->trace, subsuming);
 	      ruler->statistics.garbage++;
 	      subsuming->garbage = true;
@@ -342,10 +346,11 @@ flush_large_garbage_clauses_and_reconnect (struct ruler * ruler)
 }
 
 bool
-subsume_clauses (struct ruler * ruler, unsigned round)
+subsume_clauses (struct simplifier * simplifier, unsigned round)
 {
-  if (subsumption_ticks_limit_hit (ruler))
+  if (subsumption_ticks_limit_hit (simplifier))
     return false;
+  struct ruler * ruler = simplifier->ruler;
   double start_subsumption = START (ruler, subsume);
   flush_large_clause_occurrences (ruler);
   assert (!ruler->subsuming);
@@ -361,8 +366,8 @@ subsume_clauses (struct ruler * ruler, unsigned round)
   struct clause ** end_candidates = candidates + size_candidates;
   for (struct clause ** p = candidates; p != end_candidates; p++)
     {
-      forward_subsume_large_clause (ruler, *p);
-      if (subsumption_ticks_limit_hit (ruler))
+      forward_subsume_large_clause (simplifier, *p);
+      if (subsumption_ticks_limit_hit (simplifier))
 	break;
     }
   free (candidates);

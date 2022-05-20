@@ -109,12 +109,15 @@ can_resolve_clause (struct ruler * ruler,
 }
 
 static bool
-can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
+can_eliminate_variable (struct simplifier * simplifier,
+                        unsigned idx, unsigned margin)
 {
-  if (ruler->simplifier.eliminated[idx])
+  if (simplifier->eliminated[idx])
     return false;
-  if (!ruler->simplifier.eliminate[idx])
+  if (!simplifier->eliminate[idx])
     return false;
+
+  struct ruler * ruler = simplifier->ruler;
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return false;
@@ -179,7 +182,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
 	      mark_clause (ruler->simplifier.marks, pos_clause, pivot);
 	      for (all_clauses (neg_clause, nogate[!i]))
 		{
-		  if (elimination_ticks_limit_hit (ruler))
+		  if (elimination_ticks_limit_hit (simplifier))
 		    break;
 		  resolutions++;
 		  if (can_resolve_clause (ruler, neg_clause, not_pivot))
@@ -187,13 +190,13 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
 		      break;
 		}
 	      unmark_clause (ruler->simplifier.marks, pos_clause, pivot);
-	      if (elimination_ticks_limit_hit (ruler))
+	      if (elimination_ticks_limit_hit (simplifier))
 		break;
 	    }
 	  SWAP (pivot, not_pivot);
 	  if (resolvents > limit)
 	    break;
-	  if (elimination_ticks_limit_hit (ruler))
+	  if (elimination_ticks_limit_hit (simplifier))
 	    break;
 	}
     }
@@ -205,7 +208,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
 	  mark_clause (ruler->simplifier.marks, pos_clause, pivot);
 	  for (all_clauses (neg_clause, *neg_clauses))
 	    {
-	      if (elimination_ticks_limit_hit (ruler))
+	      if (elimination_ticks_limit_hit (simplifier))
 		break;
 	      resolutions++;
 	      if (can_resolve_clause (ruler, neg_clause, not_pivot))
@@ -213,7 +216,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
 		  break;
 	    }
 	  unmark_clause (ruler->simplifier.marks, pos_clause, pivot);
-	  if (elimination_ticks_limit_hit (ruler))
+	  if (elimination_ticks_limit_hit (simplifier))
 	    break;
 	}
 
@@ -227,7 +230,7 @@ can_eliminate_variable (struct ruler * ruler, unsigned idx, unsigned margin)
 	ruler->statistics.ticks.elimination);
 #endif
 
-  if (elimination_ticks_limit_hit (ruler))
+  if (elimination_ticks_limit_hit (simplifier))
     return false;
 
   if (resolvents == limit)
@@ -351,8 +354,9 @@ add_second_antecedent_literals (struct ruler * ruler,
 }
 
 static void
-eliminate_variable (struct ruler * ruler, unsigned idx)
+eliminate_variable (struct simplifier * simplifier, unsigned idx)
 {
+  struct ruler * ruler = simplifier->ruler;
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return;
@@ -382,7 +386,7 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 		  add_second_antecedent_literals (ruler,
 		                                  neg_clause, not_pivot))
 		{
-		  add_resolvent (ruler);
+		  add_resolvent (simplifier);
 		  resolvents++;
 		}
 	      CLEAR (ruler->simplifier.resolvent);
@@ -414,7 +418,7 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
 		      add_second_antecedent_literals (ruler,
 						      neg_clause, not_pivot))
 		    {
-		      add_resolvent (ruler);
+		      add_resolvent (simplifier);
 		      resolvents++;
 		    }
 		  CLEAR (ruler->simplifier.resolvent);
@@ -467,16 +471,17 @@ eliminate_variable (struct ruler * ruler, unsigned idx)
   ROG ("pushing unit %s to extension stack", ROGLIT (not_pivot));
   PUSH (*extension, INVALID);
   PUSH (*extension, not_pivot);
-  recycle_clauses (ruler, pos_clauses, pivot);
-  recycle_clauses (ruler, neg_clauses, not_pivot);
+  recycle_clauses (simplifier, pos_clauses, pivot);
+  recycle_clauses (simplifier, neg_clauses, not_pivot);
 }
 
 bool
-eliminate_variables (struct ruler * ruler, unsigned round)
+eliminate_variables (struct simplifier * simplifier, unsigned round)
 {
+  struct ruler * ruler = simplifier->ruler;
   if (!ruler->options.eliminate)
     return false;
-  if (elimination_ticks_limit_hit (ruler))
+  if (elimination_ticks_limit_hit (simplifier))
     return false;
   double start_round = START (ruler, eliminate);
   assert (!ruler->eliminating);
@@ -498,11 +503,11 @@ eliminate_variables (struct ruler * ruler, unsigned round)
     {
       if (ruler->inconsistent)
 	break;
-      if (elimination_ticks_limit_hit (ruler))
+      if (elimination_ticks_limit_hit (simplifier))
 	break;
-      if (can_eliminate_variable (ruler, idx, margin))
+      if (can_eliminate_variable (simplifier, idx, margin))
 	{
-	  eliminate_variable (ruler, idx);
+	  eliminate_variable (simplifier, idx);
 	  eliminated++;
 	}
     }
