@@ -130,10 +130,6 @@ search (struct ring *ring)
 	break;
       else if (walk_initially (ring))
 	local_search (ring);
-#if 0
-      else if (!ring->statistics.reductions)
-	reduce (ring);
-#endif
       else if (conflict_limit_hit (ring))
 	break;
       else if (reducing (ring))

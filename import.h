@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 struct ring;
+bool import_units (struct ring *);
 bool import_shared (struct ring *);
 
 #endif

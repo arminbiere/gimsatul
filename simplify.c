@@ -2,7 +2,9 @@
 #include "compact.h"
 #include "deduplicate.h"
 #include "eliminate.h"
+#include "import.h"
 #include "message.h"
+#include "propagate.h"
 #include "report.h"
 #include "simplify.h"
 #include "substitute.h"
@@ -608,16 +610,6 @@ finish_other_ring_simplification (struct ring * ring)
 static void
 finish_first_ring_simplication (struct ring * ring)
 {
-  assert (!ring->id);
-  struct ruler * ruler = ring->ruler;
-  if (pthread_mutex_lock (&ruler->locks.simplify))
-    fatal_error ("failed to acquire simplify lock during preparation");
-
-  ruler->simplify = false;
-
-  if (pthread_mutex_unlock (&ruler->locks.simplify))
-    fatal_error ("failed to release simplify lock during preparation");
-
   struct ring_limits * limits = &ring->limits;
   struct ring_statistics * statistics = &ring->statistics;
   limits->simplify = SEARCH_CONFLICTS;
@@ -656,6 +648,16 @@ static void
 prepare_first_ring_simplification (struct ring * ring)
 {
   assert (!ring->id);
+  assert (!ring->id);
+  struct ruler * ruler = ring->ruler;
+  if (pthread_mutex_lock (&ruler->locks.simplify))
+    fatal_error ("failed to acquire simplify lock during preparation");
+
+  ruler->simplify = false;
+
+  if (pthread_mutex_unlock (&ruler->locks.simplify))
+    fatal_error ("failed to release simplify lock during preparation");
+
 }
 
 static void
@@ -664,12 +666,46 @@ prepare_other_ring_simplification (struct ring * ring)
   assert (ring->id);
 }
 
+static bool
+continue_importing_and_propagating_units (struct ring * ring)
+{
+  if (ring->inconsistent)
+    return false;
+  struct ruler * ruler = ring->ruler;
+  if (ruler->terminate)
+    return false;
+  if (ruler->winner)
+    return false;
+  if (pthread_mutex_lock (&ruler->locks.units))
+    fatal_error ("failed to acquire units lock during "
+                 "simplification preparation");
+  bool done = true;
+  unsigned * ruler_units_end = ruler->units.end;
+  for (all_rings (ring))
+    if (ring->units != ruler_units_end)
+      {
+	done = false;
+	break;
+      }
+  if (pthread_mutex_unlock (&ruler->locks.units))
+    fatal_error ("failed to release units lock during "
+                 "simplification preparation");
+  return !done;
+}
+
 static void
 prepare_ring_simplification (struct ring * ring)
 {
   if (ring->level)
     backtrack (ring, 0);
-  assert (ring->trail.propagate == ring->trail.end);
+  while (continue_importing_and_propagating_units (ring))
+    if (import_shared (ring))
+      if (!ring->inconsistent)
+	if (ring_propagate (ring, false, 0))
+	  set_inconsistent (ring,
+	                    "propagation after importing shared failed");
+  assert (ring->inconsistent ||
+          ring->trail.propagate == ring->trail.end);
   STOP_SEARCH ();
   ring->statistics.simplifications++;
   if (ring->id)

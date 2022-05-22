@@ -7,7 +7,7 @@
 #include "trace.h"
 #include "utilities.h"
 
-static bool
+bool
 import_units (struct ring *ring)
 {
   assert (ring->pool);
