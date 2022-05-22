@@ -5,6 +5,7 @@
 #include "export.h"
 #include "macros.h"
 #include "minimize.h"
+#include "promote.h"
 #include "ring.h"
 #include "trace.h"
 #include "utilities.h"
@@ -78,8 +79,8 @@ clear_analyzed (struct ring *ring)
     }
   CLEAR (*analyzed);
 
-  struct unsigneds *levels = &ring->levels;
-  bool *used = ring->used;
+  struct unsigneds *levels = &ring->levels[0];
+  bool *used = ring->used[0];
   for (all_elements_on_stack (unsigned, used_level, *levels))
       used[used_level] = false;
   CLEAR (*levels);
@@ -134,11 +135,11 @@ analyze (struct ring *ring, struct watch *reason)
     }
   struct unsigneds *clause = &ring->clause;
   struct unsigneds *analyzed = &ring->analyzed;
-  struct unsigneds *levels = &ring->levels;
+  struct unsigneds *levels = &ring->levels[0];
   assert (EMPTY (*clause));
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
-  bool *used = ring->used;
+  bool *used = ring->used[0];
   struct variable *variables = ring->variables;
   struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;
@@ -158,6 +159,7 @@ analyze (struct ring *ring, struct watch *reason)
       else
 	{
 	  bump_reason (reason);
+	  promote_clause (ring, reason);
 	  for (all_literals_in_clause (lit, reason->clause))
 	    ANALYZE_LITERAL (lit);
 	}

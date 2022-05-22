@@ -61,6 +61,13 @@ struct ring_statistics
 
   struct
   {
+    size_t clauses;
+    size_t imported;
+    size_t resolved;
+  } promoted;
+
+  struct
+  {
     uint64_t units;
     uint64_t binary;
     uint64_t clauses;

@@ -70,8 +70,8 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
   struct unsigneds *analyzed = &ring->analyzed;
   struct variable *variables = ring->variables;
   struct unsigneds *clause = &ring->clause;
-  struct unsigneds *levels = &ring->levels;
-  bool *used = ring->used;
+  struct unsigneds *levels = &ring->levels[0];
+  bool *used = ring->used[0];
   struct ring_trail *trail = &ring->trail;
   assert (EMPTY (*analyzed));
   assert (EMPTY (*clause));

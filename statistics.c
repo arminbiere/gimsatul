@@ -73,6 +73,16 @@ print_ring_statistics (struct ring *ring)
 	   "  learned-tier3:", s->learned.tier3,
 	   percent (s->learned.tier3, s->learned.clauses));
 
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
+	   " romoted-clauses:", s->promoted.clauses,
+	   percent (s->promoted.clauses, s->learned.clauses));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% promoted",
+	   "  promoted-imported:", s->promoted.imported,
+	   percent (s->promoted.imported, s->promoted.clauses));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% promoted",
+	   "  promoted-resolved:", s->promoted.resolved,
+	   percent (s->promoted.resolved, s->promoted.clauses));
+
   if (ring->pool)
     {
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",

@@ -53,7 +53,7 @@ check_clause_statistics (struct ring *ring)
 	continue;
       assert (!binary_pointer (watch));
       struct clause *clause = watch->clause;
-      assert (clause->glue == watch->glue);
+      assert (clause->glue <= watch->glue);
       assert (clause->redundant == watch->redundant);
       if (watch->redundant)
 	redundant++;
@@ -94,6 +94,7 @@ mark_reasons (struct ring *ring)
 static void
 gather_reduce_candidates (struct ring *ring, struct watches *candidates)
 {
+  size_t promoted = 0;
   for (all_watches (watch, ring->watches))
     {
       if (watch->garbage)
@@ -102,6 +103,12 @@ gather_reduce_candidates (struct ring *ring, struct watches *candidates)
 	continue;
       if (!watch->redundant)
 	continue;
+      struct clause * clause = watch->clause;
+      if (clause->glue < watch->glue)
+	{
+	  promoted++;
+	  watch->glue = clause->glue;
+	}
       if (watch->glue <= TIER1_GLUE_LIMIT)
 	continue;
       if (watch->used)
@@ -111,9 +118,12 @@ gather_reduce_candidates (struct ring *ring, struct watches *candidates)
 	}
       PUSH (*candidates, watch);
     }
-  verbose (ring, "gathered %zu reduce candidates clauses %.0f%%",
+  ring->statistics.promoted.clauses += promoted;
+  ring->statistics.promoted.imported += promoted;
+  verbose (ring, "gathered %zu reduce candidates %.0f%% promoted %zu",
 	   SIZE (*candidates),
-	   percent (SIZE (*candidates), ring->statistics.redundant));
+	   percent (SIZE (*candidates), ring->statistics.redundant),
+	   promoted);
 }
 
 static void

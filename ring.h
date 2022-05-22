@@ -100,14 +100,14 @@ struct ring
   unsigned unassigned;
   unsigned target;
   unsigned best;
-  bool *used;
+  bool *used[2];
   signed char *values;
   signed char *marks;
   bool *active;
   struct variable *variables;
   struct watches watches;
   struct references *references;
-  struct unsigneds levels;
+  struct unsigneds levels[2];
   struct heap heap;
   struct queue queue;
   struct unsigneds clause;

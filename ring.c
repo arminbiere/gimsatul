@@ -78,7 +78,8 @@ new_ring (struct ruler *ruler)
     allocate_and_clear_array (sizeof (struct references), 2 * size);
   assert (sizeof (bool) == 1);
   ring->active = allocate_and_clear_block (size);
-  ring->used = allocate_and_clear_block (size);
+  ring->used[0] = allocate_and_clear_block (size);
+  ring->used[1] = allocate_and_clear_block (size);
   ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
   struct ring_trail *trail = &ring->trail;
   trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
@@ -184,7 +185,8 @@ delete_ring (struct ring *ring)
   RELEASE (ring->minimize);
   free (ring->trail.begin);
   free (ring->trail.pos);
-  RELEASE (ring->levels);
+  RELEASE (ring->levels[0]);
+  RELEASE (ring->levels[1]);
   RELEASE (ring->trace.buffer);
   release_references (ring);
   if (!ring->id)
@@ -197,7 +199,8 @@ delete_ring (struct ring *ring)
   free (ring->values);
   free (ring->marks);
   free (ring->active);
-  free (ring->used);
+  free (ring->used[0]);
+  free (ring->used[1]);
   free (ring);
 }
 

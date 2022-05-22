@@ -8,7 +8,7 @@ ron () {
     name=$2
     opts=""
   else
-    name=$2`echo -- "$3"|sed -e 's,[= ],,g;s,--,-,g'`
+    name=$2`echo -- "$3"|sed -e 's,[= ],,g;s,--*,-,g'`
     opts=" $3"
   fi
   cnf=cnf/$2.cnf
