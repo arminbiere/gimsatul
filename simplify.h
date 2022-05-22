@@ -30,7 +30,7 @@ void simplify_ruler (struct ruler *);
 /*------------------------------------------------------------------------*/
 
 bool simplifying (struct ring *);
-void simplify_ring (struct ring *);
+int simplify_ring (struct ring *);
 
 /*------------------------------------------------------------------------*/
 

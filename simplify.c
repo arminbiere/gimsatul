@@ -720,7 +720,7 @@ prepare_ring_simplification (struct ring * ring)
   START_SEARCH ();
 }
 
-void
+int
 simplify_ring (struct ring * ring)
 {
   struct ruler * ruler = ring->ruler;
@@ -741,6 +741,7 @@ simplify_ring (struct ring * ring)
 
   rendezvous (ring, prepare_ring_simplification, "preparing simplification");
   prepare_ring_simplification (ring);
+  return ring->inconsistent ? 20 : 0;
 }
 
 bool

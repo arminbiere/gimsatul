@@ -143,7 +143,7 @@ search (struct ring *ring)
       else if (probing (ring))
 	res = probe (ring);
       else if (simplifying (ring))
-	simplify_ring (ring);
+	res = simplify_ring (ring);
       else if (!import_shared (ring))
 	decide (ring);
       else if (ring->inconsistent)

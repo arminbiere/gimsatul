@@ -34,6 +34,7 @@ stop_running_ring (struct ring *ring)
   pthread_t *thread = ruler->threads + ring->id;
   if (pthread_join (*thread, 0))
     fatal_error ("failed to join solving thread %u", ring->id);
+  disable_synchronization (&ruler->synchronize);
 }
 
 static void
