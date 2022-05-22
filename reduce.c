@@ -107,6 +107,8 @@ gather_reduce_candidates (struct ring *ring, struct watches *candidates)
       if (clause->glue < watch->glue)
 	{
 	  promoted++;
+	  LOGCLAUSE (clause,
+	             "promoted imported old glue %u", (unsigned) watch->glue);
 	  watch->glue = clause->glue;
 	}
       if (watch->glue <= TIER1_GLUE_LIMIT)

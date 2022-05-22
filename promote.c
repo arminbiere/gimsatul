@@ -27,6 +27,8 @@ promote_clause (struct ring * ring, struct watch * watch)
       unsigned idx = IDX (lit);
       struct variable * v = variables + idx;
       unsigned lit_level = v->level;
+      if (!lit_level)
+	continue;
       if (lit_level == level)
 	continue;
       if (used[lit_level])
@@ -54,14 +56,14 @@ promote_clause (struct ring * ring, struct watch * watch)
   if (expected_glue == old_glue)
     {
       LOGCLAUSE (clause,
-                 "promoted imported old glue %u", (unsigned) old_glue);
-      statistics->promoted.imported++;
+                 "promoted resolved old glue %u", (unsigned) old_glue);
+      statistics->promoted.resolved++;
     }
   else
     {
       LOGCLAUSE (clause,
-                 "promoted resolved old glue %u", (unsigned) old_glue);
-      statistics->promoted.resolved++;
+                 "promoted imported old glue %u", (unsigned) old_glue);
+      statistics->promoted.imported++;
     }
   statistics->promoted.clauses++;
 }
