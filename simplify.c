@@ -759,12 +759,12 @@ simplifying (struct ring * ring)
   if (!ruler->simplify)
     return false;
 #endif
-  if (pthread_mutex_lock (&ruler->locks.simplify))
+  if (pthread_mutex_lock (&ruler->locks.simplify.lock))
     fatal_error ("failed to acquire simplify lock during checking");
 
   bool res = ruler->simplify;
 
-  if (pthread_mutex_unlock (&ruler->locks.simplify))
+  if (pthread_mutex_unlock (&ruler->locks.simplify.lock))
     fatal_error ("failed to release simplify lock during checking");
 
   return res;
