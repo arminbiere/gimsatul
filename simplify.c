@@ -1,7 +1,9 @@
+#include "backtrack.h"
 #include "compact.h"
 #include "deduplicate.h"
 #include "eliminate.h"
 #include "message.h"
+#include "report.h"
 #include "simplify.h"
 #include "substitute.h"
 #include "subsume.h"
@@ -596,4 +598,90 @@ simplify_ruler (struct ruler *ruler)
   double end_simplification = STOP (ruler, simplify);
   message (0, "simplification took %.2f seconds",
 	   end_simplification - start_simplification);
+}
+
+static void 
+run_ring_simplification (struct ring * ring)
+{
+  (void) ring;
+}
+
+static void
+prepare_ring_simplification (struct ring * ring)
+{
+  if (ring->level)
+    backtrack (ring, 0);
+  assert (ring->trail.propagate == ring->trail.end);
+  struct ruler * ruler = ring->ruler;
+  STOP_SEARCH ();
+  ring->statistics.simplifications++;
+  if (ring->id)
+    {
+    }
+  else
+    {
+      if (pthread_mutex_lock (&ruler->locks.simplify))
+	fatal_error ("failed to acquire simplify lock during preparation");
+
+      ruler->simplify = false;
+
+      if (pthread_mutex_unlock (&ruler->locks.simplify))
+	fatal_error ("failed to release simplify lock during preparation");
+
+      struct ring_limits * limits = &ring->limits;
+      struct ring_statistics * statistics = &ring->statistics;
+      limits->simplify = SEARCH_CONFLICTS;
+      unsigned interval = ring->options.simplify_interval;
+      assert (interval);
+      limits->simplify += interval * nlogn (statistics->simplifications);
+      very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
+		    limits->simplify);
+    }
+  rendezvous (ring, run_ring_simplification, "running simplification");
+  run_ring_simplification (ring);
+  report (ring, 's');
+  START_SEARCH ();
+}
+
+void simplify_ring (struct ring * ring)
+{
+  struct ruler * ruler = ring->ruler;
+
+  if (ring->id)
+    assert (ruler->simplify);
+  else
+    {
+      if (pthread_mutex_lock (&ruler->locks.simplify))
+	fatal_error ("failed to acquire simplify lock during starting");
+
+      assert (!ruler->simplify);
+      ruler->simplify = true;
+
+      if (pthread_mutex_unlock (&ruler->locks.simplify))
+	fatal_error ("failed to release simplify lock during starting");
+    }
+
+  rendezvous (ring, prepare_ring_simplification, "preparing simplification");
+  prepare_ring_simplification (ring);
+}
+
+bool
+simplifying (struct ring * ring)
+{
+  if (!ring->id)
+    return ring->limits.simplify <= SEARCH_CONFLICTS;
+    
+  struct ruler * ruler = ring->ruler;
+  if (!ruler->simplify)
+    return false;
+
+  if (pthread_mutex_lock (&ruler->locks.simplify))
+    fatal_error ("failed to acquire simplify lock during checking");
+
+  bool res = ruler->simplify;
+
+  if (pthread_mutex_unlock (&ruler->locks.simplify))
+    fatal_error ("failed to release simplify lock during checking");
+
+  return res;
 }

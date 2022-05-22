@@ -1,10 +1,13 @@
 #include "assign.h"
 #include "backtrack.h"
 #include "fail.h"
+#include "message.h"
 #include "probe.h"
 #include "ring.h"
 #include "vivify.h"
 #include "utilities.h"
+
+#include <inttypes.h>
 
 bool
 probing (struct ring *ring)
@@ -35,6 +38,8 @@ probe (struct ring *ring)
   unsigned interval = ring->options.probe_interval;
   assert (interval);
   limits->probe += interval * nlogn (statistics->probings);
+  very_verbose (ring, "new probe limit of %" PRIu64 " conflicts",
+                limits->probe);
   STOP_AND_START_SEARCH (probe);
   return ring->inconsistent ? 20 : 0;
 }

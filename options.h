@@ -51,27 +51,28 @@
 #define VIVIFY_EFFORT 0.03
 
 #define OPTIONS \
-OPTION (bool,     binary,           1, 0, 1) \
-OPTION (bool,     deduplicate,      1, 0, 1) \
-OPTION (bool,     eliminate,        1, 0, 1) \
-OPTION (bool,     fail,             1, 0, 1) \
-OPTION (bool,     focus_initially,  1, 0, 1) \
-OPTION (bool,     force,            0, 0, 1) \
-OPTION (bool,     inprocessing,     1, 0, 1) \
-OPTION (bool,     phase,            1, 0, 1) \
-OPTION (bool,     portfolio,        1, 0, 1) \
-OPTION (bool,     preprocessing,    1, 0, 1) \
-OPTION (bool,     probe,            1, 0, 1) \
-OPTION (unsigned, probe_interval,   2e3, 1, INT_MAX) \
-OPTION (unsigned, random_decisions, 100, 0, INT_MAX) \
-OPTION (unsigned, reduce_interval,  1e3, 1, INT_MAX) \
-OPTION (bool,     simplify,         1, 0, 1) \
-OPTION (bool,     switch_mode,      1, 0, 1) \
-OPTION (bool,     substitute,       1, 0, 1) \
-OPTION (bool,     subsume,          1, 0, 1) \
-OPTION (bool,     vivify,           1, 0, 1) \
-OPTION (bool,     walk_initially,   0, 0, 1) \
-OPTION (bool,     witness,          1, 0, 1) \
+OPTION (bool,     binary,            1, 0, 1) \
+OPTION (bool,     deduplicate,       1, 0, 1) \
+OPTION (bool,     eliminate,         1, 0, 1) \
+OPTION (bool,     fail,              1, 0, 1) \
+OPTION (bool,     focus_initially,   1, 0, 1) \
+OPTION (bool,     force,             0, 0, 1) \
+OPTION (bool,     inprocessing,      1, 0, 1) \
+OPTION (bool,     phase,             1, 0, 1) \
+OPTION (bool,     portfolio,         1, 0, 1) \
+OPTION (bool,     preprocessing,     1, 0, 1) \
+OPTION (bool,     probe,             1, 0, 1) \
+OPTION (unsigned, probe_interval,    2e3, 1, INT_MAX) \
+OPTION (unsigned, random_decisions,  100, 0, INT_MAX) \
+OPTION (unsigned, reduce_interval,   1e3, 1, INT_MAX) \
+OPTION (bool,     simplify,          1, 0, 1) \
+OPTION (unsigned, simplify_interval, 1e4, 1, INT_MAX) \
+OPTION (bool,     switch_mode,       1, 0, 1) \
+OPTION (bool,     substitute,        1, 0, 1) \
+OPTION (bool,     subsume,           1, 0, 1) \
+OPTION (bool,     vivify,            1, 0, 1) \
+OPTION (bool,     walk_initially,    0, 0, 1) \
+OPTION (bool,     witness,           1, 0, 1) \
 
 struct options
 {

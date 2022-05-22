@@ -97,6 +97,13 @@ set_ring_limits (struct ring *ring, long long conflicts)
 	   limits->restart);
   verbose (ring, "probe interval of %" PRIu64 " conflicts", limits->probe);
 
+  if (!ring->id)
+    {
+      limits->simplify = ring->options.simplify_interval;
+      verbose (ring, "simplify interval of %" PRIu64 " conflicts",
+               limits->simplify);
+    }
+
   if (conflicts >= 0)
     {
       limits->conflicts = conflicts;

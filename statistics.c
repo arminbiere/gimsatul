@@ -126,6 +126,9 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	   "restarts:", s->restarts, average (conflicts, s->restarts));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
+	   "simplifications:", s->simplifications,
+	   average (conflicts, s->simplifications));
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	   "switched:", s->switched, average (conflicts, s->switched));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f flips per walkinterval",
 	   "walked:", s->walked, average (s->flips, s->walked));

@@ -22,6 +22,7 @@ struct ruler_locks
 {
   pthread_mutex_t rings;
   pthread_mutex_t units;
+  pthread_mutex_t simplify;
   pthread_mutex_t terminate;
   pthread_mutex_t winner;
 };
@@ -43,6 +44,7 @@ struct ruler
   unsigned size;
   unsigned compact;
   volatile bool terminate;
+  volatile bool simplify;
   bool eliminating;
   bool inconsistent;
   bool simplifying;

@@ -70,7 +70,7 @@ rendezvous (struct ring *ring,
     }
   else
     {
-      while (synchronize->count)
+      while (synchronize->count && synchronize->function == function)
 	pthread_cond_wait (&synchronize->condition, &synchronize->mutex);
     }
 

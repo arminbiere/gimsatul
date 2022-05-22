@@ -34,6 +34,7 @@ struct ring_limits
   uint64_t reduce;
   uint64_t rephase;
   uint64_t restart;
+  uint64_t simplify;
   long long conflicts;
 };
 

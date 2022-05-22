@@ -29,6 +29,11 @@ void simplify_ruler (struct ruler *);
 
 /*------------------------------------------------------------------------*/
 
+bool simplifying (struct ring *);
+void simplify_ring (struct ring *);
+
+/*------------------------------------------------------------------------*/
+
 static inline void
 mark_eliminate_literal (struct simplifier *simplifier, unsigned lit)
 {

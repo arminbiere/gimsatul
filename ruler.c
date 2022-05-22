@@ -38,6 +38,7 @@ new_ruler (size_t size, struct options *opts)
   pthread_mutex_init (&ruler->locks.units, 0);
   pthread_mutex_init (&ruler->locks.rings, 0);
   pthread_mutex_init (&ruler->locks.terminate, 0);
+  pthread_mutex_init (&ruler->locks.simplify, 0);
   pthread_mutex_init (&ruler->locks.winner, 0);
   init_synchronization (&ruler->synchronize);
   ruler->values = allocate_and_clear_block (2 * size);

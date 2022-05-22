@@ -48,6 +48,20 @@ struct ruler_profiles
 #define MODE_PROFILE \
   (ring->stable ? &ring->profiles.stable : &ring->profiles.focus)
 
+#define STOP_SEARCH() \
+do { \
+  double t = current_time (); \
+  stop_profile (MODE_PROFILE, t); \
+  stop_profile (&ring->profiles.search, t); \
+} while (0)
+
+#define START_SEARCH() \
+do { \
+  double t = current_time (); \
+  start_profile (&ring->profiles.search, t); \
+  start_profile (MODE_PROFILE, t); \
+} while (0)
+
 #define STOP_SEARCH_AND_START(NAME) \
 do { \
   double t = current_time (); \

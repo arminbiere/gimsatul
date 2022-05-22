@@ -30,6 +30,7 @@ struct ring_statistics
   uint64_t reductions;
   uint64_t rephased;
   uint64_t restarts;
+  uint64_t simplifications;
   uint64_t switched;
   uint64_t walked;
 

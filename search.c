@@ -12,6 +12,7 @@
 #include "restart.h"
 #include "ruler.h"
 #include "search.h"
+#include "simplify.h"
 #include "walk.h"
 
 #include <assert.h>
@@ -145,6 +146,8 @@ search (struct ring *ring)
 	rephase (ring);
       else if (probing (ring))
 	res = probe (ring);
+      else if (simplifying (ring))
+	simplify_ring (ring);
       else if (!import_shared (ring))
 	decide (ring);
       else if (ring->inconsistent)
