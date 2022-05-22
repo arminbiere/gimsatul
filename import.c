@@ -241,7 +241,7 @@ really_import_large_clause (struct ring *ring, struct clause *clause,
   unsigned glue = clause->glue;
   assert (clause->redundant);
   struct ring_statistics *statistics = &ring->statistics;
-  if (glue == 1)
+  if (glue <= 1)
     statistics->imported.glue1++;
   else if (glue <= TIER1_GLUE_LIMIT)
     statistics->imported.tier1++;
