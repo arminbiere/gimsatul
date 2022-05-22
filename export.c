@@ -100,7 +100,7 @@ void
 export_glue1_clause (struct ring *ring, struct clause *clause)
 {
   assert (!binary_pointer (clause));
-  assert (clause->glue == 1);
+  assert (clause->glue <= 1);
   if (ring->pool)
     ring->statistics.exported.glue1 +=
       export_clause (ring, clause, GLUE1_SHARED);
