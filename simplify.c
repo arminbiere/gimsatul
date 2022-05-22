@@ -710,6 +710,8 @@ simplify_ring (struct ring * ring)
 bool
 simplifying (struct ring * ring)
 {
+  if (ring->options.simplify < 2)
+    return false;
   if (!ring->id)
     return ring->limits.simplify <= SEARCH_CONFLICTS;
     
