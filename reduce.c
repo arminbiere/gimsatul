@@ -1,10 +1,10 @@
+#include "barrier.h"
 #include "macros.h"
 #include "message.h"
 #include "reduce.h"
 #include "report.h"
 #include "ring.h"
 #include "trace.h"
-#include "synchronize.h"
 #include "utilities.h"
 
 #include <inttypes.h>

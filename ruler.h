@@ -1,11 +1,11 @@
 #ifndef _ruler_h_INCLUDED
 #define _ruler_h_INCLUDED
 
+#include "barrier.h"
+#include "clause.h"
 #include "options.h"
 #include "profile.h"
-#include "clause.h"
 #include "ring.h"
-#include "synchronize.h"
 
 #include <pthread.h>
 #include <stdbool.h>
@@ -22,9 +22,14 @@ struct ruler_locks
 {
   pthread_mutex_t rings;
   pthread_mutex_t units;
-  pthread_mutex_t simplify;
   pthread_mutex_t terminate;
   pthread_mutex_t winner;
+  struct {
+    pthread_mutex_t lock;
+    struct barrier finish;
+    struct barrier prepare;
+    struct barrier run;
+  } simplify;
 };
 
 struct ruler_last
@@ -51,7 +56,6 @@ struct ruler
   bool solving;
   bool subsuming;
   struct ruler_locks locks;
-  struct synchronize synchronize;
   struct rings rings;
   pthread_t *threads;
   struct ring *volatile winner;

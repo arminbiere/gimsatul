@@ -38,9 +38,8 @@ new_ruler (size_t size, struct options *opts)
   pthread_mutex_init (&ruler->locks.units, 0);
   pthread_mutex_init (&ruler->locks.rings, 0);
   pthread_mutex_init (&ruler->locks.terminate, 0);
-  pthread_mutex_init (&ruler->locks.simplify, 0);
+  pthread_mutex_init (&ruler->locks.simplify.lock, 0);
   pthread_mutex_init (&ruler->locks.winner, 0);
-  init_synchronization (&ruler->synchronize);
   ruler->values = allocate_and_clear_block (2 * size);
 
   ruler->occurrences =
@@ -253,7 +252,10 @@ set_terminate (struct ruler *ruler)
   ruler->terminate = true;
   if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
-  disable_synchronization (&ruler->synchronize);
+
+  abort_waiting (&ruler->locks.simplify.finish);
+  abort_waiting (&ruler->locks.simplify.prepare);
+  abort_waiting (&ruler->locks.simplify.run);
 }
 
 void

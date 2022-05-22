@@ -34,7 +34,6 @@ stop_running_ring (struct ring *ring)
   pthread_t *thread = ruler->threads + ring->id;
   if (pthread_join (*thread, 0))
     fatal_error ("failed to join solving thread %u", ring->id);
-  disable_synchronization (&ruler->synchronize);
 }
 
 static void
@@ -142,7 +141,9 @@ solve_rings (struct ruler *ruler)
 	}
       message (0, "starting and running %zu ring threads", threads);
 
-      ruler->synchronize.size = threads;
+      init_barrier (&ruler->locks.simplify.prepare, "prepare", threads);
+      init_barrier (&ruler->locks.simplify.run, "run", threads);
+      init_barrier (&ruler->locks.simplify.finish, "finish", threads);
 
       for (all_rings (ring))
 	start_running_ring (ring);
