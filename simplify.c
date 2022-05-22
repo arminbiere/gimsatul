@@ -600,10 +600,68 @@ simplify_ruler (struct ruler *ruler)
 	   end_simplification - start_simplification);
 }
 
-static void 
+static void
+finish_other_ring_simplification (struct ring * ring)
+{
+}
+
+static void
+finish_first_ring_simplication (struct ring * ring)
+{
+  assert (!ring->id);
+  struct ruler * ruler = ring->ruler;
+  if (pthread_mutex_lock (&ruler->locks.simplify))
+    fatal_error ("failed to acquire simplify lock during preparation");
+
+  ruler->simplify = false;
+
+  if (pthread_mutex_unlock (&ruler->locks.simplify))
+    fatal_error ("failed to release simplify lock during preparation");
+
+  struct ring_limits * limits = &ring->limits;
+  struct ring_statistics * statistics = &ring->statistics;
+  limits->simplify = SEARCH_CONFLICTS;
+  unsigned interval = ring->options.simplify_interval;
+  assert (interval);
+  limits->simplify += interval * nlogn (statistics->simplifications);
+  very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
+		limits->simplify);
+}
+
+static void
+finish_ring_simplification (struct ring * ring)
+{
+  if (ring->id)
+    finish_other_ring_simplification (ring);
+  else
+    finish_first_ring_simplication (ring);
+}
+
+static void
+run_first_ring_simplification (struct ring * ring)
+{
+  assert (!ring->id);
+  struct ruler * ruler = ring->ruler;
+  (void) ruler;
+}
+
+static void
 run_ring_simplification (struct ring * ring)
 {
-  (void) ring;
+  if (!ring->id)
+    run_first_ring_simplification (ring);
+}
+
+static void
+prepare_first_ring_simplification (struct ring * ring)
+{
+  assert (!ring->id);
+}
+
+static void
+prepare_other_ring_simplification (struct ring * ring)
+{
+  assert (ring->id);
 }
 
 static void
@@ -612,38 +670,22 @@ prepare_ring_simplification (struct ring * ring)
   if (ring->level)
     backtrack (ring, 0);
   assert (ring->trail.propagate == ring->trail.end);
-  struct ruler * ruler = ring->ruler;
   STOP_SEARCH ();
   ring->statistics.simplifications++;
   if (ring->id)
-    {
-    }
+    prepare_other_ring_simplification (ring);
   else
-    {
-      if (pthread_mutex_lock (&ruler->locks.simplify))
-	fatal_error ("failed to acquire simplify lock during preparation");
-
-      ruler->simplify = false;
-
-      if (pthread_mutex_unlock (&ruler->locks.simplify))
-	fatal_error ("failed to release simplify lock during preparation");
-
-      struct ring_limits * limits = &ring->limits;
-      struct ring_statistics * statistics = &ring->statistics;
-      limits->simplify = SEARCH_CONFLICTS;
-      unsigned interval = ring->options.simplify_interval;
-      assert (interval);
-      limits->simplify += interval * nlogn (statistics->simplifications);
-      very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
-		    limits->simplify);
-    }
+    prepare_first_ring_simplification (ring);
   rendezvous (ring, run_ring_simplification, "running simplification");
   run_ring_simplification (ring);
+  rendezvous (ring, finish_ring_simplification, "finish simplification");
+  finish_ring_simplification (ring);
   report (ring, 's');
   START_SEARCH ();
 }
 
-void simplify_ring (struct ring * ring)
+void
+simplify_ring (struct ring * ring)
 {
   struct ruler * ruler = ring->ruler;
 
@@ -672,9 +714,10 @@ simplifying (struct ring * ring)
     return ring->limits.simplify <= SEARCH_CONFLICTS;
     
   struct ruler * ruler = ring->ruler;
+#ifndef NFASTPATH
   if (!ruler->simplify)
     return false;
-
+#endif
   if (pthread_mutex_lock (&ruler->locks.simplify))
     fatal_error ("failed to acquire simplify lock during checking");
 
