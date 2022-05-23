@@ -11,13 +11,14 @@
 #include "utilities.h"
 
 static void
-bump_reason (struct watch *watch)
+bump_reason (struct ring * ring, struct watch *watch)
 {
   if (!watch->redundant)
     return;
-  if (watch->clause->glue <= TIER1_GLUE_LIMIT)
+  if (watch->glue <= TIER1_GLUE_LIMIT)
     return;
-  if (watch->clause->glue <= TIER2_GLUE_LIMIT)
+  promote_clause (ring, watch);
+  if (watch->glue <= TIER2_GLUE_LIMIT)
     watch->used = 2;
   else
     watch->used = 1;
@@ -158,8 +159,7 @@ analyze (struct ring *ring, struct watch *reason)
 	}
       else
 	{
-	  bump_reason (reason);
-	  promote_clause (ring, reason);
+	  bump_reason (ring, reason);
 	  for (all_literals_in_clause (lit, reason->clause))
 	    ANALYZE_LITERAL (lit);
 	}
