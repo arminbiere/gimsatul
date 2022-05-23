@@ -77,7 +77,6 @@ transfer_and_own_ruler_clauses (struct ring *ring)
       (void) watch_first_two_literals_in_large_clause (ring, clause);
       transferred++;
     }
-  RELEASE (ruler->clauses);
   very_verbose (ring, "transferred %zu large clauses", transferred);
 }
 
@@ -115,15 +114,16 @@ restore_clauses (struct ring * ring)
 }
 
 void
-copy_ruler (struct ring * dst, struct ruler * src)
+copy_ruler (struct ring * ring)
 {
-  if (src->inconsistent)
-    set_inconsistent (dst, "copied empty clause");
+  struct ruler * ruler = ring->ruler;
+  if (ruler->inconsistent)
+    set_inconsistent (ring, "copied empty clause");
   else
     {
-      copy_ruler_binaries (dst);
-      transfer_and_own_ruler_clauses (dst);
-      restore_clauses (dst);
+      copy_ruler_binaries (ring);
+      transfer_and_own_ruler_clauses (ring);
+      restore_clauses (ring);
     }
 }
 
@@ -136,30 +136,23 @@ clone_ruler (struct ruler *src)
       fflush (stdout);
     }
   struct ring *dst = new_ring (src);
-  copy_ruler (dst, src);
+  copy_ruler (dst);
 }
 
 /*------------------------------------------------------------------------*/
 
 static void
-clone_clauses (struct ring *dst, struct ring *src)
+clone_clauses (struct ring * ring)
 {
-  struct ring *ring = dst;
-  verbose (ring, "cloning clauses from ring[%u] to ring[%u]",
-	   src->id, dst->id);
-  assert (!src->level);
-  assert (src->trail.propagate == src->trail.begin);
-  if (src->inconsistent)
+  struct ruler * ruler = ring->ruler;
+  if (ruler->inconsistent)
     {
       set_inconsistent (ring, "cloning inconsistent empty clause");
       return;
     }
   size_t shared = 0;
-  for (all_watches (src_watch, src->watches))
+  for (all_clauses (clause, ruler->clauses))
     {
-      if (src_watch->redundant)
-	continue;
-      struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
       reference_clause (ring, clause, 1);
       (void) watch_first_two_literals_in_large_clause (ring, clause);
@@ -169,10 +162,15 @@ clone_clauses (struct ring *dst, struct ring *src)
 }
 
 void
-copy_ring (struct ring * dst, struct ring * src)
+copy_ring (struct ring * dst)
 {
+  struct ruler * ruler = dst->ruler;
+  struct ring * src = first_ring (ruler);
+  assert (dst != src);
+  assert (!src->id);
+  assert (src->ruler == ruler);
   share_ring_binaries (dst, src);
-  clone_clauses (dst, src);
+  clone_clauses (dst);
   restore_clauses (dst);
 }
 
@@ -181,7 +179,7 @@ clone_ring (void *ptr)
 {
   struct ring *src = ptr;
   struct ring *dst = new_ring (src->ruler);
-  copy_ring (dst, src);
+  copy_ring (dst);
   init_pool (dst, src->threads);
   return dst;
 }
@@ -228,6 +226,7 @@ clone_rings (struct ruler *ruler)
       for (unsigned i = 1; i != threads; i++)
 	stop_cloning_ring (first, i);
     }
+  RELEASE (ruler->clauses);
   assert (SIZE (ruler->rings) == threads);
   if (verbosity >= 0)
     {

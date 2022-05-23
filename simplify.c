@@ -610,7 +610,7 @@ clone_first_ring_simplification (struct ring * ring)
   assert (!ring->id);
   ring->references =
     allocate_and_clear_array (2*ring->size, sizeof *ring->references);
-  copy_ruler (ring, ring->ruler);
+  copy_ruler (ring);
 }
 
 static void
@@ -619,14 +619,14 @@ copy_other_ring_simplification (struct ring * dst)
   assert (dst->id);
   dst->references =
     allocate_and_clear_array (2*dst->size, sizeof *dst->references);
-  struct ring * src = first_ring (dst->ruler);
-  copy_ring (dst, src);
+  copy_ring (dst);
 }
 
 static void
 finish_first_ring_simplication (struct ring * ring)
 {
   assert (!ring->id);
+  RELEASE (ring->ruler->clauses);
   struct ring_limits * limits = &ring->limits;
   struct ring_statistics * statistics = &ring->statistics;
   limits->simplify = SEARCH_CONFLICTS;
