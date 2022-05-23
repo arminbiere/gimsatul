@@ -52,6 +52,7 @@
 
 #define OPTIONS \
 OPTION (bool,     binary,            1, 0, 1) \
+OPTION (bool,     bump_reasons,      1, 0, 1) \
 OPTION (bool,     deduplicate,       1, 0, 1) \
 OPTION (bool,     eliminate,         1, 0, 1) \
 OPTION (bool,     fail,              1, 0, 1) \

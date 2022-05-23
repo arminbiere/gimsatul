@@ -40,6 +40,8 @@ bump_reason_side_literal (struct ring *ring, unsigned lit)
 static void
 bump_reason_side_literals (struct ring *ring)
 {
+  if (!ring->options.bump_reasons)
+    return;
   for (all_elements_on_stack (unsigned, lit, ring->clause))
     {
       struct variable *v = VAR (lit);

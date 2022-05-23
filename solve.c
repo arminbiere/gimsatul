@@ -58,8 +58,11 @@ set_ring_limits (struct ring *ring, long long conflicts)
 	  break;
 	}
 
-      if (ring->id % 2)
-	ring->options.phase = !ring->options.phase;
+      if (ring->id & 1)
+	ring->options.phase ^= 1;
+
+      if (ring->id & 2)
+	ring->options.bump_reasons ^= 1;
     }
   else
     very_verbose (ring, "keeping global options");
@@ -87,6 +90,11 @@ set_ring_limits (struct ring *ring, long long conflicts)
     verbose (ring, "initial 'true' decision phase");
   else
     verbose (ring, "initial 'false' decision phase");
+
+  if (ring->options.bump_reasons)
+    verbose (ring, "bumping reasons clauses literals additionally");
+  else
+    verbose (ring, "no extra bumping of literals in reason clauses");
 
   limits->probe = ring->options.probe_interval;
   limits->reduce = ring->options.reduce_interval;
