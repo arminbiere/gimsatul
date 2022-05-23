@@ -297,29 +297,6 @@ forward_subsume_large_clause (struct simplifier *simplifier,
 }
 
 static void
-flush_large_clause_occurrences (struct ruler *ruler)
-{
-  ROG ("flushing large clauses occurrences");
-  size_t flushed = 0;
-  for (all_ruler_literals (lit))
-    {
-      struct clauses *clauses = &OCCURRENCES (lit);
-      struct clause **begin = clauses->begin, **q = begin;
-      struct clause **end = clauses->end, **p = q;
-      while (p != end)
-	{
-	  struct clause *clause = *p++;
-	  if (binary_pointer (clause))
-	    *q++ = clause;
-	  else
-	    flushed++;
-	}
-      clauses->end = q;
-    }
-  very_verbose (0, "flushed %zu large clause occurrences", flushed);
-}
-
-static void
 flush_large_garbage_clauses_and_reconnect (struct ruler *ruler)
 {
   ROG ("flushing large garbage clauses");

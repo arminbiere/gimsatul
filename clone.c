@@ -82,21 +82,61 @@ transfer_and_own_ruler_clauses (struct ring *ring)
 }
 
 static void
-clone_ruler (struct ruler *ruler)
+restore_clauses (struct ring * ring)
+{
+  struct clauses * saved = &ring->saved;
+  if (EMPTY (*saved))
+    return;
+  size_t binaries = 0, large = 0;
+  for (all_clauses (clause, *saved))
+    {
+      if (binary_pointer (clause))
+	{
+	  struct watch * lit_watch = (struct watch*) clause;
+	  unsigned lit = lit_pointer (clause);
+	  watch_literal (ring, lit, lit_watch);
+	  assert (redundant_pointer (clause));
+	  unsigned other = other_pointer (clause);
+	  struct watch * other_watch = tag_pointer (true, other, lit);
+	  watch_literal (ring, other, other_watch);
+	  binaries++;
+	}
+      else
+	{
+	  watch_first_two_literals_in_large_clause (ring, clause);
+	  large++;
+	}
+    }
+  RELEASE (*saved);
+  very_verbose (ring, "restored %zu binary and %zu large clause",
+                binaries, large);
+
+  ring->statistics.redundant += binaries;
+}
+
+void
+copy_ruler (struct ring * dst, struct ruler * src)
+{
+  if (src->inconsistent)
+    set_inconsistent (dst, "copied empty clause");
+  else
+    {
+      copy_ruler_binaries (dst);
+      transfer_and_own_ruler_clauses (dst);
+      restore_clauses (dst);
+    }
+}
+
+static void
+clone_ruler (struct ruler *src)
 {
   if (verbosity >= 0)
     {
       printf ("c\nc cloning first ring solver\n");
       fflush (stdout);
     }
-  struct ring *ring = new_ring (ruler);
-  if (ruler->inconsistent)
-    set_inconsistent (ring, "copied empty clause");
-  else
-    {
-      copy_ruler_binaries (ring);
-      transfer_and_own_ruler_clauses (ring);
-    }
+  struct ring *dst = new_ring (src);
+  copy_ruler (dst, src);
 }
 
 /*------------------------------------------------------------------------*/
@@ -117,6 +157,8 @@ clone_clauses (struct ring *dst, struct ring *src)
   size_t shared = 0;
   for (all_watches (src_watch, src->watches))
     {
+      if (src_watch->redundant)
+	continue;
       struct clause *clause = src_watch->clause;
       assert (!clause->redundant);
       reference_clause (ring, clause, 1);
@@ -126,15 +168,22 @@ clone_clauses (struct ring *dst, struct ring *src)
   very_verbose (ring, "sharing %zu large clauses", shared);
 }
 
+void
+copy_ring (struct ring * dst, struct ring * src)
+{
+  share_ring_binaries (dst, src);
+  clone_clauses (dst, src);
+  restore_clauses (dst);
+}
+
 static void *
 clone_ring (void *ptr)
 {
   struct ring *src = ptr;
-  struct ring *ring = new_ring (src->ruler);
-  share_ring_binaries (ring, src);
-  clone_clauses (ring, src);
-  init_pool (ring, src->threads);
-  return ring;
+  struct ring *dst = new_ring (src->ruler);
+  copy_ring (dst, src);
+  init_pool (dst, src->threads);
+  return dst;
 }
 
 static void

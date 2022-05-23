@@ -1,4 +1,5 @@
 #include "backtrack.h"
+#include "clone.h"
 #include "compact.h"
 #include "deduplicate.h"
 #include "eliminate.h"
@@ -10,6 +11,7 @@
 #include "substitute.h"
 #include "subsume.h"
 #include "trace.h"
+#include "unclone.h"
 #include "utilities.h"
 
 #include <inttypes.h>
@@ -208,12 +210,12 @@ mark_satisfied_ruler_clauses (struct simplifier *simplifier)
 	}
     }
   very_verbose (0,
-		"found %zu additional large satisfied clauses and marked %zu dirty",
-		marked_satisfied, marked_dirty);
+		"found %zu additional large satisfied clauses and "
+		"marked %zu dirty", marked_satisfied, marked_dirty);
 }
 
 static void
-flush_ruler_occurrences (struct simplifier *simplifier)
+flush_garbage_and_satisfied_occurrences (struct simplifier *simplifier)
 {
   struct ruler *ruler = simplifier->ruler;
   signed char *values = (signed char *) ruler->values;
@@ -362,7 +364,7 @@ propagate_and_flush_ruler_units (struct simplifier *simplifier)
   if (last->fixed != ruler->statistics.fixed.total ||
       last->garbage != ruler->statistics.garbage)
     {
-      flush_ruler_occurrences (simplifier);
+      flush_garbage_and_satisfied_occurrences (simplifier);
       delete_large_garbage_ruler_clauses (simplifier);
     }
   last->fixed = ruler->statistics.fixed.total;
@@ -603,13 +605,28 @@ simplify_ruler (struct ruler *ruler)
 }
 
 static void
-finish_other_ring_simplification (struct ring * ring)
+clone_first_ring_simplification (struct ring * ring)
 {
+  assert (!ring->id);
+  ring->references =
+    allocate_and_clear_array (2*ring->size, sizeof *ring->references);
+  copy_ruler (ring, ring->ruler);
+}
+
+static void
+copy_other_ring_simplification (struct ring * dst)
+{
+  assert (dst->id);
+  dst->references =
+    allocate_and_clear_array (2*dst->size, sizeof *dst->references);
+  struct ring * src = first_ring (dst->ruler);
+  copy_ring (dst, src);
 }
 
 static void
 finish_first_ring_simplication (struct ring * ring)
 {
+  assert (!ring->id);
   struct ring_limits * limits = &ring->limits;
   struct ring_statistics * statistics = &ring->statistics;
   limits->simplify = SEARCH_CONFLICTS;
@@ -623,39 +640,16 @@ finish_first_ring_simplication (struct ring * ring)
 static void
 finish_ring_simplification (struct ring * ring)
 {
-  if (ring->id)
-    finish_other_ring_simplification (ring);
-  else
+  if (!ring->id)
     finish_first_ring_simplication (ring);
+  ring->trail.propagate = ring->trail.begin;
 }
 
 static void
 run_first_ring_simplification (struct ring * ring)
 {
   assert (!ring->id);
-  struct ruler * ruler = ring->ruler;
-  (void) ruler;
-}
-
-static void
-run_ring_simplification (struct ring * ring)
-{
-  if (!ring->id)
-    run_first_ring_simplification (ring);
-}
-
-static void
-prepare_first_ring_simplification (struct ring * ring)
-{
-  assert (!ring->id);
-  assert (!ring->id);
-  struct ruler * ruler = ring->ruler;
-}
-
-static void
-prepare_other_ring_simplification (struct ring * ring)
-{
-  assert (ring->id);
+  (void) ring;
 }
 
 static bool
@@ -685,6 +679,10 @@ continue_importing_and_propagating_units (struct ring * ring)
   return !done;
 }
 
+#ifndef NDEBUG
+void check_clause_statistics (struct ring *);
+#endif
+
 static void
 prepare_ring_simplification (struct ring * ring)
 {
@@ -695,9 +693,9 @@ prepare_ring_simplification (struct ring * ring)
 	fatal_error ("failed to acquire simplify lock during preparation");
       assert (ruler->simplify);
       ruler->simplify = false;
+      if (pthread_mutex_unlock (&ruler->locks.simplify))
+	fatal_error ("failed to release simplify lock during preparation");
     }
-  if (pthread_mutex_unlock (&ruler->locks.simplify))
-    fatal_error ("failed to release simplify lock during preparation");
   if (ring->level)
     backtrack (ring, 0);
   while (continue_importing_and_propagating_units (ring))
@@ -710,14 +708,21 @@ prepare_ring_simplification (struct ring * ring)
           ring->trail.propagate == ring->trail.end);
   STOP_SEARCH ();
   ring->statistics.simplifications++;
-  if (ring->id)
-    prepare_other_ring_simplification (ring);
-  else
-    prepare_first_ring_simplification (ring);
+  unclone_ring (ring);
   rendezvous (&ruler->barriers.simplify.run, ring);
-  run_ring_simplification (ring);
+  if (!ring->id)
+    run_first_ring_simplification (ring);
+  rendezvous (&ruler->barriers.simplify.clone, ring);
+  if (!ring->id)
+    clone_first_ring_simplification (ring);
+  rendezvous (&ruler->barriers.simplify.copy, ring);
+  if (ring->id)
+    copy_other_ring_simplification (ring);
   rendezvous (&ruler->barriers.simplify.finish, ring);
   finish_ring_simplification (ring);
+#ifndef NDEBUG
+  check_clause_statistics (ring);
+#endif
   report (ring, 's');
   START_SEARCH ();
 }

@@ -16,9 +16,7 @@ reducing (struct ring *ring)
   return ring->limits.reduce < SEARCH_CONFLICTS;
 }
 
-#ifndef NDEBUG
-
-static void
+void
 check_clause_statistics (struct ring *ring)
 {
   size_t redundant = 0;
@@ -64,10 +62,6 @@ check_clause_statistics (struct ring *ring)
   assert (statistics->redundant == redundant);
   assert (statistics->irredundant == irredundant);
 }
-
-#else
-#define check_clause_statistics(...) do { } while (0)
-#endif
 
 #define all_literals_on_trail_with_reason(LIT) \
   unsigned * P_ ## LIT = ring->trail.iterate, \
@@ -212,9 +206,8 @@ unmark_reasons (struct ring *ring)
 void
 reduce (struct ring *ring)
 {
+#ifndef NDEBUG
   check_clause_statistics (ring);
-#if 0
-  rendezvous (ring, reduce, "reduce");
 #endif
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
@@ -233,7 +226,9 @@ reduce (struct ring *ring)
   RELEASE (candidates);
   flush_references (ring, fixed);
   flush_watches (ring);
+#ifndef NDEBUG
   check_clause_statistics (ring);
+#endif
   unmark_reasons (ring);
   limits->reduce = SEARCH_CONFLICTS;
   unsigned interval = ring->options.reduce_interval;

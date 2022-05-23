@@ -166,12 +166,14 @@ parse_unsigned_option_value (const char *opt,
   const char *arg = match_and_find_option_argument (opt, str);
   if (!arg)
     return false;
-  if (sscanf (arg, "%u", value_ptr) != 1)
+  unsigned tmp;
+  if (sscanf (arg, "%u", &tmp) != 1)
     return false;
-  if (*value_ptr < min_value)
+  if (tmp < min_value)
     return false;
-  if (*value_ptr > max_value)
+  if (tmp > max_value)
     return false;
+  *value_ptr = tmp;
   return true;
 }
 

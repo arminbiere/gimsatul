@@ -60,6 +60,29 @@ release_occurrences (struct ruler *ruler)
   free (ruler->occurrences);
 }
 
+void
+flush_large_clause_occurrences (struct ruler *ruler)
+{
+  ROG ("flushing large clauses occurrences");
+  size_t flushed = 0;
+  for (all_ruler_literals (lit))
+    {
+      struct clauses *clauses = &OCCURRENCES (lit);
+      struct clause **begin = clauses->begin, **q = begin;
+      struct clause **end = clauses->end, **p = q;
+      while (p != end)
+	{
+	  struct clause *clause = *p++;
+	  if (binary_pointer (clause))
+	    *q++ = clause;
+	  else
+	    flushed++;
+	}
+      clauses->end = q;
+    }
+  very_verbose (0, "flushed %zu large clause occurrences", flushed);
+}
+
 static void
 release_clauses (struct ruler *ruler)
 {
@@ -253,9 +276,11 @@ set_terminate (struct ruler *ruler)
   if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
 
-  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.finish);
   abort_waiting_and_disable_barrier (&ruler->barriers.simplify.prepare);
   abort_waiting_and_disable_barrier (&ruler->barriers.simplify.run);
+  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.copy);
+  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.clone);
+  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.finish);
 }
 
 void

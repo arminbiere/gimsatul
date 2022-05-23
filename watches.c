@@ -83,6 +83,7 @@ watch_large_clause (struct ring *ring, struct clause *clause)
     watch->used = 1;
   else
     watch->used = 0;
+  assert (glue <= MAX_GLUE);
   watch->glue = glue;
   watch->middle = 2;
   watch->clause = clause;

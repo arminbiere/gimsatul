@@ -151,6 +151,8 @@ solve_rings (struct ruler *ruler)
 
       init_barrier (&ruler->barriers.simplify.prepare, "prepare", threads);
       init_barrier (&ruler->barriers.simplify.run, "run", threads);
+      init_barrier (&ruler->barriers.simplify.clone, "clone", threads);
+      init_barrier (&ruler->barriers.simplify.copy, "copy", threads);
       init_barrier (&ruler->barriers.simplify.finish, "finish", threads);
 
       for (all_rings (ring))

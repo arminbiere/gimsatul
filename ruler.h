@@ -29,6 +29,8 @@ struct ruler_locks
 
 struct ruler_barriers {
   struct {
+    struct barrier clone;
+    struct barrier copy;
     struct barrier finish;
     struct barrier prepare;
     struct barrier run;
@@ -106,6 +108,8 @@ struct ruler
 
 struct ruler *new_ruler (size_t size, struct options *);
 void delete_ruler (struct ruler *);
+
+void flush_large_clause_occurrences (struct ruler *);
 
 void new_ruler_binary_clause (struct ruler *, unsigned, unsigned);
 void assign_ruler_unit (struct ruler *, unsigned unit);
