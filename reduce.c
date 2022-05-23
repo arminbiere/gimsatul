@@ -53,7 +53,6 @@ check_clause_statistics (struct ring *ring)
 	continue;
       assert (!binary_pointer (watch));
       struct clause *clause = watch->clause;
-      assert (clause->glue <= watch->glue);
       assert (clause->redundant == watch->redundant);
       if (watch->redundant)
 	redundant++;

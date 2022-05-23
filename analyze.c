@@ -15,9 +15,9 @@ bump_reason (struct watch *watch)
 {
   if (!watch->redundant)
     return;
-  if (watch->clause->glue <= TIER1_GLUE_LIMIT)
+  if (watch->glue <= TIER1_GLUE_LIMIT)
     return;
-  if (watch->clause->glue <= TIER2_GLUE_LIMIT)
+  if (watch->glue <= TIER2_GLUE_LIMIT)
     watch->used = 2;
   else
     watch->used = 1;
