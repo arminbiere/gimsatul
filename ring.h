@@ -106,6 +106,7 @@ struct ring
   bool *active;
   struct variable *variables;
   struct watches watches;
+  struct watches redundant;
   struct references *references;
   struct unsigneds levels[2];
   struct heap heap;

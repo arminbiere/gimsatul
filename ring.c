@@ -193,6 +193,7 @@ delete_ring (struct ring *ring)
     release_binaries (ring);
   free (ring->references);
   release_watches (ring);
+  RELEASE (ring->redundant);
   free (ring->heap.nodes);
   free (ring->queue.links);
   free (ring->variables);
