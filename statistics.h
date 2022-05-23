@@ -59,12 +59,7 @@ struct ring_statistics
     size_t implied;
   } vivify;
 
-  struct
-  {
-    size_t clauses;
-    size_t imported;
-    size_t resolved;
-  } promoted;
+  size_t promoted;
 
   struct
   {

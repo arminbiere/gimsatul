@@ -94,9 +94,6 @@ mark_reasons (struct ring *ring)
 static void
 gather_reduce_candidates (struct ring *ring, struct watches *candidates)
 {
-#if 0
-  size_t promoted = 0;
-#endif
   for (all_watches (watch, ring->watches))
     {
       if (watch->garbage)
@@ -105,16 +102,6 @@ gather_reduce_candidates (struct ring *ring, struct watches *candidates)
 	continue;
       if (!watch->redundant)
 	continue;
-#if 0
-      struct clause * clause = watch->clause;
-      if (clause->glue < watch->glue)
-	{
-	  promoted++;
-	  LOGCLAUSE (clause,
-	             "promoted imported old glue %u", (unsigned) watch->glue);
-	  watch->glue = clause->glue;
-	}
-#endif
       if (watch->glue <= TIER1_GLUE_LIMIT)
 	continue;
       if (watch->used)
@@ -124,18 +111,9 @@ gather_reduce_candidates (struct ring *ring, struct watches *candidates)
 	}
       PUSH (*candidates, watch);
     }
-#if 0
-  ring->statistics.promoted.clauses += promoted;
-  ring->statistics.promoted.imported += promoted;
-  verbose (ring, "gathered %zu reduce candidates %.0f%% promoted %zu",
-	   SIZE (*candidates),
-	   percent (SIZE (*candidates), ring->statistics.redundant),
-	   promoted);
-#else
   verbose (ring, "gathered %zu reduce candidates %.0f%%",
 	   SIZE (*candidates),
 	   percent (SIZE (*candidates), ring->statistics.redundant));
-#endif
 }
 
 static void
