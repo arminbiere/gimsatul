@@ -5,7 +5,6 @@
 #include "export.h"
 #include "macros.h"
 #include "minimize.h"
-#include "promote.h"
 #include "ring.h"
 #include "trace.h"
 #include "utilities.h"
@@ -17,7 +16,6 @@ bump_reason (struct ring * ring, struct watch *watch)
     return;
   if (watch->glue <= TIER1_GLUE_LIMIT)
     return;
-  promote_clause (ring, watch);
   if (watch->glue <= TIER2_GLUE_LIMIT)
     watch->used = 2;
   else

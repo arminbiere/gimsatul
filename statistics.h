@@ -59,8 +59,6 @@ struct ring_statistics
     size_t implied;
   } vivify;
 
-  size_t promoted;
-
   struct
   {
     uint64_t units;
