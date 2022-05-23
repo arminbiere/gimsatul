@@ -141,9 +141,9 @@ solve_rings (struct ruler *ruler)
 	}
       message (0, "starting and running %zu ring threads", threads);
 
-      init_barrier (&ruler->locks.simplify.prepare, "prepare", threads);
-      init_barrier (&ruler->locks.simplify.run, "run", threads);
-      init_barrier (&ruler->locks.simplify.finish, "finish", threads);
+      init_barrier (&ruler->barriers.simplify.prepare, "prepare", threads);
+      init_barrier (&ruler->barriers.simplify.run, "run", threads);
+      init_barrier (&ruler->barriers.simplify.finish, "finish", threads);
 
       for (all_rings (ring))
 	start_running_ring (ring);

@@ -650,15 +650,6 @@ prepare_first_ring_simplification (struct ring * ring)
   assert (!ring->id);
   assert (!ring->id);
   struct ruler * ruler = ring->ruler;
-
-  if (pthread_mutex_lock (&ruler->locks.simplify.lock))
-    fatal_error ("failed to acquire simplify lock during preparation");
-
-  ruler->simplify = false;
-
-  if (pthread_mutex_unlock (&ruler->locks.simplify.lock))
-    fatal_error ("failed to release simplify lock during preparation");
-
 }
 
 static void
@@ -697,6 +688,16 @@ continue_importing_and_propagating_units (struct ring * ring)
 static void
 prepare_ring_simplification (struct ring * ring)
 {
+  struct ruler * ruler = ring->ruler;
+  if (!ring->id)
+    {
+      if (pthread_mutex_lock (&ruler->locks.simplify))
+	fatal_error ("failed to acquire simplify lock during preparation");
+      assert (ruler->simplify);
+      ruler->simplify = false;
+    }
+  if (pthread_mutex_unlock (&ruler->locks.simplify))
+    fatal_error ("failed to release simplify lock during preparation");
   if (ring->level)
     backtrack (ring, 0);
   while (continue_importing_and_propagating_units (ring))
@@ -713,10 +714,9 @@ prepare_ring_simplification (struct ring * ring)
     prepare_other_ring_simplification (ring);
   else
     prepare_first_ring_simplification (ring);
-  struct ruler * ruler = ring->ruler;
-  rendezvous (&ruler->locks.simplify.run, ring);
+  rendezvous (&ruler->barriers.simplify.run, ring);
   run_ring_simplification (ring);
-  rendezvous (&ruler->locks.simplify.finish, ring);
+  rendezvous (&ruler->barriers.simplify.finish, ring);
   finish_ring_simplification (ring);
   report (ring, 's');
   START_SEARCH ();
@@ -731,17 +731,15 @@ simplify_ring (struct ring * ring)
     assert (ruler->simplify);
   else
     {
-      if (pthread_mutex_lock (&ruler->locks.simplify.lock))
+      if (pthread_mutex_lock (&ruler->locks.simplify))
 	fatal_error ("failed to acquire simplify lock during starting");
-
       assert (!ruler->simplify);
       ruler->simplify = true;
-
-      if (pthread_mutex_unlock (&ruler->locks.simplify.lock))
+      if (pthread_mutex_unlock (&ruler->locks.simplify))
 	fatal_error ("failed to release simplify lock during starting");
     }
 
-  rendezvous (&ruler->locks.simplify.prepare, ring);
+  rendezvous (&ruler->barriers.simplify.prepare, ring);
   prepare_ring_simplification (ring);
   return ring->inconsistent ? 20 : 0;
 }
@@ -759,12 +757,10 @@ simplifying (struct ring * ring)
   if (!ruler->simplify)
     return false;
 #endif
-  if (pthread_mutex_lock (&ruler->locks.simplify.lock))
+  if (pthread_mutex_lock (&ruler->locks.simplify))
     fatal_error ("failed to acquire simplify lock during checking");
-
   bool res = ruler->simplify;
-
-  if (pthread_mutex_unlock (&ruler->locks.simplify.lock))
+  if (pthread_mutex_unlock (&ruler->locks.simplify))
     fatal_error ("failed to release simplify lock during checking");
 
   return res;

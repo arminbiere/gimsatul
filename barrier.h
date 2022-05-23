@@ -14,11 +14,12 @@ struct barrier
   pthread_cond_t condition;
   volatile unsigned waiting;
   unsigned size;
-  bool abort;
+  bool disabled;
+  bool current;
 };
 
 void init_barrier (struct barrier *, const char * name, unsigned size);
 void rendezvous (struct barrier *, struct ring *);
-void abort_waiting (struct barrier *);
+void abort_waiting_and_disable_barrier (struct barrier *);
 
 #endif

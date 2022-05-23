@@ -21,11 +21,14 @@ struct ruler_trail
 struct ruler_locks
 {
   pthread_mutex_t rings;
-  pthread_mutex_t units;
+  pthread_mutex_t simplify;
   pthread_mutex_t terminate;
+  pthread_mutex_t units;
   pthread_mutex_t winner;
+};
+
+struct ruler_barriers {
   struct {
-    pthread_mutex_t lock;
     struct barrier finish;
     struct barrier prepare;
     struct barrier run;
@@ -56,6 +59,7 @@ struct ruler
   bool solving;
   bool subsuming;
   struct ruler_locks locks;
+  struct ruler_barriers barriers;
   struct rings rings;
   pthread_t *threads;
   struct ring *volatile winner;
