@@ -39,7 +39,6 @@ promote_clause (struct ring * ring, struct watch * watch)
       if (++new_glue == old_glue)
 	break;
     }
-  assert (!binary_pointer (clause));
   for (all_elements_on_stack (unsigned, lit_level, *levels))
     used[lit_level] = false;
   CLEAR (*levels);
