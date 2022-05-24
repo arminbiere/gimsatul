@@ -2,6 +2,7 @@
 #include "ruler.h"
 
 #include <string.h>
+#include <inttypes.h>
 
 void
 init_barrier (struct barrier *barrier, const char * name, unsigned size)

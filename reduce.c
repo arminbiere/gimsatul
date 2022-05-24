@@ -50,17 +50,17 @@ check_clause_statistics (struct ring *ring)
       if (watch->garbage)
 	continue;
       assert (!binary_pointer (watch));
-      struct clause *clause = watch->clause;
-      assert (clause->redundant == watch->redundant);
+      assert (watch->clause->redundant == watch->redundant);
       if (watch->redundant)
 	redundant++;
       else
 	irredundant++;
     }
-
+#ifndef NDEBUG
   struct ring_statistics *statistics = &ring->statistics;
   assert (statistics->redundant == redundant);
   assert (statistics->irredundant == irredundant);
+#endif
 }
 
 #define all_literals_on_trail_with_reason(LIT) \
