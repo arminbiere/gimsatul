@@ -9,15 +9,10 @@
 void
 init_ruler_profiles (struct ruler *ruler)
 {
-  INIT_PROFILE (ruler, clone);
-  INIT_PROFILE (ruler, deduplicate);
-  INIT_PROFILE (ruler, eliminate);
-  INIT_PROFILE (ruler, parse);
-  INIT_PROFILE (ruler, solve);
-  INIT_PROFILE (ruler, simplify);
-  INIT_PROFILE (ruler, subsume);
-  INIT_PROFILE (ruler, substitute);
-  INIT_PROFILE (ruler, total);
+#define RULER_PROFILE(NAME) \
+  INIT_PROFILE (ruler, NAME);
+  RULER_PROFILES
+#undef RULER_PROFILE
   START (ruler, total);
 }
 
@@ -35,11 +30,10 @@ new_ruler (size_t size, struct options *opts)
 #ifndef NDEBUG
   ruler->original = allocate_and_clear_block (sizeof *ruler->original);
 #endif
-  pthread_mutex_init (&ruler->locks.units, 0);
-  pthread_mutex_init (&ruler->locks.rings, 0);
-  pthread_mutex_init (&ruler->locks.terminate, 0);
-  pthread_mutex_init (&ruler->locks.simplify, 0);
-  pthread_mutex_init (&ruler->locks.winner, 0);
+#define LOCK(NAME) \
+  pthread_mutex_init (&ruler->locks.NAME, 0);
+  LOCKS
+#undef LOCK
   ruler->values = allocate_and_clear_block (2 * size);
 
   ruler->occurrences =

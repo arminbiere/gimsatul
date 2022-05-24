@@ -48,14 +48,10 @@ message (struct ring *ring, const char *fmt, ...)
 static void
 init_ring_profiles (struct ring *ring)
 {
-  INIT_PROFILE (ring, fail);
-  INIT_PROFILE (ring, focus);
-  INIT_PROFILE (ring, probe);
-  INIT_PROFILE (ring, search);
-  INIT_PROFILE (ring, stable);
-  INIT_PROFILE (ring, vivify);
-  INIT_PROFILE (ring, walk);
-  INIT_PROFILE (ring, solve);
+#define RING_PROFILE(NAME) \
+  INIT_PROFILE (ring, NAME);
+  RING_PROFILES
+#undef RING_PROFILE
   START (ring, solve);
 }
 

@@ -10,31 +10,43 @@ struct profile
   volatile double time;
 };
 
+#define RING_PROFILES \
+  RING_PROFILE (fail) \
+  RING_PROFILE (focus) \
+  RING_PROFILE (probe) \
+  RING_PROFILE (search) \
+  RING_PROFILE (stable) \
+  RING_PROFILE (vivify) \
+  RING_PROFILE (walk) \
+\
+  RING_PROFILE (solve)
+
 struct ring_profiles
 {
-  struct profile fail;
-  struct profile focus;
-  struct profile probe;
-  struct profile search;
-  struct profile stable;
-  struct profile vivify;
-  struct profile walk;
-
-  struct profile solve;
+#define RING_PROFILE(NAME) \
+  struct profile NAME;
+  RING_PROFILES
+#undef RING_PROFILE
 };
+
+#define RULER_PROFILES \
+  RULER_PROFILE (clone) \
+  RULER_PROFILE (eliminate) \
+  RULER_PROFILE (deduplicate) \
+  RULER_PROFILE (parse) \
+  RULER_PROFILE (solve) \
+  RULER_PROFILE (simplify) \
+  RULER_PROFILE (substitute) \
+  RULER_PROFILE (subsume) \
+\
+  RULER_PROFILE (total)
 
 struct ruler_profiles
 {
-  struct profile clone;
-  struct profile eliminate;
-  struct profile deduplicate;
-  struct profile parse;
-  struct profile solve;
-  struct profile simplify;
-  struct profile substitute;
-  struct profile subsume;
-
-  struct profile total;
+#define RULER_PROFILE(NAME) \
+  struct profile NAME;
+  RULER_PROFILES
+#undef RULER_PROFILE
 };
 
 /*------------------------------------------------------------------------*/

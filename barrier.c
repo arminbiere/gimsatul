@@ -24,14 +24,16 @@ abort_waiting_and_disable_barrier (struct barrier * barrier)
     fatal_error ("failed to acquire barrier lock to abort waiting");
   if (!barrier->disabled)
     {
-      very_verbose (0, "disabling %s barrier", barrier->name);
+      very_verbose (0, "disabling '%s[%" PRIu64 "]' barrier",
+                    barrier->name, barrier->met);
       barrier->disabled = true;
       if (barrier->waiting)
 	{
-	  very_verbose (0, "aborting %u waiting threads on %s barrier",
-	                barrier->waiting, barrier->name);
+	  very_verbose (0, "aborting %u waiting threads in '%s[%" PRIu64
+	                "]' barrier", barrier->waiting, barrier->name,
+			barrier->met);
 	  barrier->waiting = 0;
-	  barrier->current ^= 1;
+	  barrier->met++;
 	  pthread_cond_broadcast (&barrier->condition);
 	}
     }
@@ -55,21 +57,27 @@ rendezvous (struct barrier * barrier, struct ring *ring)
     {
       assert (barrier->waiting < barrier->size);
       barrier->waiting++;
-      very_verbose (ring, "entered barrier on '%s' (%u waiting)",
-		    barrier->name, barrier->waiting);
+      uint64_t met = barrier->met;
+
+      very_verbose (ring, "entered '%s[%" PRIu64 "]' barrier (%u waiting)",
+		    barrier->name, met, barrier->waiting);
      
-      bool current = barrier->current;
       if (barrier->waiting == barrier->size)
 	{
+	  barrier->met++;
 	  barrier->waiting = 0;
-	  barrier->current = !current;
 	  pthread_cond_broadcast (&barrier->condition);
 	}
       else
-	while (!barrier->disabled && current == barrier->current)
+	while (!barrier->disabled && met == barrier->met)
 	  pthread_cond_wait (&barrier->condition, &barrier->mutex);
 
-      very_verbose (ring, "leaving barrier on '%s'", barrier->name);
+      barrier->left++;
+      very_verbose (ring, "leaving '%s[%" PRIu64 "]' barrier (%u left)",
+                    barrier->name, met, barrier->left);
+
+      if (barrier->left == barrier->size)
+	barrier->left = 0;
     }
 
   if (pthread_mutex_unlock (&barrier->mutex))

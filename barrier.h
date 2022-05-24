@@ -1,8 +1,9 @@
 #ifndef _barrier_h_INCLUDED
 #define _barrier_h_INCLUDED
 
-#include <stdbool.h>
 #include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 struct ring;
 struct ruler;
@@ -13,9 +14,10 @@ struct barrier
   pthread_mutex_t mutex;
   pthread_cond_t condition;
   volatile unsigned waiting;
+  volatile unsigned left;
   unsigned size;
   bool disabled;
-  bool current;
+  uint64_t met;
 };
 
 void init_barrier (struct barrier *, const char * name, unsigned size);

@@ -18,22 +18,28 @@ struct ruler_trail
   unsigned *volatile end;
 };
 
+#define LOCKS \
+  LOCK (rings) \
+  LOCK (simplify) \
+  LOCK (terminate) \
+  LOCK (units) \
+  LOCK (winner) \
+
 struct ruler_locks
 {
-  pthread_mutex_t rings;
-  pthread_mutex_t simplify;
-  pthread_mutex_t terminate;
-  pthread_mutex_t units;
-  pthread_mutex_t winner;
+#define LOCK(NAME) \
+  pthread_mutex_t NAME;
+  LOCKS
+#undef LOCK
 };
 
 #define BARRIERS \
-  BARRIER (clone) \
-  BARRIER (copy) \
   BARRIER (done) \
   BARRIER (finish) \
+  BARRIER (run) \
+  BARRIER (copy) \
+  BARRIER (clone) \
   BARRIER (prepare) \
-  BARRIER (run)
 
 struct ruler_barriers {
 #define BARRIER(NAME) \
