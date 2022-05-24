@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cover.h"
+
 struct doubles
 {
   double *begin, *end, *allocated;
@@ -187,6 +189,7 @@ connect_counters (struct walker *walker, struct clause *last)
 	  ticks++;
 	  length++;
 	}
+      COVER (!length);
       sum_lengths += length;
       p->count = count;
       p->clause = clause;
@@ -629,6 +632,9 @@ pick_literal_to_flip (struct walker *walker, size_t size, unsigned *literals)
   double threshold = random * total;
 
   double sum = 0, *scores = walker->scores.begin;
+
+  literals = walker->literals.begin;
+  end = walker->literals.end;
 
   unsigned * p = literals;
   while (p != end)
