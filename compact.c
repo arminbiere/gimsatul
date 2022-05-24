@@ -147,13 +147,13 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       unsigned not_lit = NOT (lit);
       if (!eliminated[idx] && !values[lit])
 	{
-	  assert (map[idx] == INVALID);
+	  assert (map[idx] <= idx);
 	  map_occurrences (ruler, map, lit);
 	  map_occurrences (ruler, map, not_lit);
 	}
       else
 	{
-	  assert (map[idx] <= idx);
+	  assert (map[idx] == INVALID);
 	  RELEASE (OCCURRENCES (lit));
 	  RELEASE (OCCURRENCES (not_lit));
 	}
