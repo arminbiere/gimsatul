@@ -176,9 +176,14 @@ connect_counters (struct walker *walker, struct clause *last)
       if (watch->redundant)
 	continue;
       struct clause *clause = watch->clause;
-      unsigned count = 0;
       unsigned length = 0;
       ticks++;
+      for (all_literals_in_clause (lit, clause))
+	if (values[lit])
+	  length++;
+      if (!length)
+	continue;
+      unsigned count = 0;
       for (all_literals_in_clause (lit, clause))
 	{
 	  signed char value = values[lit];
@@ -187,9 +192,7 @@ connect_counters (struct walker *walker, struct clause *last)
 	  count += (value > 0);
 	  PUSH (walker->occurrences[lit], p);
 	  ticks++;
-	  length++;
 	}
-      COVER (!length);
       sum_lengths += length;
       p->count = count;
       p->clause = clause;
