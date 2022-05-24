@@ -185,8 +185,7 @@ delete_ring (struct ring *ring)
   RELEASE (ring->minimize);
   free (ring->trail.begin);
   free (ring->trail.pos);
-  RELEASE (ring->levels[0]);
-  RELEASE (ring->levels[1]);
+  RELEASE (ring->levels);
   RELEASE (ring->trace.buffer);
   release_references (ring);
   if (!ring->id)
@@ -200,8 +199,7 @@ delete_ring (struct ring *ring)
   free (ring->values);
   free (ring->marks);
   free (ring->active);
-  free (ring->used[0]);
-  free (ring->used[1]);
+  free (ring->used);
   free (ring);
 }
 

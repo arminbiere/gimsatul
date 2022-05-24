@@ -80,8 +80,8 @@ clear_analyzed (struct ring *ring)
     }
   CLEAR (*analyzed);
 
-  struct unsigneds *levels = &ring->levels[0];
-  bool *used = ring->used[0];
+  struct unsigneds *levels = &ring->levels;
+  bool *used = ring->used;
   for (all_elements_on_stack (unsigned, used_level, *levels))
       used[used_level] = false;
   CLEAR (*levels);
@@ -136,11 +136,11 @@ analyze (struct ring *ring, struct watch *reason)
     }
   struct unsigneds *clause = &ring->clause;
   struct unsigneds *analyzed = &ring->analyzed;
-  struct unsigneds *levels = &ring->levels[0];
+  struct unsigneds *levels = &ring->levels;
   assert (EMPTY (*clause));
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
-  bool *used = ring->used[0];
+  bool *used = ring->used;
   struct variable *variables = ring->variables;
   struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;

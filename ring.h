@@ -86,44 +86,52 @@ struct ring
 {
   unsigned id;
   unsigned threads;
-  struct ruler *ruler;
   struct pool *pool;
-  volatile int status;
   unsigned *units;
+  struct ruler *ruler;
+
+  volatile int status;
+
   bool inconsistent;
   bool iterating;
   bool stable;
-  unsigned size;
+
+  unsigned best;
+  unsigned context;
   unsigned level;
   unsigned probe;
-  unsigned context;
-  unsigned unassigned;
+  unsigned size;
   unsigned target;
-  unsigned best;
-  bool *used[2];
-  signed char *values;
+  unsigned unassigned;
+
   signed char *marks;
+  signed char *values;
+
   bool *active;
+  bool *used;
+
+  struct unsigneds analyzed;
+  struct averages averages[2];
+  struct unsigneds clause;
+  struct heap heap;
+  struct intervals intervals;
+  struct unsigneds levels;
+  struct ring_limits limits;
+  struct unsigneds minimize;
+  struct queue queue;
+  struct references *references;
+  struct reluctant reluctant;
+  struct clauses saved;
+  struct trace trace;
+  struct ring_trail trail;
   struct variable *variables;
   struct watches watches;
-  struct clauses saved;
-  struct references *references;
-  struct unsigneds levels[2];
-  struct heap heap;
-  struct queue queue;
-  struct unsigneds clause;
-  struct unsigneds analyzed;
-  struct unsigneds minimize;
-  struct ring_trail trail;
-  struct ring_limits limits;
-  struct trace trace;
-  struct intervals intervals;
-  struct averages averages[2];
-  struct reluctant reluctant;
-  struct ring_statistics statistics;
-  struct ring_profiles profiles;
+
   struct options options;
   struct ring_last last;
+  struct ring_profiles profiles;
+  struct ring_statistics statistics;
+
   uint64_t random;
 };
 
