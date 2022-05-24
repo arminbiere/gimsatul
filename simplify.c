@@ -732,7 +732,6 @@ static void
 finish_ring_simplification (struct ring * ring)
 {
   (void) rendezvous (&ring->ruler->barriers.end, ring, true);
-  ring->trail.propagate = ring->trail.begin;
   if (ring->id)
     return;
   RELEASE (ring->ruler->clauses);
@@ -758,6 +757,7 @@ simplify_ring (struct ring * ring)
     return ring->status;
   if (!synchronize_exported_and_imported_units (ring))
     return ring->status;
+  ring->trail.propagate = ring->trail.begin;
   if (!unclone_before_running_simplification (ring))
     return ring->status;
   ring->statistics.simplifications++;
