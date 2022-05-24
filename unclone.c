@@ -108,7 +108,6 @@ save_large_watches (struct ring * ring)
     }
   RELEASE (*watches);
   very_verbose (ring, "saved %zu redundant large watches", saved);
-  very_verbose (ring, "flushed %zu irredundant large watches", flushed);
   if (ring->id)
     {
       assert (!transferred);
