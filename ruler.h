@@ -115,6 +115,8 @@ struct ruler
   LIT != END_ ## LIT; \
   LIT += 2
 
+#if 0
+
 #define BEGIN_BARRIERS \
   ((struct barrier *) &ruler->barriers)
 
@@ -123,6 +125,8 @@ struct ruler
 
 #define all_barriers(B) \
   struct barrier * B = BEGIN_BARRIERS; B != END_BARRIERS; B++
+
+#endif
 
 /*------------------------------------------------------------------------*/
 

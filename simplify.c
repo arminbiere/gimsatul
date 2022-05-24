@@ -626,7 +626,7 @@ static bool
 wait_to_actually_start_synchronization (struct ring * ring)
 {
   struct ruler * ruler = ring->ruler;
-  bool res = rendezvous (&ruler->barriers.start, ring);
+  bool res = rendezvous (&ruler->barriers.start, ring, false);
   if (!ring->id)
     {
       if (pthread_mutex_lock (&ruler->locks.simplify))
@@ -672,7 +672,7 @@ synchronize_exported_and_imported_units (struct ring * ring)
   flush_pool (ring);
   struct ruler * ruler = ring->ruler;
 
-  if (!rendezvous (&ruler->barriers.import, ring))
+  if (!rendezvous (&ruler->barriers.import, ring, false))
     return false;
 
   if (ring->level)
@@ -693,7 +693,7 @@ synchronize_exported_and_imported_units (struct ring * ring)
 static void
 unclone_before_running_simplification (struct ring * ring)
 {
-  rendezvous (&ring->ruler->barriers.unclone, ring);
+  (void) rendezvous (&ring->ruler->barriers.unclone, ring, true);
   unclone_ring (ring);
 }
 
@@ -709,7 +709,7 @@ clone_first_ring_after_simplification (struct ring * ring)
 static void
 run_ring_simplification (struct ring * ring)
 {
-  rendezvous (&ring->ruler->barriers.run, ring);
+  (void) rendezvous (&ring->ruler->barriers.run, ring, true);
   if (ring->id)
     return;
   clone_first_ring_after_simplification (ring);
@@ -718,7 +718,7 @@ run_ring_simplification (struct ring * ring)
 static void
 copy_other_ring_after_simplification (struct ring * ring)
 {
-  rendezvous (&ring->ruler->barriers.copy, ring);
+  (void) rendezvous (&ring->ruler->barriers.copy, ring, true);
   if (!ring->id)
     return;
   ring->references =
@@ -729,7 +729,7 @@ copy_other_ring_after_simplification (struct ring * ring)
 static void
 finish_ring_simplification (struct ring * ring)
 {
-  rendezvous (&ring->ruler->barriers.end, ring);
+  (void) rendezvous (&ring->ruler->barriers.end, ring, true);
   ring->trail.propagate = ring->trail.begin;
   if (ring->id)
     return;
