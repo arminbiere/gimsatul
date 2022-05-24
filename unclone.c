@@ -124,6 +124,10 @@ save_large_watches (struct ring *ring)
 void
 unclone_ring (struct ring *ring)
 {
+  RELEASE (ring->analyzed);
+  RELEASE (ring->clause);
+  RELEASE (ring->levels);
+  RELEASE (ring->minimize);
   assert (ring->ruler->compact == ring->size);
   save_ring_binaries (ring);
   save_large_watches (ring);

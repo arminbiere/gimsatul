@@ -68,21 +68,26 @@ new_ring (struct ruler *ruler)
   if ((ring->trace.file = ruler->trace.file))
     ring->trace.binary = ruler->trace.binary;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);
-  ring->values = allocate_and_clear_block (2 * size);
+
   ring->marks = allocate_and_clear_block (2 * size);
-  ring->references =
-    allocate_and_clear_array (sizeof (struct references), 2 * size);
-  assert (sizeof (bool) == 1);
+  ring->values = allocate_and_clear_block (2 * size);
   ring->active = allocate_and_clear_block (size);
   ring->used = allocate_and_clear_block (size);
-  ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
+
+  ring->references =
+    allocate_and_clear_array (sizeof (struct references), 2 * size);
+
   struct ring_trail *trail = &ring->trail;
   trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
   trail->export = trail->propagate = trail->iterate = trail->begin;
   trail->pos = allocate_array (size, sizeof *trail->pos);
+
+  ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
+
   struct heap *heap = &ring->heap;
   heap->nodes = allocate_and_clear_array (size, sizeof *heap->nodes);
   heap->increment[0] = heap->increment[1] = 1;
+
   struct queue *queue = &ring->queue;
   queue->links = allocate_and_clear_array (size, sizeof *heap->nodes);
   unsigned active = 0;

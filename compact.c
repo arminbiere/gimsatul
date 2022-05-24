@@ -68,6 +68,26 @@ compact_ring (struct ring * ring, unsigned * map)
   unsigned new_size = ruler->compact;
   assert (new_size <= old_size);
   (void) old_size, (void) new_size;
+
+  ring->best = 0;
+  assert (ring->context == SEARCH_CONTEXT);
+  assert (!ring->level);
+  ring->probe = ring->id * (new_size / SIZE (ruler->rings));
+  ring->size = new_size;
+  ring->target = 0;
+  ring->unassigned = new_size;;
+
+  free (ring->marks), ring->marks = allocate_and_clear_block (new_size);
+  free (ring->values), ring->values = allocate_and_clear_block (2*new_size);
+
+  free (ring->active), ring->active = allocate_and_clear_block (new_size);
+  free (ring->used), ring->used = allocate_and_clear_block (new_size);
+
+#if 0
+  compact_marks (ring, new_size);
+  compact_values (ring, new_size);
+  compact_trail (ring, new_size);
+#endif
 }
 
 void

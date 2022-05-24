@@ -111,24 +111,28 @@ struct ring
   bool *used;
 
   struct unsigneds analyzed;
-  struct averages averages[2];
   struct unsigneds clause;
-  struct heap heap;
-  struct intervals intervals;
   struct unsigneds levels;
-  struct ring_limits limits;
   struct unsigneds minimize;
-  struct queue queue;
+
   struct references *references;
-  struct reluctant reluctant;
-  struct clauses saved;
-  struct trace trace;
   struct ring_trail trail;
   struct variable *variables;
-  struct watches watches;
 
-  struct options options;
+  struct heap heap;
+  struct queue queue;
+
+  struct watches watches;
+  struct clauses saved;
+
+  struct trace trace;
+
+  struct averages averages[2];
+  struct intervals intervals;
   struct ring_last last;
+  struct ring_limits limits;
+  struct options options;
+  struct reluctant reluctant;
   struct ring_profiles profiles;
   struct ring_statistics statistics;
 

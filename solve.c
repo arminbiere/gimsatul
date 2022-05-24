@@ -140,13 +140,9 @@ solve_rings (struct ruler *ruler)
     set_ring_limits (ring, conflicts);
   if (threads > 1)
     {
-      unsigned delta = ruler->compact / threads;
-      unsigned probe = 0;
       for (all_rings (ring))
-	{
-	  ring->probe = probe;
-	  probe += delta;
-	}
+	ring->probe = ring->id * (ruler->compact / threads);
+
       message (0, "starting and running %zu ring threads", threads);
 
 #define BARRIER(NAME) \
