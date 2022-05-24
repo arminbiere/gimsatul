@@ -22,7 +22,9 @@ abort_waiting_and_disable_barrier (struct barrier * barrier)
   if (barrier->size < 2)
     return;
   if (pthread_mutex_lock (&barrier->mutex))
-    fatal_error ("failed to acquire barrier lock to abort waiting");
+    fatal_error ("failed to acquire '%s[%" PRIu64 "]' barrier lock "
+                 "to abort waiting", barrier->name, barrier->met);
+  uint64_t met = barrier->met;
   if (!barrier->disabled)
     {
       very_verbose (0, "disabling '%s[%" PRIu64 "]' barrier",
@@ -39,7 +41,8 @@ abort_waiting_and_disable_barrier (struct barrier * barrier)
 	}
     }
   if (pthread_mutex_unlock (&barrier->mutex))
-    fatal_error ("failed to release barrier lock to abort waiting");
+    fatal_error ("failed to release '%s[%" PRIu64 "]' barrier lock "
+                 "to abort waiting", barrier->name, met);
 }
 
 bool
@@ -53,7 +56,9 @@ rendezvous (struct barrier * barrier,
     return false;
 #endif
   if (pthread_mutex_lock (&barrier->mutex))
-    fatal_error ("failed to acquire barrier lock during rendezvous");
+    fatal_error ("failed to acquire '%s[%" PRIu64 "]' barrier lock "
+                 "during rendezvous of 'ring[%u}'",
+		 barrier->name, barrier->met, ring->id);
 
   uint64_t met = barrier->met;
   bool res;
@@ -89,7 +94,9 @@ rendezvous (struct barrier * barrier,
     }
 
   if (pthread_mutex_unlock (&barrier->mutex))
-    fatal_error ("failed to release barrier lock during rendezvous");
+    fatal_error ("failed to release '%s[%" PRIu64 "]' barrier lock "
+                 "during rendezvous of 'ring[%u}'",
+		 barrier->name, met, ring->id);
 
   if (expected_enabled && !res)
     fatal_error ("unexpected disabled '%s[%" PRIu64 "]' barrier "
