@@ -31,13 +31,13 @@ void empty_message (void);
 
 #define verbose(...) \
 do { \
-  if (verbosity > 0) \
+  if (verbosity > 1) \
     message (__VA_ARGS__); \
 } while (0)
 
 #define very_verbose(...) \
 do { \
-  if (verbosity > 1) \
+  if (verbosity > 2) \
     message (__VA_ARGS__); \
 } while (0)
 

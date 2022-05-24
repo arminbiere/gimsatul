@@ -302,6 +302,6 @@ vivify_clauses (struct ring *ring)
 		"and strengthened %zu clauses %.0f%%",
 		implied, percent (implied, vivified),
 		strengthened, percent (strengthened, vivified));
-  report (ring, 'v');
+  verbose_report (ring, 'v', !(implied || strengthened));
   STOP (ring, vivify);
 }

@@ -9,9 +9,9 @@
 static volatile uint64_t reported;
 
 void
-report (struct ring *ring, char type)
+verbose_report (struct ring *ring, char type, int level)
 {
-  if (verbosity < 0)
+  if (verbosity < level)
     return;
 
   struct ring_statistics *s = &ring->statistics;
@@ -39,4 +39,10 @@ report (struct ring *ring, char type)
   fflush (stdout);
 
   release_message_lock ();
+}
+
+void
+report (struct ring *ring, char type)
+{
+  verbose_report (ring, type, 0);
 }

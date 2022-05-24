@@ -123,7 +123,7 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
 	break;
     }
   verbose (ring, "reduced %zu clauses %.0f%%",
-	   reduced, percent (reduced, size));
+           reduced, percent (reduced, size));
 }
 
 static void
@@ -234,7 +234,7 @@ reduce (struct ring *ring)
   unsigned interval = ring->options.reduce_interval;
   assert (interval);
   limits->reduce += interval * sqrt (statistics->reductions + 1);
-  verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
-	   limits->reduce);
+  very_verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
+	        limits->reduce);
   report (ring, '-');
 }

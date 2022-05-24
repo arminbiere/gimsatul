@@ -196,6 +196,6 @@ failed_literal_probing (struct ring *ring)
 	   "found %u failed literals %.0f%% lifted %u", probed,
 	   percent (probed, max_lit), failed,
 	   percent (failed, probed), lifted);
-  report (ring, 'f');
+  verbose_report (ring, 'f', !(failed || lifted));
   STOP (ring, fail);
 }
