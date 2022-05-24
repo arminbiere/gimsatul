@@ -39,7 +39,7 @@ probe (struct ring *ring)
   assert (interval);
   limits->probe += interval * nlogn (statistics->probings);
   very_verbose (ring, "new probe limit of %" PRIu64 " conflicts",
-                limits->probe);
+		limits->probe);
   STOP_AND_START_SEARCH (probe);
   return ring->inconsistent ? 20 : 0;
 }

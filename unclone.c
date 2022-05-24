@@ -3,24 +3,24 @@
 #include "unclone.h"
 
 static void
-save_ring_binaries (struct ring * ring)
+save_ring_binaries (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   if (!ring->id)
     {
       assert (!ruler->occurrences);
       assert (ruler->compact == ring->size);
       ruler->occurrences =
-        allocate_and_clear_array (2*ring->size, sizeof *ruler->occurrences);
+	allocate_and_clear_array (2 * ring->size, sizeof *ruler->occurrences);
     }
 
-  struct clauses * saved = &ring->saved;
+  struct clauses *saved = &ring->saved;
   assert (EMPTY (*saved));
   size_t irredundant = 0;
 
   for (all_ring_literals (lit))
     {
-      struct references * references = &REFERENCES (lit);
+      struct references *references = &REFERENCES (lit);
       for (all_watches (watch, *references))
 	{
 	  if (!binary_pointer (watch))
@@ -29,19 +29,19 @@ save_ring_binaries (struct ring * ring)
 	  unsigned other = other_pointer (watch);
 	  if (other >= lit)
 	    continue;
-	  struct clause * clause = (struct clause*) watch;
+	  struct clause *clause = (struct clause *) watch;
 	  PUSH (*saved, clause);
 	}
       RELEASE (*references);
       if (ring->id)
 	continue;
-      unsigned * binaries = references->binaries;
+      unsigned *binaries = references->binaries;
       if (!binaries)
 	continue;
-      struct clauses * occurrenes = &OCCURRENCES (lit);
-      for (unsigned * p = binaries, other; (other = *p) != INVALID; p++)
+      struct clauses *occurrenes = &OCCURRENCES (lit);
+      for (unsigned *p = binaries, other; (other = *p) != INVALID; p++)
 	{
-	  struct clause * clause = tag_pointer (false, lit, other);
+	  struct clause *clause = tag_pointer (false, lit, other);
 	  PUSH (*occurrenes, clause);
 	  if (lit < other)
 	    irredundant++;
@@ -69,17 +69,17 @@ save_ring_binaries (struct ring * ring)
 }
 
 static void
-save_large_watches (struct ring * ring)
+save_large_watches (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
-  struct clauses * clauses = &ruler->clauses;
+  struct ruler *ruler = ring->ruler;
+  struct clauses *clauses = &ruler->clauses;
   assert (ring->id || EMPTY (*clauses));
-  struct watches * watches = &ring->watches;
-  struct clauses * save = &ring->saved;
+  struct watches *watches = &ring->watches;
+  struct clauses *save = &ring->saved;
   size_t transferred = 0, collected = 0, saved = 0, flushed = 0;
   for (all_watches (watch, *watches))
     {
-      struct clause * clause = watch->clause;
+      struct clause *clause = watch->clause;
       if (watch->garbage)
 	{
 	  dereference_clause (ring, clause);
@@ -117,13 +117,12 @@ save_large_watches (struct ring * ring)
     {
       assert (!flushed);
       very_verbose (ring,
-                    "transferred %zu irredundant large clauses",
-		    transferred);
+		    "transferred %zu irredundant large clauses", transferred);
     }
 }
 
 void
-unclone_ring (struct ring * ring)
+unclone_ring (struct ring *ring)
 {
   assert (ring->ruler->compact == ring->size);
   save_ring_binaries (ring);

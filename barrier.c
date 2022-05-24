@@ -5,7 +5,7 @@
 #include <inttypes.h>
 
 void
-init_barrier (struct barrier *barrier, const char * name, unsigned size)
+init_barrier (struct barrier *barrier, const char *name, unsigned size)
 {
   barrier->name = name;
   barrier->size = size;
@@ -17,23 +17,23 @@ init_barrier (struct barrier *barrier, const char * name, unsigned size)
 }
 
 void
-abort_waiting_and_disable_barrier (struct barrier * barrier)
+abort_waiting_and_disable_barrier (struct barrier *barrier)
 {
   if (barrier->size < 2)
     return;
   if (pthread_mutex_lock (&barrier->mutex))
     fatal_error ("failed to acquire '%s[%" PRIu64 "]' barrier lock "
-                 "to abort waiting", barrier->name, barrier->met);
+		 "to abort waiting", barrier->name, barrier->met);
   uint64_t met = barrier->met;
   if (!barrier->disabled)
     {
       very_verbose (0, "disabling '%s[%" PRIu64 "]' barrier",
-                    barrier->name, barrier->met);
+		    barrier->name, barrier->met);
       barrier->disabled = true;
       if (barrier->waiting)
 	{
 	  very_verbose (0, "aborting %u waiting threads in '%s[%" PRIu64
-	                "]' barrier", barrier->waiting, barrier->name,
+			"]' barrier", barrier->waiting, barrier->name,
 			barrier->met);
 	  barrier->waiting = 0;
 	  barrier->met++;
@@ -42,12 +42,11 @@ abort_waiting_and_disable_barrier (struct barrier * barrier)
     }
   if (pthread_mutex_unlock (&barrier->mutex))
     fatal_error ("failed to release '%s[%" PRIu64 "]' barrier lock "
-                 "to abort waiting", barrier->name, met);
+		 "to abort waiting", barrier->name, met);
 }
 
 bool
-rendezvous (struct barrier * barrier,
-            struct ring *ring, bool expected_enabled)
+rendezvous (struct barrier *barrier, struct ring *ring, bool expected_enabled)
 {
   if (barrier->size < 2)
     return true;
@@ -57,7 +56,7 @@ rendezvous (struct barrier * barrier,
 #endif
   if (pthread_mutex_lock (&barrier->mutex))
     fatal_error ("failed to acquire '%s[%" PRIu64 "]' barrier lock "
-                 "during rendezvous of 'ring[%u}'",
+		 "during rendezvous of 'ring[%u}'",
 		 barrier->name, barrier->met, ring->id);
 
   uint64_t met = barrier->met;
@@ -72,7 +71,7 @@ rendezvous (struct barrier * barrier,
 
       very_verbose (ring, "entered '%s[%" PRIu64 "]' barrier (%u waiting)",
 		    barrier->name, met, barrier->waiting);
-     
+
       if (barrier->waiting == barrier->size)
 	{
 	  barrier->met++;
@@ -85,7 +84,7 @@ rendezvous (struct barrier * barrier,
 
       barrier->left++;
       very_verbose (ring, "leaving '%s[%" PRIu64 "]' barrier (%u left)",
-                    barrier->name, met, barrier->left);
+		    barrier->name, met, barrier->left);
 
       if (barrier->left == barrier->size)
 	barrier->left = 0;
@@ -95,12 +94,12 @@ rendezvous (struct barrier * barrier,
 
   if (pthread_mutex_unlock (&barrier->mutex))
     fatal_error ("failed to release '%s[%" PRIu64 "]' barrier lock "
-                 "during rendezvous of 'ring[%u}'",
+		 "during rendezvous of 'ring[%u}'",
 		 barrier->name, met, ring->id);
 
   if (expected_enabled && !res)
     fatal_error ("unexpected disabled '%s[%" PRIu64 "]' barrier "
-                 "(%u waiting) in rendezvous of 'ring[%u]'",
+		 "(%u waiting) in rendezvous of 'ring[%u]'",
 		 barrier->name, met, barrier->waiting, ring->id);
 
   return res;

@@ -1,6 +1,6 @@
 #include "message.h"
 #include "report.h"
-#include "ring.h"
+#include "ruler.h"
 #include "utilities.h"
 
 #include <stdio.h>
@@ -34,7 +34,7 @@ verbose_report (struct ring *ring, char type, int level)
 	   " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
 	   a->level.value, s->reductions, s->restarts, conflicts,
 	   s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
-	   active, percent (active, ring->size));
+	   active, percent (active, ring->ruler->size));
 
   fflush (stdout);
 

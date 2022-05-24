@@ -129,17 +129,17 @@ export_tier2_clause (struct ring *ring, struct clause *clause)
 }
 
 void
-flush_pool (struct ring * ring)
+flush_pool (struct ring *ring)
 {
   size_t flushed = 0;
-  for (unsigned i = 0; i != ring->threads;  i++)
+  for (unsigned i = 0; i != ring->threads; i++)
     {
       if (i == ring->id)
 	continue;
-      struct pool * pool = ring->pool + i;
+      struct pool *pool = ring->pool + i;
       for (unsigned shared = 0; shared != SIZE_SHARED; shared++)
 	{
-	  struct clause * volatile * share = &pool->share[shared];
+	  struct clause *volatile *share = &pool->share[shared];
 	  struct clause *clause = atomic_exchange (share, 0);
 	  if (!clause)
 	    continue;

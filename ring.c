@@ -52,7 +52,7 @@ init_ring_profiles (struct ring *ring)
   INIT_PROFILE (ring, NAME);
   RING_PROFILES
 #undef RING_PROFILE
-  START (ring, solve);
+    START (ring, solve);
 }
 
 struct ring *

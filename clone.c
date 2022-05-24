@@ -83,9 +83,9 @@ transfer_ruler_clauses_to_ring (struct ring *ring)
 }
 
 static void
-restore_saved_redundant_clauses (struct ring * ring)
+restore_saved_redundant_clauses (struct ring *ring)
 {
-  struct clauses * saved = &ring->saved;
+  struct clauses *saved = &ring->saved;
   if (EMPTY (*saved))
     return;
   size_t binaries = 0, large = 0;
@@ -93,12 +93,12 @@ restore_saved_redundant_clauses (struct ring * ring)
     {
       if (binary_pointer (clause))
 	{
-	  struct watch * lit_watch = (struct watch*) clause;
+	  struct watch *lit_watch = (struct watch *) clause;
 	  unsigned lit = lit_pointer (clause);
 	  watch_literal (ring, lit, lit_watch);
 	  assert (redundant_pointer (clause));
 	  unsigned other = other_pointer (clause);
-	  struct watch * other_watch = tag_pointer (true, other, lit);
+	  struct watch *other_watch = tag_pointer (true, other, lit);
 	  watch_literal (ring, other, other_watch);
 	  binaries++;
 	}
@@ -110,20 +110,20 @@ restore_saved_redundant_clauses (struct ring * ring)
     }
   RELEASE (*saved);
   very_verbose (ring, "restored %zu binary and %zu large clause",
-                binaries, large);
+		binaries, large);
 
   ring->statistics.redundant += binaries;
 }
 
 void
-copy_ruler (struct ring * ring)
+copy_ruler (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   if (ruler->inconsistent)
     {
       set_inconsistent (ring, "copied empty clause");
       for (all_clauses (clause, ruler->clauses))
-        free (clause);
+	free (clause);
     }
   else
     {
@@ -148,9 +148,9 @@ clone_ruler (struct ruler *src)
 /*------------------------------------------------------------------------*/
 
 static void
-clone_clauses (struct ring * ring)
+clone_clauses (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   assert (!ruler->inconsistent);
   size_t shared = 0;
   for (all_clauses (clause, ruler->clauses))
@@ -164,11 +164,11 @@ clone_clauses (struct ring * ring)
 }
 
 void
-copy_ring (struct ring * dst)
+copy_ring (struct ring *dst)
 {
-  struct ruler * ruler = dst->ruler;
+  struct ruler *ruler = dst->ruler;
   assert (!ruler->inconsistent);
-  struct ring * src = first_ring (ruler);
+  struct ring *src = first_ring (ruler);
   assert (dst != src);
   assert (!src->id);
   assert (src->ruler == ruler);

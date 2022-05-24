@@ -642,7 +642,7 @@ pick_literal_to_flip (struct walker *walker, size_t size, unsigned *literals)
   literals = walker->literals.begin;
   end = walker->literals.end;
 
-  unsigned * p = literals;
+  unsigned *p = literals;
   while (p != end)
     {
       unsigned other = *p++;

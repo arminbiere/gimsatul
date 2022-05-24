@@ -10,7 +10,7 @@
 #include "utilities.h"
 
 static void
-bump_reason (struct ring * ring, struct watch *watch)
+bump_reason (struct ring *ring, struct watch *watch)
 {
   if (!watch->redundant)
     return;

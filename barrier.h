@@ -10,7 +10,7 @@ struct ruler;
 
 struct barrier
 {
-  const char * name;
+  const char *name;
   pthread_mutex_t mutex;
   pthread_cond_t condition;
   volatile unsigned waiting;
@@ -20,7 +20,7 @@ struct barrier
   uint64_t met;
 };
 
-void init_barrier (struct barrier *, const char * name, unsigned size);
+void init_barrier (struct barrier *, const char *name, unsigned size);
 bool rendezvous (struct barrier *, struct ring *, bool expected_enabled);
 void abort_waiting_and_disable_barrier (struct barrier *);
 

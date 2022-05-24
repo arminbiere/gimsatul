@@ -109,7 +109,7 @@ set_ring_limits (struct ring *ring, long long conflicts)
     {
       limits->simplify = ring->options.simplify_interval;
       verbose (ring, "simplify interval of %" PRIu64 " conflicts",
-               limits->simplify);
+	       limits->simplify);
     }
 
   if (conflicts >= 0)
@@ -153,8 +153,7 @@ solve_rings (struct ruler *ruler)
       init_barrier (&ruler->barriers.NAME, #NAME, threads);
       BARRIERS
 #undef BARRIER
-
-      for (all_rings (ring))
+	for (all_rings (ring))
 	start_running_ring (ring);
 
       for (all_rings (ring))

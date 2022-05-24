@@ -14,7 +14,7 @@ init_ruler_profiles (struct ruler *ruler)
   INIT_PROFILE (ruler, NAME);
   RULER_PROFILES
 #undef RULER_PROFILE
-  START (ruler, total);
+    START (ruler, total);
 }
 
 struct ruler *
@@ -35,7 +35,7 @@ new_ruler (size_t size, struct options *opts)
   pthread_mutex_init (&ruler->locks.NAME, 0);
   LOCKS
 #undef LOCK
-  ruler->values = allocate_and_clear_block (2 * size);
+    ruler->values = allocate_and_clear_block (2 * size);
 
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
@@ -302,12 +302,12 @@ set_winner (struct ring *ring)
 }
 
 struct ring *
-first_ring (struct ruler * ruler)
+first_ring (struct ruler *ruler)
 {
   if (pthread_mutex_lock (&ruler->locks.rings))
     fatal_error ("failed to acquire rings lock while getting first");
   assert (!EMPTY (ruler->rings));
-  struct ring * first = ruler->rings.begin[0];
+  struct ring *first = ruler->rings.begin[0];
   if (pthread_mutex_unlock (&ruler->locks.rings))
     fatal_error ("failed to release rings lock while getting first");
   return first;

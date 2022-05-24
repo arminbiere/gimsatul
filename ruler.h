@@ -41,7 +41,8 @@ struct ruler_locks
   BARRIER (start) \
   BARRIER (unclone) \
 
-struct ruler_barriers {
+struct ruler_barriers
+{
 #define BARRIER(NAME) \
   struct barrier NAME;
   BARRIERS
@@ -158,6 +159,6 @@ connect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
   PUSH (OCCURRENCES (lit), clause);
 }
 
-struct ring * first_ring (struct ruler *);
+struct ring *first_ring (struct ruler *);
 
 #endif

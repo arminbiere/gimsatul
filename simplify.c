@@ -606,9 +606,9 @@ simplify_ruler (struct ruler *ruler)
 }
 
 static void
-trigger_synchronization (struct ring * ring)
+trigger_synchronization (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   if (ring->id)
     assert (ruler->simplify);
   else
@@ -623,9 +623,9 @@ trigger_synchronization (struct ring * ring)
 }
 
 static bool
-wait_to_actually_start_synchronization (struct ring * ring)
+wait_to_actually_start_synchronization (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   bool res = rendezvous (&ruler->barriers.start, ring, false);
   if (!ring->id)
     {
@@ -640,20 +640,20 @@ wait_to_actually_start_synchronization (struct ring * ring)
 }
 
 static bool
-continue_importing_and_propagating_units (struct ring * ring)
+continue_importing_and_propagating_units (struct ring *ring)
 {
   if (ring->inconsistent)
     return false;
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   if (ruler->terminate)
     return false;
   if (ruler->winner)
     return false;
   if (pthread_mutex_lock (&ruler->locks.units))
     fatal_error ("failed to acquire units lock during "
-                 "simplification preparation");
+		 "simplification preparation");
   bool done = true;
-  unsigned * ruler_units_end = ruler->units.end;
+  unsigned *ruler_units_end = ruler->units.end;
   for (all_rings (ring))
     if (ring->units != ruler_units_end)
       {
@@ -662,15 +662,15 @@ continue_importing_and_propagating_units (struct ring * ring)
       }
   if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release units lock during "
-                 "simplification preparation");
+		 "simplification preparation");
   return !done;
 }
 
 static bool
-synchronize_exported_and_imported_units (struct ring * ring)
+synchronize_exported_and_imported_units (struct ring *ring)
 {
   flush_pool (ring);
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
 
   if (!rendezvous (&ruler->barriers.import, ring, false))
     return false;
@@ -682,16 +682,15 @@ synchronize_exported_and_imported_units (struct ring * ring)
       if (!ring->inconsistent)
 	if (ring_propagate (ring, false, 0))
 	  set_inconsistent (ring,
-	                    "propagation after importing shared failed");
+			    "propagation after importing shared failed");
 
-  assert (ring->inconsistent ||
-          ring->trail.propagate == ring->trail.end);
-  
+  assert (ring->inconsistent || ring->trail.propagate == ring->trail.end);
+
   return !ring->inconsistent;
 }
 
 static bool
-unclone_before_running_simplification (struct ring * ring)
+unclone_before_running_simplification (struct ring *ring)
 {
   if (!rendezvous (&ring->ruler->barriers.unclone, ring, false))
     return false;
@@ -700,16 +699,16 @@ unclone_before_running_simplification (struct ring * ring)
 }
 
 static void
-clone_first_ring_after_simplification (struct ring * ring)
+clone_first_ring_after_simplification (struct ring *ring)
 {
   assert (!ring->id);
   ring->references =
-    allocate_and_clear_array (2*ring->size, sizeof *ring->references);
+    allocate_and_clear_array (2 * ring->size, sizeof *ring->references);
   copy_ruler (ring);
 }
 
 static void
-run_ring_simplification (struct ring * ring)
+run_ring_simplification (struct ring *ring)
 {
   (void) rendezvous (&ring->ruler->barriers.run, ring, true);
   if (ring->id)
@@ -718,25 +717,25 @@ run_ring_simplification (struct ring * ring)
 }
 
 static void
-copy_other_ring_after_simplification (struct ring * ring)
+copy_other_ring_after_simplification (struct ring *ring)
 {
   (void) rendezvous (&ring->ruler->barriers.copy, ring, true);
   if (!ring->id)
     return;
   ring->references =
-    allocate_and_clear_array (2*ring->size, sizeof *ring->references);
+    allocate_and_clear_array (2 * ring->size, sizeof *ring->references);
   copy_ring (ring);
 }
 
 static void
-finish_ring_simplification (struct ring * ring)
+finish_ring_simplification (struct ring *ring)
 {
   (void) rendezvous (&ring->ruler->barriers.end, ring, true);
   if (ring->id)
     return;
   RELEASE (ring->ruler->clauses);
-  struct ring_limits * limits = &ring->limits;
-  struct ring_statistics * statistics = &ring->statistics;
+  struct ring_limits *limits = &ring->limits;
+  struct ring_statistics *statistics = &ring->statistics;
   limits->simplify = SEARCH_CONFLICTS;
   unsigned interval = ring->options.simplify_interval;
   assert (interval);
@@ -750,7 +749,7 @@ void check_clause_statistics (struct ring *);
 #endif
 
 int
-simplify_ring (struct ring * ring)
+simplify_ring (struct ring *ring)
 {
   trigger_synchronization (ring);
   if (!wait_to_actually_start_synchronization (ring))
@@ -774,13 +773,13 @@ simplify_ring (struct ring * ring)
 }
 
 bool
-simplifying (struct ring * ring)
+simplifying (struct ring *ring)
 {
   if (ring->options.simplify < 2)
     return false;
   if (!ring->id)
     return ring->limits.simplify <= SEARCH_CONFLICTS;
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
 #ifndef NFASTPATH
   if (!ruler->simplify)
     return false;

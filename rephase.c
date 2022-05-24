@@ -79,6 +79,6 @@ rephase (struct ring *ring)
   limits->rephase = SEARCH_CONFLICTS;
   limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
   very_verbose (ring, "next rephase limit at %" PRIu64 " conflicts",
-	        limits->rephase);
+		limits->rephase);
   report (ring, type);
 }

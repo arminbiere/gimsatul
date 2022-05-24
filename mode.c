@@ -76,5 +76,6 @@ switch_mode (struct ring *ring)
       rebuild_heap (ring);
     }
   l->mode = SEARCH_TICKS + square (s->switched / 2 + 1) * i->mode;
-  very_verbose (ring, "next mode switching limit at %" PRIu64 " ticks", l->mode);
+  very_verbose (ring, "next mode switching limit at %" PRIu64 " ticks",
+		l->mode);
 }
