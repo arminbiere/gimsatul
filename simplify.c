@@ -3,6 +3,7 @@
 #include "compact.h"
 #include "deduplicate.h"
 #include "eliminate.h"
+#include "export.h"
 #include "import.h"
 #include "message.h"
 #include "propagate.h"
@@ -605,51 +606,35 @@ simplify_ruler (struct ruler *ruler)
 }
 
 static void
-clone_first_ring_simplification (struct ring * ring)
+trigger_synchronization (struct ring * ring)
 {
-  assert (!ring->id);
-  ring->references =
-    allocate_and_clear_array (2*ring->size, sizeof *ring->references);
-  copy_ruler (ring);
+  struct ruler * ruler = ring->ruler;
+  if (ring->id)
+    assert (ruler->simplify);
+  else
+    {
+      if (pthread_mutex_lock (&ruler->locks.simplify))
+	fatal_error ("failed to acquire simplify lock during starting");
+      assert (!ruler->simplify);
+      ruler->simplify = true;
+      if (pthread_mutex_unlock (&ruler->locks.simplify))
+	fatal_error ("failed to release simplify lock during starting");
+    }
 }
 
 static void
-copy_other_ring_simplification (struct ring * dst)
+wait_to_actually_start_synchronization (struct ring * ring)
 {
-  assert (dst->id);
-  dst->references =
-    allocate_and_clear_array (2*dst->size, sizeof *dst->references);
-  copy_ring (dst);
-}
-
-static void
-finish_first_ring_simplication (struct ring * ring)
-{
-  assert (!ring->id);
-  RELEASE (ring->ruler->clauses);
-  struct ring_limits * limits = &ring->limits;
-  struct ring_statistics * statistics = &ring->statistics;
-  limits->simplify = SEARCH_CONFLICTS;
-  unsigned interval = ring->options.simplify_interval;
-  assert (interval);
-  limits->simplify += interval * nlogn (statistics->simplifications);
-  very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
-		limits->simplify);
-}
-
-static void
-finish_ring_simplification (struct ring * ring)
-{
-  if (!ring->id)
-    finish_first_ring_simplication (ring);
-  ring->trail.propagate = ring->trail.begin;
-}
-
-static void
-run_first_ring_simplification (struct ring * ring)
-{
-  assert (!ring->id);
-  (void) ring;
+  struct ruler * ruler = ring->ruler;
+  rendezvous (&ruler->barriers.start, ring);
+  if (ring->id)
+    return;
+  if (pthread_mutex_lock (&ruler->locks.simplify))
+    fatal_error ("failed to acquire simplify lock during preparation");
+  assert (ruler->simplify);
+  ruler->simplify = false;
+  if (pthread_mutex_unlock (&ruler->locks.simplify))
+    fatal_error ("failed to release simplify lock during preparation");
 }
 
 static bool
@@ -679,23 +664,12 @@ continue_importing_and_propagating_units (struct ring * ring)
   return !done;
 }
 
-#ifndef NDEBUG
-void check_clause_statistics (struct ring *);
-#endif
-
 static void
-prepare_ring_simplification (struct ring * ring)
+synchronize_exported_and_imported_units (struct ring * ring)
 {
+  flush_pool (ring);
   struct ruler * ruler = ring->ruler;
-  if (!ring->id)
-    {
-      if (pthread_mutex_lock (&ruler->locks.simplify))
-	fatal_error ("failed to acquire simplify lock during preparation");
-      assert (ruler->simplify);
-      ruler->simplify = false;
-      if (pthread_mutex_unlock (&ruler->locks.simplify))
-	fatal_error ("failed to release simplify lock during preparation");
-    }
+  rendezvous (&ruler->barriers.import, ring);
   if (ring->level)
     backtrack (ring, 0);
   while (continue_importing_and_propagating_units (ring))
@@ -706,48 +680,81 @@ prepare_ring_simplification (struct ring * ring)
 	                    "propagation after importing shared failed");
   assert (ring->inconsistent ||
           ring->trail.propagate == ring->trail.end);
-  STOP_SEARCH ();
-  ring->statistics.simplifications++;
-  unclone_ring (ring);
-  rendezvous (&ruler->barriers.run, ring);
-  if (!ring->id)
-    run_first_ring_simplification (ring);
-  rendezvous (&ruler->barriers.clone, ring);
-  if (!ring->id)
-    clone_first_ring_simplification (ring);
-  rendezvous (&ruler->barriers.copy, ring);
+}
+
+static void
+run_ring_simplification (struct ring * ring)
+{
+  rendezvous (&ring->ruler->barriers.run, ring);
   if (ring->id)
-    copy_other_ring_simplification (ring);
-  rendezvous (&ruler->barriers.finish, ring);
+    return;
+  // TODO
+}
+
+static void
+clone_first_ring_after_simplification (struct ring * ring)
+{
+  rendezvous (&ring->ruler->barriers.clone, ring);
+  if (ring->id)
+    return;
+  ring->references =
+    allocate_and_clear_array (2*ring->size, sizeof *ring->references);
+  copy_ruler (ring);
+}
+
+static void
+copy_other_ring_after_simplification (struct ring * ring)
+{
+  rendezvous (&ring->ruler->barriers.copy, ring);
+  if (!ring->id)
+    return;
+  ring->references =
+    allocate_and_clear_array (2*ring->size, sizeof *ring->references);
+  copy_ring (ring);
+}
+
+static void
+finish_ring_simplification (struct ring * ring)
+{
+  rendezvous (&ring->ruler->barriers.finish, ring);
+  ring->trail.propagate = ring->trail.begin;
+  if (ring->id)
+    return;
+  RELEASE (ring->ruler->clauses);
+  struct ring_limits * limits = &ring->limits;
+  struct ring_statistics * statistics = &ring->statistics;
+  limits->simplify = SEARCH_CONFLICTS;
+  unsigned interval = ring->options.simplify_interval;
+  assert (interval);
+  limits->simplify += interval * nlogn (statistics->simplifications);
+  very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
+		limits->simplify);
+}
+
+#ifndef NDEBUG
+void check_clause_statistics (struct ring *);
+#endif
+
+int
+simplify_ring (struct ring * ring)
+{
+  trigger_synchronization (ring);
+  wait_to_actually_start_synchronization (ring);
+  ring->statistics.simplifications++;
+  synchronize_exported_and_imported_units (ring);
+  STOP_SEARCH ();
+  unclone_ring (ring);
+  run_ring_simplification (ring);
+  clone_first_ring_after_simplification (ring);
+  copy_other_ring_after_simplification (ring);
   finish_ring_simplification (ring);
-  rendezvous (&ruler->barriers.done, ring);
+  rendezvous (&ring->ruler->barriers.end, ring);
 #ifndef NDEBUG
   check_clause_statistics (ring);
 #endif
   report (ring, 's');
   START_SEARCH ();
-}
-
-int
-simplify_ring (struct ring * ring)
-{
-  struct ruler * ruler = ring->ruler;
-
-  if (ring->id)
-    assert (ruler->simplify);
-  else
-    {
-      if (pthread_mutex_lock (&ruler->locks.simplify))
-	fatal_error ("failed to acquire simplify lock during starting");
-      assert (!ruler->simplify);
-      ruler->simplify = true;
-      if (pthread_mutex_unlock (&ruler->locks.simplify))
-	fatal_error ("failed to release simplify lock during starting");
-    }
-
-  rendezvous (&ruler->barriers.prepare, ring);
-  prepare_ring_simplification (ring);
-  return ring->inconsistent ? 20 : 0;
+  return ring->status;
 }
 
 bool
@@ -757,7 +764,6 @@ simplifying (struct ring * ring)
     return false;
   if (!ring->id)
     return ring->limits.simplify <= SEARCH_CONFLICTS;
-    
   struct ruler * ruler = ring->ruler;
 #ifndef NFASTPATH
   if (!ruler->simplify)
@@ -768,6 +774,5 @@ simplifying (struct ring * ring)
   bool res = ruler->simplify;
   if (pthread_mutex_unlock (&ruler->locks.simplify))
     fatal_error ("failed to release simplify lock during checking");
-
   return res;
 }
