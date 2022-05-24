@@ -630,14 +630,15 @@ pick_literal_to_flip (struct walker *walker, size_t size, unsigned *literals)
 
   double sum = 0, *scores = walker->scores.begin;
 
-  for (unsigned *p = literals; p != end; p++)
+  unsigned * p = literals;
+  while (p != end)
     {
-      unsigned other = *p;
+      unsigned other = *p++;
       if (!values[other])
 	continue;
       double tmp = *scores++;
       sum += tmp;
-      if (threshold >= sum)
+      if (p != end && threshold >= sum)
 	continue;
       res = other;
       score = tmp;
