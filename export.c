@@ -143,7 +143,8 @@ flush_pool (struct ring * ring)
 	  struct clause *clause = atomic_exchange (share, 0);
 	  if (!clause)
 	    continue;
-	  dereference_clause (ring, clause);
+	  if (shared != BINARY_SHARED)
+	    dereference_clause (ring, clause);
 	  flushed++;
 	}
     }
