@@ -75,31 +75,52 @@ save_large_watches (struct ring * ring)
   struct clauses * clauses = &ruler->clauses;
   assert (ring->id || EMPTY (*clauses));
   struct watches * watches = &ring->watches;
-  struct clauses * saved = &ring->saved;
+  struct clauses * save = &ring->saved;
+  size_t transferred = 0, collected = 0, saved = 0, flushed = 0;
   for (all_watches (watch, *watches))
     {
       struct clause * clause = watch->clause;
       if (watch->garbage)
-	dereference_clause (ring, clause);
+	{
+	  dereference_clause (ring, clause);
+	  collected++;
+	}
       else
 	{
 	  if (watch->redundant)
-	    PUSH (*saved, watch->clause);
+	    {
+	      PUSH (*save, watch->clause);
+	      saved++;
+	    }
 	  else if (ring->id)
 	    {
-	      assert (clause->shared);
 	      dereference_clause (ring, clause);
+	      flushed++;
 	    }
 	  else
-	    PUSH (*clauses, clause);
+	    {
+	      PUSH (*clauses, clause);
+	      transferred++;
+	    }
 	  dec_clauses (ring, watch->redundant);
 	}
       free (watch);
     }
-  size_t flushed = SIZE (*watches) - SIZE (*saved);
   RELEASE (*watches);
-  very_verbose (ring, "saved %zu redundant large watches", SIZE (*saved));
+  very_verbose (ring, "saved %zu redundant large watches", saved);
   very_verbose (ring, "flushed %zu irredundant large watches", flushed);
+  if (ring->id)
+    {
+      assert (!transferred);
+      very_verbose (ring, "flushed %zu irredundant large watches", flushed);
+    }
+  else
+    {
+      assert (!flushed);
+      very_verbose (ring,
+                    "transferred %zu irredundant large clauses",
+		    transferred);
+    }
 }
 
 void

@@ -64,7 +64,7 @@ share_ring_binaries (struct ring *dst, struct ring *src)
 }
 
 static void
-transfer_and_own_ruler_clauses (struct ring *ring)
+transfer_ruler_clauses_to_ring (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
   assert (first_ring (ruler) == ring);
@@ -81,7 +81,7 @@ transfer_and_own_ruler_clauses (struct ring *ring)
 }
 
 static void
-restore_clauses (struct ring * ring)
+restore_saved_redundant_clauses (struct ring * ring)
 {
   struct clauses * saved = &ring->saved;
   if (EMPTY (*saved))
@@ -122,8 +122,8 @@ copy_ruler (struct ring * ring)
   else
     {
       copy_ruler_binaries (ring);
-      transfer_and_own_ruler_clauses (ring);
-      restore_clauses (ring);
+      transfer_ruler_clauses_to_ring (ring);
+      restore_saved_redundant_clauses (ring);
     }
 }
 
@@ -171,7 +171,7 @@ copy_ring (struct ring * dst)
   assert (src->ruler == ruler);
   share_ring_binaries (dst, src);
   clone_clauses (dst);
-  restore_clauses (dst);
+  restore_saved_redundant_clauses (dst);
 }
 
 static void *
