@@ -182,7 +182,10 @@ connect_counters (struct walker *walker, struct clause *last)
 	if (values[lit])
 	  length++;
       if (!length)
-	continue;
+	{
+	  LOGCLAUSE (clause, "WARNING: fully assigned");
+	  continue;
+	}
       unsigned count = 0;
       for (all_literals_in_clause (lit, clause))
 	{
