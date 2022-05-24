@@ -1,8 +1,9 @@
 #ifndef _compact_h_INCLUDED
 #define _compact_h_INCLUDED
 
-struct simplifier;
+#include <stdbool.h>
 
-void compact_ruler (struct simplifier *);
+struct simplifier;
+void compact_ruler (struct simplifier *, bool preprocessing);
 
 #endif

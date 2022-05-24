@@ -60,8 +60,18 @@ map_clauses (struct ruler *ruler, unsigned *map)
     map_large_clause (map, *p);
 }
 
+static void
+compact_ring (struct ring * ring, unsigned * map)
+{
+  struct ruler * ruler = ring->ruler;
+  unsigned old_size = ring->size;
+  unsigned new_size = ruler->compact;
+  assert (new_size <= old_size);
+  (void) old_size, (void) new_size;
+}
+
 void
-compact_ruler (struct simplifier *simplifier)
+compact_ruler (struct simplifier *simplifier, bool preprocessing)
 {
   struct ruler *ruler = simplifier->ruler;
   if (ruler->inconsistent)
@@ -85,6 +95,7 @@ compact_ruler (struct simplifier *simplifier)
   struct unsigneds *extension = &ruler->extension;
   for (all_ruler_indices (idx))
     {
+      map[idx] = INVALID;
       if (eliminated[idx])
 	continue;
       unsigned lit = LIT (idx);
@@ -111,11 +122,13 @@ compact_ruler (struct simplifier *simplifier)
       unsigned not_lit = NOT (lit);
       if (!eliminated[idx] && !values[lit])
 	{
+	  assert (map[idx] == INVALID);
 	  map_occurrences (ruler, map, lit);
 	  map_occurrences (ruler, map, not_lit);
 	}
       else
 	{
+	  assert (map[idx] <= idx);
 	  RELEASE (OCCURRENCES (lit));
 	  RELEASE (OCCURRENCES (not_lit));
 	}
@@ -124,6 +137,11 @@ compact_ruler (struct simplifier *simplifier)
   ruler->compact = compact;
 
   map_clauses (ruler, map);
+
+  if (!preprocessing)
+    for (all_rings (ring))
+      compact_ring (ring, map);
+
   free (map);
 
   free ((void *) ruler->values);

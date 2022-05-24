@@ -577,7 +577,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
 }
 
 void
-simplify_ruler (struct ruler *ruler)
+simplify_ruler (struct ruler *ruler, bool preprocessing)
 {
   if (ruler->inconsistent)
     return;
@@ -588,13 +588,20 @@ simplify_ruler (struct ruler *ruler)
   ruler->simplifying = true;
 
   struct simplifier *simplifier = new_simplifier (ruler);
-  if (ruler->options.preprocessing)
+
+#if 0
+  bool full = preprocessing ?
+    ruler->options.preprocessing : ruler->options.inprocessing;
+#else
+  bool full = preprocessing && ruler->options.preprocessing;
+#endif
+  if (full)
     run_full_blown_simplification (simplifier);
   else
     run_only_root_level_propagation (simplifier);
 
   push_ruler_units_to_extension_stack (ruler);
-  compact_ruler (simplifier);
+  compact_ruler (simplifier, preprocessing);
   delete_simplifier (simplifier);
 
   assert (ruler->simplifying);
