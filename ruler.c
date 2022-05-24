@@ -273,6 +273,7 @@ set_terminate (struct ruler *ruler)
 
   abort_waiting_and_disable_barrier (&ruler->barriers.start);
   abort_waiting_and_disable_barrier (&ruler->barriers.import);
+  abort_waiting_and_disable_barrier (&ruler->barriers.unclone);
 }
 
 void

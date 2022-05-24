@@ -690,11 +690,13 @@ synchronize_exported_and_imported_units (struct ring * ring)
   return !ring->inconsistent;
 }
 
-static void
+static bool
 unclone_before_running_simplification (struct ring * ring)
 {
-  (void) rendezvous (&ring->ruler->barriers.unclone, ring, true);
+  if (!rendezvous (&ring->ruler->barriers.unclone, ring, false))
+    return false;
   unclone_ring (ring);
+  return true;
 }
 
 static void
@@ -756,9 +758,10 @@ simplify_ring (struct ring * ring)
     return ring->status;
   if (!synchronize_exported_and_imported_units (ring))
     return ring->status;
+  if (!unclone_before_running_simplification (ring))
+    return ring->status;
   ring->statistics.simplifications++;
   STOP_SEARCH ();
-  unclone_before_running_simplification (ring);
   run_ring_simplification (ring);
   copy_other_ring_after_simplification (ring);
   finish_ring_simplification (ring);
