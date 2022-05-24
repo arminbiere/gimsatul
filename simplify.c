@@ -622,19 +622,21 @@ trigger_synchronization (struct ring * ring)
     }
 }
 
-static void
+static bool
 wait_to_actually_start_synchronization (struct ring * ring)
 {
   struct ruler * ruler = ring->ruler;
-  rendezvous (&ruler->barriers.start, ring);
-  if (ring->id)
-    return;
-  if (pthread_mutex_lock (&ruler->locks.simplify))
-    fatal_error ("failed to acquire simplify lock during preparation");
-  assert (ruler->simplify);
-  ruler->simplify = false;
-  if (pthread_mutex_unlock (&ruler->locks.simplify))
-    fatal_error ("failed to release simplify lock during preparation");
+  bool res = rendezvous (&ruler->barriers.start, ring);
+  if (!ring->id)
+    {
+      if (pthread_mutex_lock (&ruler->locks.simplify))
+	fatal_error ("failed to acquire simplify lock during preparation");
+      assert (ruler->simplify);
+      ruler->simplify = false;
+      if (pthread_mutex_unlock (&ruler->locks.simplify))
+	fatal_error ("failed to release simplify lock during preparation");
+    }
+  return res;
 }
 
 static bool
@@ -664,12 +666,15 @@ continue_importing_and_propagating_units (struct ring * ring)
   return !done;
 }
 
-static void
+static bool
 synchronize_exported_and_imported_units (struct ring * ring)
 {
   flush_pool (ring);
   struct ruler * ruler = ring->ruler;
-  rendezvous (&ruler->barriers.import, ring);
+
+  if (!rendezvous (&ruler->barriers.import, ring))
+    return false;
+
   if (ring->level)
     backtrack (ring, 0);
   while (continue_importing_and_propagating_units (ring))
@@ -678,8 +683,11 @@ synchronize_exported_and_imported_units (struct ring * ring)
 	if (ring_propagate (ring, false, 0))
 	  set_inconsistent (ring,
 	                    "propagation after importing shared failed");
+
   assert (ring->inconsistent ||
           ring->trail.propagate == ring->trail.end);
+  
+  return !ring->inconsistent;
 }
 
 static void
@@ -744,9 +752,11 @@ int
 simplify_ring (struct ring * ring)
 {
   trigger_synchronization (ring);
-  wait_to_actually_start_synchronization (ring);
+  if (!wait_to_actually_start_synchronization (ring))
+    return ring->status;
+  if (!synchronize_exported_and_imported_units (ring))
+    return ring->status;
   ring->statistics.simplifications++;
-  synchronize_exported_and_imported_units (ring);
   STOP_SEARCH ();
   unclone_before_running_simplification (ring);
   run_ring_simplification (ring);
