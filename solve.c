@@ -149,11 +149,10 @@ solve_rings (struct ruler *ruler)
 	}
       message (0, "starting and running %zu ring threads", threads);
 
-      init_barrier (&ruler->barriers.simplify.prepare, "prepare", threads);
-      init_barrier (&ruler->barriers.simplify.run, "run", threads);
-      init_barrier (&ruler->barriers.simplify.clone, "clone", threads);
-      init_barrier (&ruler->barriers.simplify.copy, "copy", threads);
-      init_barrier (&ruler->barriers.simplify.finish, "finish", threads);
+#define BARRIER(NAME) \
+      init_barrier (&ruler->barriers.NAME, #NAME, threads);
+      BARRIERS
+#undef BARRIER
 
       for (all_rings (ring))
 	start_running_ring (ring);

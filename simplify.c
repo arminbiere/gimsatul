@@ -709,17 +709,18 @@ prepare_ring_simplification (struct ring * ring)
   STOP_SEARCH ();
   ring->statistics.simplifications++;
   unclone_ring (ring);
-  rendezvous (&ruler->barriers.simplify.run, ring);
+  rendezvous (&ruler->barriers.run, ring);
   if (!ring->id)
     run_first_ring_simplification (ring);
-  rendezvous (&ruler->barriers.simplify.clone, ring);
+  rendezvous (&ruler->barriers.clone, ring);
   if (!ring->id)
     clone_first_ring_simplification (ring);
-  rendezvous (&ruler->barriers.simplify.copy, ring);
+  rendezvous (&ruler->barriers.copy, ring);
   if (ring->id)
     copy_other_ring_simplification (ring);
-  rendezvous (&ruler->barriers.simplify.finish, ring);
+  rendezvous (&ruler->barriers.finish, ring);
   finish_ring_simplification (ring);
+  rendezvous (&ruler->barriers.done, ring);
 #ifndef NDEBUG
   check_clause_statistics (ring);
 #endif
@@ -744,7 +745,7 @@ simplify_ring (struct ring * ring)
 	fatal_error ("failed to release simplify lock during starting");
     }
 
-  rendezvous (&ruler->barriers.simplify.prepare, ring);
+  rendezvous (&ruler->barriers.prepare, ring);
   prepare_ring_simplification (ring);
   return ring->inconsistent ? 20 : 0;
 }

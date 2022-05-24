@@ -27,14 +27,19 @@ struct ruler_locks
   pthread_mutex_t winner;
 };
 
+#define BARRIERS \
+  BARRIER (clone) \
+  BARRIER (copy) \
+  BARRIER (done) \
+  BARRIER (finish) \
+  BARRIER (prepare) \
+  BARRIER (run)
+
 struct ruler_barriers {
-  struct {
-    struct barrier clone;
-    struct barrier copy;
-    struct barrier finish;
-    struct barrier prepare;
-    struct barrier run;
-  } simplify;
+#define BARRIER(NAME) \
+  struct barrier NAME;
+  BARRIERS
+#undef BARRIER
 };
 
 struct ruler_last
@@ -103,6 +108,15 @@ struct ruler
   unsigned LIT = 0, END_ ## LIT = 2*ruler->compact; \
   LIT != END_ ## LIT; \
   LIT += 2
+
+#define BEGIN_BARRIERS \
+  ((struct barrier *) &ruler->barriers)
+
+#define END_BARRIERS \
+  ((struct barrier*) ((char *) &ruler->barriers + sizeof ruler->barriers))
+
+#define all_barriers(B) \
+  struct barrier * B = BEGIN_BARRIERS; B != END_BARRIERS; B++
 
 /*------------------------------------------------------------------------*/
 

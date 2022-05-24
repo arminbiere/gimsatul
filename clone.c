@@ -10,6 +10,7 @@ static void
 copy_ruler_binaries (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
+  assert (!ruler->inconsistent);
   assert (first_ring (ruler) == ring);
   assert (!ring->id);
   size_t copied = 0;
@@ -67,6 +68,7 @@ static void
 transfer_ruler_clauses_to_ring (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
+  assert (!ruler->inconsistent);
   assert (first_ring (ruler) == ring);
   assert (!ring->id);
   size_t transferred = 0;
@@ -118,7 +120,11 @@ copy_ruler (struct ring * ring)
 {
   struct ruler * ruler = ring->ruler;
   if (ruler->inconsistent)
-    set_inconsistent (ring, "copied empty clause");
+    {
+      set_inconsistent (ring, "copied empty clause");
+      for (all_clauses (clause, ruler->clauses))
+        free (clause);
+    }
   else
     {
       copy_ruler_binaries (ring);
@@ -145,11 +151,7 @@ static void
 clone_clauses (struct ring * ring)
 {
   struct ruler * ruler = ring->ruler;
-  if (ruler->inconsistent)
-    {
-      set_inconsistent (ring, "cloning inconsistent empty clause");
-      return;
-    }
+  assert (!ruler->inconsistent);
   size_t shared = 0;
   for (all_clauses (clause, ruler->clauses))
     {
@@ -165,6 +167,7 @@ void
 copy_ring (struct ring * dst)
 {
   struct ruler * ruler = dst->ruler;
+  assert (!ruler->inconsistent);
   struct ring * src = first_ring (ruler);
   assert (dst != src);
   assert (!src->id);
@@ -214,7 +217,7 @@ clone_rings (struct ruler *ruler)
   if (verbosity >= 0)
     before = current_resident_set_size () / (double) (1 << 20);
   clone_ruler (ruler);
-  if (threads > 1)
+  if (threads > 1 && !ruler->inconsistent)
     {
       message (0, "cloning %u rings from first to support %u threads",
 	       threads - 1, threads);
@@ -227,7 +230,7 @@ clone_rings (struct ruler *ruler)
 	stop_cloning_ring (first, i);
     }
   RELEASE (ruler->clauses);
-  assert (SIZE (ruler->rings) == threads);
+  assert (ruler->inconsistent || SIZE (ruler->rings) == threads);
   if (verbosity >= 0)
     {
       double after = current_resident_set_size () / (double) (1 << 20);

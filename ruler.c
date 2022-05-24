@@ -276,11 +276,8 @@ set_terminate (struct ruler *ruler)
   if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
 
-  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.prepare);
-  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.run);
-  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.copy);
-  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.clone);
-  abort_waiting_and_disable_barrier (&ruler->barriers.simplify.finish);
+  for (all_barriers (barrier))
+    abort_waiting_and_disable_barrier (barrier);
 }
 
 void

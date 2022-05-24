@@ -78,8 +78,7 @@ new_ring (struct ruler *ruler)
     allocate_and_clear_array (sizeof (struct references), 2 * size);
   assert (sizeof (bool) == 1);
   ring->active = allocate_and_clear_block (size);
-  ring->used[0] = allocate_and_clear_block (size);
-  ring->used[1] = allocate_and_clear_block (size);
+  ring->used = allocate_and_clear_block (size);
   ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
   struct ring_trail *trail = &ring->trail;
   trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
