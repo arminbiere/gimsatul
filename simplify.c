@@ -683,23 +683,28 @@ synchronize_exported_and_imported_units (struct ring * ring)
 }
 
 static void
-run_ring_simplification (struct ring * ring)
+unclone_before_running_simplification (struct ring * ring)
 {
-  rendezvous (&ring->ruler->barriers.run, ring);
-  if (ring->id)
-    return;
-  // TODO
+  rendezvous (&ring->ruler->barriers.unclone, ring);
+  unclone_ring (ring);
 }
 
 static void
 clone_first_ring_after_simplification (struct ring * ring)
 {
-  rendezvous (&ring->ruler->barriers.clone, ring);
-  if (ring->id)
-    return;
+  assert (!ring->id);
   ring->references =
     allocate_and_clear_array (2*ring->size, sizeof *ring->references);
   copy_ruler (ring);
+}
+
+static void
+run_ring_simplification (struct ring * ring)
+{
+  rendezvous (&ring->ruler->barriers.run, ring);
+  if (ring->id)
+    return;
+  clone_first_ring_after_simplification (ring);
 }
 
 static void
@@ -716,7 +721,7 @@ copy_other_ring_after_simplification (struct ring * ring)
 static void
 finish_ring_simplification (struct ring * ring)
 {
-  rendezvous (&ring->ruler->barriers.finish, ring);
+  rendezvous (&ring->ruler->barriers.end, ring);
   ring->trail.propagate = ring->trail.begin;
   if (ring->id)
     return;
@@ -743,12 +748,10 @@ simplify_ring (struct ring * ring)
   ring->statistics.simplifications++;
   synchronize_exported_and_imported_units (ring);
   STOP_SEARCH ();
-  unclone_ring (ring);
+  unclone_before_running_simplification (ring);
   run_ring_simplification (ring);
-  clone_first_ring_after_simplification (ring);
   copy_other_ring_after_simplification (ring);
   finish_ring_simplification (ring);
-  rendezvous (&ring->ruler->barriers.end, ring);
 #ifndef NDEBUG
   check_clause_statistics (ring);
 #endif

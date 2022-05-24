@@ -34,13 +34,12 @@ struct ruler_locks
 };
 
 #define BARRIERS \
-  BARRIER (clone) \
   BARRIER (copy) \
   BARRIER (end) \
-  BARRIER (finish) \
   BARRIER (import) \
   BARRIER (run) \
   BARRIER (start) \
+  BARRIER (unclone) \
 
 struct ruler_barriers {
 #define BARRIER(NAME) \
