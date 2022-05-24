@@ -77,15 +77,20 @@ compact_ring (struct ring * ring, unsigned * map)
   ring->target = 0;
   ring->unassigned = new_size;;
 
-  free (ring->marks), ring->marks = allocate_and_clear_block (new_size);
-  free (ring->values), ring->values = allocate_and_clear_block (2*new_size);
+  // TODO: Move this to 'unclone'.
 
-  free (ring->active), ring->active = allocate_and_clear_block (new_size);
-  free (ring->used), ring->used = allocate_and_clear_block (new_size);
+  free (ring->marks);
+  free (ring->values);
+  free (ring->active);
+  free (ring->used);
+
+  ring->marks = allocate_and_clear_block (2*new_size);
+  ring->values = allocate_and_clear_block (2*new_size);
+
+  ring->active = allocate_and_clear_block (new_size);
+  ring->used = allocate_and_clear_block (new_size);
 
 #if 0
-  compact_marks (ring, new_size);
-  compact_values (ring, new_size);
   compact_trail (ring, new_size);
 #endif
 }

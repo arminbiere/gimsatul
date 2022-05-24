@@ -12,7 +12,7 @@ struct node
 
 struct heap
 {
-  double increment[2];
+  double increment;
   struct node *nodes;
   struct node *root;
 };

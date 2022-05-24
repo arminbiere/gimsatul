@@ -60,13 +60,12 @@ new_ring (struct ruler *ruler)
 {
   unsigned size = ruler->compact;
   assert (size < (1u << 30));
+
   struct ring *ring = allocate_and_clear_block (sizeof *ring);
+
   init_ring_profiles (ring);
   push_ring (ruler, ring);
   ring->size = size;
-  ring->options = ruler->options;
-  if ((ring->trace.file = ruler->trace.file))
-    ring->trace.binary = ruler->trace.binary;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);
 
   ring->marks = allocate_and_clear_block (2 * size);
@@ -86,11 +85,11 @@ new_ring (struct ruler *ruler)
 
   struct heap *heap = &ring->heap;
   heap->nodes = allocate_and_clear_array (size, sizeof *heap->nodes);
-  heap->increment[0] = heap->increment[1] = 1;
+  heap->increment = 1;
 
   struct queue *queue = &ring->queue;
-  queue->links = allocate_and_clear_array (size, sizeof *heap->nodes);
-  unsigned active = 0;
+  queue->links = allocate_and_clear_array (size, sizeof *queue->links);
+
   struct node *n = heap->nodes;
   struct link *l = queue->links;
   for (all_ring_indices (idx))
@@ -101,14 +100,17 @@ new_ring (struct ruler *ruler)
       ring->active[idx] = true;
       push_heap (heap, node);
       enqueue (queue, link, true);
-      active++;
     }
-  ring->statistics.active = ring->unassigned = active;
-  LOG ("found %u active variables", active);
-  assert (active == ring->size);
+  ring->statistics.active = ring->unassigned = size;
+
+  if ((ring->trace.file = ruler->trace.file))
+    ring->trace.binary = ruler->trace.binary;
+
   for (all_averages (a))
     a->exp = 1.0;
   ring->limits.conflicts = -1;
+  ring->options = ruler->options;
+
   return ring;
 }
 
