@@ -1,4 +1,5 @@
 #include "message.h"
+#include "pthread.h"
 #include "ruler.h"
 #include "trace.h"
 #include "simplify.h"
@@ -297,4 +298,16 @@ set_winner (struct ring *ring)
     }
   set_terminate (ruler);
   verbose (ring, "winning ring[%u] with status %d", ring->id, ring->status);
+}
+
+struct ring *
+first_ring (struct ruler * ruler)
+{
+  if (pthread_mutex_lock (&ruler->locks.rings))
+    fatal_error ("failed to acquire rings lock while getting first");
+  assert (!EMPTY (ruler->rings));
+  struct ring * first = ruler->rings.begin[0];
+  if (pthread_mutex_unlock (&ruler->locks.rings))
+    fatal_error ("failed to release rings lock while getting first");
+  return first;
 }

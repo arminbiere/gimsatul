@@ -154,11 +154,6 @@ connect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
   PUSH (OCCURRENCES (lit), clause);
 }
 
-static inline struct ring *
-first_ring (struct ruler *ruler)
-{
-  assert (!EMPTY (ruler->rings));
-  return ruler->rings.begin[0];
-}
+struct ring * first_ring (struct ruler *);
 
 #endif
