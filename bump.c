@@ -103,10 +103,12 @@ rebuild_heap (struct ring *ring)
 {
   struct heap *heap = &ring->heap;
   struct node *nodes = heap->nodes;
-  memset (nodes, 0, ring->size * sizeof *nodes);
   heap->root = 0;
   for (all_active_nodes (node))
-    push_heap (heap, node);
+    {
+      node->child = node->prev = node->next = 0;
+      push_heap (heap, node);
+    }
 }
 
 void

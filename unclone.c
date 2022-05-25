@@ -65,7 +65,6 @@ save_ring_binaries (struct ring *ring)
 
   assert (ring->statistics.redundant >= redundant);
   ring->statistics.redundant -= redundant;
-
 }
 
 static void
@@ -124,11 +123,7 @@ save_large_watches (struct ring *ring)
 void
 unclone_ring (struct ring *ring)
 {
-  RELEASE (ring->analyzed);
-  RELEASE (ring->clause);
-  RELEASE (ring->levels);
-  RELEASE (ring->minimize);
-  assert (ring->ruler->compact == ring->size);
+  release_ring (ring);
   save_ring_binaries (ring);
   save_large_watches (ring);
 }

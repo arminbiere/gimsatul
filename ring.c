@@ -59,6 +59,60 @@ init_ring_profiles (struct ring *ring)
 
 #endif
 
+void
+init_ring (struct ring * ring)
+{
+  size_t size = ring->size;
+  very_verbose (ring, "initializing 'ring[%u]' of size %zu",
+                ring->id, size);
+
+  assert (!ring->marks);
+  assert (!ring->values);
+  assert (!ring->active);
+  assert (!ring->used);
+
+  ring->marks = allocate_and_clear_block (2 * size);
+  ring->values = allocate_and_clear_block (2 * size);
+  ring->active = allocate_and_clear_block (size);
+  ring->used = allocate_and_clear_block (size);
+
+  assert (!ring->references);
+  ring->references =
+    allocate_and_clear_array (sizeof (struct references), 2 * size);
+
+  struct ring_trail *trail = &ring->trail;
+  assert (!trail->begin);
+  assert (!trail->pos);
+  trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
+  trail->export = trail->propagate = trail->iterate = trail->begin;
+  trail->pos = allocate_array (size, sizeof *trail->pos);
+
+  assert (!ring->variables);
+  ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
+}
+
+void
+release_ring (struct ring * ring)
+{
+  very_verbose (ring, "releasing 'ring[%u]' of size %u",
+                ring->id, ring->size);
+
+  FREE (ring->marks);
+  FREE (ring->values);
+  FREE (ring->active);
+  FREE (ring->used);
+
+  RELEASE (ring->analyzed);
+  RELEASE (ring->clause);
+  RELEASE (ring->levels);
+  RELEASE (ring->minimize);
+
+  FREE (ring->references);
+  FREE (ring->trail.begin);
+  FREE (ring->trail.pos);
+  FREE (ring->variables);
+}
+
 struct ring *
 new_ring (struct ruler *ruler)
 {
@@ -73,20 +127,7 @@ new_ring (struct ruler *ruler)
   ring->size = size;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);
 
-  ring->marks = allocate_and_clear_block (2 * size);
-  ring->values = allocate_and_clear_block (2 * size);
-  ring->active = allocate_and_clear_block (size);
-  ring->used = allocate_and_clear_block (size);
-
-  ring->references =
-    allocate_and_clear_array (sizeof (struct references), 2 * size);
-
-  struct ring_trail *trail = &ring->trail;
-  trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
-  trail->export = trail->propagate = trail->iterate = trail->begin;
-  trail->pos = allocate_array (size, sizeof *trail->pos);
-
-  ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
+  init_ring (ring);
 
   struct heap *heap = &ring->heap;
   heap->nodes = allocate_and_clear_array (size, sizeof *heap->nodes);
@@ -187,26 +228,21 @@ delete_ring (struct ring *ring)
 {
   verbose (ring, "delete ring[%u]", ring->id);
   release_pool (ring);
-  RELEASE (ring->clause);
-  RELEASE (ring->analyzed);
-  RELEASE (ring->minimize);
-  free (ring->trail.begin);
-  free (ring->trail.pos);
-  RELEASE (ring->levels);
-  RELEASE (ring->trace.buffer);
+
   release_references (ring);
   if (!ring->id)
     release_binaries (ring);
-  free (ring->references);
-  release_watches (ring);
-  RELEASE (ring->saved);
+
+  release_ring (ring);
+
   free (ring->heap.nodes);
   free (ring->queue.links);
-  free (ring->variables);
-  free (ring->values);
-  free (ring->marks);
-  free (ring->active);
-  free (ring->used);
+
+  release_watches (ring);
+  RELEASE (ring->saved);
+
+  RELEASE (ring->trace.buffer);
+
   free (ring);
 }
 

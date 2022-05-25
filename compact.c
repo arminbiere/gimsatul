@@ -8,6 +8,8 @@ map_literal (unsigned *map, unsigned original_lit)
 {
   unsigned original_idx = IDX (original_lit);
   unsigned mapped_idx = map[original_idx];
+  if (mapped_idx == INVALID)
+    return INVALID;
   unsigned mapped_lit = LIT (mapped_idx);
   if (SGN (original_lit))
     mapped_lit = NOT (mapped_lit);
@@ -61,6 +63,43 @@ map_clauses (struct ruler *ruler, unsigned *map)
 }
 
 static void
+compact_heap (struct ring * ring, struct heap * heap,
+              unsigned old_size, unsigned new_size, unsigned * map)
+{
+  struct node * old_nodes = heap->nodes;
+  struct node * new_nodes = heap->nodes =
+    allocate_and_clear_array (new_size, sizeof *new_nodes);
+  heap->root = 0;
+  struct node * new_node = new_nodes, *old_node = old_nodes;
+  unsigned * end = map + old_size;
+  for (unsigned * mapped = map; mapped != end; mapped++, old_node++)
+    {
+      unsigned new_idx = *mapped;
+      if (new_idx == INVALID)
+	continue;
+      assert (new_nodes + new_idx == new_node);
+      new_node->score = old_node->score;
+      push_heap (heap, new_node);
+    }
+  assert (old_node = old_nodes + old_size);
+  assert (new_node = new_nodes + new_size);
+  free (old_nodes);
+}
+
+static void
+compact_queue (struct ring * ring, struct queue * queue,
+               unsigned old_size, unsigned new_size, unsigned * map)
+{
+
+}
+
+static void
+compact_clauses (struct ring * ring,
+                 struct clauses * clauses, unsigned * map)
+{
+}
+
+static void
 compact_ring (struct ring * ring, unsigned * map)
 {
   struct ruler * ruler = ring->ruler;
@@ -77,22 +116,13 @@ compact_ring (struct ring * ring, unsigned * map)
   ring->target = 0;
   ring->unassigned = new_size;;
 
-  // TODO: Move this to 'unclone'.
+  init_ring (ring);
 
-  free (ring->marks);
-  free (ring->values);
-  free (ring->active);
-  free (ring->used);
+  compact_heap (ring, &ring->heap, old_size, new_size, map);
+  compact_queue (ring, &ring->queue, old_size, new_size, map);
 
-  ring->marks = allocate_and_clear_block (2*new_size);
-  ring->values = allocate_and_clear_block (2*new_size);
-
-  ring->active = allocate_and_clear_block (new_size);
-  ring->used = allocate_and_clear_block (new_size);
-
-#if 0
-  compact_trail (ring, new_size);
-#endif
+  assert (EMPTY (watches));
+  compact_clauses (ring, &ring->saved, map);
 }
 
 void

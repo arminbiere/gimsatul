@@ -175,6 +175,9 @@ struct rings
 
 /*------------------------------------------------------------------------*/
 
+void init_ring (struct ring *);
+void release_ring (struct ring *);
+
 struct ring *new_ring (struct ruler *);
 void delete_ring (struct ring *);
 
