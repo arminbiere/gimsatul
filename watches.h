@@ -14,7 +14,9 @@ struct watch
   bool reason:1;
   bool redundant:1;
   bool vivify:1;
+#ifndef NMIDDLE
   unsigned middle;
+#endif
   unsigned sum;
   struct clause *clause;
 };

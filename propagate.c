@@ -96,9 +96,13 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 	      signed char replacement_value = -1;
 	      unsigned *literals = clause->literals;
 	      unsigned *end_literals = literals + clause->size;
+#ifndef NMIDDLE
 	      assert (watch->middle <= clause->size);
 	      unsigned *middle_literals = literals + watch->middle;
 	      unsigned *r = middle_literals;
+#else
+	      unsigned *r = literals;
+#endif
 	      ticks++;
 	      while (r != end_literals)
 		{
@@ -111,6 +115,7 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 		    }
 		  r++;
 		}
+#ifndef NMIDDLE
 	      if (replacement_value < 0)
 		{
 		  r = literals;
@@ -127,6 +132,7 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 		    }
 		}
 	      watch->middle = r - literals;
+#endif
 	      if (replacement_value >= 0)
 		{
 		  watch->sum = other ^ replacement;

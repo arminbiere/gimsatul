@@ -85,7 +85,9 @@ watch_large_clause (struct ring *ring, struct clause *clause)
     watch->used = 0;
   assert (glue <= MAX_GLUE);
   watch->glue = glue;
+#ifndef NMIDDLE
   watch->middle = 2;
+#endif
   watch->clause = clause;
   PUSH (ring->watches, watch);
   inc_clauses (ring, redundant);

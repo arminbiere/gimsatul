@@ -15,6 +15,7 @@ where '<option>' is one of the following:
 -f...             passed to compiler, e.g., '-fsanitize=address,undefined'
 -m32              enforce 32-bit compilation (also implies '-mpc64')
 --no-fast-path    no lock-less fast path for synchronization
+--no-middle       no literal traversal middle search cache
 EOF
 exit 1
 }
@@ -24,6 +25,7 @@ symbols=no
 logging=no
 fastpath=yes
 check=no
+middle=yes
 options=""
 quiet=no
 die () {
@@ -43,6 +45,7 @@ do
     -f*) options="$options $1";;
     -m32) options="$options $1 -mpc64";;
     --no-fast-path) fastpath=no;;
+    --no-middle) middle=no;;
     *)  die "invalid option '$1' (try '-h')";;
   esac
   shift
@@ -58,6 +61,7 @@ CFLAGS="-Wall$options"
 [ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $fastpath = no ] && CFLAGS="$CFLAGS -DNFASTPATH"
+[ $middle = no ] && CFLAGS="$CFLAGS -DNMIDDLE"
 [ $quiet = yes ] && CFLAGS="$CFLAGS -DQUIET"
 echo "configure: $CC $CFLAGS"
 rm -f makefile
