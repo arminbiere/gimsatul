@@ -1,3 +1,5 @@
+#ifndef QUIET
+
 #include "system.h"
 
 #include <stdio.h>
@@ -56,3 +58,5 @@ current_resident_set_size (void)
   fclose (file);
   return scanned == 2 ? rss * sysconf (_SC_PAGESIZE) : 0;
 }
+
+#endif
