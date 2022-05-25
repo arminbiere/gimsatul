@@ -25,7 +25,7 @@ symbols=no
 logging=no
 fastpath=yes
 check=no
-middle=yes
+middle=no
 options=""
 quiet=no
 die () {
