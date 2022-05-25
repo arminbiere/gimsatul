@@ -478,29 +478,25 @@ do { \
 void
 print_usage_of_options (void)
 {
-#if 0
-  "  --walk-initially         one additional round of initial local search\n"
-    "\n"
-    "  --no-deduplicate         disable removal of duplicated binary clauses\n"
-    "  --no-eliminate           disable clause subsumption and strengthening\n"
-    "  --no-fail                disable failed literal probing\n"
-    "  --no-inprocessing        disable all inprocessing (currently only 'probe')\n"
-    "  --no-portfolio           disable diversification through option portfolio\n"
-    "  --no-preprocessing       disable all preprocessing ('eliminate' etc.)\n"
-    "  --no-probe               disable probing inprocessing ('fail' + 'vivify')\n"
-    "  --no-simplify            disable all preprocessing and inprocessing\n"
-    "  --no-substitute          disable equivalent literal substitution\n"
-    "  --no-subsume             disable failed literal probing\n"
-    "  --no-vivify              disable redundant clause vivification\n"
-    "  --no-walk                disable local search during rephasing\n"
-    "\n"
-    "  --reduce-interval        clause reduction conflict interval\n"
-    "  --probe-interval         clause reduction conflict interval\n"
-#else
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
-  printf ("--%s=%u..%u (default %u)\n", \
-          #NAME, (unsigned) MIN, (unsigned) MAX, (unsigned) DEFAULT);
+do { \
+  fputs ("  --", stdout); \
+  for (const char * p = #NAME; *p; p++) \
+    fputc ((*p == '_') ? '-' : *p, stdout); \
+  fputc ('=', stdout); \
+  if (!strcmp (#TYPE, "bool")) \
+    printf ("<bool> (default '%s')", (DEFAULT) ? "true" : "false"); \
+  else \
+    { \
+      printf ("%u..", (unsigned) MIN); \
+      if ((int) MAX != INT_MAX) \
+	printf ("%u", (unsigned) MAX); \
+      else \
+	fputc ('.', stdout); \
+      printf (" (default '%u')", (unsigned) DEFAULT); \
+    } \
+  fputc ('\n', stdout); \
+} while (0);
   OPTIONS
 #undef OPTION
-#endif
 }

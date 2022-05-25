@@ -34,15 +34,26 @@ message (struct ring *ring, const char *fmt, ...)
   if (verbosity < 0)
     return;
   acquire_message_lock ();
-  if (ring)
-    printf (prefix_format, ring->id);
-  else
-    fputs ("c ", stdout);
   va_list ap;
   va_start (ap, fmt);
-  vprintf (fmt, ap);
-  va_end (ap);
-  fputc ('\n', stdout);
+  if (!fmt || *fmt == '\n')
+    {
+      if (ring)
+	printf ("c%u\n", ring->id);
+      else
+	printf ("c\n");
+      fmt++;
+    }
+  if (fmt)
+    {
+      if (ring)
+	printf (prefix_format, ring->id);
+      else
+	fputs ("c ", stdout);
+      vprintf (fmt, ap);
+      va_end (ap);
+      fputc ('\n', stdout);
+    }
   fflush (stdout);
   release_message_lock ();
 }
