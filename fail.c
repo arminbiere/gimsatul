@@ -52,7 +52,7 @@ failed_literal_probing (struct ring *ring)
 	}
       if (!probed)
 	very_verbose (ring, "failed literal probing starts at literal %d",
-		      export_literal (ring->ruler->map, probe));
+		      unmap_and_export_literal (ring->ruler->unmap, probe));
       if (terminate_ring (ring))
 	break;
       if (probe == start)
@@ -187,7 +187,7 @@ failed_literal_probing (struct ring *ring)
   RELEASE (lift);
   free (stamps);
   very_verbose (ring, "failed literal probing ends at literal %d after %"
-		PRIu64 " ticks (%s)", export_literal (ring->ruler->map,
+		PRIu64 " ticks (%s)", unmap_and_export_literal (ring->ruler->unmap,
 						      probe),
 		PROBING_TICKS - probing_ticks_before,
 		(PROBING_TICKS > limit ? "limit hit" : "completed"));

@@ -223,7 +223,7 @@ can_eliminate_variable (struct simplifier *simplifier,
 #if 0
   message (0,
 	   "candidate %d has %zu = %zu + %zu occurrences took %zu resolutions %"
-	   PRIu64 " ticks total %" PRIu64, export_literal (pivot), limit,
+	   PRIu64 " ticks total %" PRIu64, unmap_and_export_literal (pivot), limit,
 	   pos_size, neg_size, resolutions,
 	   ruler->statistics.ticks.elimination - ticks,
 	   ruler->statistics.ticks.elimination);

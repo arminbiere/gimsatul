@@ -112,7 +112,7 @@ delete_ruler (struct ruler *ruler)
   release_occurrences (ruler);
   release_clauses (ruler);
   free ((void *) ruler->values);
-  free (ruler->map);
+  free (ruler->unmap);
   free (ruler->units.begin);
   free (ruler->threads);
   free (ruler);
@@ -252,7 +252,7 @@ push_ring (struct ruler *ruler, struct ring *ring)
   ring->random = ring->id;
   ring->ruler = ruler;
   ring->units = ruler->units.end;
-  ring->trace.map = ruler->map;
+  ring->trace.unmap = ruler->unmap;
 }
 
 void

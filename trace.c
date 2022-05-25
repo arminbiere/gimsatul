@@ -11,14 +11,14 @@ binary_proof_line (struct trace *trace,
 		   size_t size, unsigned *literals, unsigned except)
 {
   const unsigned *end = literals + size;
-  unsigned * map = trace->map;
+  unsigned * unmap = trace->unmap;
   for (const unsigned *p = literals; p != end; p++)
     {
       unsigned lit = *p;
       if (lit == except)
 	continue;
-      unsigned mapped = unmap_literal (map, lit);
-      unsigned tmp = mapped + 2;
+      unsigned unmapped = unmap_literal (unmap, lit);
+      unsigned tmp = unmapped + 2;
       while (tmp & ~127u)
 	{
 	  unsigned char ch = (tmp & 0x7f) | 128;
@@ -36,15 +36,15 @@ ascii_proof_line (struct trace *trace,
 		  size_t size, unsigned *literals, unsigned except)
 {
   const unsigned *end = literals + size;
-  unsigned * map = trace->map;
+  unsigned * unmap = trace->unmap;
   char tmp[32];
   for (const unsigned *p = literals; p != end; p++)
     {
       unsigned lit = *p;
       if (lit == except)
 	continue;
-      int mapped = export_literal (map, lit);
-      sprintf (tmp, "%d", mapped);
+      int unmapped = unmap_and_export_literal (unmap, lit);
+      sprintf (tmp, "%d", unmapped);
       for (char *q = tmp, ch; (ch = *q); q++)
 	PUSH (trace->buffer, ch);
       PUSH (trace->buffer, ' ');

@@ -1,3 +1,4 @@
+#include "decide.h"
 #include "ruler.h"
 #include "message.h"
 #include "utilities.h"
@@ -16,12 +17,14 @@ extend_witness (struct ring *ring)
   signed char *witness = allocate_array (2 * ruler->size, sizeof *witness);
   signed char *values = ring->values;
   assert (ring->size == ruler->compact);
+  signed char phase = initial_phase (ring);
+  LOG ("setting all %u original variables to %d", ruler->size, phase);
   for (unsigned idx = 0; idx != ruler->size; idx++)
     {
       unsigned lit = LIT (idx);
       unsigned not_lit = NOT (lit);
-      witness[lit] = 1;
-      witness[not_lit] = -1;
+      witness[lit] = phase;
+      witness[not_lit] = -phase;
     }
 #ifdef LOGGING
   ring->values = witness;
@@ -32,13 +35,14 @@ extend_witness (struct ring *ring)
     ruler_variables[idx].level = INVALID;
   ring->variables = ruler_variables;
 #endif
-  unsigned * map = ruler->map;
-  ruler->map = 0;
+  unsigned * unmap = ruler->unmap;
+  ruler->unmap = 0;
+  LOG ("unmapping and assigning %u ring variables", ring->size);
   for (unsigned ring_idx = 0; ring_idx != ring->size; ring_idx++)
     {
       unsigned ring_lit = LIT (ring_idx);
       signed char value = values[ring_lit];
-      unsigned ruler_idx = map[ring_idx];
+      unsigned ruler_idx = unmap[ring_idx];
       unsigned ruler_lit = LIT (ruler_idx);
       unsigned not_ruler_lit = NOT (ruler_lit);
       witness[ruler_lit] = value;
@@ -47,7 +51,14 @@ extend_witness (struct ring *ring)
       ruler_variables[ruler_idx].level = ring_variables[ring_idx].level;
 #endif
     }
-  free (map);
+  free (unmap);
+  LOG ("forcing %zu saved units", SIZE (ruler->extension[1]));
+  for (all_elements_on_stack (unsigned, lit, ruler->extension[1]))
+    {
+      unsigned not_lit = NOT (lit);
+      witness[lit] = 1;
+      witness[not_lit] = -1;
+    }
   size_t flipped = 0;
   struct unsigneds *extension = &ruler->extension[0];
   unsigned *begin = extension->begin;
@@ -111,7 +122,7 @@ extend_witness (struct ring *ring)
 #ifndef NDEBUG
 
 void
-check_witness (unsigned *map, signed char *values, struct unsigneds *original)
+check_witness (signed char *values, struct unsigneds *original)
 {
   size_t clauses = 0;
   for (unsigned *c = original->begin, *p; c != original->end; c = p + 1)
@@ -126,7 +137,7 @@ check_witness (unsigned *map, signed char *values, struct unsigneds *original)
       acquire_message_lock ();
       fprintf (stderr, "gimsatul: error: unsatisfied clause[%zu]", clauses);
       for (unsigned *q = c; q != p; q++)
-	fprintf (stderr, " %d", export_literal (map, *q));
+	fprintf (stderr, " %d", only_export_literal (*q));
       fputs (" 0\n", stderr);
       release_message_lock ();
       abort ();

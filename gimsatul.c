@@ -51,7 +51,7 @@ main (int argc, char **argv)
   else if (res == 10)
     {
       signed char *witness = extend_witness (winner);
-      check_witness (ruler->map, witness, ruler->original);
+      check_witness (witness, ruler->original);
       if (verbosity >= 0)
 	printf ("c\n");
       printf ("s SATISFIABLE\n");

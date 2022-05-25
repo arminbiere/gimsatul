@@ -12,7 +12,7 @@ struct trace
   bool binary;
   struct file *file;
   struct buffer buffer;
-  unsigned *map;
+  unsigned *unmap;
 };
 
 void trace_add_empty (struct trace *);

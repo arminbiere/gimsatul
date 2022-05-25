@@ -249,10 +249,10 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       compact++;
     }
   unsigned *unmap = allocate_array (compact, sizeof *unmap);
-  unsigned *old_map = ruler->map;
-  ruler->map = unmap;
+  unsigned *old_unmap = ruler->unmap;
+  ruler->unmap = unmap;
   for (all_rings (ring))
-    ring->trace.map = unmap;
+    ring->trace.unmap = unmap;
   unsigned old_compact = ruler->compact;
   unsigned *map = allocate_array (old_compact, sizeof *map);
   unsigned mapped = 0;
@@ -263,10 +263,10 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 	{
 	  map[idx] = INVALID;
 #ifdef LOGGING
-	  if (old_map)
+	  if (old_unmap)
 	    ROG ("skipping eliminated variable %u (literal %u) "
 	         "which was original variable %u (literal %u)",
-		 idx, lit, old_map[idx], LIT (old_map[idx]));
+		 idx, lit, old_unmap[idx], LIT (old_unmap[idx]));
 	  else
 	    ROG ("skipping eliminated original variable %u (literal %u)",
 	         idx, lit);
@@ -277,21 +277,21 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 	{
 	  map[idx] = INVALID;
 #ifdef LOGGING
-	  if (old_map)
+	  if (old_unmap)
 	    ROG ("skipping assigned variable %u (literal %u) "
 	         "which was original variable %u (literal %u)",
-		 idx, lit, old_map[idx], LIT (old_map[idx]));
+		 idx, lit, old_unmap[idx], LIT (old_unmap[idx]));
 	  else
 	    ROG ("skipping assigned original variable %u (literal %u)",
 	         idx, lit);
 #endif
 	  continue;
 	}
-      unsigned old_idx = old_map ? old_map[idx] : idx;
+      unsigned old_idx = old_unmap ? old_unmap[idx] : idx;
       unmap[mapped] = old_idx;
       map[idx] = mapped;
 #ifdef LOGGING
-      if (old_map)
+      if (old_unmap)
 	ROG ("mapping variable %u (literal %u) which was originally "
 	     "variable %u (literal %u) to variable %u (literal %u)",
 	     idx, lit, old_idx, LIT (old_idx), mapped, LIT (mapped));
@@ -302,8 +302,8 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 #endif
       mapped++;
     }
-  if (old_map)
-    free (old_map);
+  if (old_unmap)
+    free (old_unmap);
   SHRINK_STACK (ruler->extension[0]);
   for (all_ruler_indices (idx))
     {

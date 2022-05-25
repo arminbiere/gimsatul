@@ -49,29 +49,41 @@ marked_literal (signed char *marks, unsigned lit)
 }
 
 static inline unsigned
-unmap_literal (unsigned * map, unsigned lit)
+unmap_literal (unsigned * unmap, unsigned lit)
 {
-  if (!map)
+  if (!unmap)
     return lit;
   unsigned idx = IDX (lit);
-  unsigned mapped_idx = map[idx];
-  unsigned res = LIT (mapped_idx);
+  unsigned unmapped_idx = unmap[idx];
+  unsigned res = LIT (unmapped_idx);
   res ^= SGN (lit);
   return res;
 }
 
 static inline int
-export_literal (unsigned *map, unsigned unsigned_lit)
+only_export_literal (unsigned unsigned_lit)
 {
-  unsigned mapped_idx;
-  if (map)
+  unsigned unsigned_idx = IDX (unsigned_lit);
+  assert (unsigned_idx < (unsigned) INT_MAX);
+  int signed_lit = unsigned_idx + 1;
+  if (SGN (unsigned_lit))
+    signed_lit *= -1;
+  return signed_lit;
+}
+
+static inline int
+unmap_and_export_literal (unsigned *unmap, unsigned unsigned_lit)
+{
+  unsigned unmapped_idx;
+  if (unmap)
     {
       unsigned unsigned_idx = IDX (unsigned_lit);
-      mapped_idx = map[unsigned_idx];
+      unmapped_idx = unmap[unsigned_idx];
     }
   else
-    mapped_idx = IDX (unsigned_lit);
-  int signed_lit = mapped_idx + 1;
+    unmapped_idx = IDX (unsigned_lit);
+  assert (unmapped_idx < (unsigned) INT_MAX);
+  int signed_lit = unmapped_idx + 1;
   if (SGN (unsigned_lit))
     signed_lit *= -1;
   return signed_lit;

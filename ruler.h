@@ -83,7 +83,7 @@ struct ruler
   struct unsigneds *original;
   struct unsigneds extension[2];
   struct ruler_trail units;
-  unsigned *map;
+  unsigned *unmap;
   struct trace trace;
   struct ruler_profiles profiles;
   struct ruler_statistics statistics;
