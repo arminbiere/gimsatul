@@ -67,6 +67,23 @@ compact_phases (struct ring * ring,
                 unsigned old_size, unsigned new_size,
 		unsigned * map)
 {
+  struct phases * old_phases = ring->phases;
+  struct phases * new_phases = ring->phases =
+     allocate_array (new_size, sizeof *new_phases);
+  struct phases * old_phase = old_phases;
+  struct phases * new_phase = new_phases;
+  unsigned * end = map + old_size;
+  for (unsigned * mapped = map; mapped != end; mapped++, old_phase++)
+    {
+      unsigned new_idx = *mapped;
+      if (new_idx == INVALID)
+	continue;
+      assert (new_phases + new_idx == new_phase);
+      *new_phase++ = *old_phase;
+    }
+  assert (old_phase = old_phases + old_size);
+  assert (new_phase = new_phases + new_size);
+  free (old_phases);
 }
 
 static void
@@ -100,16 +117,17 @@ compact_queue (struct ring * ring, struct queue * queue,
   struct link * old_links = queue->links;
   struct link * new_links = queue->links =
     allocate_and_clear_array (new_size, sizeof *new_links);
-  struct queue * first = queue->first;
+  struct link * first = queue->first;
   queue->first = queue->last = 0;
   queue->stamp = 0;
   for (struct link * old_link = first, * next; old_link; old_link = next)
     {
+      next = old_link->next;
       unsigned old_idx = old_link - old_links;
       unsigned new_idx = map[old_idx];
       if (new_idx == INVALID)
 	continue;
-      struct node * new_link = new_links + new_idx;
+      struct link * new_link = new_links + new_idx;
       enqueue (queue, new_link, false);
     }
   assert (queue->stamp == new_size);
