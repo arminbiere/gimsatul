@@ -51,32 +51,44 @@ struct ruler_profiles
 
 /*------------------------------------------------------------------------*/
 
+extern int verbosity;
+
+#define profile_time current_time
+
 #define START(OWNER,NAME) \
-  start_profile (&OWNER->profiles.NAME, current_time ())
+  (verbosity < 0 ? 0.0 : \
+    start_profile (&OWNER->profiles.NAME, profile_time ()))
 
 #define STOP(OWNER,NAME) \
-  stop_profile (&OWNER->profiles.NAME, current_time ())
+  (verbosity < 0 ? 0.0 : \
+    stop_profile (&OWNER->profiles.NAME, profile_time ()))
 
 #define MODE_PROFILE \
   (ring->stable ? &ring->profiles.stable : &ring->profiles.focus)
 
 #define STOP_SEARCH() \
 do { \
-  double t = current_time (); \
+  if (verbosity < 0) \
+    break; \
+  double t = profile_time (); \
   stop_profile (MODE_PROFILE, t); \
   stop_profile (&ring->profiles.search, t); \
 } while (0)
 
 #define START_SEARCH() \
 do { \
-  double t = current_time (); \
+  if (verbosity < 0) \
+    break; \
+  double t = profile_time (); \
   start_profile (&ring->profiles.search, t); \
   start_profile (MODE_PROFILE, t); \
 } while (0)
 
 #define STOP_SEARCH_AND_START(NAME) \
 do { \
-  double t = current_time (); \
+  if (verbosity < 0) \
+    break; \
+  double t = profile_time (); \
   stop_profile (MODE_PROFILE, t); \
   stop_profile (&ring->profiles.search, t); \
   start_profile (&ring->profiles.NAME, t); \
@@ -84,7 +96,9 @@ do { \
 
 #define STOP_AND_START_SEARCH(NAME) \
 do { \
-  double t = current_time (); \
+  if (verbosity < 0) \
+    break; \
+  double t = profile_time (); \
   stop_profile (&ring->profiles.NAME, t); \
   start_profile (&ring->profiles.search, t); \
   start_profile (MODE_PROFILE, t); \
@@ -92,6 +106,8 @@ do { \
 
 #define INIT_PROFILE(OWNER,NAME) \
 do { \
+  if (verbosity < 0) \
+    break; \
   struct profile * profile = &OWNER->profiles.NAME; \
   profile->start = -1; \
   profile->name = #NAME; \
