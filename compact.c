@@ -262,13 +262,29 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       if (eliminated[idx])
 	{
 	  map[idx] = INVALID;
-	  ROG ("skipping eliminated variable %u (literal %u)", idx, lit);
+#ifdef LOGGING
+	  if (old_map)
+	    ROG ("skipping eliminated variable %u (literal %u) "
+	         "which was original variable %u (literal %u)",
+		 idx, lit, old_map[idx], LIT (old_map[idx]));
+	  else
+	    ROG ("skipping eliminated original variable %u (literal %u)",
+	         idx, lit);
+#endif
 	  continue;
 	}
       if (values[lit])
 	{
 	  map[idx] = INVALID;
-	  ROG ("skipping assigned variable %u (literal %u)", idx, lit);
+#ifdef LOGGING
+	  if (old_map)
+	    ROG ("skipping assigned variable %u (literal %u) "
+	         "which was original variable %u (literal %u)",
+		 idx, lit, old_map[idx], LIT (old_map[idx]));
+	  else
+	    ROG ("skipping assigned original variable %u (literal %u)",
+	         idx, lit);
+#endif
 	  continue;
 	}
       unsigned old_idx = old_map ? old_map[idx] : idx;
