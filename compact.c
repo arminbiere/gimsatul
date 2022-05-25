@@ -121,9 +121,8 @@ compact_queue (struct ring * ring, struct queue * queue,
   struct link * first = queue->first;
   queue->first = queue->last = 0;
   queue->stamp = 0;
-  for (struct link * old_link = first, * next; old_link; old_link = next)
+  for (struct link * old_link = first; old_link; old_link = old_link->next)
     {
-      next = old_link->next;
       unsigned old_idx = old_link - old_links;
       unsigned new_idx = map[old_idx];
       if (new_idx == INVALID)
@@ -264,7 +263,7 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       unsigned lit = LIT (idx);
       if (values[lit])
 	continue;
-      unsigned old_idx = old_map ? old_map[idx] : old_idx;
+      unsigned old_idx = old_map ? old_map[idx] : idx;
       unmap[mapped] = old_idx;
       map[idx] = mapped;
       unsigned src = LIT (idx);
