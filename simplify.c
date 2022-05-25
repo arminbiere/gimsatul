@@ -661,6 +661,8 @@ wait_to_actually_start_synchronization (struct ring *ring)
 static bool
 continue_importing_and_propagating_units (struct ring *ring)
 {
+  if (!ring->pool)
+    return false;
   if (ring->inconsistent)
     return false;
   struct ruler *ruler = ring->ruler;
