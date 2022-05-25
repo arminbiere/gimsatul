@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <string.h>
 
+bool ignore_values_and_levels_during_logging;
+
 static char loglitbuf[8][64];
 static unsigned loglitpos;
 
@@ -27,16 +29,19 @@ loglit (struct ring *ring, unsigned unsigned_lit)
   char *res = next_loglitbuf ();
   int signed_lit = unmap_and_export_literal (ring->ruler->unmap, unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
-  signed char * values = ring->values;
-  if (values)
+  if (!ignore_values_and_levels_during_logging)
     {
-      signed char value = values[unsigned_lit];
-      if (value)
+      signed char * values = ring->values;
+      if (values)
 	{
-	  sprintf (res + strlen (res), "=%d", (int) value);
-	  struct variable *v = VAR (unsigned_lit);
-	  if (v->level != INVALID)
-	    sprintf (res + strlen (res), "@%u", v->level);
+	  signed char value = values[unsigned_lit];
+	  if (value)
+	    {
+	      sprintf (res + strlen (res), "=%d", (int) value);
+	      struct variable *v = VAR (unsigned_lit);
+	      if (v->level != INVALID)
+		sprintf (res + strlen (res), "@%u", v->level);
+	    }
 	}
     }
   assert (strlen (res) + 1 < sizeof *loglitbuf);
@@ -59,9 +64,16 @@ roglit (struct ruler *ruler, unsigned unsigned_lit)
   char *res = next_loglitbuf ();
   int signed_lit = unmap_and_export_literal (ruler->unmap, unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
-  signed char value = ruler->values[unsigned_lit];
-  if (value)
-    sprintf (res + strlen (res), "=%d", (int) value);
+  if (!ignore_values_and_levels_during_logging)
+    {
+      signed char * values = (signed char*) ruler->values;
+      if (values)
+	{
+	  signed char value = values[unsigned_lit];
+	  if (value)
+	    sprintf (res + strlen (res), "=%d", (int) value);
+	}
+    }
   assert (strlen (res) + 1 < sizeof *loglitbuf);
   return res;
 }

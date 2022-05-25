@@ -5,12 +5,15 @@
 
 #include "message.h"
 
+#include <stdbool.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
 
 struct ring;
 struct ruler;
+
+extern bool ignore_values_and_levels_during_logging;
 
 const char *loglit (struct ring *, unsigned lit);
 const char *logvar (struct ring *, unsigned idx);

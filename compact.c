@@ -139,6 +139,10 @@ static void
 compact_clauses (struct ring * ring,
                  struct clauses * clauses, unsigned * map)
 {
+#ifdef LOGGING
+  assert (!ignore_values_and_levels_during_logging);
+  ignore_values_and_levels_during_logging = true;
+#endif
   struct clause ** begin = clauses->begin;
   struct clause ** end = clauses->end;
   struct clause ** q = begin;
@@ -194,6 +198,10 @@ compact_clauses (struct ring * ring,
 	  ring->statistics.redundant--;
 	}
     }
+#ifdef LOGGING
+  assert (ignore_values_and_levels_during_logging);
+  ignore_values_and_levels_during_logging = false;
+#endif
 #ifndef QUIET
   size_t flushed = end - q;
   size_t kept = q - begin;
