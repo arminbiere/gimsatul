@@ -251,6 +251,7 @@ push_ring (struct ruler *ruler, struct ring *ring)
   ring->random = ring->id;
   ring->ruler = ruler;
   ring->units = ruler->units.end;
+  ring->trace.map = ruler->map;
 }
 
 void

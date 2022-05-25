@@ -251,20 +251,39 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   unsigned *unmap = allocate_array (compact, sizeof *unmap);
   unsigned *old_map = ruler->map;
   ruler->map = unmap;
+  for (all_rings (ring))
+    ring->trace.map = unmap;
   unsigned old_compact = ruler->compact;
   unsigned *map = allocate_array (old_compact, sizeof *map);
   unsigned mapped = 0;
   for (all_ruler_indices (idx))
     {
-      map[idx] = INVALID;
-      if (eliminated[idx])
-	continue;
       unsigned lit = LIT (idx);
+      if (eliminated[idx])
+	{
+	  map[idx] = INVALID;
+	  ROG ("skipping eliminated variable %u (literal %u)", idx, lit);
+	  continue;
+	}
       if (values[lit])
-	continue;
+	{
+	  map[idx] = INVALID;
+	  ROG ("skipping assigned variable %u (literal %u)", idx, lit);
+	  continue;
+	}
       unsigned old_idx = old_map ? old_map[idx] : idx;
       unmap[mapped] = old_idx;
       map[idx] = mapped;
+#ifdef LOGGING
+      if (old_map)
+	ROG ("mapping variable %u (literal %u) which was originally "
+	     "variable %u (literal %u) to variable %u (literal %u)",
+	     idx, lit, old_idx, LIT (old_idx), mapped, LIT (mapped));
+      else
+	ROG ("mapping original variable %u (literal %u) "
+	     "to variable %u (literal %u)",
+	     idx, lit, mapped, LIT (mapped));
+#endif
       mapped++;
     }
   if (old_map)

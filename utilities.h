@@ -48,6 +48,18 @@ marked_literal (signed char *marks, unsigned lit)
   return res;
 }
 
+static inline unsigned
+unmap_literal (unsigned * map, unsigned lit)
+{
+  if (!map)
+    return lit;
+  unsigned idx = IDX (lit);
+  unsigned mapped_idx = map[idx];
+  unsigned res = LIT (mapped_idx);
+  res ^= SGN (lit);
+  return res;
+}
+
 static inline int
 export_literal (unsigned *map, unsigned unsigned_lit)
 {
