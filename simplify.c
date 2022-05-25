@@ -664,6 +664,8 @@ continue_importing_and_propagating_units (struct ring *ring)
   if (ring->inconsistent)
     return false;
   struct ruler *ruler = ring->ruler;
+  if (ruler->parallel)
+    return false;
   if (ruler->terminate)
     return false;
   if (ruler->winner)

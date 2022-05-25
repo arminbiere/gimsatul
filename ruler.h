@@ -65,13 +65,17 @@ struct ruler
 {
   unsigned size;
   unsigned compact;
+
   volatile bool terminate;
   volatile bool simplify;
+
   bool eliminating;
   bool inconsistent;
+  bool parallel;
   bool simplifying;
   bool solving;
   bool subsuming;
+
   struct ruler_locks locks;
   struct ruler_barriers barriers;
   struct rings rings;

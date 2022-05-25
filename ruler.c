@@ -30,6 +30,7 @@ new_ruler (size_t size, struct options *opts)
   ruler->size = ruler->compact = size;
   ruler->statistics.active = size;
   memcpy (&ruler->options, opts, sizeof *opts);
+  ruler->parallel = (opts->threads > 1);
   ruler->trace.binary = opts->binary;
   ruler->trace.file = opts->proof.file ? &opts->proof : 0;
 #ifndef NDEBUG
