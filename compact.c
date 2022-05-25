@@ -160,7 +160,6 @@ compact_clauses (struct ring * ring,
 	  unsigned dst_other = map_literal (map, src_other);
 	  if (dst_lit != INVALID && dst_other != INVALID)
 	    {
-	      LOGCLAUSE (src_clause, "original");
 	      if (dst_lit < dst_other)
 		dst_clause = tag_pointer (true, dst_lit, dst_other);
 	      else
@@ -177,26 +176,43 @@ compact_clauses (struct ring * ring,
 		dst_clause = 0;
 		break;
 	      }
-	  LOGCLAUSE (src_clause, "original");
-	  if (dst_clause)
+	}
+#ifdef LOGGING
+      if (verbosity == INT_MAX)
+	{
+	  LOGPREFIX (dst_clause ? "original" : "flushing");
+	  if (binary_pointer (src_clause))
 	    {
-	      unsigned * literals = dst_clause->literals;
-	      unsigned * end = literals + dst_clause->size;
-	      for (unsigned * p = literals; p != end; p++)
-		*p = map_literal (map, *p);
+	      assert (redundant_pointer (src_clause));
+	      unsigned lit = lit_pointer (src_clause);
+	      unsigned other = other_pointer (src_clause);
+	      printf (" redundant binary clause %u %u", lit, other);
 	    }
+	  else
+	    {
+	      assert (src_clause->redundant);
+	      printf (" redundant glue %u size %u clause[%" PRIu64 "]",
+	              src_clause->glue, src_clause->size, src_clause->id);
+	      for (all_literals_in_clause (lit, src_clause))
+		printf (" %u", lit);
+	    }
+	  LOGSUFFIX ();
 	}
-      if (dst_clause)
+#endif
+      if (!dst_clause)
+	continue;
+
+      if (!binary_pointer (src_clause))
 	{
-	  LOGCLAUSE (dst_clause, "mapped");
-	  *q++ = dst_clause;
+	  assert (src_clause == dst_clause);
+	  unsigned * literals = dst_clause->literals;
+	  unsigned * end = literals + dst_clause->size;
+	  for (unsigned * p = literals; p != end; p++)
+	    *p = map_literal (map, *p);
 	}
-      else
-	{
-	  LOGCLAUSE (src_clause, "flushing");
-	  assert (ring->statistics.redundant);
-	  ring->statistics.redundant--;
-	}
+
+      LOGCLAUSE (dst_clause, "mapped");
+      *q++ = dst_clause;
     }
 #ifdef LOGGING
   assert (ignore_values_and_levels_during_logging);
