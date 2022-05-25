@@ -231,11 +231,16 @@ connect_counters (struct walker *walker, struct clause *last)
 	  }
       ticks += cache_lines (p, binaries);
     }
+
   double average_length = average (sum_lengths, clauses);
   verbose (ring, "average clause length %.2f", average_length);
+  (void) average_length;
+
   very_verbose (ring, "connecting counters took %" PRIu64 " extra ticks",
 		ticks);
+
   walker->extra += ticks;
+
   return average_length;
 }
 
