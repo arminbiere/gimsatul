@@ -3,6 +3,7 @@
 #include "types.h"
 #include "message.h"
 #include "options.h"
+#include "variable.h"
 #include "walk.h"
 
 #include <stdio.h>
@@ -56,8 +57,10 @@ check_types (void)
   if (verbosity > 0)
     {
       fputs ("c\n", stdout);
-      printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
       printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
+      printf ("c sizeof (struct phases) = %zu\n", sizeof (struct phases));
+      printf ("c sizeof (struct variable) = %zu\n", sizeof (struct variable));
+      printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
       print_walker_types ();
     }
 }
