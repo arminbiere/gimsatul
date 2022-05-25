@@ -33,14 +33,6 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
 	trace_add_unit (&ring->trace, lit);
       v->reason = 0;
       ring->statistics.fixed++;
-      if (!ring->pool)
-	{
-	  struct ruler *ruler = ring->ruler;
-	  ruler->statistics.fixed.solving++;
-	  ruler->statistics.fixed.total++;
-	  assert (ruler->statistics.active);
-	  ruler->statistics.active--;
-	}
       assert (ring->statistics.active);
       ring->statistics.active--;
       assert (!ring->inactive[idx]);

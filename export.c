@@ -6,8 +6,6 @@
 void
 export_units (struct ring *ring)
 {
-  if (ring->threads < 2)
-    return;
   assert (!ring->level);
   struct ruler *ruler = ring->ruler;
   struct ring_trail *trail = &ring->trail;
@@ -21,7 +19,7 @@ export_units (struct ring *ring)
       if (values[unit])
 	continue;
 #endif
-      if (!locked)
+      if (ring->pool && !locked)
 	{
 	  if (pthread_mutex_lock (&ruler->locks.units))
 	    fatal_error ("failed to acquire unit lock");
