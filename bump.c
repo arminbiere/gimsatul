@@ -102,7 +102,6 @@ void
 rebuild_heap (struct ring *ring)
 {
   struct heap *heap = &ring->heap;
-  struct node *nodes = heap->nodes;
   heap->root = 0;
   for (all_active_nodes (node))
     {
