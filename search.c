@@ -28,8 +28,8 @@ iterate (struct ring *ring)
   assert (trail->iterate < trail->propagate);
   size_t new_units = trail->propagate - trail->iterate;
   very_verbose (ring, "iterating %zu units", new_units);
-  ring->iterating = false;
-  report (ring, 'i');
+  verbose_report (ring, 'i', ring->iterating-1);
+  ring->iterating = 0;
   export_units (ring);
   trail->iterate = trail->propagate;
 }

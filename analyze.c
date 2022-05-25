@@ -204,7 +204,7 @@ analyze (struct ring *ring, struct watch *reason)
     {
       trace_add_unit (&ring->trace, not_uip);
       assign_ring_unit (ring, not_uip);
-      ring->iterating = true;
+      ring->iterating = 1;
     }
   else
     {
