@@ -23,12 +23,6 @@ struct doubles
   double *begin, *end, *allocated;
 };
 
-struct counter
-{
-  unsigned count;
-  struct clause *clause;
-};
-
 struct counters
 {
   struct counter **begin, **end, **allocated;
@@ -735,10 +729,4 @@ local_search (struct ring *ring)
   assert (ring->context == WALK_CONTEXT);
   ring->context = SEARCH_CONTEXT;
   STOP_AND_START_SEARCH (walk);
-}
-
-void
-print_walker_types (void)
-{
-  printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
 }

@@ -2,8 +2,14 @@
 #define _walk_h_INCLUDED
 
 struct ring;
+struct clause;
 
-void local_search (struct ring *ring);
-void print_walker_types (void);
+struct counter
+{
+  unsigned count;
+  struct clause *clause;
+};
+
+void local_search (struct ring *);
 
 #endif

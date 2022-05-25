@@ -58,9 +58,9 @@ check_types (void)
     {
       fputs ("c\n", stdout);
       printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));
+      printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
       printf ("c sizeof (struct phases) = %zu\n", sizeof (struct phases));
       printf ("c sizeof (struct variable) = %zu\n", sizeof (struct variable));
       printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
-      print_walker_types ();
     }
 }
