@@ -120,6 +120,7 @@ struct ring
   struct variable *variables;
 
   struct heap heap;
+  struct phases * phases;
   struct queue queue;
 
   struct watches watches;
@@ -161,11 +162,20 @@ struct rings
   LIT != END_ ## LIT; \
   ++LIT
 
-#define all_variables(VAR) \
+#if 0
+
+#define all_ring_variables(VAR) \
   struct variable * VAR = ring->variables, \
                   * END_ ## VAR = VAR + ring->size; \
   (VAR != END_ ## VAR); \
-  ++ VAR
+  ++VAR
+#endif
+
+#define all_phases(PHASE) \
+  struct phases * PHASE = ring->phases, \
+                  * END_ ## PHASE = PHASE + ring->size; \
+  (PHASE != END_ ## PHASE); \
+  ++PHASE
 
 #define all_averages(AVG) \
   struct average * AVG = (struct average*) &ring->averages, \

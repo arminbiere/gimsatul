@@ -133,6 +133,8 @@ new_ring (struct ruler *ruler)
   heap->nodes = allocate_and_clear_array (size, sizeof *heap->nodes);
   heap->increment = 1;
 
+  ring->phases = allocate_and_clear_array (size, sizeof *ring->phases);
+
   struct queue *queue = &ring->queue;
   queue->links = allocate_and_clear_array (size, sizeof *queue->links);
 
@@ -236,6 +238,7 @@ delete_ring (struct ring *ring)
   release_ring (ring);
 
   free (ring->heap.nodes);
+  free (ring->phases);
   free (ring->queue.links);
 
   release_watches (ring);

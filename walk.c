@@ -256,11 +256,12 @@ import_decisions (struct walker *walker)
   very_verbose (ring, "warming up needed %" PRIu64 " extra ticks", extra);
   signed char *values = ring->values;
   unsigned pos = 0, neg = 0, ignored = 0;
-  signed char *p = values;
-  for (all_variables (v))
+  struct variable * v = ring->variables;
+  signed char *q = values;
+  for (all_phases (p))
     {
-      signed char phase = v->saved;
-      if (*p)
+      signed char phase = p->saved;
+      if (*q)
 	{
 	  phase = 0;
 	  ignored++;
@@ -271,10 +272,11 @@ import_decisions (struct walker *walker)
 	  neg += (phase < 0);
 	  v->level = INVALID;
 	}
-      *p++ = phase;
-      *p++ = -phase;
+      *q++ = phase;
+      *q++ = -phase;
+      v++;
     }
-  assert (p == values + 2 * ring->size);
+  assert (q == values + 2 * ring->size);
   verbose (ring, "imported %u positive %u negative decisions (%u ignored)",
 	   pos, neg, ignored);
 }
@@ -420,13 +422,13 @@ save_all_values (struct walker *walker)
 {
   assert (walker->best == INVALID);
   struct ring *ring = walker->ring;
-  signed char *p = ring->values;
-  for (all_variables (v))
+  signed char *q = ring->values;
+  for (all_phases (p))
     {
-      signed char value = *p;
-      p += 2;
+      signed char value = *q;
+      q += 2;
       if (value)
-	v->saved = value;
+	p->saved = value;
     }
   walker->best = 0;
 }
@@ -440,14 +442,14 @@ save_walker_trail (struct walker *walker, bool keep)
   unsigned *end = walker->trail.end;
   assert (best <= end);
   struct ring *ring = walker->ring;
-  struct variable *variables = ring->variables;
-  for (unsigned *p = begin; p != best; p++)
+  struct phases *phases = ring->phases;
+  for (unsigned *q = begin; q != best; q++)
     {
-      unsigned lit = *p;
+      unsigned lit = *q;
       signed phase = SGN (lit) ? -1 : 1;
       unsigned idx = IDX (lit);
-      struct variable *v = variables + idx;
-      v->saved = phase;
+      struct phases *p = phases + idx;
+      p->saved = phase;
     }
   if (!keep)
     return;

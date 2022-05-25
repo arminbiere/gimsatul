@@ -61,26 +61,26 @@ update_best_and_target_phases (struct ring *ring)
     {
       very_verbose (ring, "updating target assigned to %u", assigned);
       ring->target = assigned;
-      signed char *p = ring->values;
-      for (all_variables (v))
+      signed char *q = ring->values;
+      for (all_phases (p))
 	{
-	  signed char tmp = *p;
-	  p += 2;
+	  signed char tmp = *q;
+	  q += 2;
 	  if (tmp)
-	    v->target = tmp;
+	    p->target = tmp;
 	}
     }
   if (ring->best < assigned)
     {
       very_verbose (ring, "updating best assigned to %u", assigned);
       ring->best = assigned;
-      signed char *p = ring->values;
-      for (all_variables (v))
+      signed char *q = ring->values;
+      for (all_phases (p))
 	{
-	  signed char tmp = *p;
-	  p += 2;
+	  signed char tmp = *q;
+	  q += 2;
 	  if (tmp)
-	    v->best = tmp;
+	    p->best = tmp;
 	}
     }
 }

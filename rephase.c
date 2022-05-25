@@ -14,32 +14,32 @@ static char
 rephase_walk (struct ring *ring)
 {
   local_search (ring);
-  for (all_variables (v))
-    v->target = v->saved;
+  for (all_phases (p))
+    p->target = p->saved;
   return 'W';
 }
 
 static char
 rephase_best (struct ring *ring)
 {
-  for (all_variables (v))
-    v->target = v->saved = v->best;
+  for (all_phases (p))
+    p->target = p->saved = p->best;
   return 'B';
 }
 
 static char
 rephase_inverted (struct ring *ring)
 {
-  for (all_variables (v))
-    v->target = v->saved = -initial_phase (ring);
+  for (all_phases (p))
+    p->target = p->saved = -initial_phase (ring);
   return 'I';
 }
 
 static char
 rephase_original (struct ring *ring)
 {
-  for (all_variables (v))
-    v->target = v->saved = initial_phase (ring);
+  for (all_phases (p))
+    p->target = p->saved = initial_phase (ring);
   return 'O';
 }
 

@@ -13,16 +13,17 @@ initial_phase (struct ring *ring)
 }
 
 static signed char
-decide_phase (struct ring *ring, struct variable *v)
+decide_phase (struct ring *ring, unsigned idx)
 {
-  signed char phase = 0;
+  struct phases * p = ring->phases + idx;
+  signed char res = 0;
   if (ring->stable)
-    phase = v->target;
-  if (!phase)
-    phase = v->saved;
-  if (!phase)
-    phase = initial_phase (ring);
-  return phase;
+    res = p->target;
+  if (!res)
+    res = p->saved;
+  if (!res)
+    res = initial_phase (ring);
+  return res;
 }
 
 static unsigned
@@ -131,8 +132,7 @@ decide (struct ring *ring)
   else
     idx = best_decision_on_queue (ring);
 
-  struct variable *v = ring->variables + idx;
-  signed char phase = decide_phase (ring, v);
+  signed char phase = decide_phase (ring, idx);
   unsigned lit = LIT (idx);
   if (phase < 0)
     lit = NOT (lit);

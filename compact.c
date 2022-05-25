@@ -63,6 +63,13 @@ map_clauses (struct ruler *ruler, unsigned *map)
 }
 
 static void
+compact_phases (struct ring * ring,
+                unsigned old_size, unsigned new_size,
+		unsigned * map)
+{
+}
+
+static void
 compact_heap (struct ring * ring, struct heap * heap,
               unsigned old_size, unsigned new_size, unsigned * map)
 {
@@ -90,7 +97,24 @@ static void
 compact_queue (struct ring * ring, struct queue * queue,
                unsigned old_size, unsigned new_size, unsigned * map)
 {
-
+  struct link * old_links = queue->links;
+  struct link * new_links = queue->links =
+    allocate_and_clear_array (new_size, sizeof *new_links);
+  struct queue * first = queue->first;
+  queue->first = queue->last = 0;
+  queue->stamp = 0;
+  for (struct link * old_link = first, * next; old_link; old_link = next)
+    {
+      unsigned old_idx = old_link - old_links;
+      unsigned new_idx = map[old_idx];
+      if (new_idx == INVALID)
+	continue;
+      struct node * new_link = new_links + new_idx;
+      enqueue (queue, new_link, false);
+    }
+  assert (queue->stamp == new_size);
+  reset_queue_search (queue);
+  free (old_links);
 }
 
 static void
@@ -118,6 +142,7 @@ compact_ring (struct ring * ring, unsigned * map)
 
   init_ring (ring);
 
+  compact_phases (ring, old_size, new_size, map);
   compact_heap (ring, &ring->heap, old_size, new_size, map);
   compact_queue (ring, &ring->queue, old_size, new_size, map);
 

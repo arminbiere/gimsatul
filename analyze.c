@@ -124,7 +124,7 @@ analyze (struct ring *ring, struct watch *reason)
 {
   assert (!ring->inconsistent);
 #if 0
-  for (all_variables (v))
+  for (all_ring_variables (v))
     assert (!v->seen), assert (!v->poison), assert (!v->minimize),
       assert (!v->shrinkable);
 #endif

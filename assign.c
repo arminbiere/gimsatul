@@ -20,11 +20,13 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   ring->values[lit] = 1;
   ring->values[not_lit] = -1;
 
-  unsigned level = ring->level;
-  struct variable *v = ring->variables + idx;
   if (ring->context != PROBING_CONTEXT)
-    v->saved = SGN (lit) ? -1 : 1;
+    ring->phases[idx].saved = SGN (lit) ? -1 : 1;
+
+  struct variable *v = ring->variables + idx;
+  unsigned level = ring->level;
   v->level = level;
+
   if (!level)
     {
       if (reason)

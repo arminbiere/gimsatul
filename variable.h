@@ -5,12 +5,16 @@
 
 struct watch;
 
+struct phases
+{
+  signed char best:2;
+  signed char saved:2;
+  signed char target:2;
+};
+
 struct variable
 {
   unsigned level;
-  signed char best;
-  signed char saved;
-  signed char target;
   bool minimize:1;
   bool poison:1;
   bool seen:1;
