@@ -11,8 +11,10 @@
 #endif                   
 "  -n|--no-witness          do not print satisfying assignments\n"
 "  -O|-O<level>             increase simplification ticks and round limits\n"
+#ifndef QUIET
 "  -q|--quiet               disable all additional messages\n"
 "  -v|--verbose             increase verbosity\n"
+#endif
 "  -V|--version             print version\n"
 "\n"
 "  --conflicts=<conflicts>  limit conflicts (0,1,... - default unlimited)\n"

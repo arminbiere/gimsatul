@@ -96,5 +96,6 @@ remove_duplicated_binaries (struct simplifier *simplifier, unsigned round)
 	   "in %.2f seconds", round,
 	   removed, percent (removed, ruler->statistics.original),
 	   stop_deduplication - start_deduplication);
+  (void) stop_deduplication, (void) start_deduplication;
   return removed;
 }

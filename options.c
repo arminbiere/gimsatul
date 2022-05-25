@@ -211,8 +211,10 @@ void
 parse_options (int argc, char **argv, struct options *opts)
 {
   initialize_options (opts);
+#ifndef QUIET
   const char *quiet_opt = 0;
   const char *verbose_opt = 0;
+#endif
   for (int i = 1; i != argc; i++)
     {
       const char *opt = argv[i], *arg;
@@ -248,6 +250,9 @@ parse_options (int argc, char **argv, struct options *opts)
 
 	}
       else if (!strcmp (opt, "-q") || !strcmp (opt, "--quiet"))
+#ifdef QUIET
+	die ("configured with '--quiet' (forces '%s)", opt); 
+#else
 	{
 	  if (quiet_opt)
 	    die ("two quiet options '%s' and '%s'", quiet_opt, opt);
@@ -256,7 +261,11 @@ parse_options (int argc, char **argv, struct options *opts)
 	  quiet_opt = opt;
 	  verbosity = -1;
 	}
+#endif
       else if (!strcmp (opt, "-v") || !strcmp (opt, "--verbose"))
+#ifdef QUIET
+	die ("configured with '--quiet' (disables '%s)", opt); 
+#else
 	{
 	  if (quiet_opt)
 	    die ("verbose option '%s' follows quiet '%s'", opt, quiet_opt);
@@ -264,6 +273,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (verbosity < INT_MAX)
 	    verbosity++;
 	}
+#endif
       else if (!strcmp (opt, "-V") || !strcmp (opt, "--version"))
 	{
 	  print_version ();
@@ -389,6 +399,7 @@ parse_options (int argc, char **argv, struct options *opts)
   if (!opts->threads)
     opts->threads = 1;
 
+#ifndef QUIET
   if (opts->threads <= 10)
     prefix_format = "c%-1u ";
   else if (opts->threads <= 100)
@@ -399,6 +410,7 @@ parse_options (int argc, char **argv, struct options *opts)
     prefix_format = "c%-4u ";
   else
     prefix_format = "c%-5u ";
+#endif
 
   if (opts->proof.file == stdout && verbosity >= 0)
     opts->proof.lock = true;

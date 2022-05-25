@@ -1,9 +1,8 @@
 #include "build.h"
 #include "config.h"
+#include "message.h"
 
 #include <stdio.h>
-
-extern int verbosity;
 
 void
 print_banner (void)

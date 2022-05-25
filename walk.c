@@ -456,8 +456,9 @@ save_walker_trail (struct walker *walker, bool keep)
 static void
 save_final_minimum (struct walker *walker)
 {
+#ifndef QUIET
   struct ring *ring = walker->ring;
-
+#endif
   if (walker->minimum == walker->initial)
     {
       verbose (ring, "minimum number of unsatisfied clauses %zu unchanged",

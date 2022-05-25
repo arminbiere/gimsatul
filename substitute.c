@@ -290,8 +290,10 @@ bool
 equivalent_literal_substitution (struct simplifier *simplifier,
 				 unsigned round)
 {
+#ifndef QUIET
   struct ruler *ruler = simplifier->ruler;
   double substitution_start = START (ruler, substitute);
+#endif
   unsigned *repr = find_equivalent_literals (simplifier, round);
   unsigned substituted = 0;
   if (repr)
@@ -299,11 +301,13 @@ equivalent_literal_substitution (struct simplifier *simplifier,
       substituted = substitute_equivalent_literals (simplifier, repr);
       free (repr);
     }
+#ifndef QUIET
   double substitution_end = STOP (ruler, substitute);
   if (verbosity >= 0)
     fputs ("c\n", stdout);
   message (0, "[%u] substituted %u variables %.0f%% in %.2f seconds",
 	   round, substituted, percent (substituted, ruler->size),
 	   substitution_end - substitution_start);
+#endif
   return substituted;
 }

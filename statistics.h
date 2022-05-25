@@ -117,10 +117,12 @@ struct ruler_statistics
 };
 
 /*------------------------------------------------------------------------*/
+#ifndef QUIET
 
 void print_ring_statistics (struct ring *);
 void print_ruler_statistics (struct ruler *);
 
+#endif
 /*------------------------------------------------------------------------*/
 
 #endif

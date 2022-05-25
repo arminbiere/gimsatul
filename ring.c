@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef QUIET
+
 void
 print_line_without_acquiring_lock (struct ring *ring, const char *fmt, ...)
 {
@@ -55,6 +57,8 @@ init_ring_profiles (struct ring *ring)
     START (ring, solve);
 }
 
+#endif
+
 struct ring *
 new_ring (struct ruler *ruler)
 {
@@ -62,8 +66,9 @@ new_ring (struct ruler *ruler)
   assert (size < (1u << 30));
 
   struct ring *ring = allocate_and_clear_block (sizeof *ring);
-
+#ifndef QUIET
   init_ring_profiles (ring);
+#endif
   push_ring (ruler, ring);
   ring->size = size;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);

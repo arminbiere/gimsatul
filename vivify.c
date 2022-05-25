@@ -175,7 +175,7 @@ vivify_clauses (struct ring *ring)
   struct watches *watches = &ring->watches;
   if (EMPTY (*watches))
     return;
-  START (ring, vivify);
+  (void) START (ring, vivify);
   assert (SEARCH_TICKS >= ring->last.probing);
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   uint64_t delta_probing_ticks = VIVIFY_EFFORT * delta_search_ticks;
@@ -190,9 +190,11 @@ vivify_clauses (struct ring *ring)
   size_t rescheduled = reschedule_vivification_candidates (ring, &candidates);
   very_verbose (ring, "rescheduling %zu vivification candidates",
 		rescheduled);
+  (void) rescheduled;
   size_t scheduled = schedule_vivification_candidates (ring, &candidates);
   very_verbose (ring, "scheduled %zu vivification candidates in total",
 		scheduled);
+  (void) scheduled;
   signed char *values = ring->values;
   struct watch **begin = candidates.begin;
   struct watch **end = candidates.end;
@@ -267,6 +269,7 @@ vivify_clauses (struct ring *ring)
 	{
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.strengthened++;
+	  strengthened++;
 	  struct watch *strengthened = vivify_strengthen (ring, watch);
 	  mark_garbage_watch (ring, watch);
 	  if (ring->inconsistent)
@@ -303,5 +306,5 @@ vivify_clauses (struct ring *ring)
 		implied, percent (implied, vivified),
 		strengthened, percent (strengthened, vivified));
   verbose_report (ring, 'v', !(implied || strengthened));
-  STOP (ring, vivify);
+  (void) STOP (ring, vivify);
 }

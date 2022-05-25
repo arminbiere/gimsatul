@@ -89,10 +89,14 @@ catch_signal (int sig)
   if (atomic_exchange (&caught_signal, sig))
     return;
   caught_message (sig);
+#ifndef QUIET
   struct ruler *ruler = (struct ruler *) one_global_ruler;
+#endif
   reset_signal_handlers ();
+#ifndef QUIET
   if (ruler)
     print_ruler_statistics (ruler);
+#endif
   raise (sig);
 }
 

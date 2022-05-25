@@ -1,6 +1,9 @@
 #ifndef _profile_h_INCLUDED
 #define _profile_h_INCLUDED
 
+#ifndef QUIET
+
+#include "message.h"
 #include "system.h"
 
 struct profile
@@ -50,8 +53,6 @@ struct ruler_profiles
 };
 
 /*------------------------------------------------------------------------*/
-
-extern int verbosity;
 
 #define profile_time current_time
 
@@ -117,5 +118,20 @@ do { \
 
 double start_profile (struct profile *, double time);
 double stop_profile (struct profile *, double time);
+
+#else
+
+struct ring_profiles { };
+struct ruler_profiles { };
+
+#define START(...) (0)
+#define STOP(...) (0)
+#define START_SEARCH(...) do { } while (0)
+#define STOP_SEARCH(...) do { } while (0)
+#define STOP_SEARCH_AND_START(...) do { } while (0)
+#define STOP_AND_START_SEARCH(...) do { } while (0)
+#define INIT_PROFILE(...) do { } while (0)
+
+#endif
 
 #endif

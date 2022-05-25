@@ -444,11 +444,15 @@ set_max_rounds (unsigned optimize)
   return res;
 }
 
+#ifndef QUIET
+
 static size_t
 current_ruler_clauses (struct ruler *ruler)
 {
   return SIZE (ruler->clauses) + ruler->statistics.binaries;
 }
+
+#endif
 
 static void
 push_ruler_units_to_extension_stack (struct ruler *ruler)
@@ -489,6 +493,8 @@ run_full_blown_simplification (struct simplifier *simplifier)
 
   unsigned optimize = ruler->options.optimize;
   set_ruler_limits (ruler, optimize);
+
+#ifndef QUIET
   struct
   {
     size_t before, after, delta;
@@ -496,6 +502,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
 
   clauses.before = current_ruler_clauses (ruler);
   variables.before = ruler->statistics.active;
+#endif
 
   unsigned max_rounds = set_max_rounds (optimize);
 
@@ -532,6 +539,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
   if (verbosity >= 0)
     fputs ("c\n", stdout);
 
+#ifndef QUIET
   variables.after = ruler->statistics.active;
   assert (variables.after <= variables.before);
   variables.delta = variables.before - variables.after;
@@ -541,7 +549,6 @@ run_full_blown_simplification (struct simplifier *simplifier)
 	   variables.delta,
 	   percent (variables.delta, variables.before),
 	   variables.after, percent (variables.after, ruler->size));
-
 
   clauses.after = current_ruler_clauses (ruler);
   size_t original = ruler->statistics.original;
@@ -574,6 +581,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
   message (0, "elimination used %" PRIu64 " ticks%s",
 	   ruler->statistics.ticks.elimination,
 	   elimination_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
+#endif
 }
 
 void
@@ -582,7 +590,9 @@ simplify_ruler (struct ruler *ruler, bool preprocessing)
   if (ruler->inconsistent)
     return;
 
+#ifndef QUIET
   double start_simplification = START (ruler, simplify);
+#endif
 
   assert (!ruler->simplifying);
   ruler->simplifying = true;
@@ -607,9 +617,11 @@ simplify_ruler (struct ruler *ruler, bool preprocessing)
   assert (ruler->simplifying);
   ruler->simplifying = false;
 
+#ifndef QUIET
   double end_simplification = STOP (ruler, simplify);
   message (0, "simplification took %.2f seconds",
 	   end_simplification - start_simplification);
+#endif
 }
 
 static void

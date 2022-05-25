@@ -168,6 +168,7 @@ flush_watches (struct ring *ring)
   verbose (ring,
 	   "flushed %zu garbage watched and deleted %zu clauses %.0f%%",
 	   flushed, deleted, percent (deleted, flushed));
+  (void) deleted, (void) flushed;
 }
 
 void

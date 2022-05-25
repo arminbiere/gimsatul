@@ -212,10 +212,12 @@ clone_rings (struct ruler *ruler)
   unsigned threads = ruler->options.threads;
   assert (0 < threads);
   assert (threads <= MAX_THREADS);
-  START (ruler, clone);
+  (void) START (ruler, clone);
+#ifndef QUIET
   double before = 0;
   if (verbosity >= 0)
     before = current_resident_set_size () / (double) (1 << 20);
+#endif
   clone_ruler (ruler);
   if (threads > 1 && !ruler->inconsistent)
     {
@@ -231,6 +233,7 @@ clone_rings (struct ruler *ruler)
     }
   RELEASE (ruler->clauses);
   assert (ruler->inconsistent || SIZE (ruler->rings) == threads);
+#ifndef QUIET
   if (verbosity >= 0)
     {
       double after = current_resident_set_size () / (double) (1 << 20);
@@ -238,5 +241,6 @@ clone_rings (struct ruler *ruler)
 	      average (after, before), before, after);
       fflush (stdout);
     }
-  STOP (ruler, clone);
+#endif
+  (void) STOP (ruler, clone);
 }

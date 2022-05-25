@@ -331,7 +331,9 @@ subsume_clauses (struct simplifier *simplifier, unsigned round)
   if (subsumption_ticks_limit_hit (simplifier))
     return false;
   struct ruler *ruler = simplifier->ruler;
+#ifndef QUIET
   double start_subsumption = START (ruler, subsume);
+#endif
   flush_large_clause_occurrences (ruler);
   assert (!ruler->subsuming);
   ruler->subsuming = true;
@@ -363,6 +365,7 @@ subsume_clauses (struct simplifier *simplifier, unsigned round)
   strengthened.after = statistics->strengthened;
   subsumed.delta = subsumed.after - subsumed.before;
   strengthened.delta = strengthened.after - strengthened.before;
+#ifndef QUIET
   double end_subsumption = STOP (ruler, subsume);
   message (0, "[%u] subsumed %zu clauses %.0f%% and "
 	   "strengthened %zu clauses %.0f%% in %.2f seconds", round,
@@ -370,5 +373,6 @@ subsume_clauses (struct simplifier *simplifier, unsigned round)
 	   strengthened.delta, percent (strengthened.delta,
 					statistics->original),
 	   end_subsumption - start_subsumption);
+#endif
   return subsumed.delta || strengthened.delta;
 }

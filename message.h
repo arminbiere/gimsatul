@@ -3,8 +3,23 @@
 
 #include <stdint.h>
 
-extern const char *prefix_format;
+void die (const char *, ...) __attribute__((format (printf, 1, 2)));
+void fatal_error (const char *, ...) __attribute__((format (printf, 1, 2)));
+
+#ifdef QUIET
+
+static const int verbosity = -1;
+
+#define acquire_message_lock() do { } while (0)
+#define release_message_lock() do { } while (0)
+#define message(...) do { } while (0)
+#define verbose(...) do { } while (0)
+#define very_verbose(...) do { } while (0)
+
+#else
+
 extern int verbosity;
+extern const char *prefix_format;
 
 #ifdef LOGGING
 extern volatile uint64_t clause_ids;
@@ -13,9 +28,6 @@ extern volatile uint64_t clause_ids;
 void acquire_message_lock (void);
 void release_message_lock (void);
 
-void die (const char *, ...) __attribute__((format (printf, 1, 2)));
-void fatal_error (const char *, ...) __attribute__((format (printf, 1, 2)));
-
 struct ring;
 
 void print_line_without_acquiring_lock (struct ring *, const char *, ...)
@@ -23,8 +35,6 @@ void print_line_without_acquiring_lock (struct ring *, const char *, ...)
 
 void message (struct ring *ring, const char *, ...)
   __attribute__((format (printf, 2, 3)));
-
-void empty_message (void);
 
 #define PRINTLN(...) \
   print_line_without_acquiring_lock (ring, __VA_ARGS__)
@@ -40,5 +50,7 @@ do { \
   if (verbosity > 2) \
     message (__VA_ARGS__); \
 } while (0)
+
+#endif
 
 #endif

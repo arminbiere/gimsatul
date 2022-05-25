@@ -284,4 +284,5 @@ parse_dimacs_body (struct ruler *ruler, int variables, int expected)
   free (marked);
   double end_parsing = STOP (ruler, parse);
   message (0, "parsing took %.2f seconds", end_parsing - start_parsing);
+  (void) end_parsing, (void) start_parsing;
 }

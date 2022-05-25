@@ -1,3 +1,5 @@
+#ifndef QUIET
+
 #include "ruler.h"
 #include "message.h"
 #include "utilities.h"
@@ -146,3 +148,5 @@ print_ruler_profiles (struct ruler *ruler)
   fputs ("c\n", stdout);
   fflush (stdout);
 }
+
+#endif

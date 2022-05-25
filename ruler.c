@@ -7,6 +7,8 @@
 
 #include <string.h>
 
+#ifndef QUIET
+
 void
 init_ruler_profiles (struct ruler *ruler)
 {
@@ -16,6 +18,8 @@ init_ruler_profiles (struct ruler *ruler)
 #undef RULER_PROFILE
     START (ruler, total);
 }
+
+#endif
 
 struct ruler *
 new_ruler (size_t size, struct options *opts)
@@ -41,7 +45,9 @@ new_ruler (size_t size, struct options *opts)
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
   ruler->units.propagate = ruler->units.end = ruler->units.begin;
+#ifndef QUIET
   init_ruler_profiles (ruler);
+#endif
   return ruler;
 }
 

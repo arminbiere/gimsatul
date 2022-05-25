@@ -124,7 +124,9 @@ set_ring_limits (struct ring *ring, long long conflicts)
 struct ring *
 solve_rings (struct ruler *ruler)
 {
+#ifndef QUIET
   double start_solving = START (ruler, solve);
+#endif
   assert (!ruler->solving);
   ruler->solving = true;
   size_t threads = SIZE (ruler->rings);
@@ -163,8 +165,10 @@ solve_rings (struct ruler *ruler)
     }
   assert (ruler->solving);
   ruler->solving = false;
+#ifndef QUIET
   double end_solving = STOP (ruler, solve);
   verbose (0, "finished solving using %zu threads in %.2f seconds",
 	   threads, end_solving - start_solving);
+#endif
   return (struct ring *) ruler->winner;
 }

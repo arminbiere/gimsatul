@@ -16,7 +16,9 @@
 int
 main (int argc, char **argv)
 {
+#ifndef QUIET
   start_time = current_time ();
+#endif
   struct options options;
   parse_options (argc, argv, &options);
   print_banner ();
@@ -58,7 +60,9 @@ main (int argc, char **argv)
       fflush (stdout);
       free (witness);
     }
+#ifndef QUIET
   print_ruler_statistics (ruler);
+#endif
   detach_and_delete_rings (ruler);
   delete_ruler (ruler);
   if (verbosity >= 0)

@@ -524,5 +524,6 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 	   "margin %u in %.2f seconds", round,
 	   eliminated, percent (eliminated, ruler->size),
 	   margin, end_round - start_round);
+  (void) end_round, (void) start_round;
   return eliminated;
 }

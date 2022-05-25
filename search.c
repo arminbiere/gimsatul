@@ -26,8 +26,10 @@ iterate (struct ring *ring)
   struct ring_trail *trail = &ring->trail;
   assert (trail->end == trail->propagate);
   assert (trail->iterate < trail->propagate);
+#ifndef QUIET
   size_t new_units = trail->propagate - trail->iterate;
   very_verbose (ring, "iterating %zu units", new_units);
+#endif
   verbose_report (ring, 'i', ring->iterating-1);
   ring->iterating = 0;
   export_units (ring);
@@ -38,16 +40,16 @@ static void
 start_search (struct ring *ring)
 {
   ring->stable = !ring->options.focus_initially;
-  START (ring, search);
+  (void) START (ring, search);
   if (ring->stable)
     {
       report (ring, '[');
-      START (ring, stable);
+      (void) START (ring, stable);
     }
   else
     {
       report (ring, '{');
-      START (ring, focus);
+      (void) START (ring, focus);
     }
 }
 
@@ -57,12 +59,12 @@ stop_search (struct ring *ring, int res)
   if (ring->stable)
     {
       report (ring, ']');
-      STOP (ring, stable);
+      (void) STOP (ring, stable);
     }
   else
     {
       report (ring, '}');
-      STOP (ring, focus);
+      (void) STOP (ring, focus);
     }
   if (res == 10)
     report (ring, '1');
@@ -70,7 +72,7 @@ stop_search (struct ring *ring, int res)
     report (ring, '0');
   else
     report (ring, '?');
-  STOP (ring, search);
+  (void) STOP (ring, search);
 }
 
 static bool

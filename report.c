@@ -1,3 +1,5 @@
+#ifndef QUIET
+
 #include "message.h"
 #include "report.h"
 #include "ruler.h"
@@ -46,3 +48,5 @@ report (struct ring *ring, char type)
 {
   verbose_report (ring, type, 0);
 }
+
+#endif
