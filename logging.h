@@ -64,18 +64,28 @@ do { \
 
 #define LOGCLAUSE(CLAUSE, ...) \
 do { \
-  LOGPREFIX (__VA_ARGS__); \
-  if ((CLAUSE)->garbage) \
-    printf (" garbage"); \
-  if ((CLAUSE)->redundant) \
-    printf (" redundant glue %u", (CLAUSE)->glue); \
+  if (binary_pointer (CLAUSE)) \
+    { \
+      bool REDUNDANT = redundant_pointer (CLAUSE); \
+      unsigned LIT = lit_pointer (CLAUSE); \
+      unsigned OTHER = other_pointer (CLAUSE); \
+      LOGBINARY (REDUNDANT, LIT, OTHER, __VA_ARGS__); \
+    } \
   else \
-    printf (" irredundant"); \
-  printf (" size %u clause[%" PRIu64 "]", \
-          (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
-  for (all_literals_in_clause (LIT, (CLAUSE))) \
-    printf (" %s", LOGLIT (LIT)); \
-  LOGSUFFIX (); \
+    { \
+      LOGPREFIX (__VA_ARGS__); \
+      if ((CLAUSE)->garbage) \
+	printf (" garbage"); \
+      if ((CLAUSE)->redundant) \
+	printf (" redundant glue %u", (CLAUSE)->glue); \
+      else \
+	printf (" irredundant"); \
+      printf (" size %u clause[%" PRIu64 "]", \
+	      (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
+      for (all_literals_in_clause (LIT, (CLAUSE))) \
+	printf (" %s", LOGLIT (LIT)); \
+      LOGSUFFIX (); \
+    } \
 } while (0)
 
 #define LOGWATCH(WATCH, ...) \
