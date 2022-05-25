@@ -35,14 +35,16 @@ message (struct ring *ring, const char *fmt, ...)
     return;
   acquire_message_lock ();
   va_list ap;
-  va_start (ap, fmt);
+  if (fmt)
+    va_start (ap, fmt);
   if (!fmt || *fmt == '\n')
     {
       if (ring)
 	printf ("c%u\n", ring->id);
       else
 	printf ("c\n");
-      fmt++;
+      if (fmt)
+	fmt++;
     }
   if (fmt)
     {

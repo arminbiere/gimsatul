@@ -13,18 +13,41 @@ extend_witness (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
   LOG ("extending witness from %u to %u variables", ring->size, ruler->size);
-  signed char *values = allocate_array (2 * ruler->size, sizeof *values);
-  memcpy (values, ring->values, 2 * ring->size);
+  signed char *witness = allocate_array (2 * ruler->size, sizeof *witness);
+  signed char *values = ring->values;
   assert (ring->size == ruler->compact);
-  for (unsigned idx = ring->size; idx != ruler->size; idx++)
+  for (unsigned idx = 0; idx != ruler->size; idx++)
     {
       unsigned lit = LIT (idx);
       unsigned not_lit = NOT (lit);
-      values[lit] = 1;
-      values[not_lit] = -1;
+      witness[lit] = 1;
+      witness[not_lit] = -1;
     }
-  free (ruler->map);
+#ifdef LOGGING
+  ring->values = witness;
+  struct variable * ring_variables = ring->variables;
+  struct variable * ruler_variables =
+    allocate_array (ruler->size, sizeof *ruler_variables);
+  for (unsigned idx = 0; idx != ruler->size; idx++)
+    ruler_variables[idx].level = INVALID;
+  ring->variables = ruler_variables;
+#endif
+  unsigned * map = ruler->map;
   ruler->map = 0;
+  for (unsigned ring_idx = 0; ring_idx != ring->size; ring_idx++)
+    {
+      unsigned ring_lit = LIT (ring_idx);
+      signed char value = values[ring_lit];
+      unsigned ruler_idx = map[ring_idx];
+      unsigned ruler_lit = LIT (ruler_idx);
+      unsigned not_ruler_lit = NOT (ruler_lit);
+      witness[ruler_lit] = value;
+      witness[not_ruler_lit] = -value;
+#ifdef LOGGING
+      ruler_variables[ruler_idx].level = ring_variables[ring_idx].level;
+#endif
+    }
+  free (map);
   size_t flipped = 0;
   struct unsigneds *extension = &ruler->extension;
   unsigned *begin = extension->begin;
@@ -60,24 +83,29 @@ extend_witness (struct ring *ring)
 	      LOG ("flipping %s", LOGLIT (pivot));
 	      assert (pivot != INVALID);
 	      unsigned not_pivot = NOT (pivot);
-	      assert (values[pivot] < 0);
-	      assert (values[not_pivot] > 0);
-	      values[pivot] = 1;
-	      values[not_pivot] = -1;
+	      assert (witness[pivot] < 0);
+	      assert (witness[not_pivot] > 0);
+	      witness[pivot] = 1;
+	      witness[not_pivot] = -1;
 	      flipped++;
 	    }
 	  satisfied = false;
 	}
       else if (!satisfied)
 	{
-	  signed char value = values[lit];
+	  signed char value = witness[lit];
 	  if (value > 0)
 	    satisfied = true;
 	}
       pivot = lit;
     }
   verbose (ring, "flipped %zu literals", flipped);
-  return values;
+#ifdef LOGGING
+  ring->values = values;
+  ring->variables = ring_variables;
+  free (ruler_variables);
+#endif
+  return witness;
 }
 
 #ifndef NDEBUG

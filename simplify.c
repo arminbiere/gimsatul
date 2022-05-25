@@ -458,23 +458,21 @@ static void
 push_ruler_units_to_extension_stack (struct ruler *ruler)
 {
   struct unsigneds *extension = &ruler->extension;
+  size_t pushed = 0;
   for (all_elements_on_stack (unsigned, lit, ruler->units))
     {
       PUSH (*extension, INVALID);
       PUSH (*extension, lit);
+      pushed++;
     }
-  verbose (0, "pushed %zu units on extension stack", SIZE (*extension));
+  verbose (0, "pushed %zu units on extension stack", pushed);
   ruler->units.end = ruler->units.propagate = ruler->units.begin;
 }
 
 static void
 run_only_root_level_propagation (struct simplifier *simplifier)
 {
-  if (verbosity >= 0)
-    {
-      printf ("c\nc simplifying by root-level propagation only\n");
-      fflush (stdout);
-    }
+  message (0, "simplifying by root-level propagation only");
   connect_all_large_clauses (simplifier->ruler);
   propagate_and_flush_ruler_units (simplifier);
 }
@@ -482,12 +480,7 @@ run_only_root_level_propagation (struct simplifier *simplifier)
 static void
 run_full_blown_simplification (struct simplifier *simplifier)
 {
-  if (verbosity >= 0)
-    {
-      printf ("c\nc simplifying formula before cloning\n");
-      fflush (stdout);
-    }
-
+  message (0, "simplifying formula before cloning");
   struct ruler *ruler = simplifier->ruler;
   connect_all_large_clauses (ruler);
 
@@ -536,8 +529,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
       if (elimination_ticks_limit_hit (simplifier))
 	break;
     }
-  if (verbosity >= 0)
-    fputs ("c\n", stdout);
+  message (0, 0);
 
 #ifndef QUIET
   variables.after = ruler->statistics.active;
@@ -605,6 +597,10 @@ simplify_ruler (struct ruler *ruler, bool preprocessing)
 #else
   bool full = preprocessing && ruler->options.preprocessing;
 #endif
+
+  if (preprocessing)
+    message (0, 0);
+
   if (full)
     run_full_blown_simplification (simplifier);
   else

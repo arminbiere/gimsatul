@@ -254,7 +254,6 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   unsigned old_compact = ruler->compact;
   unsigned *map = allocate_array (old_compact, sizeof *map);
   unsigned mapped = 0;
-  struct unsigneds *extension = &ruler->extension;
   for (all_ruler_indices (idx))
     {
       map[idx] = INVALID;
@@ -266,16 +265,6 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       unsigned old_idx = old_map ? old_map[idx] : idx;
       unmap[mapped] = old_idx;
       map[idx] = mapped;
-      unsigned src = LIT (idx);
-      unsigned dst = LIT (mapped);
-      unsigned not_src = NOT (src);
-      unsigned not_dst = NOT (dst);
-      PUSH (*extension, INVALID);
-      PUSH (*extension, src);
-      PUSH (*extension, not_dst);
-      PUSH (*extension, INVALID);
-      PUSH (*extension, not_src);
-      PUSH (*extension, dst);
       mapped++;
     }
   if (old_map)

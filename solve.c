@@ -117,8 +117,7 @@ set_ring_limits (struct ring *ring, long long conflicts)
       limits->conflicts = conflicts;
       verbose (ring, "conflict limit set to %lld conflicts", conflicts);
     }
-  if (verbosity > 0)
-    printf ("c\n");
+  message (0, 0);
 }
 
 struct ring *
