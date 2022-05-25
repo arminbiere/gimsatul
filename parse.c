@@ -162,7 +162,9 @@ parse_dimacs_header (struct options *options,
 void
 parse_dimacs_body (struct ruler *ruler, int variables, int expected)
 {
+#ifndef QUIET
   double start_parsing = START (ruler, parse);
+#endif
   struct file *dimacs = &ruler->options.dimacs;
   signed char *marked = allocate_and_clear_block (variables);
   struct unsigneds clause;
@@ -282,7 +284,8 @@ parse_dimacs_body (struct ruler *ruler, int variables, int expected)
   RELEASE (clause);
   ruler->statistics.original = parsed;
   free (marked);
+#ifndef QUIET
   double end_parsing = STOP (ruler, parse);
   message (0, "parsing took %.2f seconds", end_parsing - start_parsing);
-  (void) end_parsing, (void) start_parsing;
+#endif
 }

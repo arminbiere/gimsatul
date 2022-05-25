@@ -175,7 +175,7 @@ vivify_clauses (struct ring *ring)
   struct watches *watches = &ring->watches;
   if (EMPTY (*watches))
     return;
-  (void) START (ring, vivify);
+  START (ring, vivify);
   assert (SEARCH_TICKS >= ring->last.probing);
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   uint64_t delta_probing_ticks = VIVIFY_EFFORT * delta_search_ticks;
@@ -306,5 +306,5 @@ vivify_clauses (struct ring *ring)
 		implied, percent (implied, vivified),
 		strengthened, percent (strengthened, vivified));
   verbose_report (ring, 'v', !(implied || strengthened));
-  (void) STOP (ring, vivify);
+  STOP (ring, vivify);
 }

@@ -19,7 +19,7 @@ failed_literal_probing (struct ring *ring)
 {
   if (!ring->options.fail)
     return;
-  (void) START (ring, fail);
+  START (ring, fail);
   assert (SEARCH_TICKS >= ring->last.probing);
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   uint64_t delta_probing_ticks = FAILED_EFFORT * delta_search_ticks;
@@ -197,5 +197,5 @@ failed_literal_probing (struct ring *ring)
 	   percent (probed, max_lit), failed,
 	   percent (failed, probed), lifted);
   verbose_report (ring, 'f', !(failed || lifted));
-  (void) STOP (ring, fail);
+  STOP (ring, fail);
 }

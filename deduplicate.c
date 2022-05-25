@@ -72,7 +72,9 @@ remove_duplicated_binaries (struct simplifier *simplifier, unsigned round)
   struct ruler *ruler = simplifier->ruler;
   if (!ruler->options.deduplicate)
     return false;
+#ifndef QUIET
   double start_deduplication = START (ruler, deduplicate);
+#endif
   bool *eliminated = simplifier->eliminated;
   signed char *values = (signed char *) ruler->values;
   unsigned units_before = ruler->statistics.fixed.total;
@@ -91,11 +93,12 @@ remove_duplicated_binaries (struct simplifier *simplifier, unsigned round)
   if (units_after > units_before)
     verbose (0, "[%u] deduplicating found %u units",
 	     round, units_after - units_before);
+#ifndef QUIET
   double stop_deduplication = STOP (ruler, deduplicate);
   message (0, "[%u] removed %zu duplicated binary clauses %.0f%% "
 	   "in %.2f seconds", round,
 	   removed, percent (removed, ruler->statistics.original),
 	   stop_deduplication - start_deduplication);
-  (void) stop_deduplication, (void) start_deduplication;
+#endif
   return removed;
 }

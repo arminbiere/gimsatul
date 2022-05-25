@@ -40,16 +40,16 @@ static void
 start_search (struct ring *ring)
 {
   ring->stable = !ring->options.focus_initially;
-  (void) START (ring, search);
+  START (ring, search);
   if (ring->stable)
     {
       report (ring, '[');
-      (void) START (ring, stable);
+      START (ring, stable);
     }
   else
     {
       report (ring, '{');
-      (void) START (ring, focus);
+      START (ring, focus);
     }
 }
 
@@ -59,12 +59,12 @@ stop_search (struct ring *ring, int res)
   if (ring->stable)
     {
       report (ring, ']');
-      (void) STOP (ring, stable);
+      STOP (ring, stable);
     }
   else
     {
       report (ring, '}');
-      (void) STOP (ring, focus);
+      STOP (ring, focus);
     }
   if (res == 10)
     report (ring, '1');
@@ -72,7 +72,7 @@ stop_search (struct ring *ring, int res)
     report (ring, '0');
   else
     report (ring, '?');
-  (void) STOP (ring, search);
+  STOP (ring, search);
 }
 
 static bool

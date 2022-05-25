@@ -484,7 +484,9 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
     return false;
   if (elimination_ticks_limit_hit (simplifier))
     return false;
+#ifndef QUIET
   double start_round = START (ruler, eliminate);
+#endif
   assert (!ruler->eliminating);
   ruler->eliminating = true;
   unsigned eliminated = 0;
@@ -519,11 +521,12 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   RELEASE (simplifier->nogate[1]);
   assert (ruler->eliminating);
   ruler->eliminating = false;
+#ifndef QUIET
   double end_round = STOP (ruler, eliminate);
   message (0, "[%u] eliminated %u variables %.0f%% "
 	   "margin %u in %.2f seconds", round,
 	   eliminated, percent (eliminated, ruler->size),
 	   margin, end_round - start_round);
-  (void) end_round, (void) start_round;
+#endif
   return eliminated;
 }
