@@ -104,6 +104,7 @@ compact_heap (struct ring * ring, struct heap * heap,
       assert (new_nodes + new_idx == new_node);
       new_node->score = old_node->score;
       push_heap (heap, new_node);
+      new_node++;
     }
   assert (old_node == old_nodes + old_size);
   assert (new_node == new_nodes + new_size);
@@ -249,8 +250,10 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       compact++;
     }
   unsigned *unmap = allocate_array (compact, sizeof *unmap);
+  unsigned *old_map = ruler->map;
   ruler->map = unmap;
-  unsigned *map = allocate_array (ruler->size, sizeof *map);
+  unsigned old_compact = ruler->compact;
+  unsigned *map = allocate_array (old_compact, sizeof *map);
   unsigned mapped = 0;
   struct unsigneds *extension = &ruler->extension;
   for (all_ruler_indices (idx))
@@ -261,7 +264,8 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       unsigned lit = LIT (idx);
       if (values[lit])
 	continue;
-      unmap[mapped] = idx;
+      unsigned old_idx = old_map ? old_map[idx] : old_idx;
+      unmap[mapped] = old_idx;
       map[idx] = mapped;
       unsigned src = LIT (idx);
       unsigned dst = LIT (mapped);
@@ -275,6 +279,8 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       PUSH (*extension, dst);
       mapped++;
     }
+  if (old_map)
+    free (old_map);
   SHRINK_STACK (ruler->extension);
   for (all_ruler_indices (idx))
     {

@@ -68,12 +68,12 @@ init_ring (struct ring * ring)
 
   assert (!ring->marks);
   assert (!ring->values);
-  assert (!ring->active);
+  assert (!ring->inactive);
   assert (!ring->used);
 
   ring->marks = allocate_and_clear_block (2 * size);
   ring->values = allocate_and_clear_block (2 * size);
-  ring->active = allocate_and_clear_block (size);
+  ring->inactive = allocate_and_clear_block (size);
   ring->used = allocate_and_clear_block (size);
 
   assert (!ring->references);
@@ -99,7 +99,7 @@ release_ring (struct ring * ring)
 
   FREE (ring->marks);
   FREE (ring->values);
-  FREE (ring->active);
+  FREE (ring->inactive);
   FREE (ring->used);
 
   RELEASE (ring->analyzed);
@@ -108,8 +108,10 @@ release_ring (struct ring * ring)
   RELEASE (ring->minimize);
 
   FREE (ring->references);
-  FREE (ring->trail.begin);
-  FREE (ring->trail.pos);
+  struct ring_trail * trail = &ring->trail;
+  free (trail->begin);
+  free (trail->pos);
+  memset (trail, 0, sizeof *trail);
   FREE (ring->variables);
 }
 
@@ -145,7 +147,6 @@ new_ring (struct ruler *ruler)
       struct node *node = n++;
       struct link *link = l++;
       LOG ("pushing active %s", LOGVAR (idx));
-      ring->active[idx] = true;
       push_heap (heap, node);
       enqueue (queue, link, true);
     }

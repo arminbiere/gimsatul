@@ -29,7 +29,7 @@ failed_literal_probing (struct ring *ring)
   uint64_t probing_ticks_before = PROBING_TICKS;
   uint64_t limit = probing_ticks_before + delta_probing_ticks;
   signed char *values = ring->values;
-  bool *active = ring->active;
+  bool *inactive = ring->inactive;
   unsigned start = INVALID;
   unsigned max_lit = 2 * ring->size;
   unsigned probe = ring->probe;
@@ -43,7 +43,7 @@ failed_literal_probing (struct ring *ring)
     {
       assert (!ring->inconsistent);
       while (probe != start &&
-	     (!active[IDX (probe)] || stamps[probe] == failed + 1))
+	     (inactive[IDX (probe)] || stamps[probe] == failed + 1))
 	{
 	  if (start == INVALID)
 	    start = probe;

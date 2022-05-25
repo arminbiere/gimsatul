@@ -48,7 +48,6 @@ save_ring_binaries (struct ring *ring)
 	}
       free (binaries);
     }
-  free (ring->references);
 
   size_t redundant = SIZE (*saved);
 
@@ -123,7 +122,7 @@ save_large_watches (struct ring *ring)
 void
 unclone_ring (struct ring *ring)
 {
-  release_ring (ring);
   save_ring_binaries (ring);
   save_large_watches (ring);
+  release_ring (ring);
 }

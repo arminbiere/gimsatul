@@ -32,13 +32,13 @@ random_decision (struct ring *ring)
   assert (ring->unassigned);
 
   signed char *values = ring->values;
-  bool *active = ring->active;
+  bool *inactive = ring->inactive;
   unsigned size = ring->size;
 
   unsigned idx = random_modulo (&ring->random, size);
   unsigned lit = LIT (idx);
 
-  if (!active[idx] || values[lit])
+  if (inactive[idx] || values[lit])
     {
       unsigned delta = random_modulo (&ring->random, size);
       while (gcd (delta, size) != 1)
@@ -52,7 +52,7 @@ random_decision (struct ring *ring)
 	    idx -= size;
 	  lit = LIT (idx);
 	}
-      while (!active[idx] || values[lit]);
+      while (inactive[idx] || values[lit]);
     }
 
   LOG ("random decision %s", LOGVAR (idx));

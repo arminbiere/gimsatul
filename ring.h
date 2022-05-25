@@ -107,7 +107,7 @@ struct ring
   signed char *marks;
   signed char *values;
 
-  bool *active;
+  bool *inactive;
   bool *used;
 
   struct unsigneds analyzed;

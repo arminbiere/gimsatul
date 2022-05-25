@@ -61,11 +61,11 @@ first_active_node (struct ring *ring)
   struct node *nodes = heap->nodes;
   struct node *end = nodes + ring->size;
   struct node *res = nodes;
-  bool *active = ring->active;
+  bool *inactive = ring->inactive;
   while (res != end)
     {
       unsigned idx = res - nodes;
-      if (active[idx])
+      if (!inactive[idx])
 	return res;
       res++;
     }
@@ -81,11 +81,11 @@ next_active_node (struct ring *ring, struct node *node)
   assert (nodes <= node);
   assert (node < end);
   struct node *res = node + 1;
-  bool *active = ring->active;
+  bool *inactive = ring->inactive;
   while (res != end)
     {
       unsigned idx = res - nodes;
-      if (active[idx])
+      if (!inactive[idx])
 	return res;
       res++;
     }

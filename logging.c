@@ -27,13 +27,17 @@ loglit (struct ring *ring, unsigned unsigned_lit)
   char *res = next_loglitbuf ();
   int signed_lit = export_literal (ring->ruler->map, unsigned_lit);
   sprintf (res, "%u(%d)", unsigned_lit, signed_lit);
-  signed char value = ring->values[unsigned_lit];
-  if (value)
+  signed char * values = ring->values;
+  if (values)
     {
-      sprintf (res + strlen (res), "=%d", (int) value);
-      struct variable *v = VAR (unsigned_lit);
-      if (v->level != INVALID)
-	sprintf (res + strlen (res), "@%u", v->level);
+      signed char value = values[unsigned_lit];
+      if (value)
+	{
+	  sprintf (res + strlen (res), "=%d", (int) value);
+	  struct variable *v = VAR (unsigned_lit);
+	  if (v->level != INVALID)
+	    sprintf (res + strlen (res), "@%u", v->level);
+	}
     }
   assert (strlen (res) + 1 < sizeof *loglitbuf);
   return res;

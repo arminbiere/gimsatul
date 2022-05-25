@@ -12,7 +12,7 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   assert (idx < ring->size);
   assert (!ring->values[lit]);
   assert (!ring->values[not_lit]);
-  assert (ring->active[idx]);
+  assert (!ring->inactive[idx]);
 
   assert (ring->unassigned);
   ring->unassigned--;
@@ -43,8 +43,8 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
 	}
       assert (ring->statistics.active);
       ring->statistics.active--;
-      assert (ring->active[idx]);
-      ring->active[idx] = false;
+      assert (!ring->inactive[idx]);
+      ring->inactive[idx] = true;
     }
   else
     v->reason = reason;
