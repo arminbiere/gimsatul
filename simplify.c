@@ -592,7 +592,7 @@ simplify_ruler (struct ruler *ruler, bool preprocessing)
 
   struct simplifier *simplifier = new_simplifier (ruler);
 
-#if 0
+#if 1
   bool full = preprocessing ?
     ruler->options.preprocessing : ruler->options.inprocessing;
 #else
@@ -720,8 +720,7 @@ static void
 clone_first_ring_after_simplification (struct ring *ring)
 {
   assert (!ring->id);
-  ring->references =
-    allocate_and_clear_array (2 * ring->size, sizeof *ring->references);
+  assert (ring->references);
   copy_ruler (ring);
 }
 
@@ -741,8 +740,7 @@ copy_other_ring_after_simplification (struct ring *ring)
   (void) rendezvous (&ring->ruler->barriers.copy, ring, true);
   if (!ring->id)
     return;
-  ring->references =
-    allocate_and_clear_array (2 * ring->size, sizeof *ring->references);
+  assert (ring->references);
   copy_ring (ring);
 }
 

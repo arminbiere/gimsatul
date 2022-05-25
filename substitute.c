@@ -9,7 +9,7 @@ static unsigned *
 find_equivalent_literals (struct simplifier *simplifier, unsigned round)
 {
   struct ruler *ruler = simplifier->ruler;
-  size_t bytes = 2 * ruler->size * sizeof (unsigned);
+  size_t bytes = 2 * ruler->compact * sizeof (unsigned);
   unsigned *marks = allocate_and_clear_block (bytes);
   unsigned *reaches = allocate_and_clear_block (bytes);
   unsigned *repr = allocate_block (bytes);

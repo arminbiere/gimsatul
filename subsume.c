@@ -51,7 +51,7 @@ get_subsumption_candidates (struct simplifier *simplifier,
   for (all_clauses (clause, *clauses))
     if (clause->subsume)
       candidates[count[clause->size]++] = clause;
-  memset (simplifier->subsume, 0, ruler->size);
+  memset (simplifier->subsume, 0, ruler->compact);
   *candidates_ptr = candidates;
   return pos;
 }

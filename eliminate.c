@@ -500,7 +500,7 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 	shift = LD_MAX_ELIMINATE_MARGIN;
       margin = 1u << shift;
       if (shift != LD_MAX_ELIMINATE_MARGIN && (round & 1))
-	memset (simplifier->eliminate, 1, ruler->size);
+	memset (simplifier->eliminate, 1, ruler->compact);
     }
   for (all_ruler_indices (idx))
     {
@@ -525,7 +525,7 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   double end_round = STOP (ruler, eliminate);
   message (0, "[%u] eliminated %u variables %.0f%% "
 	   "margin %u in %.2f seconds", round,
-	   eliminated, percent (eliminated, ruler->size),
+	   eliminated, percent (eliminated, ruler->compact),
 	   margin, end_round - start_round);
 #endif
   return eliminated;
