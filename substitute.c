@@ -216,7 +216,7 @@ substitute_literal (struct simplifier *simplifier, unsigned src, unsigned dst)
       recycle_clause (simplifier, clause, src);
     }
   RELEASE (*clauses);
-  struct unsigneds *extension = &ruler->extension;
+  struct unsigneds *extension = &ruler->extension[0];
   ROGBINARY (NOT (src), dst,
 	     "pushing on extension stack with witness literal %s",
 	     ROGLIT (NOT (src)));

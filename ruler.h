@@ -81,7 +81,7 @@ struct ruler
   struct clauses *occurrences;
   struct clauses clauses;
   struct unsigneds *original;
-  struct unsigneds extension;
+  struct unsigneds extension[2];
   struct ruler_trail units;
   unsigned *map;
   struct trace trace;

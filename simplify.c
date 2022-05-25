@@ -457,7 +457,7 @@ current_ruler_clauses (struct ruler *ruler)
 static void
 push_ruler_units_to_extension_stack (struct ruler *ruler)
 {
-  struct unsigneds *extension = &ruler->extension;
+  struct unsigneds *extension = &ruler->extension[0];
   size_t pushed = 0;
   for (all_elements_on_stack (unsigned, lit, ruler->units))
     {

@@ -304,7 +304,7 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
     }
   if (old_map)
     free (old_map);
-  SHRINK_STACK (ruler->extension);
+  SHRINK_STACK (ruler->extension[0]);
   for (all_ruler_indices (idx))
     {
       unsigned lit = LIT (idx);

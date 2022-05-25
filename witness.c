@@ -49,7 +49,7 @@ extend_witness (struct ring *ring)
     }
   free (map);
   size_t flipped = 0;
-  struct unsigneds *extension = &ruler->extension;
+  struct unsigneds *extension = &ruler->extension[0];
   unsigned *begin = extension->begin;
   unsigned *p = extension->end;
   unsigned pivot = INVALID;

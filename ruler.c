@@ -102,7 +102,8 @@ delete_ruler (struct ruler *ruler)
 #endif
   RELEASE (ruler->rings);
   RELEASE (ruler->trace.buffer);
-  RELEASE (ruler->extension);
+  RELEASE (ruler->extension[0]);
+  RELEASE (ruler->extension[1]);
   if (ruler->original)
     {
       RELEASE (*ruler->original);

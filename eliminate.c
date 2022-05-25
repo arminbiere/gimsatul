@@ -449,7 +449,7 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
     }
   ROG ("adding %zu clauses with %s to extension stack",
        pos_size, ROGLIT (pivot));
-  struct unsigneds *extension = &ruler->extension;
+  struct unsigneds *extension = &ruler->extension[0];
   for (all_clauses (clause, *pos_clauses))
     {
       ROGCLAUSE (clause,
