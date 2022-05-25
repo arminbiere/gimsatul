@@ -81,8 +81,8 @@ compact_phases (struct ring * ring,
       assert (new_phases + new_idx == new_phase);
       *new_phase++ = *old_phase;
     }
-  assert (old_phase = old_phases + old_size);
-  assert (new_phase = new_phases + new_size);
+  assert (old_phase == old_phases + old_size);
+  assert (new_phase == new_phases + new_size);
   free (old_phases);
 }
 
@@ -105,8 +105,8 @@ compact_heap (struct ring * ring, struct heap * heap,
       new_node->score = old_node->score;
       push_heap (heap, new_node);
     }
-  assert (old_node = old_nodes + old_size);
-  assert (new_node = new_nodes + new_size);
+  assert (old_node == old_nodes + old_size);
+  assert (new_node == new_nodes + new_size);
   free (old_nodes);
 }
 
@@ -139,6 +139,68 @@ static void
 compact_clauses (struct ring * ring,
                  struct clauses * clauses, unsigned * map)
 {
+  struct clause ** begin = clauses->begin;
+  struct clause ** end = clauses->end;
+  struct clause ** q = begin;
+  struct clause ** p = q;
+  while (p != end)
+    {
+      struct clause * src_clause = *p++;
+      struct clause * dst_clause = 0;
+      if (binary_pointer (src_clause))
+	{
+	  assert (redundant_pointer (src_clause));
+	  unsigned src_lit = lit_pointer (src_clause);
+	  unsigned src_other = other_pointer (src_clause);
+	  unsigned dst_lit = map_literal (map, src_lit);
+	  unsigned dst_other = map_literal (map, src_other);
+	  if (dst_lit != INVALID && dst_other != INVALID)
+	    {
+	      LOGCLAUSE (src_clause, "original");
+	      if (dst_lit < dst_other)
+		dst_clause = tag_pointer (true, dst_lit, dst_other);
+	      else
+		dst_clause = tag_pointer (true, dst_other, dst_lit);
+	      assert (dst_clause);
+	    }
+	}
+      else
+	{
+	  dst_clause = src_clause;
+	  for (all_literals_in_clause (src_lit, src_clause))
+	    if (map_literal (map, src_lit) == INVALID)
+	      {
+		dst_clause = 0;
+		break;
+	      }
+	  LOGCLAUSE (src_clause, "original");
+	  if (dst_clause)
+	    {
+	      unsigned * literals = dst_clause->literals;
+	      unsigned * end = literals + dst_clause->size;
+	      for (unsigned * p = literals; p != end; p++)
+		*p = map_literal (map, *p);
+	    }
+	}
+      if (dst_clause)
+	{
+	  LOGCLAUSE (dst_clause, "mapped");
+	  *q++ = dst_clause;
+	}
+      else
+	{
+	  LOGCLAUSE (src_clause, "flushing");
+	  assert (ring->statistics.redundant);
+	  ring->statistics.redundant--;
+	}
+    }
+#ifndef QUIET
+  size_t flushed = end - q;
+  size_t kept = q - begin;
+  verbose (ring, "flushed %zu clauses during compaction", flushed);
+  verbose (ring, "kept %zu clauses during compaction", kept);
+#endif
+  clauses->end = q;
 }
 
 static void
@@ -164,7 +226,7 @@ compact_ring (struct ring * ring, unsigned * map)
   compact_heap (ring, &ring->heap, old_size, new_size, map);
   compact_queue (ring, &ring->queue, old_size, new_size, map);
 
-  assert (EMPTY (watches));
+  assert (EMPTY (ring->watches));
   compact_clauses (ring, &ring->saved, map);
 }
 

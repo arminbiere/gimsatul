@@ -732,6 +732,7 @@ run_ring_simplification (struct ring *ring)
   (void) rendezvous (&ring->ruler->barriers.run, ring, true);
   if (ring->id)
     return;
+  simplify_ruler (ring->ruler, true);
   clone_first_ring_after_simplification (ring);
 }
 

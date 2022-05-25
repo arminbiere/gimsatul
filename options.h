@@ -67,7 +67,7 @@ OPTION (unsigned, probe_interval,    2e3, 1, INT_MAX) \
 OPTION (unsigned, random_decisions,  100, 0, INT_MAX) \
 OPTION (unsigned, reduce_interval,   1e3, 1, INT_MAX) \
 OPTION (unsigned, simplify,          2, 0, 2) \
-OPTION (unsigned, simplify_interval, 1e4, 1, INT_MAX) \
+OPTION (unsigned, simplify_interval, 1/*TODO: as 1e4*/, 1, INT_MAX) \
 OPTION (bool,     switch_mode,       1, 0, 1) \
 OPTION (bool,     substitute,        1, 0, 1) \
 OPTION (bool,     subsume,           1, 0, 1) \
