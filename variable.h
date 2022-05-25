@@ -10,6 +10,7 @@ struct phases
   signed char best:2;
   signed char saved:2;
   signed char target:2;
+  signed char padding:2;
 };
 
 struct variable
