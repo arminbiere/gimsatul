@@ -27,12 +27,16 @@ close_proof (struct file *proof)
   if (!proof->file)
     return;
   if (proof->close)
-    fclose (proof->file);
+    {
+      fclose (proof->file);
+      if (verbosity >= 0)
+	printf ("c\nc closed '%s' after writing %" PRIu64 " proof lines\n",
+		proof->path, proof->lines);
+    }
+  else if (verbosity >= 0)
+    printf ("c\nc finished writing %" PRIu64 " proof lines to '%s'\n",
+	    proof->lines, proof->path);
 
   if (verbosity >= 0)
-    {
-      printf ("c\nc closed '%s' after writing %" PRIu64 " proof lines\n",
-	      proof->path, proof->lines);
-      fflush (stdout);
-    }
+    fflush (stdout);
 }
