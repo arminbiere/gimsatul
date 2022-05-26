@@ -235,8 +235,9 @@ release_pool (struct ring *ring)
 static void
 release_binaries (struct ring *ring)
 {
-  for (all_ring_literals (lit))
-    free (REFERENCES (lit).binaries);
+  if (ring->references)
+    for (all_ring_literals (lit))
+      free (REFERENCES (lit).binaries);
 }
 
 void

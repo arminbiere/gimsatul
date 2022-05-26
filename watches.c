@@ -12,8 +12,9 @@
 void
 release_references (struct ring *ring)
 {
-  for (all_ring_literals (lit))
-    RELEASE (REFERENCES (lit));
+  if (ring->references)
+    for (all_ring_literals (lit))
+      RELEASE (REFERENCES (lit));
 }
 
 void

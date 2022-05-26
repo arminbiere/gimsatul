@@ -713,25 +713,29 @@ static void
 clone_first_ring_after_simplification (struct ring *ring)
 {
   assert (!ring->id);
-  assert (ring->references);
+  assert (ring->ruler->inconsistent || ring->references);
   copy_ruler (ring);
 }
 
 static void
 run_ring_simplification (struct ring *ring)
 {
-  (void) rendezvous (&ring->ruler->barriers.run, ring, true);
+  struct ruler * ruler = ring->ruler;
+  (void) rendezvous (&ruler->barriers.run, ring, true);
   if (ring->id)
     return;
-  simplify_ruler (ring->ruler);
+  simplify_ruler (ruler);
   clone_first_ring_after_simplification (ring);
 }
 
 static void
 copy_other_ring_after_simplification (struct ring *ring)
 {
-  (void) rendezvous (&ring->ruler->barriers.copy, ring, true);
+  struct ruler * ruler = ring->ruler;
+  (void) rendezvous (&ruler->barriers.copy, ring, true);
   if (!ring->id)
+    return;
+  if (ruler->inconsistent)
     return;
   assert (ring->references);
   copy_ring (ring);
@@ -740,10 +744,11 @@ copy_other_ring_after_simplification (struct ring *ring)
 static void
 finish_ring_simplification (struct ring *ring)
 {
-  (void) rendezvous (&ring->ruler->barriers.end, ring, true);
+  struct ruler * ruler = ring->ruler;
+  (void) rendezvous (&ruler->barriers.end, ring, true);
   if (ring->id)
     return;
-  RELEASE (ring->ruler->clauses);
+  RELEASE (ruler->clauses);
   struct ring_limits *limits = &ring->limits;
   struct ring_statistics *statistics = &ring->statistics;
   limits->simplify = SEARCH_CONFLICTS;
@@ -775,7 +780,8 @@ simplify_ring (struct ring *ring)
   copy_other_ring_after_simplification (ring);
   finish_ring_simplification (ring);
 #ifndef NDEBUG
-  check_clause_statistics (ring);
+  if (!ring->ruler->inconsistent)
+    check_clause_statistics (ring);
 #endif
   report (ring, 's');
   START_SEARCH ();
