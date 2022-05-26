@@ -44,7 +44,7 @@ mark_eliminate_literal (struct simplifier *simplifier, unsigned lit)
   struct ruler *ruler = simplifier->ruler;
   ROG ("marking %s to be eliminated", ROGVAR (idx));
 #endif
-  eliminate[idx] = 1;
+  eliminate[idx] = true;
 }
 
 static inline void
@@ -66,7 +66,7 @@ mark_subsume_literal (struct simplifier *simplifier, unsigned lit)
   struct ruler *ruler = simplifier->ruler;
   ROG ("marking %s to be subsumed", ROGVAR (idx));
 #endif
-  subsume[idx] = 1;
+  subsume[idx] = true;
 }
 
 static inline void
