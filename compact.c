@@ -256,6 +256,28 @@ compact_ring (struct ring * ring, unsigned * map)
   ring->statistics.active = new_size;
 }
 
+static void
+compact_bool_array (bool ** array_ptr,
+                    unsigned old_size, unsigned new_size, unsigned * map)
+{
+  bool * old_array = *array_ptr;
+  bool * new_array = *array_ptr = allocate_block (new_size);
+  bool * p = old_array, * n = new_array, * end = old_array + old_size;
+  unsigned old_idx = 0;
+  while (p != end)
+    {
+      assert (o == old_array + old_idx);
+      bool value = *p++;
+      unsigned new_idx = map[old_idx++];
+      if (new_idx == INVALID)
+	continue;
+      assert (n == new_array + new_idx);
+      *n++ = value;
+    }
+  assert (n == new_array + new_size);
+  free (old_array);
+}
+
 void
 compact_ruler (struct simplifier *simplifier, bool preprocessing)
 {
@@ -264,7 +286,7 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
     return;
   bool *eliminated = simplifier->eliminated;
   signed char *values = (signed char *) ruler->values;
-  unsigned compact = 0;
+  unsigned new_compact = 0;
   for (all_ruler_indices (idx))
     {
       if (eliminated[idx])
@@ -272,9 +294,9 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
       unsigned lit = LIT (idx);
       if (values[lit])
 	continue;
-      compact++;
+      new_compact++;
     }
-  unsigned *unmap = allocate_array (compact, sizeof *unmap);
+  unsigned *unmap = allocate_array (new_compact, sizeof *unmap);
   unsigned *old_unmap = ruler->unmap;
   ruler->unmap = unmap;
   for (all_rings (ring))
@@ -348,10 +370,13 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 	  RELEASE (OCCURRENCES (not_lit));
 	}
     }
-  assert (compact == mapped);
-  ruler->compact = compact;
+  assert (new_compact == mapped);
+  ruler->compact = new_compact;
 
   map_clauses (ruler, map);
+
+  compact_bool_array (&ruler->eliminate, old_compact, new_compact, map);
+  compact_bool_array (&ruler->subsume, old_compact, new_compact, map);
 
   if (!preprocessing)
     for (all_rings (ring))
@@ -360,10 +385,10 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   free (map);
 
   free ((void *) ruler->values);
-  ruler->values = allocate_and_clear_block (2 * compact);
+  ruler->values = allocate_and_clear_block (2 * new_compact);
 
   free (ruler->units.begin);
-  ruler->units.begin = allocate_array (compact, sizeof (unsigned));
+  ruler->units.begin = allocate_array (new_compact, sizeof (unsigned));
   ruler->units.propagate = ruler->units.end = ruler->units.begin;
 
   verbose (0, "mapped %u variables to %u variables", ruler->size, mapped);

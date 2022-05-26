@@ -13,20 +13,21 @@ static bool
 is_subsumption_candidate (struct simplifier *simplifier,
 			  struct clause *clause)
 {
-  bool subsume = false;
+  bool res = false;
   struct ruler *ruler = simplifier->ruler;
   ruler->statistics.ticks.subsumption++;
+  bool * subsume = simplifier->ruler->subsume;
   if (clause->size <= CLAUSE_SIZE_LIMIT && !clause->garbage)
     {
       unsigned count = 0;
       for (all_literals_in_clause (lit, clause))
-	if (simplifier->subsume[IDX (lit)])
+	if (subsume[IDX (lit)])
 	  if (count++)
 	    break;
-      subsume = (count > 1);
+      res = (count > 1);
     }
-  clause->subsume = subsume;
-  return subsume;
+  clause->subsume = res;
+  return res;
 }
 
 static size_t
@@ -51,7 +52,7 @@ get_subsumption_candidates (struct simplifier *simplifier,
   for (all_clauses (clause, *clauses))
     if (clause->subsume)
       candidates[count[clause->size]++] = clause;
-  memset (simplifier->subsume, 0, ruler->compact);
+  memset (ruler->subsume, 0, ruler->compact);
   *candidates_ptr = candidates;
   return pos;
 }

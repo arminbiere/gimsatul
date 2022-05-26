@@ -7,6 +7,8 @@
 
 #include <string.h>
 
+/*------------------------------------------------------------------------*/
+
 #ifndef QUIET
 
 void
@@ -40,8 +42,8 @@ new_ruler (size_t size, struct options *opts)
 
   ruler->eliminate = allocate_block (size);
   ruler->subsume = allocate_block (size);
-  memset (simplifier->eliminate, 1, size);
-  memset (simplifier->subsume, 1, size);
+  memset (ruler->eliminate, 1, size);
+  memset (ruler->subsume, 1, size);
 
   init_locks (ruler);
 
@@ -67,6 +69,8 @@ new_ruler (size_t size, struct options *opts)
   return ruler;
 }
 
+/*------------------------------------------------------------------------*/
+
 static void
 release_occurrences (struct ruler *ruler)
 {
@@ -87,7 +91,7 @@ release_clauses (struct ruler *ruler)
 }
 
 static void
-release_origina (struct ruler * ruler)
+release_original (struct ruler * ruler)
 {
   if (!ruler->original)
     return;
@@ -117,6 +121,8 @@ delete_ruler (struct ruler *ruler)
 
   free (ruler);
 }
+
+/*------------------------------------------------------------------------*/
 
 void
 flush_large_clause_occurrences (struct ruler *ruler)
@@ -331,6 +337,8 @@ set_winner (struct ring *ring)
   set_terminate (ruler);
   verbose (ring, "winning ring[%u] with status %d", ring->id, ring->status);
 }
+
+/*------------------------------------------------------------------------*/
 
 struct ring *
 first_ring (struct ruler *ruler)

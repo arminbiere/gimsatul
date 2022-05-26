@@ -113,16 +113,17 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
 {
   if (simplifier->eliminated[idx])
     return false;
-  if (!simplifier->eliminate[idx])
-    return false;
 
   struct ruler *ruler = simplifier->ruler;
+  if (!ruler->eliminate[idx])
+    return false;
+
   unsigned pivot = LIT (idx);
   if (ruler->values[pivot])
     return false;
 
   ROG ("trying next elimination candidate %s", ROGVAR (idx));
-  simplifier->eliminate[idx] = false;
+  ruler->eliminate[idx] = false;
 
   struct clauses *pos_clauses = &OCCURRENCES (pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
@@ -548,7 +549,7 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 	{
 	  message (0, "[%u] increasing elimination bound to %s%u",
 		   round, reached_max_bound, new_bound);
-	  memset (simplifier->eliminate, 1, ruler->compact);
+	  memset (ruler->eliminate, 1, ruler->compact);
 	  ruler->limits.bound = new_bound;
 	}
     }

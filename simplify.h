@@ -14,10 +14,6 @@ struct simplifier
   struct ruler *ruler;
   signed char *marks;
   bool *eliminated;
-#if 0
-  bool *eliminate;
-  bool *subsume;
-#endif
   struct unsigneds resolvent;
   struct clauses gate[2], nogate[2];
 };
@@ -40,14 +36,15 @@ static inline void
 mark_eliminate_literal (struct simplifier *simplifier, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  assert (simplifier->eliminate);
-  if (simplifier->eliminate[idx])
+  bool * eliminate = simplifier->ruler->eliminate;
+  assert (eliminate);
+  if (eliminate[idx])
     return;
 #ifdef LOGGING
   struct ruler *ruler = simplifier->ruler;
   ROG ("marking %s to be eliminated", ROGVAR (idx));
 #endif
-  simplifier->eliminate[idx] = 1;
+  eliminate[idx] = 1;
 }
 
 static inline void
@@ -61,14 +58,15 @@ static inline void
 mark_subsume_literal (struct simplifier *simplifier, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  assert (simplifier->subsume);
-  if (simplifier->subsume[idx])
+  bool * subsume = simplifier->ruler->subsume;
+  assert (subsume);
+  if (subsume[idx])
     return;
 #ifdef LOGGING
   struct ruler *ruler = simplifier->ruler;
   ROG ("marking %s to be subsumed", ROGVAR (idx));
 #endif
-  simplifier->subsume[idx] = 1;
+  subsume[idx] = 1;
 }
 
 static inline void
