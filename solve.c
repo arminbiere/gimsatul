@@ -81,7 +81,7 @@ set_ring_limits (struct ring *ring, long long conflicts)
       else
 	verbose (ring, "only running in stable mode");
     }
-  limits->mode = MODE_INTERVAL;
+  limits->mode = ring->options.switch_interval;
   if (ring->options.switch_mode)
     verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
 	     limits->mode);

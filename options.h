@@ -6,35 +6,35 @@
 #include <limits.h>
 #include <stdbool.h>
 
+/*------------------------------------------------------------------------*/
+
 #define MAX_VAR ((1u<<30) - 1)
 #define MAX_LIT NOT (LIT (MAX_VAR))
 
 #define MAX_GLUE 255
+#define MAX_SCORE 1e150
+#define MAX_THREADS (1u<<16)
+#define CACHE_LINE_SIZE 128
+
+/*------------------------------------------------------------------------*/
 
 #define MINIMIZE_DEPTH 1000
-
-#define MODE_INTERVAL 3e3
 
 #define REDUCE_FRACTION 0.75
 
 #define REPHASE_INTERVAL 1e3
 
-#define STABLE_RESTART_INTERVAL 500
-#define FOCUSED_RESTART_INTERVAL 5
-
 #define DECAY 0.95
-#define MAX_SCORE 1e150
 
 #define TIER1_GLUE_LIMIT 2
 #define TIER2_GLUE_LIMIT 6
 
 #define FAST_ALPHA 3e-2
 #define SLOW_ALPHA 1e-5
+
 #define RESTART_MARGIN 1.1
-
-#define WALK_EFFORT 0.02
-
-#define CACHE_LINE_SIZE 128
+#define STABLE_RESTART_INTERVAL 500
+#define FOCUSED_RESTART_INTERVAL 5
 
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
@@ -42,10 +42,11 @@
 #define SUBSUMPTION_TICKS_LIMIT 2000
 #define ELIMINATION_TICKS_LIMIT 2000
 
-#define MAX_THREADS (1u<<16)
-
 #define FAILED_EFFORT 0.02
 #define VIVIFY_EFFORT 0.03
+#define WALK_EFFORT 0.02
+
+/*------------------------------------------------------------------------*/
 
 #define INFINITY INT_MAX
 
@@ -70,6 +71,7 @@ OPTION (unsigned, simplify,          2, 0, 2) \
 OPTION (unsigned, simplify_interval, 512, 1, INFINITY) \
 OPTION (unsigned, simplify_rounds,   16, 1, INFINITY) \
 OPTION (bool,     switch_mode,       1, 0, 1) \
+OPTION (unsigned, switch_interval,   3e3, 1, INFINITY) \
 OPTION (bool,     substitute,        1, 0, 1) \
 OPTION (bool,     subsume,           1, 0, 1) \
 OPTION (bool,     vivify,            1, 0, 1) \
@@ -92,8 +94,9 @@ struct options
   struct file proof;
 };
 
-void parse_options (int argc, char **argv, struct options *);
+/*------------------------------------------------------------------------*/
 
+void parse_options (int argc, char **argv, struct options *);
 const char *match_and_find_option_argument (const char *, const char *);
 bool parse_option_with_value (struct options *, const char *);
 void report_non_default_options (struct options *);
