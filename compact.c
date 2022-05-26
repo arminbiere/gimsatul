@@ -2,6 +2,7 @@
 #include "message.h"
 #include "ruler.h"
 #include "simplify.h"
+#include "utilities.h"
 
 static unsigned
 map_literal (unsigned *map, unsigned original_lit)
@@ -141,6 +142,7 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 #ifdef LOGGING
   assert (!ignore_values_and_levels_during_logging);
   ignore_values_and_levels_during_logging = true;
+  unsigned * unmap = ring->ruler->unmap;
 #endif
   struct clauses * saved = &ring->saved;
   struct clause ** begin = saved->begin;
@@ -166,11 +168,21 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	      else
 		dst_clause = tag_pointer (true, dst_other, dst_lit);
 	      assert (dst_clause);
-	      LOG ("mapped redundant binary clause %u %u", dst_lit, dst_other);
+	      LOG ("mapped redundant binary clause %u(%d) %u(%d)",
+	           dst_lit, unmap_and_export_literal (unmap, src_lit),
+		   dst_other, unmap_and_export_literal (unmap, src_other));
 	      *q++ = dst_clause;
 	    }
 	  else
-	    LOGBINARY (true, src_lit, src_other, "cannot map");
+	    {
+#ifdef LOGGING
+	    if (dst_lit == INVALID)
+	      LOG ("cannot map literal %s", LOGLIT (src_lit));
+	    else if (dst_other == INVALID)
+	      LOG ("cannot map literal %s", LOGLIT (src_other));
+	      LOGBINARY (true, src_lit, src_other, "cannot map");
+#endif
+	    }
 	}
       else if (src_clause->garbage)
         dereference_clause (ring, src_clause);
@@ -190,16 +202,28 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	      assert (src_clause == dst_clause);
 	      unsigned * literals = dst_clause->literals;
 	      unsigned * end = literals + dst_clause->size;
-	      for (unsigned * p = literals; p != end; p++)
-		*p = map_literal (map, *p);
 #ifdef LOGGING
 	      if (verbosity == INT_MAX)
 		{
 		  assert (src_clause->redundant);
 		  LOGPREFIX ("mapped redundant glue %u size %u clause[%" PRIu64 "]",
 			     src_clause->glue, src_clause->size, src_clause->id);
-		  for (all_literals_in_clause (lit, src_clause))
-		    printf (" %u", lit);
+		}
+#endif
+	      for (unsigned * p = literals; p != end; p++)
+		{
+		  unsigned src_lit = *p;
+		  unsigned dst_lit = map_literal (map, src_lit);
+		  assert (dst_lit != INVALID);
+#ifdef LOGGING
+		  if (verbosity == INT_MAX)
+		    printf (" %u(%d)", dst_lit,
+		            unmap_and_export_literal (unmap, src_lit));
+#endif
+		}
+#ifdef LOGGING
+	      if (verbosity == INT_MAX)
+		{
 		  LOGSUFFIX ();
 		}
 #endif
