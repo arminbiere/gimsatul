@@ -8,6 +8,7 @@
 #include "utilities.h"
 
 #include <string.h>
+#include <inttypes.h>
 
 static bool
 literal_with_too_many_occurrences (struct ruler *ruler, unsigned lit)
@@ -109,7 +110,7 @@ can_resolve_clause (struct simplifier *simplifier,
 }
 
 static bool
-can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
+is_elimination_candidate (struct simplifier *simplifier, unsigned idx)
 {
   if (simplifier->eliminated[idx])
     return false;
@@ -122,9 +123,20 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   if (ruler->values[pivot])
     return false;
 
+  return true;
+}
+
+static bool
+can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
+{
+  if (!is_elimination_candidate (simplifier, idx))
+    return false;
+
+  struct ruler *ruler = simplifier->ruler;
   ROG ("trying next elimination candidate %s", ROGVAR (idx));
   ruler->eliminate[idx] = false;
 
+  unsigned pivot = LIT (idx);
   struct clauses *pos_clauses = &OCCURRENCES (pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
   size_t pos_size = actual_occurrences (pos_clauses);
@@ -164,8 +176,9 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   size_t limit = occurrences + bound;
   ROG ("actual limit %zu = occurrences %zu + bound %u",
        limit, occurrences, bound);
-#if 0
-  uint64_t ticks = ruler->statistics.ticks.elimination;
+
+#ifdef LOGGING
+  uint64_t ticks_before = ruler->statistics.ticks.elimination;
 #endif
 
   if (find_definition (simplifier, pivot))
@@ -222,14 +235,11 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
       CLEAR (*simplifier->gate);
     }
 
-#if 0
-  message (0,
-	   "candidate %d has %zu = %zu + %zu occurrences took %zu resolutions %"
-	   PRIu64 " ticks total %" PRIu64, unmap_and_export_literal (pivot), limit,
-	   pos_size, neg_size, resolutions,
-	   ruler->statistics.ticks.elimination - ticks,
-	   ruler->statistics.ticks.elimination);
-#endif
+  ROG ("candidate %s has %zu = %zu + %zu occurrences "
+       "took %zu resolutions %" PRIu64 " ticks total %" PRIu64,
+       ROGLIT (pivot), limit, pos_size, neg_size,
+       resolutions, ruler->statistics.ticks.elimination - ticks_before,
+       ruler->statistics.ticks.elimination);
 
   if (elimination_ticks_limit_hit (simplifier))
     return false;
@@ -478,6 +488,17 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
   recycle_clauses (simplifier, neg_clauses, not_pivot);
 }
 
+static void
+gather_elimination_candidates (struct simplifier * simplifier,
+                               struct unsigneds * candidates)
+{
+  struct ruler * ruler = simplifier->ruler;
+  unsigned idx = ruler->compact;
+  while (idx)
+    if (is_elimination_candidate (simplifier, --idx))
+      PUSH (*candidates, idx);
+}
+
 bool
 eliminate_variables (struct simplifier *simplifier, unsigned round)
 {
@@ -492,15 +513,25 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   assert (!ruler->eliminating);
   ruler->eliminating = true;
 
-  unsigned idx = 0, variables = ruler->compact;
+
+  struct unsigneds candidates;
+  INIT (candidates);
+  gather_elimination_candidates (simplifier, &candidates);
+#ifndef QUIET
+  unsigned variables = ruler->compact;
+  unsigned scheduled = SIZE (candidates);
+  verbose (0, "[%u] gathered %u elimination candidates %.0f%%",
+           round, scheduled, percent (scheduled, variables));
+#endif
   unsigned eliminated = 0;
 
-  while (idx != variables)
+  while (!EMPTY (candidates))
     {
       if (ruler->inconsistent)
 	break;
       if (elimination_ticks_limit_hit (simplifier))
 	break;
+      unsigned idx = POP (candidates);
       if (can_eliminate_variable (simplifier, idx))
 	{
 	  eliminate_variable (simplifier, idx);
@@ -508,6 +539,9 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 	}
       idx++;
     }
+
+  unsigned remaining = SIZE (candidates);
+  RELEASE (candidates);
 
   RELEASE (simplifier->resolvent);
   RELEASE (simplifier->gate[0]);
@@ -524,7 +558,17 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 	   old_bound, end_round - start_round);
 #endif
 
-  if (idx == variables)
+  if (remaining)
+    {
+#ifndef QUIET
+      unsigned completed = scheduled - remaining;
+      message (0, "[%u] tried %u candidate variables %.0f%% "
+	       "(%u remain %.0f%%)", round, completed,
+	       percent (completed, variables),
+	       remaining, percent (remaining, variables));
+#endif
+    }
+  else
     {
       message (0, "[%u] all candidate variables 100%% tried", round);
       unsigned max_bound = ruler->options.eliminate_bound;
@@ -552,13 +596,6 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 	  memset (ruler->eliminate, 1, ruler->compact);
 	  ruler->limits.bound = new_bound;
 	}
-    }
-  else
-    {
-      unsigned remain = variables - idx;
-      message (0, "[%u] tried %u candidate variables %.0f%% "
-	       "(%u remain %.0f%%)", round, idx, percent (idx, variables),
-	       remain, percent (remain, variables));
     }
 
   assert (ruler->eliminating);
