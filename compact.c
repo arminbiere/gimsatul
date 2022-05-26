@@ -136,21 +136,20 @@ compact_queue (struct ring * ring, struct queue * queue,
 }
 
 static void
-compact_clauses (struct ring * ring,
-                 struct clauses * clauses, unsigned * map)
+compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 {
 #ifdef LOGGING
   assert (!ignore_values_and_levels_during_logging);
   ignore_values_and_levels_during_logging = true;
 #endif
-  struct clause ** begin = clauses->begin;
-  struct clause ** end = clauses->end;
+  struct clauses * saved = &ring->saved;
+  struct clause ** begin = saved->begin;
+  struct clause ** end = saved->end;
   struct clause ** q = begin;
   struct clause ** p = q;
   while (p != end)
     {
       struct clause * src_clause = *p++;
-      struct clause * dst_clause = 0;
       if (binary_pointer (src_clause))
 	{
 	  assert (redundant_pointer (src_clause));
@@ -160,59 +159,59 @@ compact_clauses (struct ring * ring,
 	  unsigned dst_other = map_literal (map, src_other);
 	  if (dst_lit != INVALID && dst_other != INVALID)
 	    {
+	      struct clause * dst_clause;
+	      LOGBINARY (true, src_lit, src_other, "mapping");
 	      if (dst_lit < dst_other)
 		dst_clause = tag_pointer (true, dst_lit, dst_other);
 	      else
 		dst_clause = tag_pointer (true, dst_other, dst_lit);
 	      assert (dst_clause);
+	      LOG ("mapped redundant binary clause %u %u", dst_lit, dst_other);
+	      *q++ = dst_clause;
 	    }
+	  else
+	    LOGBINARY (true, src_lit, src_other, "flushing unmappable");
 	}
-      else
+      else if (src_clause->garbage)
+        dereference_clause (ring, src_clause);
+      else if (!src_clause->mapped)
 	{
-	  dst_clause = src_clause;
+	  struct clause * dst_clause = src_clause;
 	  for (all_literals_in_clause (src_lit, src_clause))
 	    if (map_literal (map, src_lit) == INVALID)
 	      {
 		dst_clause = 0;
 		break;
 	      }
-	}
-#ifdef LOGGING
-      if (verbosity == INT_MAX)
-	{
-	  LOGPREFIX (dst_clause ? "original" : "flushing");
-	  if (binary_pointer (src_clause))
+	  if (dst_clause)
 	    {
-	      assert (redundant_pointer (src_clause));
-	      unsigned lit = lit_pointer (src_clause);
-	      unsigned other = other_pointer (src_clause);
-	      printf (" redundant binary clause %u %u", lit, other);
+	      assert (src_clause == dst_clause);
+	      unsigned * literals = dst_clause->literals;
+	      unsigned * end = literals + dst_clause->size;
+	      for (unsigned * p = literals; p != end; p++)
+		*p = map_literal (map, *p);
+#ifdef LOGGING
+	      if (verbosity == INT_MAX)
+		{
+		  assert (src_clause->redundant);
+		  LOGPREFIX ("mapped redundant glue %u size %u clause[%" PRIu64 "]",
+			     src_clause->glue, src_clause->size, src_clause->id);
+		  for (all_literals_in_clause (lit, src_clause))
+		    printf (" %u", lit);
+		  LOGSUFFIX ();
+		}
+#endif
+	      dst_clause->mapped = true;
+	      PUSH (*mapped, dst_clause);
+	      *q++ = dst_clause;
 	    }
 	  else
 	    {
-	      assert (src_clause->redundant);
-	      printf (" redundant glue %u size %u clause[%" PRIu64 "]",
-	              src_clause->glue, src_clause->size, src_clause->id);
-	      for (all_literals_in_clause (lit, src_clause))
-		printf (" %u", lit);
+	      src_clause->garbage = true;
+	      LOGCLAUSE (src_clause, "flushing unmappable");
+	      dereference_clause (ring, src_clause);
 	    }
-	  LOGSUFFIX ();
 	}
-#endif
-      if (!dst_clause)
-	continue;
-
-      if (!binary_pointer (src_clause))
-	{
-	  assert (src_clause == dst_clause);
-	  unsigned * literals = dst_clause->literals;
-	  unsigned * end = literals + dst_clause->size;
-	  for (unsigned * p = literals; p != end; p++)
-	    *p = map_literal (map, *p);
-	}
-
-      LOGCLAUSE (dst_clause, "mapped");
-      *q++ = dst_clause;
     }
 #ifdef LOGGING
   assert (ignore_values_and_levels_during_logging);
@@ -224,11 +223,11 @@ compact_clauses (struct ring * ring,
   verbose (ring, "flushed %zu clauses during compaction", flushed);
   verbose (ring, "kept %zu clauses during compaction", kept);
 #endif
-  clauses->end = q;
+  saved->end = q;
 }
 
 static void
-compact_ring (struct ring * ring, unsigned * map)
+compact_ring (struct ring * ring, unsigned * map, struct clauses * mapped)
 {
   struct ruler * ruler = ring->ruler;
   unsigned old_size = ring->size;
@@ -251,7 +250,7 @@ compact_ring (struct ring * ring, unsigned * map)
   compact_queue (ring, &ring->queue, old_size, new_size, map);
 
   assert (EMPTY (ring->watches));
-  compact_clauses (ring, &ring->saved, map);
+  compact_clauses (ring, map, mapped);
   ring->size = new_size;
   ring->statistics.active = new_size;
 
@@ -300,13 +299,11 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
     }
   unsigned *unmap = allocate_array (new_compact, sizeof *unmap);
   unsigned *old_unmap = ruler->unmap;
-  ruler->unmap = unmap;
-  ruler->trace.unmap = unmap;
-  for (all_rings (ring))
-    ring->trace.unmap = unmap;
+
   unsigned old_compact = ruler->compact;
   unsigned *map = allocate_array (old_compact, sizeof *map);
   unsigned mapped = 0;
+
   for (all_ruler_indices (idx))
     {
       unsigned lit = LIT (idx);
@@ -353,8 +350,6 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 #endif
       mapped++;
     }
-  if (old_unmap)
-    free (old_unmap);
   SHRINK_STACK (ruler->extension[0]);
   for (all_ruler_indices (idx))
     {
@@ -386,10 +381,26 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   ruler->units.propagate = ruler->units.end = ruler->units.begin;
 
   if (!preprocessing)
-    for (all_rings (ring))
-      compact_ring (ring, map);
+    {
+      struct clauses mapped_clauses;
+      INIT (mapped_clauses);
+
+      for (all_rings (ring))
+	compact_ring (ring, map, &mapped_clauses);
+
+      for (all_clauses (clause, mapped_clauses))
+	assert (clause->mapped), clause->mapped = false;
+      RELEASE (mapped_clauses);
+    }
 
   free (map);
+  if (old_unmap)
+    free (old_unmap);
+
+  ruler->unmap = unmap;
+  ruler->trace.unmap = unmap;
+  for (all_rings (ring))
+    ring->trace.unmap = unmap;
 
   free ((void *) ruler->values);
   ruler->values = allocate_and_clear_block (2 * new_compact);

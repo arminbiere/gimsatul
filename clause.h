@@ -20,6 +20,7 @@ struct clause
   volatile unsigned char glue;
   bool dirty:1;
   bool garbage:1;
+  bool mapped:1;
   bool redundant:1;
   bool subsume:1;
   unsigned size;
