@@ -104,6 +104,8 @@ restore_saved_redundant_clauses (struct ring *ring)
 	}
       else
 	{
+	  assert (!clause->mapped);
+	  assert (!clause->garbage);
 	  watch_first_two_literals_in_large_clause (ring, clause);
 	  large++;
 	}

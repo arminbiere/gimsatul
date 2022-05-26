@@ -206,8 +206,9 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	      if (verbosity == INT_MAX)
 		{
 		  assert (src_clause->redundant);
-		  LOGPREFIX ("mapped redundant glue %u size %u clause[%" PRIu64 "]",
-			     src_clause->glue, src_clause->size, src_clause->id);
+		  LOGPREFIX ("mapped redundant glue %u size %u clause[%"
+		             PRIu64 "]", src_clause->glue,
+			     src_clause->size, src_clause->id);
 		}
 #endif
 	      for (unsigned * p = literals; p != end; p++)
@@ -215,6 +216,7 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 		  unsigned src_lit = *p;
 		  unsigned dst_lit = map_literal (map, src_lit);
 		  assert (dst_lit != INVALID);
+		  *p = dst_lit;
 #ifdef LOGGING
 		  if (verbosity == INT_MAX)
 		    printf (" %u(%d)", dst_lit,
@@ -329,6 +331,9 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   unsigned old_compact = ruler->compact;
   unsigned *map = allocate_array (old_compact, sizeof *map);
   unsigned mapped = 0;
+
+  ROG ("reducing compact size from %u to %u (original %u)",
+       old_compact, new_compact, ruler->size);
 
   for (all_ruler_indices (idx))
     {
