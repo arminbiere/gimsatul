@@ -186,7 +186,9 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	}
       else if (src_clause->garbage)
         dereference_clause (ring, src_clause);
-      else if (!src_clause->mapped)
+      else if (src_clause->mapped)
+	*q++ = src_clause;
+      else
 	{
 	  struct clause * dst_clause = src_clause;
 	  for (all_literals_in_clause (src_lit, src_clause))

@@ -471,7 +471,8 @@ push_ruler_units_to_extension_stack (struct ruler *ruler)
 static void
 run_only_root_level_propagation (struct simplifier *simplifier)
 {
-  message (0, "simplifying by root-level propagation only");
+  message (0, "simplification #%" PRIu64 " by root-level propagation only",
+           simplifier->ruler->statistics.simplifications);
   connect_all_large_clauses (simplifier->ruler);
   propagate_and_flush_ruler_units (simplifier);
 }

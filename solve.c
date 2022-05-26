@@ -117,7 +117,6 @@ set_ring_limits (struct ring *ring, long long conflicts)
       limits->conflicts = conflicts;
       verbose (ring, "conflict limit set to %lld conflicts", conflicts);
     }
-  message (0, 0);
 }
 
 struct ring *
@@ -139,6 +138,7 @@ solve_rings (struct ruler *ruler)
     }
   for (all_rings (ring))
     set_ring_limits (ring, conflicts);
+  message (0, 0);
   if (threads > 1)
     {
       for (all_rings (ring))
