@@ -4,6 +4,8 @@
 #include "simplify.h"
 #include "utilities.h"
 
+#include <string.h>
+
 static unsigned
 map_literal (unsigned *map, unsigned original_lit)
 {
@@ -62,6 +64,135 @@ map_clauses (struct ruler *ruler, unsigned *map)
   for (struct clause ** p = begin; p != end; p++)
     map_large_clause (map, *p);
 }
+
+/*------------------------------------------------------------------------*/
+
+static void
+clean_ring (struct ring * ring, struct clauses * cleaned)
+{
+  struct clauses * saved = &ring->saved;
+  signed char * values = ring->values;
+  struct clause ** begin = saved->begin;
+  struct clause ** end = saved->end;
+  struct clause ** q = begin;
+  struct clause ** p = q;
+  struct unsigneds delete;
+  struct unsigneds add;
+  INIT (delete);
+  INIT (add);
+  while (p != end)
+    {
+      struct clause * clause = *p++;
+      if (binary_pointer (clause))
+	*q++ = clause;
+      else if (clause->garbage)
+	dereference_clause (ring, clause);
+      else if (clause->cleaned)
+	*q++ = clause;
+      else
+	{
+	  assert (clause->redundant);
+	  bool satisfied = false, falsified = false;
+	  for (all_literals_in_clause (lit, clause))
+	    {
+	      signed char value = values[lit];
+	      if (value > 0)
+		{
+		  satisfied = true;
+		  break;
+		}
+	      if (value < 0)
+		falsified = true;
+	    }
+	  if (satisfied)
+	    {
+	      clause->garbage = true;
+	      LOGCLAUSE (clause, "satisfied");
+	      dereference_clause (ring, clause);
+	    }
+	  else if (!falsified)
+	    {
+	      LOGCLAUSE (clause, "already clean");
+	      clause->cleaned = true;
+	      PUSH (*cleaned, clause);
+	      *q++ = clause;
+	    }
+	  else
+	    {
+	      LOGCLAUSE (clause, "cleaning");
+	      assert (EMPTY (add));
+	      assert (EMPTY (delete));
+	      for (all_literals_in_clause (lit, clause))
+		{
+		  PUSH (delete, lit);
+		  signed char value = values[lit];
+		  assert (value <= 0);
+		  if (!value)
+		    PUSH (add, lit);
+		}
+	      unsigned new_size = SIZE (add);
+	      unsigned old_size = SIZE (delete);
+	      assert (old_size == clause->size);
+	      trace_add_literals (&ring->trace,
+	                          new_size, add.begin, INVALID);
+	      trace_delete_literals (&ring->trace,
+	                             old_size, delete.begin);
+	      assert (new_size > 1);
+	      if (new_size == 2)
+		{
+		  unsigned lit = add.begin[0];
+		  unsigned other = add.begin[1];
+		  if (lit > other)
+		    SWAP (lit, other);
+		  LOGBINARY (true, lit, other, "cleaned");
+		  struct clause * binary = tag_pointer (true, lit, other);
+		  dereference_clause (ring, clause);
+		  *q++ = binary;
+		}
+	      else
+		{
+		  assert (new_size > 2);
+		  unsigned old_glue = clause->glue;
+		  unsigned new_glue = old_glue;
+		  if (new_glue >= new_size - 1)
+		    {
+		      new_glue = new_size - 1;
+		      clause->glue = new_glue;
+		    }
+		  memcpy (clause->literals, add.begin,
+		          new_size * sizeof (unsigned));
+		  clause->size = new_size;
+		  LOGCLAUSE (clause, "cleaned");
+		  clause->cleaned = true;
+		  PUSH (*cleaned, clause);
+		  *q++ = clause;
+		}
+	      CLEAR (delete);
+	      CLEAR (add);
+	    }
+	}
+    }
+  RELEASE (delete);
+  RELEASE (add);
+}
+
+static void
+clean_rings (struct ruler * ruler)
+{
+  struct clauses cleaned_clauses;
+  INIT (cleaned_clauses);
+
+  for (all_rings (ring))
+    clean_ring (ring, &cleaned_clauses);
+
+  for (all_clauses (clause, cleaned_clauses))
+    assert (clause->cleaned), clause->cleaned = false;
+
+  very_verbose (0, "cleaned %zu clauses in total", SIZE (cleaned_clauses));
+  RELEASE (cleaned_clauses);
+}
+
+/*------------------------------------------------------------------------*/
 
 static void
 compact_phases (struct ring *ring,
@@ -135,8 +266,10 @@ compact_queue (struct ring *ring, struct queue *queue,
   free (old_links);
 }
 
+/*------------------------------------------------------------------------*/
+
 static void
-compact_clauses (struct ring *ring, unsigned *map, struct clauses *mapped)
+compact_saved (struct ring *ring, unsigned *map, struct clauses *mapped)
 {
 #ifdef LOGGING
   assert (!ignore_values_and_levels_during_logging);
@@ -255,6 +388,8 @@ compact_clauses (struct ring *ring, unsigned *map, struct clauses *mapped)
   saved->end = q;
 }
 
+/*------------------------------------------------------------------------*/
+
 static void
 compact_ring (struct ring *ring, unsigned *map, struct clauses *mapped)
 {
@@ -279,12 +414,30 @@ compact_ring (struct ring *ring, unsigned *map, struct clauses *mapped)
   compact_queue (ring, &ring->queue, old_size, new_size, map);
 
   assert (EMPTY (ring->watches));
-  compact_clauses (ring, map, mapped);
+  compact_saved (ring, map, mapped);
   ring->size = new_size;
   ring->statistics.active = new_size;
 
   ring->units = ruler->units.end;
 }
+
+static void
+compact_rings (struct ruler * ruler, unsigned * map)
+{
+  struct clauses mapped_clauses;
+  INIT (mapped_clauses);
+
+  for (all_rings (ring))
+    compact_ring (ring, map, &mapped_clauses);
+
+  for (all_clauses (clause, mapped_clauses))
+    assert (clause->mapped), clause->mapped = false;
+
+  very_verbose (0, "mapped %zu clauses in total", SIZE (mapped_clauses));
+  RELEASE (mapped_clauses);
+}
+
+/*------------------------------------------------------------------------*/
 
 static void
 compact_bool_array (bool **array_ptr,
@@ -314,8 +467,12 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   struct ruler *ruler = simplifier->ruler;
   if (ruler->inconsistent)
     return;
-  bool *eliminated = simplifier->eliminated;
+
+  if (!preprocessing)
+    clean_rings (ruler);
+
   signed char *values = (signed char *) ruler->values;
+  bool *eliminated = simplifier->eliminated;
   unsigned new_compact = 0;
   for (all_ruler_indices (idx))
     {
@@ -326,6 +483,7 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 	continue;
       new_compact++;
     }
+
   unsigned *unmap = allocate_array (new_compact, sizeof *unmap);
   unsigned *old_unmap = ruler->unmap;
 
@@ -412,17 +570,7 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   ruler->units.propagate = ruler->units.end = ruler->units.begin;
 
   if (!preprocessing)
-    {
-      struct clauses mapped_clauses;
-      INIT (mapped_clauses);
-
-      for (all_rings (ring))
-	compact_ring (ring, map, &mapped_clauses);
-
-      for (all_clauses (clause, mapped_clauses))
-	assert (clause->mapped), clause->mapped = false;
-      RELEASE (mapped_clauses);
-    }
+    compact_rings (ruler, map);
 
   free (map);
   if (old_unmap)

@@ -18,6 +18,7 @@ struct clause
 #endif
   atomic_ushort shared;
   volatile unsigned char glue;
+  bool cleaned:1;
   bool dirty:1;
   bool garbage:1;
   bool mapped:1;
