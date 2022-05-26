@@ -14,8 +14,10 @@ struct simplifier
   struct ruler *ruler;
   signed char *marks;
   bool *eliminated;
+#if 0
   bool *eliminate;
   bool *subsume;
+#endif
   struct unsigneds resolvent;
   struct clauses gate[2], nogate[2];
 };

@@ -1,11 +1,11 @@
 CC=@CC@
 CFLAGS=@CFLAGS@
 
+DEP=$(filter-out config.h,$(wildcard *.h))
 SRC=$(sort $(wildcard *.c))
 OBJ=$(SRC:.c=.o)
-DEP=$(filter-out config.h,$(wildcard *.h)) makefile
 
-%.o: %.c $(DEP)
+%.o: %.c $(DEP) makefile
 	$(CC) $(CFLAGS) -c $<
 
 all: gimsatul
@@ -13,7 +13,7 @@ gimsatul: $(OBJ) makefile
 	$(CC) $(CFLAGS) -o $@ $(OBJ) -lm -pthread
 
 build.o: config.h
-config.h: makefile VERSION
+config.h: VERSION makefile
 	./mkconfig.sh > $@
 
 clean:
