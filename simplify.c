@@ -327,17 +327,20 @@ delete_large_garbage_ruler_clauses (struct simplifier *simplifier)
 	      CLEAR (remove);
 	    }
 	  if (2 < new_size)
-	    continue;
-	  unsigned lit = literals[0];
-	  unsigned other = literals[1];
-	  disconnect_literal (ruler, lit, clause);
-	  disconnect_literal (ruler, other, clause);
-	  ROGCLAUSE (clause, "deleting shrunken dirty");
-	  new_ruler_binary_clause (ruler, lit, other);
-	  mark_subsume_literal (simplifier, other);
-	  mark_subsume_literal (simplifier, lit);
-	  free (clause);
-	  q--;
+	    mark_subsume_clause (simplifier, clause);
+	  else
+	    {
+	      unsigned lit = literals[0];
+	      unsigned other = literals[1];
+	      disconnect_literal (ruler, lit, clause);
+	      disconnect_literal (ruler, other, clause);
+	      ROGCLAUSE (clause, "deleting shrunken dirty");
+	      new_ruler_binary_clause (ruler, lit, other);
+	      mark_subsume_literal (simplifier, other);
+	      mark_subsume_literal (simplifier, lit);
+	      free (clause);
+	      q--;
+	    }
 	}
     }
   clauses->end = q;
