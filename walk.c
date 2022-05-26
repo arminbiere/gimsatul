@@ -250,7 +250,7 @@ import_decisions (struct walker *walker)
   very_verbose (ring, "warming up needed %" PRIu64 " extra ticks", extra);
   signed char *values = ring->values;
   unsigned pos = 0, neg = 0, ignored = 0;
-  struct variable * v = ring->variables;
+  struct variable *v = ring->variables;
   signed char *q = values;
   for (all_phases (p))
     {

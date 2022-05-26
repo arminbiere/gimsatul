@@ -78,8 +78,8 @@ struct ruler
   bool solving;
   bool subsuming;
 
-  bool * eliminate;
-  bool * subsume;
+  bool *eliminate;
+  bool *subsume;
 
   struct clauses *occurrences;
   pthread_t *threads;

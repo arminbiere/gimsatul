@@ -462,12 +462,12 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
   ROG ("adding %zu clauses with %s to extension stack",
        pos_size, ROGLIT (pivot));
   struct unsigneds *extension = &ruler->extension[0];
-  unsigned * unmap = ruler->unmap;
+  unsigned *unmap = ruler->unmap;
   for (all_clauses (clause, *pos_clauses))
     {
       ruler->statistics.weakened++;
       ROGCLAUSE (clause, "pushing weakened[%zu] witness literal %s",
-                 ruler->statistics.weakened, ROGLIT (pivot));
+		 ruler->statistics.weakened, ROGLIT (pivot));
       PUSH (*extension, INVALID);
       PUSH (*extension, unmap_literal (unmap, pivot));
       if (binary_pointer (clause))
@@ -492,10 +492,10 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
 }
 
 static void
-gather_elimination_candidates (struct simplifier * simplifier,
-                               struct unsigneds * candidates)
+gather_elimination_candidates (struct simplifier *simplifier,
+			       struct unsigneds *candidates)
 {
-  struct ruler * ruler = simplifier->ruler;
+  struct ruler *ruler = simplifier->ruler;
   unsigned idx = ruler->compact;
   while (idx)
     if (is_elimination_candidate (simplifier, --idx))
@@ -524,7 +524,7 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   unsigned variables = ruler->compact;
   unsigned scheduled = SIZE (candidates);
   verbose (0, "[%u] gathered %u elimination candidates %.0f%%",
-           round, scheduled, percent (scheduled, variables));
+	   round, scheduled, percent (scheduled, variables));
 #endif
   unsigned eliminated = 0;
 
@@ -580,18 +580,18 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 	new_bound = old_bound;
       else
 	{
-	  new_bound = old_bound ? 2*old_bound : 1;
+	  new_bound = old_bound ? 2 * old_bound : 1;
 	  if (new_bound > max_bound)
 	    new_bound = max_bound;
 	}
       assert (old_bound <= new_bound);
 #ifndef QUIET
-      const char * reached_max_bound =
-        new_bound == max_bound ? "maximum " : "";
+      const char *reached_max_bound =
+	new_bound == max_bound ? "maximum " : "";
 #endif
       if (old_bound == new_bound)
 	message (0, "[%u] keeping elimination bound at %s%u",
-	         round, reached_max_bound, old_bound);
+		 round, reached_max_bound, old_bound);
       else
 	{
 	  message (0, "[%u] increasing elimination bound to %s%u",

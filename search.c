@@ -32,7 +32,7 @@ iterate (struct ring *ring)
       size_t new_units = trail->propagate - trail->iterate;
       very_verbose (ring, "iterating %zu units", new_units);
 #endif
-      verbose_report (ring, 'i', ring->iterating-1);
+      verbose_report (ring, 'i', ring->iterating - 1);
       export_units (ring);
       trail->iterate = trail->propagate;
     }

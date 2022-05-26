@@ -220,7 +220,7 @@ substitute_literal (struct simplifier *simplifier, unsigned src, unsigned dst)
   ROGBINARY (NOT (src), dst,
 	     "pushing on extension stack with witness literal %s",
 	     ROGLIT (NOT (src)));
-  unsigned * unmap = ruler->unmap;
+  unsigned *unmap = ruler->unmap;
   PUSH (*extension, INVALID);
   PUSH (*extension, unmap_literal (unmap, src));
   PUSH (*extension, unmap_literal (unmap, NOT (dst)));

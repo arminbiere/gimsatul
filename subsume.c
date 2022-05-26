@@ -16,7 +16,7 @@ is_subsumption_candidate (struct simplifier *simplifier,
   bool res = false;
   struct ruler *ruler = simplifier->ruler;
   ruler->statistics.ticks.subsumption++;
-  bool * subsume = simplifier->ruler->subsume;
+  bool *subsume = simplifier->ruler->subsume;
   if (clause->size <= CLAUSE_SIZE_LIMIT && !clause->garbage)
     {
       unsigned count = 0;

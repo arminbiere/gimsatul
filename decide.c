@@ -15,7 +15,7 @@ initial_phase (struct ring *ring)
 static signed char
 decide_phase (struct ring *ring, unsigned idx)
 {
-  struct phases * p = ring->phases + idx;
+  struct phases *p = ring->phases + idx;
   signed char res = 0;
   if (ring->stable)
     res = p->target;

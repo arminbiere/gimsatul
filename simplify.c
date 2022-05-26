@@ -423,7 +423,7 @@ set_ruler_limits (struct ruler *ruler, unsigned optimize)
 }
 
 static unsigned
-set_max_rounds (struct ruler * ruler, unsigned optimize)
+set_max_rounds (struct ruler *ruler, unsigned optimize)
 {
   unsigned max_rounds = ruler->options.simplify_rounds;
   unsigned res = max_rounds;
@@ -456,7 +456,7 @@ static void
 push_ruler_units_to_extension_stack (struct ruler *ruler)
 {
   struct unsigneds *extension = &ruler->extension[1];
-  unsigned * unmap = ruler->unmap;
+  unsigned *unmap = ruler->unmap;
   size_t pushed = 0;
   for (all_elements_on_stack (unsigned, lit, ruler->units))
     {
@@ -472,7 +472,7 @@ static void
 run_only_root_level_propagation (struct simplifier *simplifier)
 {
   message (0, "simplification #%" PRIu64 " by root-level propagation only",
-           simplifier->ruler->statistics.simplifications);
+	   simplifier->ruler->statistics.simplifications);
   connect_all_large_clauses (simplifier->ruler);
   propagate_and_flush_ruler_units (simplifier);
 }
@@ -724,7 +724,7 @@ clone_first_ring_after_simplification (struct ring *ring)
 static void
 run_ring_simplification (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   (void) rendezvous (&ruler->barriers.run, ring, true);
   if (ring->id)
     return;
@@ -735,7 +735,7 @@ run_ring_simplification (struct ring *ring)
 static void
 copy_other_ring_after_simplification (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   (void) rendezvous (&ruler->barriers.copy, ring, true);
   if (!ring->id)
     return;
@@ -748,7 +748,7 @@ copy_other_ring_after_simplification (struct ring *ring)
 static void
 finish_ring_simplification (struct ring *ring)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   (void) rendezvous (&ruler->barriers.end, ring, true);
   if (ring->id)
     return;

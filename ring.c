@@ -73,11 +73,10 @@ init_ring_profiles (struct ring *ring)
 #endif
 
 void
-init_ring (struct ring * ring)
+init_ring (struct ring *ring)
 {
   size_t size = ring->size;
-  very_verbose (ring, "initializing 'ring[%u]' of size %zu",
-                ring->id, size);
+  very_verbose (ring, "initializing 'ring[%u]' of size %zu", ring->id, size);
 
   assert (!ring->marks);
   assert (!ring->values);
@@ -105,10 +104,10 @@ init_ring (struct ring * ring)
 }
 
 void
-release_ring (struct ring * ring)
+release_ring (struct ring *ring)
 {
   very_verbose (ring, "releasing 'ring[%u]' of size %u",
-                ring->id, ring->size);
+		ring->id, ring->size);
 
   FREE (ring->marks);
   FREE (ring->values);
@@ -121,7 +120,7 @@ release_ring (struct ring * ring)
   RELEASE (ring->minimize);
 
   FREE (ring->references);
-  struct ring_trail * trail = &ring->trail;
+  struct ring_trail *trail = &ring->trail;
   free (trail->begin);
   free (trail->pos);
   memset (trail, 0, sizeof *trail);
@@ -192,8 +191,8 @@ release_watches (struct ring *ring)
   RELEASE (ring->watches);
 }
 
-static
-void release_saved (struct ring * ring)
+static void
+release_saved (struct ring *ring)
 {
   for (all_clauses (clause, ring->saved))
     {

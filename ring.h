@@ -120,7 +120,7 @@ struct ring
   struct variable *variables;
 
   struct heap heap;
-  struct phases * phases;
+  struct phases *phases;
   struct queue queue;
 
   struct watches watches;

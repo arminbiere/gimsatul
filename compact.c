@@ -64,17 +64,16 @@ map_clauses (struct ruler *ruler, unsigned *map)
 }
 
 static void
-compact_phases (struct ring * ring,
-                unsigned old_size, unsigned new_size,
-		unsigned * map)
+compact_phases (struct ring *ring,
+		unsigned old_size, unsigned new_size, unsigned *map)
 {
-  struct phases * old_phases = ring->phases;
-  struct phases * new_phases = ring->phases =
-     allocate_array (new_size, sizeof *new_phases);
-  struct phases * old_phase = old_phases;
-  struct phases * new_phase = new_phases;
-  unsigned * end = map + old_size;
-  for (unsigned * mapped = map; mapped != end; mapped++, old_phase++)
+  struct phases *old_phases = ring->phases;
+  struct phases *new_phases = ring->phases =
+    allocate_array (new_size, sizeof *new_phases);
+  struct phases *old_phase = old_phases;
+  struct phases *new_phase = new_phases;
+  unsigned *end = map + old_size;
+  for (unsigned *mapped = map; mapped != end; mapped++, old_phase++)
     {
       unsigned new_idx = *mapped;
       if (new_idx == INVALID)
@@ -88,16 +87,16 @@ compact_phases (struct ring * ring,
 }
 
 static void
-compact_heap (struct ring * ring, struct heap * heap,
-              unsigned old_size, unsigned new_size, unsigned * map)
+compact_heap (struct ring *ring, struct heap *heap,
+	      unsigned old_size, unsigned new_size, unsigned *map)
 {
-  struct node * old_nodes = heap->nodes;
-  struct node * new_nodes = heap->nodes =
+  struct node *old_nodes = heap->nodes;
+  struct node *new_nodes = heap->nodes =
     allocate_and_clear_array (new_size, sizeof *new_nodes);
   heap->root = 0;
-  struct node * new_node = new_nodes, *old_node = old_nodes;
-  unsigned * end = map + old_size;
-  for (unsigned * mapped = map; mapped != end; mapped++, old_node++)
+  struct node *new_node = new_nodes, *old_node = old_nodes;
+  unsigned *end = map + old_size;
+  for (unsigned *mapped = map; mapped != end; mapped++, old_node++)
     {
       unsigned new_idx = *mapped;
       if (new_idx == INVALID)
@@ -113,13 +112,13 @@ compact_heap (struct ring * ring, struct heap * heap,
 }
 
 static void
-compact_queue (struct ring * ring, struct queue * queue,
-               unsigned old_size, unsigned new_size, unsigned * map)
+compact_queue (struct ring *ring, struct queue *queue,
+	       unsigned old_size, unsigned new_size, unsigned *map)
 {
-  struct link * old_links = queue->links;
-  struct link * new_links = queue->links =
+  struct link *old_links = queue->links;
+  struct link *new_links = queue->links =
     allocate_and_clear_array (new_size, sizeof *new_links);
-  struct link * first = queue->first;
+  struct link *first = queue->first;
   queue->first = queue->last = 0;
   queue->stamp = 0;
   for (struct link * old_link = first; old_link; old_link = old_link->next)
@@ -128,7 +127,7 @@ compact_queue (struct ring * ring, struct queue * queue,
       unsigned new_idx = map[old_idx];
       if (new_idx == INVALID)
 	continue;
-      struct link * new_link = new_links + new_idx;
+      struct link *new_link = new_links + new_idx;
       enqueue (queue, new_link, false);
     }
   assert (queue->stamp == new_size);
@@ -137,21 +136,21 @@ compact_queue (struct ring * ring, struct queue * queue,
 }
 
 static void
-compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
+compact_clauses (struct ring *ring, unsigned *map, struct clauses *mapped)
 {
 #ifdef LOGGING
   assert (!ignore_values_and_levels_during_logging);
   ignore_values_and_levels_during_logging = true;
-  unsigned * unmap = ring->ruler->unmap;
+  unsigned *unmap = ring->ruler->unmap;
 #endif
-  struct clauses * saved = &ring->saved;
-  struct clause ** begin = saved->begin;
-  struct clause ** end = saved->end;
-  struct clause ** q = begin;
-  struct clause ** p = q;
+  struct clauses *saved = &ring->saved;
+  struct clause **begin = saved->begin;
+  struct clause **end = saved->end;
+  struct clause **q = begin;
+  struct clause **p = q;
   while (p != end)
     {
-      struct clause * src_clause = *p++;
+      struct clause *src_clause = *p++;
       if (binary_pointer (src_clause))
 	{
 	  assert (redundant_pointer (src_clause));
@@ -161,7 +160,7 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	  unsigned dst_other = map_literal (map, src_other);
 	  if (dst_lit != INVALID && dst_other != INVALID)
 	    {
-	      struct clause * dst_clause;
+	      struct clause *dst_clause;
 	      LOGBINARY (true, src_lit, src_other, "mapping");
 	      if (dst_lit < dst_other)
 		dst_clause = tag_pointer (true, dst_lit, dst_other);
@@ -169,28 +168,28 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 		dst_clause = tag_pointer (true, dst_other, dst_lit);
 	      assert (dst_clause);
 	      LOG ("mapped redundant binary clause %u(%d) %u(%d)",
-	           dst_lit, unmap_and_export_literal (unmap, src_lit),
+		   dst_lit, unmap_and_export_literal (unmap, src_lit),
 		   dst_other, unmap_and_export_literal (unmap, src_other));
 	      *q++ = dst_clause;
 	    }
 	  else
 	    {
 #ifdef LOGGING
-	    if (dst_lit == INVALID)
-	      LOG ("cannot map literal %s", LOGLIT (src_lit));
-	    else if (dst_other == INVALID)
-	      LOG ("cannot map literal %s", LOGLIT (src_other));
+	      if (dst_lit == INVALID)
+		LOG ("cannot map literal %s", LOGLIT (src_lit));
+	      else if (dst_other == INVALID)
+		LOG ("cannot map literal %s", LOGLIT (src_other));
 	      LOGBINARY (true, src_lit, src_other, "cannot map");
 #endif
 	    }
 	}
       else if (src_clause->garbage)
-        dereference_clause (ring, src_clause);
+	dereference_clause (ring, src_clause);
       else if (src_clause->mapped)
 	*q++ = src_clause;
       else
 	{
-	  struct clause * dst_clause = src_clause;
+	  struct clause *dst_clause = src_clause;
 	  for (all_literals_in_clause (src_lit, src_clause))
 	    if (map_literal (map, src_lit) == INVALID)
 	      {
@@ -202,18 +201,18 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	    {
 	      LOGCLAUSE (src_clause, "mapping");
 	      assert (src_clause == dst_clause);
-	      unsigned * literals = dst_clause->literals;
-	      unsigned * end = literals + dst_clause->size;
+	      unsigned *literals = dst_clause->literals;
+	      unsigned *end = literals + dst_clause->size;
 #ifdef LOGGING
 	      if (verbosity == INT_MAX)
 		{
 		  assert (src_clause->redundant);
 		  LOGPREFIX ("mapped redundant glue %u size %u clause[%"
-		             PRIu64 "]", src_clause->glue,
+			     PRIu64 "]", src_clause->glue,
 			     src_clause->size, src_clause->id);
 		}
 #endif
-	      for (unsigned * p = literals; p != end; p++)
+	      for (unsigned *p = literals; p != end; p++)
 		{
 		  unsigned src_lit = *p;
 		  unsigned dst_lit = map_literal (map, src_lit);
@@ -222,7 +221,7 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 #ifdef LOGGING
 		  if (verbosity == INT_MAX)
 		    printf (" %u(%d)", dst_lit,
-		            unmap_and_export_literal (unmap, src_lit));
+			    unmap_and_export_literal (unmap, src_lit));
 #endif
 		}
 #ifdef LOGGING
@@ -257,9 +256,9 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 }
 
 static void
-compact_ring (struct ring * ring, unsigned * map, struct clauses * mapped)
+compact_ring (struct ring *ring, unsigned *map, struct clauses *mapped)
 {
-  struct ruler * ruler = ring->ruler;
+  struct ruler *ruler = ring->ruler;
   unsigned old_size = ring->size;
   unsigned new_size = ruler->compact;
   assert (new_size <= old_size);
@@ -288,12 +287,12 @@ compact_ring (struct ring * ring, unsigned * map, struct clauses * mapped)
 }
 
 static void
-compact_bool_array (bool ** array_ptr,
-                    unsigned old_size, unsigned new_size, unsigned * map)
+compact_bool_array (bool **array_ptr,
+		    unsigned old_size, unsigned new_size, unsigned *map)
 {
-  bool * old_array = *array_ptr;
-  bool * new_array = *array_ptr = allocate_block (new_size);
-  bool * p = old_array, * n = new_array, * end = old_array + old_size;
+  bool *old_array = *array_ptr;
+  bool *new_array = *array_ptr = allocate_block (new_size);
+  bool *p = old_array, *n = new_array, *end = old_array + old_size;
   unsigned old_idx = 0;
   while (p != end)
     {
@@ -346,11 +345,11 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 #ifdef LOGGING
 	  if (old_unmap)
 	    ROG ("skipping eliminated variable %u (literal %u) "
-	         "which was original variable %u (literal %u)",
+		 "which was original variable %u (literal %u)",
 		 idx, lit, old_unmap[idx], LIT (old_unmap[idx]));
 	  else
 	    ROG ("skipping eliminated original variable %u (literal %u)",
-	         idx, lit);
+		 idx, lit);
 #endif
 	  continue;
 	}
@@ -360,11 +359,11 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 #ifdef LOGGING
 	  if (old_unmap)
 	    ROG ("skipping assigned variable %u (literal %u) "
-	         "which was original variable %u (literal %u)",
+		 "which was original variable %u (literal %u)",
 		 idx, lit, old_unmap[idx], LIT (old_unmap[idx]));
 	  else
 	    ROG ("skipping assigned original variable %u (literal %u)",
-	         idx, lit);
+		 idx, lit);
 #endif
 	  continue;
 	}
@@ -378,8 +377,7 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 	     idx, lit, old_idx, LIT (old_idx), mapped, LIT (mapped));
       else
 	ROG ("mapping original variable %u (literal %u) "
-	     "to variable %u (literal %u)",
-	     idx, lit, mapped, LIT (mapped));
+	     "to variable %u (literal %u)", idx, lit, mapped, LIT (mapped));
 #endif
       mapped++;
     }

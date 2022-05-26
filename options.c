@@ -234,7 +234,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	}
       else if (!strcmp (opt, "-q") || !strcmp (opt, "--quiet"))
 #ifdef QUIET
-	die ("configured with '--quiet' (forces '%s)", opt); 
+	die ("configured with '--quiet' (forces '%s)", opt);
 #else
 	{
 	  if (quiet_opt)
@@ -247,7 +247,7 @@ parse_options (int argc, char **argv, struct options *opts)
 #endif
       else if (!strcmp (opt, "-v") || !strcmp (opt, "--verbose"))
 #ifdef QUIET
-	die ("configured with '--quiet' (disables '%s)", opt); 
+	die ("configured with '--quiet' (disables '%s)", opt);
 #else
 	{
 	  if (quiet_opt)

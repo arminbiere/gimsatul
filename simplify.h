@@ -36,7 +36,7 @@ static inline void
 mark_eliminate_literal (struct simplifier *simplifier, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  bool * eliminate = simplifier->ruler->eliminate;
+  bool *eliminate = simplifier->ruler->eliminate;
   assert (eliminate);
   if (eliminate[idx])
     return;
@@ -58,7 +58,7 @@ static inline void
 mark_subsume_literal (struct simplifier *simplifier, unsigned lit)
 {
   unsigned idx = IDX (lit);
-  bool * subsume = simplifier->ruler->subsume;
+  bool *subsume = simplifier->ruler->subsume;
   assert (subsume);
   if (subsume[idx])
     return;

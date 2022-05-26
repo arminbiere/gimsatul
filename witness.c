@@ -26,9 +26,9 @@ extend_witness (struct ring *ring)
       witness[lit] = phase;
       witness[not_lit] = -phase;
       LOG ("setting original literal %u(%d)=%d to default phase",
-           lit, only_export_literal (lit), (int) phase);
+	   lit, only_export_literal (lit), (int) phase);
     }
-  unsigned * unmap = ruler->unmap;
+  unsigned *unmap = ruler->unmap;
   ruler->unmap = 0;
   LOG ("unmapping and assigning %u ring variables", ring->size);
   for (unsigned ring_idx = 0; ring_idx != ring->size; ring_idx++)
@@ -43,9 +43,8 @@ extend_witness (struct ring *ring)
 #ifdef LOGGING
       int exported = only_export_literal (ruler_lit);
       LOG ("assigning original literal %u(%d)=%d "
-           "to value of ring literal %u(%d)=%d",
-           ruler_lit, exported, (int) value,
-	   ring_lit, exported, (int) value);
+	   "to value of ring literal %u(%d)=%d",
+	   ruler_lit, exported, (int) value, ring_lit, exported, (int) value);
 #endif
     }
   free (unmap);
@@ -56,7 +55,7 @@ extend_witness (struct ring *ring)
       witness[lit] = 1;
       witness[not_lit] = -1;
       LOG ("forcing original literal %u(%d)=1 as saved unit",
-           lit, only_export_literal (lit));
+	   lit, only_export_literal (lit));
     }
   size_t flipped = 0;
   struct unsigneds *extension = &ruler->extension[0];
@@ -70,7 +69,7 @@ extend_witness (struct ring *ring)
   if (verbosity == INT_MAX)
     {
       {
-	for (unsigned * q = begin; q != p; q++)
+	for (unsigned *q = begin; q != p; q++)
 	  if (*q == INVALID)
 	    clauses++;
       }
@@ -108,7 +107,7 @@ extend_witness (struct ring *ring)
 #ifdef LOGGING
 	      int exported = only_export_literal (pivot);
 	      LOG ("flipping %u(%d)=-1 to %u(%d)=1 due to clause[%zu]",
-	           pivot, exported, pivot, exported, clauses);
+		   pivot, exported, pivot, exported, clauses);
 #endif
 	      assert (pivot != INVALID);
 	      unsigned not_pivot = NOT (pivot);

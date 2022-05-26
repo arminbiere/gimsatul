@@ -11,7 +11,7 @@ binary_proof_line (struct trace *trace,
 		   size_t size, unsigned *literals, unsigned except)
 {
   const unsigned *end = literals + size;
-  unsigned * unmap = trace->unmap;
+  unsigned *unmap = trace->unmap;
   for (const unsigned *p = literals; p != end; p++)
     {
       unsigned lit = *p;
@@ -36,7 +36,7 @@ ascii_proof_line (struct trace *trace,
 		  size_t size, unsigned *literals, unsigned except)
 {
   const unsigned *end = literals + size;
-  unsigned * unmap = trace->unmap;
+  unsigned *unmap = trace->unmap;
   char tmp[32];
   for (const unsigned *p = literals; p != end; p++)
     {

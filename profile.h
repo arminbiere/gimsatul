@@ -121,8 +121,12 @@ double stop_profile (struct profile *, double time);
 
 #else
 
-struct ring_profiles { };
-struct ruler_profiles { };
+struct ring_profiles
+{
+};
+struct ruler_profiles
+{
+};
 
 #define START(...) do { } while (0)
 #define STOP(...) do { } while (0)

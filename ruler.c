@@ -24,7 +24,7 @@ init_ruler_profiles (struct ruler *ruler)
 #endif
 
 static void
-init_locks (struct ruler * ruler)
+init_locks (struct ruler *ruler)
 {
 #define LOCK(NAME) \
   pthread_mutex_init (&ruler->locks.NAME, 0);
@@ -91,7 +91,7 @@ release_clauses (struct ruler *ruler)
 }
 
 static void
-release_original (struct ruler * ruler)
+release_original (struct ruler *ruler)
 {
   if (!ruler->original)
     return;
@@ -108,7 +108,7 @@ delete_ruler (struct ruler *ruler)
   release_occurrences (ruler);
   free (ruler->threads);
   free (ruler->unmap);
-  free ((void*) ruler->values);
+  free ((void *) ruler->values);
 
   release_clauses (ruler);
   RELEASE (ruler->extension[0]);

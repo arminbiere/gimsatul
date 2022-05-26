@@ -49,7 +49,7 @@ marked_literal (signed char *marks, unsigned lit)
 }
 
 static inline unsigned
-unmap_literal (unsigned * unmap, unsigned lit)
+unmap_literal (unsigned *unmap, unsigned lit)
 {
   if (!unmap)
     return lit;
