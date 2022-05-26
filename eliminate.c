@@ -462,13 +462,14 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
   ROG ("adding %zu clauses with %s to extension stack",
        pos_size, ROGLIT (pivot));
   struct unsigneds *extension = &ruler->extension[0];
+  unsigned * unmap = ruler->unmap;
   for (all_clauses (clause, *pos_clauses))
     {
       ROGCLAUSE (clause,
 		 "pushing with witness literal %s on extension stack",
 		 ROGLIT (pivot));
       PUSH (*extension, INVALID);
-      PUSH (*extension, pivot);
+      PUSH (*extension, unmap_literal (unmap, pivot));
       if (binary_pointer (clause))
 	{
 	  unsigned other = other_pointer (clause);
@@ -483,7 +484,7 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
     }
   ROG ("pushing unit %s to extension stack", ROGLIT (not_pivot));
   PUSH (*extension, INVALID);
-  PUSH (*extension, not_pivot);
+  PUSH (*extension, unmap_literal (unmap, not_pivot));
   recycle_clauses (simplifier, pos_clauses, pivot);
   recycle_clauses (simplifier, neg_clauses, not_pivot);
 }
