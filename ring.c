@@ -183,17 +183,29 @@ release_watches (struct ring *ring)
     {
       assert (!binary_pointer (watch));
       struct clause *clause = watch->clause;
-      LOGCLAUSE (clause, "trying to final delete");
       unsigned shared = atomic_fetch_sub (&clause->shared, 1);
       assert (shared + 1);
       if (!shared)
-	{
-	  LOGCLAUSE (clause, "final deleting shared %u", shared);
-	  free (clause);
-	}
+	free (clause);
       free (watch);
     }
   RELEASE (ring->watches);
+}
+
+static
+void release_saved (struct ring * ring)
+{
+  for (all_clauses (clause, ring->saved))
+    {
+      if (binary_pointer (clause))
+	continue;
+      unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+      assert (shared + 1);
+      if (shared)
+	continue;
+      free (clause);
+    }
+  RELEASE (ring->saved);
 }
 
 void
@@ -257,7 +269,7 @@ delete_ring (struct ring *ring)
   free (ring->queue.links);
 
   release_watches (ring);
-  RELEASE (ring->saved);
+  release_saved (ring);
 
   RELEASE (ring->trace.buffer);
 
