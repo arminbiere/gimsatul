@@ -403,25 +403,25 @@ scale_ticks_limit (unsigned optimized, unsigned base)
 static void
 set_ruler_limits (struct ruler *ruler, unsigned optimize)
 {
-  message (0, "simplification optimization level %u", optimize);
+  verbose (0, "simplification optimization level %u", optimize);
   if (optimize)
     {
       unsigned scale = 1;
       for (unsigned i = 0; i != optimize; i++)
 	scale *= 10;
-      message (0, "scaling simplification ticks limits by %u", scale);
+      verbose (0, "scaling simplification ticks limits by %u", scale);
     }
   else
-    message (0, "keeping simplification ticks limits at their default");
+    verbose (0, "keeping simplification ticks limits at their default");
 
   ruler->limits.elimination =
     scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-  message (0, "setting elimination limit to %" PRIu64 " ticks",
+  verbose (0, "setting elimination limit to %" PRIu64 " ticks",
 	   ruler->limits.elimination);
 
   ruler->limits.subsumption =
     scale_ticks_limit (optimize, SUBSUMPTION_TICKS_LIMIT);
-  message (0, "setting subsumption limit to %" PRIu64 " ticks",
+  verbose (0, "setting subsumption limit to %" PRIu64 " ticks",
 	   ruler->limits.subsumption);
 }
 
@@ -436,11 +436,11 @@ set_max_rounds (unsigned optimize)
 	res *= scale;
       else
 	res = UINT_MAX - 1;
-      message (0, "running at most %u simplification rounds (scaled by %u)",
+      verbose (0, "running at most %u simplification rounds (scaled by %u)",
 	       res, optimize);
     }
   else
-    message (0, "running at most %u simplification rounds (default)", res);
+    verbose (0, "running at most %u simplification rounds (default)", res);
   return res;
 }
 
@@ -481,8 +481,11 @@ run_only_root_level_propagation (struct simplifier *simplifier)
 static void
 run_full_blown_simplification (struct simplifier *simplifier)
 {
-  message (0, "simplifying formula before cloning");
   struct ruler *ruler = simplifier->ruler;
+#ifndef QUIET
+  uint64_t simplifications = ruler->statistics.simplifications;
+  message (0, "starting full simplification #%" PRIu64, simplifications);
+#endif
   connect_all_large_clauses (ruler);
 
   unsigned optimize = ruler->options.optimize;
@@ -530,17 +533,14 @@ run_full_blown_simplification (struct simplifier *simplifier)
       if (elimination_ticks_limit_hit (simplifier))
 	break;
     }
-  message (0, 0);
-
 #ifndef QUIET
+  message (0, 0);
   variables.after = ruler->statistics.active;
   assert (variables.after <= variables.before);
   variables.delta = variables.before - variables.after;
 
-  message (0, "simplification removed %zu variables %.0f%% "
-	   "with %zu remaining %.0f%%",
-	   variables.delta,
-	   percent (variables.delta, variables.before),
+  message (0, "removed %zu variables %.0f%% with %zu remaining %.0f%%",
+	   variables.delta, percent (variables.delta, variables.before),
 	   variables.after, percent (variables.after, ruler->size));
 
   clauses.after = current_ruler_clauses (ruler);
@@ -549,10 +549,8 @@ run_full_blown_simplification (struct simplifier *simplifier)
   if (clauses.after <= clauses.before)
     {
       clauses.delta = clauses.before - clauses.after;
-      message (0, "simplification removed %zu clauses %.0f%% "
-	       "with %zu remaining %.0f%%",
-	       clauses.delta,
-	       percent (clauses.delta, clauses.before),
+      message (0, "removed %zu clauses %.0f%% with %zu remaining %.0f%%",
+	       clauses.delta, percent (clauses.delta, clauses.before),
 	       clauses.after, percent (clauses.after, original));
     }
   else
@@ -566,19 +564,19 @@ run_full_blown_simplification (struct simplifier *simplifier)
     }
 
   if (ruler->inconsistent)
-    message (0, "simplification produced empty clause");
+    verbose (0, "simplification produced empty clause");
 
-  message (0, "subsumption used %" PRIu64 " ticks%s",
+  verbose (0, "subsumption used %" PRIu64 " ticks%s",
 	   ruler->statistics.ticks.subsumption,
 	   subsumption_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
-  message (0, "elimination used %" PRIu64 " ticks%s",
+  verbose (0, "elimination used %" PRIu64 " ticks%s",
 	   ruler->statistics.ticks.elimination,
 	   elimination_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
 #endif
 }
 
 void
-simplify_ruler (struct ruler *ruler, bool preprocessing)
+simplify_ruler (struct ruler *ruler)
 {
   if (ruler->inconsistent)
     return;
@@ -586,21 +584,16 @@ simplify_ruler (struct ruler *ruler, bool preprocessing)
 #ifndef QUIET
   double start_simplification = START (ruler, simplify);
 #endif
-
+  bool preprocessing = !ruler->statistics.simplifications++;
   assert (!ruler->simplifying);
   ruler->simplifying = true;
 
   struct simplifier *simplifier = new_simplifier (ruler);
 
-#if 1
   bool full = preprocessing ?
     ruler->options.preprocessing : ruler->options.inprocessing;
-#else
-  bool full = preprocessing && ruler->options.preprocessing;
-#endif
 
-  if (preprocessing)
-    message (0, 0);
+  message (0, 0);
 
   if (full)
     run_full_blown_simplification (simplifier);
@@ -616,8 +609,13 @@ simplify_ruler (struct ruler *ruler, bool preprocessing)
 
 #ifndef QUIET
   double end_simplification = STOP (ruler, simplify);
-  message (0, "simplification took %.2f seconds",
+  if (full)
+    message (0, 0);
+  message (0, "simplification #%" PRIu64 " took %.2f seconds",
+	   ruler->statistics.simplifications,
 	   end_simplification - start_simplification);
+  if (!preprocessing)
+    message (0, 0);
 #endif
 }
 
@@ -730,7 +728,7 @@ run_ring_simplification (struct ring *ring)
   (void) rendezvous (&ring->ruler->barriers.run, ring, true);
   if (ring->id)
     return;
-  simplify_ruler (ring->ruler, false);
+  simplify_ruler (ring->ruler);
   clone_first_ring_after_simplification (ring);
 }
 

@@ -105,23 +105,6 @@ initialize_options (struct options *opts)
 #undef OPTION
 }
 
-void
-normalize_options (struct options *opts)
-{
-  if (!opts->simplify)
-    opts->preprocessing = opts->inprocessing = false;
-
-  if (!opts->preprocessing)
-    opts->deduplicate = opts->eliminate = opts->subsume =
-      opts->substitute = false;
-
-  if (!opts->inprocessing)
-    opts->probe = false;
-
-  if (!opts->probe)
-    opts->fail = opts->vivify = false;
-}
-
 static bool
 parse_option (const char *opt, const char *name)
 {
@@ -414,8 +397,6 @@ parse_options (int argc, char **argv, struct options *opts)
 
   if (opts->proof.file == stdout && verbosity >= 0)
     opts->proof.lock = true;
-
-  normalize_options (opts);
 }
 
 static const char *

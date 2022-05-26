@@ -364,5 +364,5 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   ruler->units.begin = allocate_array (compact, sizeof (unsigned));
   ruler->units.propagate = ruler->units.end = ruler->units.begin;
 
-  message (0, "mapped %u variables to %u variables", ruler->size, mapped);
+  verbose (0, "mapped %u variables to %u variables", ruler->size, mapped);
 }

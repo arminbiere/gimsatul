@@ -103,6 +103,7 @@ struct ruler_statistics
   unsigned subsumed;
   unsigned substituted;
   unsigned selfsubsumed;
+  uint64_t simplifications;
   struct
   {
     uint64_t elimination;

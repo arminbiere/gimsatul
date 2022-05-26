@@ -35,7 +35,7 @@ main (int argc, char **argv)
   set_signal_handlers (ruler);
   parse_dimacs_body (ruler, variables, clauses);
   report_non_default_options (&options);
-  simplify_ruler (ruler, true);
+  simplify_ruler (ruler);
   clone_rings (ruler);
   struct ring *winner = solve_rings (ruler);
   int res = winner ? winner->status : 0;

@@ -25,7 +25,7 @@ struct simplifier
 void add_resolvent (struct simplifier *);
 void recycle_clause (struct simplifier *, struct clause *, unsigned except);
 void recycle_clauses (struct simplifier *, struct clauses *, unsigned except);
-void simplify_ruler (struct ruler *, bool preprocessing);
+void simplify_ruler (struct ruler *);
 
 /*------------------------------------------------------------------------*/
 
