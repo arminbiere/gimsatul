@@ -9,9 +9,11 @@
 #include <string.h>
 
 // *INDENT-OFF*
+
 static const char * usage_prefix =
 #include "usage.h"
 ;
+
 // *INDENT-ON*
 
 static bool
@@ -208,8 +210,7 @@ parse_options (int argc, char **argv, struct options *opts)
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
 	{
 	  printf (usage_prefix, (size_t) MAX_THREADS);
-	  printf
-	    ("\nThere is another list of less commonly used options:\n\n");
+	  printf ("\nLess commonly used options are:\n\n");
 	  print_usage_of_options ();
 	  exit (0);
 	}

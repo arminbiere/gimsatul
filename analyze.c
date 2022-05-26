@@ -123,11 +123,6 @@ bool
 analyze (struct ring *ring, struct watch *reason)
 {
   assert (!ring->inconsistent);
-#if 0
-  for (all_ring_variables (v))
-    assert (!v->seen), assert (!v->poison), assert (!v->minimize),
-      assert (!v->shrinkable);
-#endif
   if (!ring->level)
     {
       set_inconsistent (ring, "conflict on root-level produces empty clause");

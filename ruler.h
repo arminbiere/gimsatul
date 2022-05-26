@@ -128,19 +128,6 @@ struct ruler
   LIT != END_ ## LIT; \
   LIT += 2
 
-#if 0
-
-#define BEGIN_BARRIERS \
-  ((struct barrier *) &ruler->barriers)
-
-#define END_BARRIERS \
-  ((struct barrier*) ((char *) &ruler->barriers + sizeof ruler->barriers))
-
-#define all_barriers(B) \
-  struct barrier * B = BEGIN_BARRIERS; B != END_BARRIERS; B++
-
-#endif
-
 /*------------------------------------------------------------------------*/
 
 struct ruler *new_ruler (size_t size, struct options *);

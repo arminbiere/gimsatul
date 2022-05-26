@@ -162,15 +162,6 @@ struct rings
   LIT != END_ ## LIT; \
   ++LIT
 
-#if 0
-
-#define all_ring_variables(VAR) \
-  struct variable * VAR = ring->variables, \
-                  * END_ ## VAR = VAR + ring->size; \
-  (VAR != END_ ## VAR); \
-  ++VAR
-#endif
-
 #define all_phases(PHASE) \
   struct phases * PHASE = ring->phases, \
                   * END_ ## PHASE = PHASE + ring->size; \

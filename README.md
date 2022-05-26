@@ -1,6 +1,6 @@
 # Gimsatul SAT Solver
 
-This is a port-folio style parallel SAT-solver which physically shares
+This is a portfolio style parallel SAT-solver which physically shares
 clauses between different solving threads.  This is made possible by using
 separate watcher data structures for each solver thread and keeping the
 actual clause data immutable.  This allows to share large clauses between
@@ -42,7 +42,7 @@ As far preprocessing is concerned equivalent literal substitution,
 subsumption including strengthening and of course bounded variable
 elimination are simply run before solvers are cloned to share original
 irredundant clauses.  Inprocessing is scheduled in form of failed literal
-proping and vivification locally in each solver thread.  It would also be
+probing and vivification locally in each solver thread.  It would also be
 useful to parallelize preprocessing, which currently is only run in a single
 thread initially before cloning and starting the solver threads.
 

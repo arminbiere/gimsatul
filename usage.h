@@ -1,4 +1,5 @@
 // *INDENT-OFF*
+
 "usage: gimsatul [ <option> ... ] [ <dimacs> [ <proof> ] ]\n"
 "\n"
 "where '<option>' is one of the following\n"
@@ -23,4 +24,5 @@
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof trace file in 'DRAT' format (no proof if missing).\n"
+
 // *INDENT-ON*

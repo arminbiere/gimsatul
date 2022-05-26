@@ -43,16 +43,12 @@ detach_and_delete_rings (struct ruler *ruler)
 	  printf ("c deleting %zu rings in parallel\n", threads);
 	  fflush (stdout);
 	}
-#if 1
+
       for (all_rings (ring))
 	start_detaching_and_deleting_ring (ring);
 
       for (unsigned i = 0; i != threads; i++)
 	stop_detaching_and_deleting_ring (ruler, i);
-#else
-      for (all_rings (ring))
-	detach_and_delete_ring (ring);
-#endif
     }
   else
     {
