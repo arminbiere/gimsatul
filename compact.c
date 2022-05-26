@@ -172,6 +172,7 @@ clean_ring (struct ring * ring, struct clauses * cleaned)
 	    }
 	}
     }
+  saved->end = q;
   RELEASE (delete);
   RELEASE (add);
 }

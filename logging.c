@@ -39,9 +39,12 @@ loglit (struct ring *ring, unsigned unsigned_lit)
 	  if (value)
 	    {
 	      sprintf (res + strlen (res), "=%d", (int) value);
-	      struct variable *v = VAR (unsigned_lit);
-	      if (v->level != INVALID)
-		sprintf (res + strlen (res), "@%u", v->level);
+	      if (ring->variables)
+		{
+		  struct variable *v = VAR (unsigned_lit);
+		  if (v->level != INVALID)
+		    sprintf (res + strlen (res), "@%u", v->level);
+		}
 	    }
 	}
     }

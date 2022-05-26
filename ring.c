@@ -79,7 +79,8 @@ init_ring (struct ring *ring)
   very_verbose (ring, "initializing 'ring[%u]' of size %zu", ring->id, size);
 
   assert (!ring->marks);
-  assert (!ring->values);
+  if (ring->values)
+    free (ring->values);
   assert (!ring->inactive);
   assert (!ring->used);
 
@@ -104,13 +105,14 @@ init_ring (struct ring *ring)
 }
 
 void
-release_ring (struct ring *ring)
+release_ring (struct ring *ring, bool keep_values)
 {
   very_verbose (ring, "releasing 'ring[%u]' of size %u",
 		ring->id, ring->size);
 
   FREE (ring->marks);
-  FREE (ring->values);
+  if (!keep_values)
+    FREE (ring->values);
   FREE (ring->inactive);
   FREE (ring->used);
 
@@ -261,7 +263,7 @@ delete_ring (struct ring *ring)
   if (!ring->id)
     release_binaries (ring);
 
-  release_ring (ring);
+  release_ring (ring, false);
 
   free (ring->heap.nodes);
   free (ring->phases);

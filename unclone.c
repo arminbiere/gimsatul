@@ -125,6 +125,6 @@ unclone_ring (struct ring *ring)
   save_ring_binaries (ring);
   save_large_watches (ring);
   assert (EMPTY (ring->watches));
-  release_ring (ring);
+  release_ring (ring, true);
   assert (EMPTY (ring->watches));
 }
