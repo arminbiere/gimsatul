@@ -25,15 +25,18 @@ iterate (struct ring *ring)
   assert (!ring->level);
   struct ring_trail *trail = &ring->trail;
   assert (trail->end == trail->propagate);
-  assert (trail->iterate < trail->propagate);
+  assert (trail->iterate <= trail->propagate);
+  if (trail->iterate < trail->propagate)
+    {
 #ifndef QUIET
-  size_t new_units = trail->propagate - trail->iterate;
-  very_verbose (ring, "iterating %zu units", new_units);
+      size_t new_units = trail->propagate - trail->iterate;
+      very_verbose (ring, "iterating %zu units", new_units);
 #endif
-  verbose_report (ring, 'i', ring->iterating-1);
+      verbose_report (ring, 'i', ring->iterating-1);
+      export_units (ring);
+      trail->iterate = trail->propagate;
+    }
   ring->iterating = 0;
-  export_units (ring);
-  trail->iterate = trail->propagate;
 }
 
 static void
