@@ -66,31 +66,42 @@ struct ruler
 {
   unsigned size;
   unsigned compact;
+
+  struct ring *volatile winner;
+
   volatile bool terminate;
   volatile bool simplify;
+
   bool eliminating;
   bool inconsistent;
   bool simplifying;
   bool solving;
   bool subsuming;
-  struct ruler_locks locks;
-  struct ruler_barriers barriers;
-  struct rings rings;
-  pthread_t *threads;
-  struct ring *volatile winner;
-  volatile signed char *values;
+
+  bool * eliminate;
+  bool * subsume;
+
   struct clauses *occurrences;
-  struct clauses clauses;
-  struct unsigneds *original;
-  struct unsigneds extension[2];
-  struct ruler_trail units;
+  pthread_t *threads;
   unsigned *unmap;
+  volatile signed char *values;
+
+  struct ruler_barriers barriers;
+  struct ruler_locks locks;
+
+  struct clauses clauses;
+  struct unsigneds extension[2];
+  struct unsigneds *original;
+  struct rings rings;
+  struct ruler_trail units;
+
   struct trace trace;
-  struct ruler_profiles profiles;
-  struct ruler_statistics statistics;
+
+  struct ruler_last last;
   struct ruler_limits limits;
   struct options options;
-  struct ruler_last last;
+  struct ruler_profiles profiles;
+  struct ruler_statistics statistics;
 };
 
 /*------------------------------------------------------------------------*/

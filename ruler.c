@@ -21,6 +21,15 @@ init_ruler_profiles (struct ruler *ruler)
 
 #endif
 
+static void
+init_locks (struct ruler * ruler)
+{
+#define LOCK(NAME) \
+  pthread_mutex_init (&ruler->locks.NAME, 0);
+  LOCKS
+#undef LOCK
+}
+
 struct ruler *
 new_ruler (size_t size, struct options *opts)
 {
@@ -28,26 +37,33 @@ new_ruler (size_t size, struct options *opts)
   assert (opts->threads <= MAX_THREADS);
   struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
   ruler->size = ruler->compact = size;
-  ruler->statistics.active = size;
-  memcpy (&ruler->options, opts, sizeof *opts);
-  ruler->trace.binary = opts->binary;
-  ruler->trace.file = opts->proof.file ? &opts->proof : 0;
-#ifndef NDEBUG
-  ruler->original = allocate_and_clear_block (sizeof *ruler->original);
-#endif
-#define LOCK(NAME) \
-  pthread_mutex_init (&ruler->locks.NAME, 0);
-  LOCKS
-#undef LOCK
-    ruler->values = allocate_and_clear_block (2 * size);
+
+  ruler->eliminate = allocate_block (size);
+  ruler->subsume = allocate_block (size);
+  memset (simplifier->eliminate, 1, size);
+  memset (simplifier->subsume, 1, size);
+
+  init_locks (ruler);
 
   ruler->occurrences =
     allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
+  ruler->values = allocate_and_clear_block (2 * size);
+
+#ifndef NDEBUG
+  ruler->original = allocate_and_clear_block (sizeof *ruler->original);
+#endif
   ruler->units.begin = allocate_array (size, sizeof (unsigned));
   ruler->units.propagate = ruler->units.end = ruler->units.begin;
+
+  ruler->trace.binary = opts->binary;
+  ruler->trace.file = opts->proof.file ? &opts->proof : 0;
+
+  memcpy (&ruler->options, opts, sizeof *opts);
 #ifndef QUIET
   init_ruler_profiles (ruler);
 #endif
+  ruler->statistics.active = size;
+
   return ruler;
 }
 
@@ -59,6 +75,47 @@ release_occurrences (struct ruler *ruler)
   for (all_ruler_literals (lit))
     RELEASE (OCCURRENCES (lit));
   free (ruler->occurrences);
+}
+
+static void
+release_clauses (struct ruler *ruler)
+{
+  for (all_clauses (clause, ruler->clauses))
+    if (!binary_pointer (clause))
+      free (clause);
+  RELEASE (ruler->clauses);
+}
+
+static void
+release_origina (struct ruler * ruler)
+{
+  if (!ruler->original)
+    return;
+  RELEASE (*ruler->original);
+  free (ruler->original);
+}
+
+void
+delete_ruler (struct ruler *ruler)
+{
+  free (ruler->eliminate);
+  free (ruler->subsume);
+
+  release_occurrences (ruler);
+  free (ruler->threads);
+  free (ruler->unmap);
+  free ((void*) ruler->values);
+
+  release_clauses (ruler);
+  RELEASE (ruler->extension[0]);
+  RELEASE (ruler->extension[1]);
+  release_original (ruler);
+  RELEASE (ruler->rings);
+  free (ruler->units.begin);
+
+  RELEASE (ruler->trace.buffer);
+
+  free (ruler);
 }
 
 void
@@ -82,40 +139,6 @@ flush_large_clause_occurrences (struct ruler *ruler)
       clauses->end = q;
     }
   very_verbose (0, "flushed %zu large clause occurrences", flushed);
-}
-
-static void
-release_clauses (struct ruler *ruler)
-{
-  for (all_clauses (clause, ruler->clauses))
-    if (!binary_pointer (clause))
-      free (clause);
-  RELEASE (ruler->clauses);
-}
-
-void
-delete_ruler (struct ruler *ruler)
-{
-#ifndef NDEBUG
-  for (all_rings (ring))
-    assert (!ring);
-#endif
-  RELEASE (ruler->rings);
-  RELEASE (ruler->trace.buffer);
-  RELEASE (ruler->extension[0]);
-  RELEASE (ruler->extension[1]);
-  if (ruler->original)
-    {
-      RELEASE (*ruler->original);
-      free (ruler->original);
-    }
-  release_occurrences (ruler);
-  release_clauses (ruler);
-  free ((void *) ruler->values);
-  free (ruler->unmap);
-  free (ruler->units.begin);
-  free (ruler->threads);
-  free (ruler);
 }
 
 static void

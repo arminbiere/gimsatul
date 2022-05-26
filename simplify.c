@@ -27,12 +27,6 @@ new_simplifier (struct ruler *ruler)
   simplifier->ruler = ruler;
   simplifier->marks = allocate_and_clear_block (2 * size);
   simplifier->eliminated = allocate_and_clear_block (size);
-#if 0
-  simplifier->eliminate = allocate_and_clear_block (size);
-  simplifier->subsume = allocate_and_clear_block (size);
-  memset (simplifier->eliminate, 1, size);
-  memset (simplifier->subsume, 1, size);
-#endif
   return simplifier;
 }
 
@@ -41,10 +35,6 @@ delete_simplifier (struct simplifier *simplifier)
 {
   free (simplifier->marks);
   free (simplifier->eliminated);
-#if 0
-  free (simplifier->eliminate);
-  free (simplifier->subsume);
-#endif
   free (simplifier);
 }
 
