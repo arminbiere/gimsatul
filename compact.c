@@ -170,7 +170,7 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	      *q++ = dst_clause;
 	    }
 	  else
-	    LOGBINARY (true, src_lit, src_other, "flushing unmappable");
+	    LOGBINARY (true, src_lit, src_other, "cannot map");
 	}
       else if (src_clause->garbage)
         dereference_clause (ring, src_clause);
@@ -180,11 +180,13 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	  for (all_literals_in_clause (src_lit, src_clause))
 	    if (map_literal (map, src_lit) == INVALID)
 	      {
+		LOG ("cannot map literal %s", LOGLIT (src_lit));
 		dst_clause = 0;
 		break;
 	      }
 	  if (dst_clause)
 	    {
+	      LOGCLAUSE (src_clause, "mapping");
 	      assert (src_clause == dst_clause);
 	      unsigned * literals = dst_clause->literals;
 	      unsigned * end = literals + dst_clause->size;
@@ -208,7 +210,7 @@ compact_clauses (struct ring * ring, unsigned * map, struct clauses * mapped)
 	  else
 	    {
 	      src_clause->garbage = true;
-	      LOGCLAUSE (src_clause, "flushing unmappable");
+	      LOGCLAUSE (src_clause, "cannot map");
 	      dereference_clause (ring, src_clause);
 	    }
 	}
