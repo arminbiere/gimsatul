@@ -254,6 +254,8 @@ compact_ring (struct ring * ring, unsigned * map)
   compact_clauses (ring, &ring->saved, map);
   ring->size = new_size;
   ring->statistics.active = new_size;
+
+  ring->units = ruler->units.end;
 }
 
 static void
@@ -378,6 +380,10 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   compact_bool_array (&ruler->eliminate, old_compact, new_compact, map);
   compact_bool_array (&ruler->subsume, old_compact, new_compact, map);
 
+  free (ruler->units.begin);
+  ruler->units.begin = allocate_array (new_compact, sizeof (unsigned));
+  ruler->units.propagate = ruler->units.end = ruler->units.begin;
+
   if (!preprocessing)
     for (all_rings (ring))
       compact_ring (ring, map);
@@ -386,10 +392,6 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
 
   free ((void *) ruler->values);
   ruler->values = allocate_and_clear_block (2 * new_compact);
-
-  free (ruler->units.begin);
-  ruler->units.begin = allocate_array (new_compact, sizeof (unsigned));
-  ruler->units.propagate = ruler->units.end = ruler->units.begin;
 
   verbose (0, "mapped %u variables to %u variables", ruler->size, mapped);
 }
