@@ -526,25 +526,29 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   if (idx == variables)
     {
       message (0, "[%u] all candidate variables 100%% tried", round);
+      unsigned max_bound = ruler->options.eliminate_bound;
       unsigned new_bound;
       if (eliminated)
 	new_bound = old_bound;
       else
 	{
 	  new_bound = old_bound ? 2*old_bound : 1;
-	  unsigned max_bound = ruler->options.eliminate_bound;
 	  if (new_bound > max_bound)
 	    new_bound = max_bound;
 	}
       assert (old_bound <= new_bound);
+#ifndef QUIET
+      const char * reached_max_bound =
+        new_bound == max_bound ? "maximum " : "";
+#endif
       if (old_bound == new_bound)
-	message (0, "[%u] keeping elimination bound at %u",
-	         round, old_bound);
+	message (0, "[%u] keeping elimination bound at %s%u",
+	         round, reached_max_bound, old_bound);
       else
 	{
-	  message (0, "[%u] increasing elimination bound to %u",
-		   round, new_bound);
-	  memset (simplifier->eliminate, 1, ruler->size);
+	  message (0, "[%u] increasing elimination bound to %s%u",
+		   round, reached_max_bound, new_bound);
+	  memset (simplifier->eliminate, 1, ruler->compact);
 	  ruler->limits.bound = new_bound;
 	}
     }
