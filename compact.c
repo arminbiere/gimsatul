@@ -266,7 +266,7 @@ compact_bool_array (bool ** array_ptr,
   unsigned old_idx = 0;
   while (p != end)
     {
-      assert (o == old_array + old_idx);
+      assert (p == old_array + old_idx);
       bool value = *p++;
       unsigned new_idx = map[old_idx++];
       if (new_idx == INVALID)
