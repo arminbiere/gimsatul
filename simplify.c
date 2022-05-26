@@ -420,13 +420,14 @@ set_ruler_limits (struct ruler *ruler, unsigned optimize)
 }
 
 static unsigned
-set_max_rounds (unsigned optimize)
+set_max_rounds (struct ruler * ruler, unsigned optimize)
 {
-  unsigned res = SIMPLIFICATION_ROUNDS;
+  unsigned max_rounds = ruler->options.simplify_rounds;
+  unsigned res = max_rounds;
   if (optimize)
     {
       unsigned scale = optimize + 1;
-      if ((UINT_MAX - 1) / scale >= SIMPLIFICATION_ROUNDS)
+      if ((UINT_MAX - 1) / scale >= max_rounds)
 	res *= scale;
       else
 	res = UINT_MAX - 1;
@@ -495,7 +496,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
   variables.before = ruler->statistics.active;
 #endif
 
-  unsigned max_rounds = set_max_rounds (optimize);
+  unsigned max_rounds = set_max_rounds (ruler, optimize);
 
   bool done = false;
 

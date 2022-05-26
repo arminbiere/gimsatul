@@ -470,7 +470,7 @@ do { \
   else \
     { \
       printf ("%u..", (unsigned) MIN); \
-      if ((int) MAX != INT_MAX) \
+      if ((int) MAX != (int) INFINITY) \
 	printf ("%u", (unsigned) MAX); \
       else \
 	fputc ('.', stdout); \

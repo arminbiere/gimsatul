@@ -36,7 +36,6 @@
 
 #define CACHE_LINE_SIZE 128
 
-#define SIMPLIFICATION_ROUNDS 16
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
@@ -47,6 +46,8 @@
 
 #define FAILED_EFFORT 0.02
 #define VIVIFY_EFFORT 0.03
+
+#define INFINITY INT_MAX
 
 #define OPTIONS \
 OPTION (bool,     binary,            1, 0, 1) \
@@ -62,11 +63,12 @@ OPTION (bool,     phase,             1, 0, 1) \
 OPTION (bool,     portfolio,         1, 0, 1) \
 OPTION (bool,     preprocessing,     1, 0, 1) \
 OPTION (bool,     probe,             1, 0, 1) \
-OPTION (unsigned, probe_interval,    2e3, 1, INT_MAX) \
-OPTION (unsigned, random_decisions,  100, 0, INT_MAX) \
-OPTION (unsigned, reduce_interval,   1e3, 1, INT_MAX) \
+OPTION (unsigned, probe_interval,    2e3, 1, INFINITY) \
+OPTION (unsigned, random_decisions,  100, 0, INFINITY) \
+OPTION (unsigned, reduce_interval,   1e3, 1, INFINITY) \
 OPTION (unsigned, simplify,          2, 0, 2) \
-OPTION (unsigned, simplify_interval, 1e4/*1e4*/, 1, INT_MAX) \
+OPTION (unsigned, simplify_interval, 1e3, 1, INFINITY) \
+OPTION (unsigned, simplify_rounds,   3, 1, INFINITY) \
 OPTION (bool,     switch_mode,       1, 0, 1) \
 OPTION (bool,     substitute,        1, 0, 1) \
 OPTION (bool,     subsume,           1, 0, 1) \
