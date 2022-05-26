@@ -25,16 +25,9 @@ extend_witness (struct ring *ring)
       unsigned not_lit = NOT (lit);
       witness[lit] = phase;
       witness[not_lit] = -phase;
+      LOG ("setting original literal %u(%d)=%d to default phase",
+           lit, only_export_literal (lit), (int) phase);
     }
-#ifdef LOGGING
-  ring->values = witness;
-  struct variable * ring_variables = ring->variables;
-  struct variable * ruler_variables =
-    allocate_array (ruler->size, sizeof *ruler_variables);
-  for (unsigned idx = 0; idx != ruler->size; idx++)
-    ruler_variables[idx].level = INVALID;
-  ring->variables = ruler_variables;
-#endif
   unsigned * unmap = ruler->unmap;
   ruler->unmap = 0;
   LOG ("unmapping and assigning %u ring variables", ring->size);
@@ -48,7 +41,11 @@ extend_witness (struct ring *ring)
       witness[ruler_lit] = value;
       witness[not_ruler_lit] = -value;
 #ifdef LOGGING
-      ruler_variables[ruler_idx].level = ring_variables[ring_idx].level;
+      int exported = only_export_literal (ruler_lit);
+      LOG ("assigning original literal %u(%d)=%d "
+           "to value of ring literal %u(%d)=%d",
+           ruler_lit, exported, (int) value,
+	   ring_lit, exported, (int) value);
 #endif
     }
   free (unmap);
@@ -58,6 +55,8 @@ extend_witness (struct ring *ring)
       unsigned not_lit = NOT (lit);
       witness[lit] = 1;
       witness[not_lit] = -1;
+      LOG ("forcing original literal %u(%d)=1 as saved unit",
+           lit, only_export_literal (lit));
     }
   size_t flipped = 0;
   struct unsigneds *extension = &ruler->extension[0];
@@ -67,21 +66,36 @@ extend_witness (struct ring *ring)
   bool satisfied = false;
   LOG ("going through extension stack of size %zu", (size_t) (p - begin));
 #ifdef LOGGING
+  size_t clauses = 0;
   if (verbosity == INT_MAX)
     {
-      LOG ("extension stack in reverse order:");
-      unsigned *q = p;
-      while (q != begin)
-	{
-	  unsigned *next = q;
-	  while (*--next != INVALID)
-	    ;
-	  LOGPREFIX ("extension clause");
-	  for (unsigned *c = next + 1; c != q; c++)
-	    printf (" %s", LOGLIT (*c));
-	  LOGSUFFIX ();
-	  q = next;
-	}
+      {
+	for (unsigned * q = begin; q != p; q++)
+	  if (*q == INVALID)
+	    clauses++;
+      }
+      {
+	LOG ("printing extension stack of size %zu with %zu clauses",
+	     SIZE (*extension), clauses);
+	unsigned *q = p;
+	size_t clause_idx = clauses;
+	while (q != begin)
+	  {
+	    unsigned *next = q;
+	    while (*--next != INVALID)
+	      ;
+	    LOGPREFIX ("extension clause[%zu]", clause_idx);
+	    for (unsigned *c = next + 1; c != q; c++)
+	      {
+		unsigned lit = *c;
+		int value = witness[lit];
+		printf (" %u(%d)=%d", lit, only_export_literal (lit), value);
+	      }
+	    LOGSUFFIX ();
+	    clause_idx--;
+	    q = next;
+	  }
+      }
     }
 #endif
   while (p != begin)
@@ -91,7 +105,11 @@ extend_witness (struct ring *ring)
 	{
 	  if (!satisfied)
 	    {
-	      LOG ("flipping %s", LOGLIT (pivot));
+#ifdef LOGGING
+	      int exported = only_export_literal (pivot);
+	      LOG ("flipping %u(%d)=-1 to %u(%d)=1 due to clause[%zu]",
+	           pivot, exported, pivot, exported, clauses);
+#endif
 	      assert (pivot != INVALID);
 	      unsigned not_pivot = NOT (pivot);
 	      assert (witness[pivot] < 0);
@@ -101,6 +119,9 @@ extend_witness (struct ring *ring)
 	      flipped++;
 	    }
 	  satisfied = false;
+#ifdef LOGGING
+	  clauses--;
+#endif
 	}
       else if (!satisfied)
 	{
@@ -111,11 +132,6 @@ extend_witness (struct ring *ring)
       pivot = lit;
     }
   verbose (ring, "flipped %zu literals", flipped);
-#ifdef LOGGING
-  ring->values = values;
-  ring->variables = ring_variables;
-  free (ruler_variables);
-#endif
   return witness;
 }
 
