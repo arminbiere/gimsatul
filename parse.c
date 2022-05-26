@@ -126,7 +126,6 @@ parse_dimacs_header (struct options *options,
 	  CLEAR (buffer);
 	}
     }
-  normalize_options (options);
   RELEASE (buffer);
 #else
   while ((ch = next_char (dimacs)) == 'c')

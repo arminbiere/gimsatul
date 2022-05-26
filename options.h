@@ -43,8 +43,6 @@
 #define SUBSUMPTION_TICKS_LIMIT 2000
 #define ELIMINATION_TICKS_LIMIT 2000
 
-#define LD_MAX_ELIMINATE_MARGIN 4
-
 #define MAX_THREADS (1u<<16)
 
 #define FAILED_EFFORT 0.02
@@ -55,6 +53,7 @@ OPTION (bool,     binary,            1, 0, 1) \
 OPTION (bool,     bump_reasons,      1, 0, 1) \
 OPTION (bool,     deduplicate,       1, 0, 1) \
 OPTION (bool,     eliminate,         1, 0, 1) \
+OPTION (unsigned, eliminate_bound,   16, 0, 1024) \
 OPTION (bool,     fail,              1, 0, 1) \
 OPTION (bool,     focus_initially,   1, 0, 1) \
 OPTION (bool,     force,             0, 0, 1) \

@@ -1,5 +1,6 @@
 #include "definition.h"
 #include "eliminate.h"
+#include "macros.h"
 #include "message.h"
 #include "profile.h"
 #include "simplify.h"
@@ -108,8 +109,7 @@ can_resolve_clause (struct simplifier *simplifier,
 }
 
 static bool
-can_eliminate_variable (struct simplifier *simplifier,
-			unsigned idx, unsigned margin)
+can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
 {
   if (simplifier->eliminated[idx])
     return false;
@@ -159,9 +159,10 @@ can_eliminate_variable (struct simplifier *simplifier,
 
   size_t resolvents = 0;
   size_t resolutions = 0;
-  size_t limit = occurrences + margin;
-  ROG ("actual limit %zu = occurrences %zu + margin %u",
-       limit, occurrences, margin);
+  unsigned bound = ruler->limits.bound;
+  size_t limit = occurrences + bound;
+  ROG ("actual limit %zu = occurrences %zu + bound %u",
+       limit, occurrences, bound);
 #if 0
   uint64_t ticks = ruler->statistics.ticks.elimination;
 #endif
@@ -489,44 +490,74 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 #endif
   assert (!ruler->eliminating);
   ruler->eliminating = true;
+
+  unsigned idx = 0, variables = ruler->compact;
   unsigned eliminated = 0;
-  unsigned margin;
-  if (round < 2)
-    margin = 0;
-  else
-    {
-      unsigned shift = (round - 1) / 2;
-      if (shift > LD_MAX_ELIMINATE_MARGIN)
-	shift = LD_MAX_ELIMINATE_MARGIN;
-      margin = 1u << shift;
-      if (shift != LD_MAX_ELIMINATE_MARGIN && (round & 1))
-	memset (simplifier->eliminate, 1, ruler->compact);
-    }
-  for (all_ruler_indices (idx))
+
+  while (idx != variables)
     {
       if (ruler->inconsistent)
 	break;
       if (elimination_ticks_limit_hit (simplifier))
 	break;
-      if (can_eliminate_variable (simplifier, idx, margin))
+      if (can_eliminate_variable (simplifier, idx))
 	{
 	  eliminate_variable (simplifier, idx);
 	  eliminated++;
 	}
+      idx++;
     }
+
   RELEASE (simplifier->resolvent);
   RELEASE (simplifier->gate[0]);
   RELEASE (simplifier->gate[1]);
   RELEASE (simplifier->nogate[0]);
   RELEASE (simplifier->nogate[1]);
-  assert (ruler->eliminating);
-  ruler->eliminating = false;
+
+  unsigned old_bound = ruler->limits.bound;
 #ifndef QUIET
   double end_round = STOP (ruler, eliminate);
   message (0, "[%u] eliminated %u variables %.0f%% "
-	   "margin %u in %.2f seconds", round,
+	   "with bound %u in %.2f seconds", round,
 	   eliminated, percent (eliminated, ruler->compact),
-	   margin, end_round - start_round);
+	   old_bound, end_round - start_round);
 #endif
+
+  if (idx == variables)
+    {
+      message (0, "[%u] all candidate variables 100%% tried", round);
+      unsigned new_bound;
+      if (eliminated)
+	new_bound = old_bound;
+      else
+	{
+	  new_bound = old_bound ? 2*old_bound : 1;
+	  unsigned max_bound = ruler->options.eliminate_bound;
+	  if (new_bound > max_bound)
+	    new_bound = max_bound;
+	}
+      assert (old_bound <= new_bound);
+      if (old_bound == new_bound)
+	message (0, "[%u] keeping elimination bound at %u",
+	         round, old_bound);
+      else
+	{
+	  message (0, "[%u] increasing elimination bound to %u",
+		   round, new_bound);
+	  memset (simplifier->eliminate, 1, ruler->size);
+	  ruler->limits.bound = new_bound;
+	}
+    }
+  else
+    {
+      unsigned remain = variables - idx;
+      message (0, "[%u] tried %u candidate variables %.0f%% "
+	       "(%u remain %.0f%%)", round, idx, percent (idx, variables),
+	       remain, percent (remain, variables));
+    }
+
+  assert (ruler->eliminating);
+  ruler->eliminating = false;
+
   return eliminated;
 }

@@ -57,6 +57,7 @@ struct ruler_last
 
 struct ruler_limits
 {
+  unsigned bound;
   uint64_t elimination;
   uint64_t subsumption;
 };

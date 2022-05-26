@@ -252,6 +252,8 @@ compact_ring (struct ring * ring, unsigned * map)
 
   assert (EMPTY (ring->watches));
   compact_clauses (ring, &ring->saved, map);
+  ring->size = new_size;
+  ring->statistics.active = new_size;
 }
 
 void
