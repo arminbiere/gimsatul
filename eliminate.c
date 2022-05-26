@@ -465,24 +465,26 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
   unsigned * unmap = ruler->unmap;
   for (all_clauses (clause, *pos_clauses))
     {
-      ROGCLAUSE (clause,
-		 "pushing with witness literal %s on extension stack",
-		 ROGLIT (pivot));
+      ruler->statistics.weakened++;
+      ROGCLAUSE (clause, "pushing weakened[%zu] witness literal %s",
+                 ruler->statistics.weakened, ROGLIT (pivot));
       PUSH (*extension, INVALID);
       PUSH (*extension, unmap_literal (unmap, pivot));
       if (binary_pointer (clause))
 	{
 	  unsigned other = other_pointer (clause);
-	  PUSH (*extension, other);
+	  PUSH (*extension, unmap_literal (unmap, other));
 	}
       else
 	{
 	  for (all_literals_in_clause (lit, clause))
 	    if (lit != pivot)
-	      PUSH (*extension, lit);
+	      PUSH (*extension, unmap_literal (unmap, lit));
 	}
     }
-  ROG ("pushing unit %s to extension stack", ROGLIT (not_pivot));
+  ruler->statistics.weakened++;
+  ROG ("pushing weakened[%zu] unit %s",
+       ruler->statistics.weakened, ROGLIT (not_pivot));
   PUSH (*extension, INVALID);
   PUSH (*extension, unmap_literal (unmap, not_pivot));
   recycle_clauses (simplifier, pos_clauses, pivot);

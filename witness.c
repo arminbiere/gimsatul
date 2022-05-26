@@ -84,7 +84,7 @@ extend_witness (struct ring *ring)
 	    unsigned *next = q;
 	    while (*--next != INVALID)
 	      ;
-	    LOGPREFIX ("extension clause[%zu]", clause_idx);
+	    LOGPREFIX ("extension clause weakened[%zu]", clause_idx);
 	    for (unsigned *c = next + 1; c != q; c++)
 	      {
 		unsigned lit = *c;

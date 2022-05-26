@@ -163,16 +163,18 @@ print_ruler_statistics (struct ruler *ruler)
 	  s->eliminated, percent (s->eliminated, variables));
   printf ("c %-22s %17u %13.2f %% eliminated variables\n", "definitions:",
 	  s->definitions, percent (s->definitions, s->eliminated));
-  printf ("c %-22s %17u %13.2f %% variables\n", "substituted:",
+  printf ("c %-22s %17" PRIu64 " %13.2f %% variables\n", "substituted:",
 	  s->substituted, percent (s->substituted, variables));
-  printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "deduplicated:",
+  printf ("c %-22s %17" PRIu64 " %13.2f %% subsumed clauses\n", "deduplicated:",
 	  s->deduplicated, percent (s->deduplicated, s->subsumed));
-  printf ("c %-22s %17u %13.2f %% subsumed clauses\n", "self-subsumed::",
+  printf ("c %-22s %17" PRIu64 " %13.2f %% subsumed clauses\n", "self-subsumed::",
 	  s->selfsubsumed, percent (s->selfsubsumed, s->subsumed));
-  printf ("c %-22s %17u %13.2f %% original clauses\n", "strengthened:",
+  printf ("c %-22s %17" PRIu64 " %13.2f %% original clauses\n", "strengthened:",
 	  s->strengthened, percent (s->strengthened, s->original));
-  printf ("c %-22s %17u %13.2f %% original clauses\n", "subsumed:",
+  printf ("c %-22s %17" PRIu64 " %13.2f %% original clauses\n", "subsumed:",
 	  s->subsumed, percent (s->subsumed, s->original));
+  printf ("c %-22s %17zu %13.2f %% original clauses\n", "weakened:",
+	  s->weakened, percent (s->weakened, s->original));
   printf ("c %-22s %17u %13.2f %% total-fixed\n", "simplifying-fixed:",
 	  s->fixed.simplifying, percent (s->fixed.simplifying,
 					 s->fixed.total));

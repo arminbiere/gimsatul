@@ -159,7 +159,7 @@ new_ring (struct ruler *ruler)
     {
       struct node *node = n++;
       struct link *link = l++;
-      LOG ("pushing active %s", LOGVAR (idx));
+      LOG ("activating %s", LOGVAR (idx));
       push_heap (heap, node);
       enqueue (queue, link, true);
     }

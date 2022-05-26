@@ -54,9 +54,9 @@ struct ring_statistics
 
   struct
   {
-    size_t strengthened;
-    size_t succeeded;
-    size_t implied;
+    uint64_t strengthened;
+    uint64_t succeeded;
+    uint64_t implied;
   } vivify;
 
   struct
@@ -96,14 +96,15 @@ struct ruler_statistics
   uint64_t binaries;
   unsigned active;
   unsigned original;
-  unsigned deduplicated;
+  uint64_t deduplicated;
   unsigned eliminated;
   unsigned definitions;
-  unsigned strengthened;
-  unsigned subsumed;
-  unsigned substituted;
-  unsigned selfsubsumed;
+  uint64_t strengthened;
+  uint64_t subsumed;
+  uint64_t substituted;
+  uint64_t selfsubsumed;
   uint64_t simplifications;
+  size_t weakened;
   struct
   {
     uint64_t elimination;
