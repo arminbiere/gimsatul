@@ -301,6 +301,7 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   unsigned *unmap = allocate_array (new_compact, sizeof *unmap);
   unsigned *old_unmap = ruler->unmap;
   ruler->unmap = unmap;
+  ruler->trace.unmap = unmap;
   for (all_rings (ring))
     ring->trace.unmap = unmap;
   unsigned old_compact = ruler->compact;
