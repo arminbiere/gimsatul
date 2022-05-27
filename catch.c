@@ -98,6 +98,7 @@ catch_signal (int sig)
     print_ruler_statistics (ruler);
 #endif
   raise (sig);
+  exit (1);
 }
 
 static void
