@@ -233,6 +233,8 @@ parse_options (int argc, char **argv, struct options *opts)
 	    die ("invalid '-O' option '%s'", opt);
 
 	}
+      else if (!strcmp (opt, "-r") || !strcmp (opt, "--resources"))
+	opts->summarize = true;
       else if (!strcmp (opt, "-q") || !strcmp (opt, "--quiet"))
 #ifdef QUIET
 	die ("configured with '--quiet' (forces '%s)", opt);

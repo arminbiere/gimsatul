@@ -14,6 +14,9 @@
 "  -O|-O<level>             increase simplification ticks and round limits\n"
 #ifndef QUIET
 "  -q|--quiet               disable all additional messages\n"
+#endif
+"  -r|--resources           summarize used resources\n"
+#ifndef QUIET
 "  -v|--verbose             increase verbosity\n"
 #endif
 "  -V|--version             print version\n"

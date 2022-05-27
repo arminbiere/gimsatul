@@ -84,8 +84,8 @@ struct options
   long long conflicts;
   unsigned seconds;
   unsigned threads;
-
   unsigned optimize;
+  bool summarize;
 
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
   TYPE NAME;

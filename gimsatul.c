@@ -10,15 +10,14 @@
 #include "simplify.h"
 #include "solve.h"
 #include "statistics.h"
+#include "system.h"
 #include "types.h"
 #include "witness.h"
 
 int
 main (int argc, char **argv)
 {
-#ifndef QUIET
   start_time = current_time ();
-#endif
   struct options options;
   parse_options (argc, argv, &options);
   print_banner ();
@@ -60,8 +59,11 @@ main (int argc, char **argv)
       fflush (stdout);
       free (witness);
     }
+  if (options.summarize)
+    summarize_used_resources (options.threads);
 #ifndef QUIET
-  print_ruler_statistics (ruler);
+  else
+    print_ruler_statistics (ruler);
 #endif
   detach_and_delete_rings (ruler);
   delete_ruler (ruler);

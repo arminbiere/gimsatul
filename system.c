@@ -1,7 +1,7 @@
-#ifndef QUIET
-
 #include "system.h"
+#include "utilities.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -59,4 +59,15 @@ current_resident_set_size (void)
   return scanned == 2 ? rss * sysconf (_SC_PAGESIZE) : 0;
 }
 
-#endif
+void
+summarize_used_resources (unsigned t)
+{
+  assert (threads);
+  double w = current_time () - start_time;
+  double p = process_time ();
+  double m = maximum_resident_set_size () / (double) (1u<<20);
+  double u = percent (p, w) / t;
+  printf ("c resources: %.0f%% utilization = %.2f / %.2f sec / %u threads, %.2f MB\n",
+          u, p, w, t, m);
+  fflush (stdout);
+}
