@@ -46,22 +46,11 @@ class Runner:
         with open(input) as f:
             return json.loads(f.read())
     
-    def create_hostfile(self,ips, request_dir):
-        hostfile_path = os.path.join(request_dir, 'combined_hostfile')
-        with open(hostfile_path, 'w+') as f:
-            for ip in ips:
-                f.write(f'{ip} slots=2')
-                f.write('\n')
-            return hostfile_path
-
     def get_command(self, input_json):
         problem_path = input_json.get("problem_path")
         worker_node_ips = input_json.get("worker_node_ips", [])
-        
-        combined_hostfile = self.create_hostfile(worker_node_ips, self.request_directory)
 
         run_list = ["/competition/run_gimsatul.sh"]
-        #run_list.append(combined_hostfile)
         run_list.append(problem_path)
 
         return run_list
