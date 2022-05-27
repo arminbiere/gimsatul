@@ -1,2 +1,2 @@
 #!/bin/sh
-exec ./gimsatul -r --threads=32 $*
+exec ./gimsatul -n -r --threads=32 $*
