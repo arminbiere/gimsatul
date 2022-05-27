@@ -329,9 +329,11 @@ flush_large_garbage_clauses_and_reconnect (struct ruler *ruler)
 bool
 subsume_clauses (struct simplifier *simplifier, unsigned round)
 {
+  struct ruler *ruler = simplifier->ruler;
+  if (!ruler->options.subsume)
+    return false;
   if (subsumption_ticks_limit_hit (simplifier))
     return false;
-  struct ruler *ruler = simplifier->ruler;
 #ifndef QUIET
   double start_subsumption = START (ruler, subsume);
 #endif

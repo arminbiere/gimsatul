@@ -411,15 +411,24 @@ set_ruler_limits (struct ruler *ruler, unsigned optimize)
   else
     verbose (0, "keeping simplification ticks limits at their default");
 
-  ruler->limits.elimination =
-    scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-  verbose (0, "setting elimination limit to %" PRIu64 " ticks",
-	   ruler->limits.elimination);
+  struct ruler_limits * limits = &ruler->limits;
+  struct ruler_statistics * statistics = &ruler->statistics;
 
-  ruler->limits.subsumption =
-    scale_ticks_limit (optimize, SUBSUMPTION_TICKS_LIMIT);
-  verbose (0, "setting subsumption limit to %" PRIu64 " ticks",
-	   ruler->limits.subsumption);
+  {
+    uint64_t delta = scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
+    uint64_t limit = statistics->ticks.elimination + delta;
+    limits->elimination = limit;
+    verbose (0, "setting elimination limit to %" PRIu64
+	     " ticks after %" PRIu64, limit, delta);
+  }
+
+  {
+    uint64_t delta = scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
+    uint64_t limit = statistics->ticks.subsumption + delta;
+    limits->subsumption = limit;
+    verbose (0, "setting subsumption limit to %" PRIu64
+	     " ticks after %" PRIu64, limit, delta);
+  }
 }
 
 static unsigned
@@ -482,7 +491,8 @@ run_full_blown_simplification (struct simplifier *simplifier)
 {
   struct ruler *ruler = simplifier->ruler;
 #ifndef QUIET
-  uint64_t simplifications = ruler->statistics.simplifications;
+  struct ruler_statistics * statistics = &ruler->statistics;
+  uint64_t simplifications = statistics->simplifications;
   message (0, "starting full simplification #%" PRIu64, simplifications);
 #endif
   connect_all_large_clauses (ruler);
@@ -493,11 +503,16 @@ run_full_blown_simplification (struct simplifier *simplifier)
 #ifndef QUIET
   struct
   {
-    size_t before, after, delta;
-  } clauses, variables;
+    size_t clauses, variables;
+    struct {
+      uint64_t elimination, subsumption;
+    } ticks;
+  } before, after, delta;
 
-  clauses.before = current_ruler_clauses (ruler);
-  variables.before = ruler->statistics.active;
+  before.clauses = current_ruler_clauses (ruler);
+  before.variables = statistics->active;
+  before.ticks.elimination = statistics->ticks.elimination;
+  before.ticks.subsumption = statistics->ticks.subsumption;
 #endif
 
   unsigned max_rounds = set_max_rounds (ruler, optimize);
@@ -534,43 +549,51 @@ run_full_blown_simplification (struct simplifier *simplifier)
     }
 #ifndef QUIET
   message (0, 0);
-  variables.after = ruler->statistics.active;
-  assert (variables.after <= variables.before);
-  variables.delta = variables.before - variables.after;
+  after.variables = statistics->active;
+  assert (after.variables <= before.variables);
+  delta.variables = before.variables - after.variables;
 
   message (0, "removed %zu variables %.0f%% with %zu remaining %.0f%%",
-	   variables.delta, percent (variables.delta, variables.before),
-	   variables.after, percent (variables.after, ruler->size));
+	   delta.variables, percent (delta.variables, before.variables),
+	   after.variables, percent (after.variables, ruler->size));
 
-  clauses.after = current_ruler_clauses (ruler);
-  size_t original = ruler->statistics.original;
+  after.clauses = current_ruler_clauses (ruler);
+  size_t original = statistics->original;
 
-  if (clauses.after <= clauses.before)
+  if (after.clauses <= before.clauses)
     {
-      clauses.delta = clauses.before - clauses.after;
+      delta.clauses = before.clauses - after.clauses;
       message (0, "removed %zu clauses %.0f%% with %zu remaining %.0f%%",
-	       clauses.delta, percent (clauses.delta, clauses.before),
-	       clauses.after, percent (clauses.after, original));
+	       delta.clauses, percent (delta.clauses, before.clauses),
+	       after.clauses, percent (after.clauses, original));
     }
   else
     {
-      clauses.delta = clauses.after - clauses.before;
+      delta.clauses = after.clauses - before.clauses;
       message (0, "simplification ADDED %zu clauses %.0f%% "
 	       "with %zu remaining %.0f%%",
-	       clauses.delta,
-	       percent (clauses.delta, clauses.before),
-	       clauses.after, percent (clauses.after, original));
+	       delta.clauses,
+	       percent (delta.clauses, before.clauses),
+	       after.clauses, percent (after.clauses, original));
     }
 
   if (ruler->inconsistent)
     verbose (0, "simplification produced empty clause");
 
-  verbose (0, "subsumption used %" PRIu64 " ticks%s",
-	   ruler->statistics.ticks.subsumption,
-	   subsumption_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
-  verbose (0, "elimination used %" PRIu64 " ticks%s",
-	   ruler->statistics.ticks.elimination,
+  after.ticks.elimination = statistics->ticks.elimination;
+  after.ticks.subsumption = statistics->ticks.subsumption;
+
+  delta.ticks.elimination =
+    after.ticks.elimination - before.ticks.elimination;
+  delta.ticks.subsumption =
+    after.ticks.subsumption - before.ticks.subsumption;
+
+  verbose (0, "elimination at %" PRIu64 " ticks used %" PRIu64 " ticks%s",
+	   after.ticks.elimination, delta.ticks.elimination,
 	   elimination_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
+  verbose (0, "subsumption at %" PRIu64 " ticks used %" PRIu64 " ticks%s",
+	   after.ticks.subsumption, delta.ticks.subsumption,
+	   subsumption_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
 #endif
 }
 

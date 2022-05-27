@@ -516,7 +516,6 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   assert (!ruler->eliminating);
   ruler->eliminating = true;
 
-
   struct unsigneds candidates;
   INIT (candidates);
   gather_elimination_candidates (simplifier, &candidates);
