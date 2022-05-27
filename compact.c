@@ -68,21 +68,21 @@ map_clauses (struct ruler *ruler, unsigned *map)
 /*------------------------------------------------------------------------*/
 
 static void
-clean_ring (struct ring * ring, struct clauses * cleaned)
+clean_ring (struct ring *ring, struct clauses *cleaned)
 {
-  struct clauses * saved = &ring->saved;
-  signed char * values = ring->values;
-  struct clause ** begin = saved->begin;
-  struct clause ** end = saved->end;
-  struct clause ** q = begin;
-  struct clause ** p = q;
+  struct clauses *saved = &ring->saved;
+  signed char *values = ring->values;
+  struct clause **begin = saved->begin;
+  struct clause **end = saved->end;
+  struct clause **q = begin;
+  struct clause **p = q;
   struct unsigneds delete;
   struct unsigneds add;
   INIT (delete);
   INIT (add);
   while (p != end)
     {
-      struct clause * clause = *p++;
+      struct clause *clause = *p++;
       if (binary_pointer (clause))
 	*q++ = clause;
       else if (clause->garbage)
@@ -133,10 +133,8 @@ clean_ring (struct ring * ring, struct clauses * cleaned)
 	      unsigned new_size = SIZE (add);
 	      unsigned old_size = SIZE (delete);
 	      assert (old_size == clause->size);
-	      trace_add_literals (&ring->trace,
-	                          new_size, add.begin, INVALID);
-	      trace_delete_literals (&ring->trace,
-	                             old_size, delete.begin);
+	      trace_add_literals (&ring->trace, new_size, add.begin, INVALID);
+	      trace_delete_literals (&ring->trace, old_size, delete.begin);
 	      assert (new_size > 1);
 	      if (new_size == 2)
 		{
@@ -145,7 +143,7 @@ clean_ring (struct ring * ring, struct clauses * cleaned)
 		  if (lit > other)
 		    SWAP (lit, other);
 		  LOGBINARY (true, lit, other, "cleaned");
-		  struct clause * binary = tag_pointer (true, lit, other);
+		  struct clause *binary = tag_pointer (true, lit, other);
 		  dereference_clause (ring, clause);
 		  *q++ = binary;
 		}
@@ -160,7 +158,7 @@ clean_ring (struct ring * ring, struct clauses * cleaned)
 		      clause->glue = new_glue;
 		    }
 		  memcpy (clause->literals, add.begin,
-		          new_size * sizeof (unsigned));
+			  new_size * sizeof (unsigned));
 		  clause->size = new_size;
 		  LOGCLAUSE (clause, "cleaned");
 		  clause->cleaned = true;
@@ -178,7 +176,7 @@ clean_ring (struct ring * ring, struct clauses * cleaned)
 }
 
 static void
-clean_rings (struct ruler * ruler)
+clean_rings (struct ruler *ruler)
 {
   struct clauses cleaned_clauses;
   INIT (cleaned_clauses);
@@ -423,7 +421,7 @@ compact_ring (struct ring *ring, unsigned *map, struct clauses *mapped)
 }
 
 static void
-compact_rings (struct ruler * ruler, unsigned * map)
+compact_rings (struct ruler *ruler, unsigned *map)
 {
   struct clauses mapped_clauses;
   INIT (mapped_clauses);

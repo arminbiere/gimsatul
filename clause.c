@@ -22,7 +22,7 @@ new_large_clause (size_t size, unsigned *literals,
   if (glue > MAX_GLUE)
     glue = MAX_GLUE;
   clause->glue = glue;
-  
+
   clause->cleaned = false;
   clause->dirty = false;
   clause->garbage = false;
