@@ -61,13 +61,13 @@ class Runner:
         combined_hostfile = self.create_hostfile(worker_node_ips, self.request_directory)
 
         run_list = ["/competition/run_gimsatul.sh"]
-        run_list.append(combined_hostfile)
+        #run_list.append(combined_hostfile)
         run_list.append(problem_path)
 
         return run_list
 
 
-class MallobParser:
+class GimSATulParser:
     @staticmethod
     def get_result(output_file):
         """
@@ -75,14 +75,12 @@ class MallobParser:
         """
         with open(output_file) as f:
             raw_logs = f.read()
-            if "found result UNSAT" in raw_logs:
+            if "s UNSATISFIABLE" in raw_logs:
                 return "UNSATISFIABLE"
-            elif "found result SAT" in raw_logs:
+            elif "s SATISFIABLE" in raw_logs:
                 return "SATISFIABLE"
-            elif "UNKNOWN" in raw_logs:
-                return "UNKNOWN"
             else:
-                return "ERROR"
+                return "UNKNOWN"
 
 if __name__ == "__main__":
     request_directory = sys.argv[1]
@@ -92,7 +90,7 @@ if __name__ == "__main__":
     cmd = runner.get_command(input_json)
     
     output = runner.run(cmd)
-    result = MallobParser.get_result(output["stdout"])
+    result = GimSATulParser.get_result(output["stdout"])
     logging.info(f"RESULT: {result}")
     solver_output = {
         "return_code": output["return_code"],
