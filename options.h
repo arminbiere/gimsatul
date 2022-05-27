@@ -14,33 +14,34 @@
 #define MAX_GLUE 255
 #define MAX_SCORE 1e150
 #define MAX_THREADS (1u<<16)
+
 #define CACHE_LINE_SIZE 128
 
 /*------------------------------------------------------------------------*/
 
-#define MINIMIZE_DEPTH 1000
-
-#define REDUCE_FRACTION 0.75
-
-#define REPHASE_INTERVAL 1e3
-
 #define DECAY 0.95
-
-#define TIER1_GLUE_LIMIT 2
-#define TIER2_GLUE_LIMIT 6
 
 #define FAST_ALPHA 3e-2
 #define SLOW_ALPHA 1e-5
 
+#define TIER1_GLUE_LIMIT 2
+#define TIER2_GLUE_LIMIT 6
+
+#define REDUCE_FRACTION 0.75
+
 #define RESTART_MARGIN 1.1
 #define STABLE_RESTART_INTERVAL 500
 #define FOCUSED_RESTART_INTERVAL 5
+
+#define REPHASE_INTERVAL 1e3
 
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
 #define SUBSUMPTION_TICKS_LIMIT 2000
 #define ELIMINATION_TICKS_LIMIT 2000
+
+#define MINIMIZE_DEPTH 1000
 
 #define FAILED_EFFORT 0.02
 #define VIVIFY_EFFORT 0.03
@@ -68,7 +69,7 @@ OPTION (unsigned, probe_interval,    2e3, 1, INFINITY) \
 OPTION (unsigned, random_decisions,  100, 0, INFINITY) \
 OPTION (unsigned, reduce_interval,   1e3, 1, INFINITY) \
 OPTION (unsigned, simplify,          2, 0, 2) \
-OPTION (unsigned, simplify_interval, 16e3, 1, INFINITY) \
+OPTION (unsigned, simplify_interval, 1e4, 1, INFINITY) \
 OPTION (unsigned, simplify_rounds,   16, 1, INFINITY) \
 OPTION (bool,     switch_mode,       1, 0, 1) \
 OPTION (unsigned, switch_interval,   3e3, 1, INFINITY) \
