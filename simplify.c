@@ -413,21 +413,22 @@ set_ruler_limits (struct ruler *ruler, unsigned optimize)
 
   struct ruler_limits * limits = &ruler->limits;
   struct ruler_statistics * statistics = &ruler->statistics;
+  unsigned boost = statistics->simplifications == 1 ? 10 : 1;
 
   {
     uint64_t delta = scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-    uint64_t limit = statistics->ticks.elimination + delta;
+    uint64_t limit = statistics->ticks.elimination + boost * delta;
     limits->elimination = limit;
     verbose (0, "setting elimination limit to %" PRIu64
-	     " ticks after %" PRIu64, limit, delta);
+	     " ticks after %" PRIu64, limit, boost * delta);
   }
 
   {
     uint64_t delta = scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-    uint64_t limit = statistics->ticks.subsumption + delta;
+    uint64_t limit = statistics->ticks.subsumption + boost * delta;
     limits->subsumption = limit;
     verbose (0, "setting subsumption limit to %" PRIu64
-	     " ticks after %" PRIu64, limit, delta);
+	     " ticks after %" PRIu64, limit, boost * delta);
   }
 }
 
@@ -436,6 +437,8 @@ set_max_rounds (struct ruler *ruler, unsigned optimize)
 {
   unsigned max_rounds = ruler->options.simplify_rounds;
   unsigned res = max_rounds;
+  if (ruler->statistics.simplifications == 1)
+    res *= 4;
   if (optimize)
     {
       unsigned scale = optimize + 1;
