@@ -6,4 +6,4 @@ RUN apt-get install --no-install-recommends -y apt-utils
 RUN apt-get install -y git make gcc
 RUN git clone https://github.com/arminbiere/gimsatul
 WORKDIR gimsatul
-RUN ./configure && make
+RUN ./configure -q && make
