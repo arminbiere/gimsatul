@@ -38,8 +38,8 @@
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
-#define SUBSUMPTION_TICKS_LIMIT 2000
-#define ELIMINATION_TICKS_LIMIT 2000
+#define SUBSUMPTION_TICKS_LIMIT 20
+#define ELIMINATION_TICKS_LIMIT 20
 
 #define MINIMIZE_DEPTH 1000
 
@@ -70,7 +70,7 @@ OPTION (unsigned, random_decisions,  100, 0, INFINITY) \
 OPTION (unsigned, reduce_interval,   1e3, 1, INFINITY) \
 OPTION (unsigned, simplify,          2, 0, 2) \
 OPTION (unsigned, simplify_interval, 1e4, 1, INFINITY) \
-OPTION (unsigned, simplify_rounds,   16, 1, INFINITY) \
+OPTION (unsigned, simplify_rounds,   4, 1, INFINITY) \
 OPTION (bool,     switch_mode,       1, 0, 1) \
 OPTION (unsigned, switch_interval,   3e3, 1, INFINITY) \
 OPTION (bool,     substitute,        1, 0, 1) \
