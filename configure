@@ -14,7 +14,6 @@ where '<option>' is one of the following:
 -s | --symbols    add symbol table even without '-g'
                  
 -f...             passed to compiler, e.g., '-fsanitize=address,undefined'
--m32              enforce 32-bit compilation (also implies '-mpc64')
 --no-fast-path    no lock-less fast path for synchronization
 --no-middle       no literal traversal middle search cache
 EOF
@@ -31,7 +30,7 @@ pedantic=no
 quiet=no
 symbols=no
 die () {
-  echo "configure: error: $*" $* 1>&2
+  echo "configure: error: $*" 1>&2
   exit 1
 }
 while [ $# -gt 0 ]
@@ -46,7 +45,6 @@ do
     -q|--quiet) quiet=yes;;
     -fsanitize=*thread*) options="$options $1"; fastpath=no;;
     -f*) options="$options $1";;
-    -m32) options="$options $1 -mpc64";;
     --no-fast-path) fastpath=no;;
     --no-middle) middle=no;;
     *)  die "invalid option '$1' (try '-h')";;
