@@ -55,8 +55,8 @@ export_binary (struct ring *ring, struct watch *watch)
 	continue;
       struct pool *pool = ring->pool + i;
       struct clause *clause = (struct clause *) watch;
-      struct clause *volatile *share = &pool->share[BINARY_SHARED];
-      struct clause *previous = atomic_exchange (share, clause);
+      atomic_uintptr_t *share = &pool->share[BINARY_SHARED];
+      uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
       if (previous)
 	continue;
       ring->statistics.exported.binary++;
@@ -81,10 +81,10 @@ export_clause (struct ring *ring, struct clause *clause, unsigned shared)
     {
       if (i == ring->id)
 	continue;
-      struct clause *volatile *share = &pool->share[shared];
-      struct clause *previous = atomic_exchange (share, clause);
+      atomic_uintptr_t *share = &pool->share[shared];
+      uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
       if (previous)
-	dereference_clause (ring, previous);
+	dereference_clause (ring, (struct clause*) previous);
       else
 	{
 	  ring->statistics.exported.clauses++;
@@ -137,12 +137,12 @@ flush_pool (struct ring *ring)
       struct pool *pool = ring->pool + i;
       for (unsigned shared = 0; shared != SIZE_SHARED; shared++)
 	{
-	  struct clause *volatile *share = &pool->share[shared];
-	  struct clause *clause = atomic_exchange (share, 0);
+	  atomic_uintptr_t *share = &pool->share[shared];
+	  uintptr_t clause = atomic_exchange (share, 0);
 	  if (!clause)
 	    continue;
 	  if (shared != BINARY_SHARED)
-	    dereference_clause (ring, clause);
+	    dereference_clause (ring, (struct clause*) clause);
 	  flushed++;
 	}
     }

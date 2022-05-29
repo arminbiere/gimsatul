@@ -79,7 +79,7 @@ struct ring_trail
 
 struct pool
 {
-  struct clause *volatile share[ALLOCATED_SHARED];
+  atomic_uintptr_t share[ALLOCATED_SHARED];
 };
 
 struct ring

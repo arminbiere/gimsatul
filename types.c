@@ -23,12 +23,18 @@ check_types (void)
 {
   CHECK_TYPE (signed char, 1);
   CHECK_TYPE (unsigned char, 1);
+  CHECK_TYPE (atomic_bool, 1);
+
   CHECK_TYPE (unsigned short, 2);
   CHECK_TYPE (atomic_ushort, 2);
+
   CHECK_TYPE (unsigned, 4);
   CHECK_TYPE (int, 4);
+  CHECK_TYPE (atomic_int, 4);
+
   CHECK_TYPE (size_t, 8);
   CHECK_TYPE (void *, 8);
+  CHECK_TYPE (atomic_uintptr_t, 8);
 
   {
     if (MAX_THREADS & 7)

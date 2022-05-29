@@ -390,13 +390,13 @@ import_shared (struct ring *ring)
   struct ring *src = ruler->rings.begin[id];
   assert (src->pool);
   struct pool *pool = src->pool + ring->id;
-  struct clause *volatile *end = pool->share + SIZE_SHARED;
+  atomic_uintptr_t * end = pool->share + SIZE_SHARED;
   struct clause *clause = 0;
-  for (struct clause * volatile *p = pool->share; !clause && p != end; p++)
+  for (atomic_uintptr_t *p = pool->share; !clause && p != end; p++)
 #ifndef NFASTPATH
     if (*p)
 #endif
-      clause = atomic_exchange (p, 0);
+      clause = (struct clause*) atomic_exchange (p, 0);
   if (!clause)
     return false;
   if (binary_pointer (clause))
