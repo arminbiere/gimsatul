@@ -17,7 +17,7 @@ struct clause
   uint64_t id;
 #endif
   atomic_ushort shared;
-  volatile unsigned char glue;
+  unsigned char glue;
   bool cleaned:1;
   bool dirty:1;
   bool garbage:1;

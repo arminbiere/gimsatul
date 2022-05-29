@@ -22,7 +22,8 @@ extern int verbosity;
 extern const char *prefix_format;
 
 #ifdef LOGGING
-extern volatile uint64_t clause_ids;
+#include <stdatomic.h>
+extern _Atomic(uint64_t) clause_ids;
 #endif
 
 void acquire_message_lock (void);

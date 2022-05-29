@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-static volatile uint64_t reported;
+static _Atomic(uint64_t) reported;
 
 void
 verbose_report (struct ring *ring, char type, int level)

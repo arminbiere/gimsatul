@@ -13,10 +13,10 @@ struct barrier
   const char *name;
   pthread_mutex_t mutex;
   pthread_cond_t condition;
-  volatile unsigned waiting;
-  volatile unsigned left;
+  volatile bool disabled;
+  unsigned waiting;
+  unsigned left;
   unsigned size;
-  bool disabled;
   uint64_t met;
 };
 

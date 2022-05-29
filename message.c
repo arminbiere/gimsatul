@@ -73,7 +73,7 @@ release_message_lock (void)
 const char *prefix_format = "c%-2u ";
 
 #ifdef LOGGING
-volatile uint64_t clause_ids;
+_Atomic(uint64_t) clause_ids;
 #endif
 
 #endif

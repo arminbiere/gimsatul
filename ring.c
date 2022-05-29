@@ -228,7 +228,7 @@ release_pool (struct ring *ring)
 	continue;
       for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
 	{
-	  struct clause *clause = pool->share[i];
+	  struct clause *clause = (struct clause*) pool->share[i];
 	  if (!clause)
 	    continue;
 	  if (binary_pointer (clause))
