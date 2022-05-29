@@ -14,10 +14,10 @@
 
 /*------------------------------------------------------------------------*/
 
-static volatile int caught_signal;
+static atomic_int caught_signal;
 static volatile struct ruler *one_global_ruler;
-static volatile bool catching_signals;
-static volatile bool catching_alarm;
+static atomic_bool catching_signals;
+static atomic_bool catching_alarm;
 
 /*------------------------------------------------------------------------*/
 

@@ -85,6 +85,8 @@ match_and_find_option_argument (const char *arg, const char *match)
   return is_number_string (p) ? p : 0;
 }
 
+#ifdef _POSIX_C_SOURCE
+
 static FILE *
 open_and_read_from_pipe (const char *path, const char *fmt)
 {
@@ -94,6 +96,8 @@ open_and_read_from_pipe (const char *path, const char *fmt)
   free (cmd);
   return file;
 }
+
+#endif
 
 void
 initialize_options (struct options *opts)
@@ -347,6 +351,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	      opts->dimacs.path = "<stdin>";
 	      opts->dimacs.file = stdin;
 	    }
+#ifdef _POSIX_C_SOURCE
 	  else if (has_suffix (opt, ".bz2"))
 	    {
 	      opts->dimacs.file =
@@ -365,6 +370,11 @@ parse_options (int argc, char **argv, struct options *opts)
 		open_and_read_from_pipe (opt, "xz -c -d %s");
 	      opts->dimacs.close = 2;
 	    }
+#else
+	  else if (has_suffix (opt, ".bz2") ||
+	           has_suffix (opt, ".gz") || has_suffix (opt, ".xz"))
+	    die ("can not handle compressed file '%s'", opt);
+#endif
 	  else
 	    {
 	      opts->dimacs.file = fopen (opt, "r");

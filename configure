@@ -9,8 +9,9 @@ where '<option>' is one of the following:
 -g | --debugging  debugging compile (implies '-c', '-l' and '-s')
 -h | --help       print this command line option summary
 -l | --logging    include logging code even without '-g'
--s | --symbols    add symbol table even without '-g'
+-p | --pedantic   pedantic compilation for C11
 -q | --quiet      disable messages and profiling
+-s | --symbols    add symbol table even without '-g'
                  
 -f...             passed to compiler, e.g., '-fsanitize=address,undefined'
 -m32              enforce 32-bit compilation (also implies '-mpc64')
@@ -19,15 +20,16 @@ where '<option>' is one of the following:
 EOF
 exit 1
 }
+check=no
 compact=yes
 debug=no
-symbols=no
-logging=no
 fastpath=yes
-check=no
+logging=no
 middle=yes
 options=""
+pedantic=no
 quiet=no
+symbols=no
 die () {
   echo "configure: error: $*" $* 1>&2
   exit 1
@@ -40,6 +42,7 @@ do
     -h|--help) usage; exit 0;;
     -l|--logging) logging=yes;;
     -s|--symbols) symbols=yes;;
+    -p|--pedantic) pedantic=yes;;
     -q|--quiet) quiet=yes;;
     -fsanitize=*thread*) options="$options $1"; fastpath=no;;
     -f*) options="$options $1";;
@@ -52,6 +55,7 @@ do
 done
 [ "$CC" = "" ] && CC=gcc
 CFLAGS="-Wall$options"
+[ $pedantic = yes ] && CFLAGS="$CFLAGS -Werror -std=c11 --pedantic"
 [ $debug = yes ] && check=yes
 [ $debug = yes ] && symbols=yes
 [ $debug = yes ] && logging=yes

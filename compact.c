@@ -141,7 +141,7 @@ clean_ring (struct ring *ring, struct clauses *cleaned)
 		  unsigned lit = add.begin[0];
 		  unsigned other = add.begin[1];
 		  if (lit > other)
-		    SWAP (lit, other);
+		    SWAP (unsigned, lit, other);
 		  LOGBINARY (true, lit, other, "cleaned");
 		  struct clause *binary = tag_pointer (true, lit, other);
 		  dereference_clause (ring, clause);

@@ -278,8 +278,10 @@ parse_dimacs_body (struct ruler *ruler, int variables, int expected)
   assert (dimacs->file);
   if (dimacs->close == 1)
     fclose (dimacs->file);
+#ifdef _POSIX_C_SOURCE
   if (dimacs->close == 2)
     pclose (dimacs->file);
+#endif
   RELEASE (clause);
   ruler->statistics.original = parsed;
   free (marked);

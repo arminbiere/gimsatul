@@ -12,9 +12,9 @@
 #define MIN(A,B) ((A) < (B) ? (A) : (B))
 #define MAX(A,B) ((A) > (B) ? (A) : (B))
 
-#define SWAP(A,B) \
+#define SWAP(TYPE,A,B) \
 do { \
-  typeof(A) TMP = (A); \
+  TYPE TMP = (A); \
   (A) = (B); \
   (B) = TMP; \
 } while (0)

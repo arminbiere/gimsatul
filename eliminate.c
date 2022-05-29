@@ -205,7 +205,7 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
 	      if (elimination_ticks_limit_hit (simplifier))
 		break;
 	    }
-	  SWAP (pivot, not_pivot);
+	  SWAP (unsigned, pivot, not_pivot);
 	  if (resolvents > limit)
 	    break;
 	  if (elimination_ticks_limit_hit (simplifier))
@@ -442,7 +442,7 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
 	      if (ruler->inconsistent)
 		break;
 	    }
-	  SWAP (pivot, not_pivot);
+	  SWAP (unsigned, pivot, not_pivot);
 	  if (ruler->inconsistent)
 	    break;
 	}
@@ -455,9 +455,9 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
   size_t neg_size = SIZE (*neg_clauses);
   if (pos_size > neg_size)
     {
-      SWAP (pivot, not_pivot);
-      SWAP (pos_size, neg_size);
-      SWAP (pos_clauses, neg_clauses);
+      SWAP (unsigned, pivot, not_pivot);
+      SWAP (size_t, pos_size, neg_size);
+      SWAP (struct clauses *, pos_clauses, neg_clauses);
     }
   ROG ("adding %zu clauses with %s to extension stack",
        pos_size, ROGLIT (pivot));

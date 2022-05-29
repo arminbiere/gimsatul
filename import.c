@@ -94,7 +94,7 @@ static bool
 subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 {
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
-    SWAP (lit, other);
+    SWAP (unsigned, lit, other);
   for (all_watches (watch, REFERENCES (lit)))
     if (binary_pointer (watch) && other_pointer (watch) == other)
       return true;
