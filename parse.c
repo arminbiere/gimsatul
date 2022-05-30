@@ -137,7 +137,7 @@ parse_dimacs_header (struct options *options,
 #endif
   if (ch != 'p')
     parse_error (dimacs, "expected 'c' or 'p'");
-  int variables, clauses;
+  int variables = 0, clauses;
   if (next_char (dimacs) != ' ' ||
       next_char (dimacs) != 'c' ||
       next_char (dimacs) != 'n' ||

@@ -479,7 +479,7 @@ do { \
     fputc ((*p == '_') ? '-' : *p, stdout); \
   fputc ('=', stdout); \
   if (!strcmp (#TYPE, "bool")) \
-    printf ("<bool> (default '%s')", (DEFAULT) ? "true" : "false"); \
+    printf ("<bool> (default '%s')", (bool) (DEFAULT) ? "true" : "false"); \
   else \
     { \
       printf ("%u..", (unsigned) MIN); \
