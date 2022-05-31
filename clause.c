@@ -112,7 +112,6 @@ dereference_clause (struct ring *ring, struct clause *clause)
       struct ruler * ruler = ring->ruler;
       if (pthread_mutex_lock (&ruler->locks.decrement))
 	fatal_error ("failed to acquire decrement lock");
-      assert (clause->shared);
       unsigned shared = clause->shared--;
       assert (shared + 1);
       LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
