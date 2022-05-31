@@ -134,7 +134,6 @@ clean_ring (struct ring *ring, struct clauses *cleaned)
 	      unsigned old_size = SIZE (delete);
 	      assert (old_size == clause->size);
 	      trace_add_literals (&ring->trace, new_size, add.begin, INVALID);
-	      trace_delete_literals (&ring->trace, old_size, delete.begin);
 	      assert (new_size > 1);
 	      if (new_size == 2)
 		{
@@ -149,6 +148,7 @@ clean_ring (struct ring *ring, struct clauses *cleaned)
 		}
 	      else
 		{
+		  trace_delete_literals (&ring->trace, old_size, delete.begin);
 		  assert (new_size > 2);
 		  unsigned old_glue = clause->glue;
 		  unsigned new_glue = old_glue;
