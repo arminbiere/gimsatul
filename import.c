@@ -43,7 +43,6 @@ import_units (struct ring *ring)
       if (value < 0)
 	{
 	  set_inconsistent (ring, "imported falsified unit");
-	  trace_add_empty (&ring->trace);
 	  imported = INVALID;
 	  break;
 	}
