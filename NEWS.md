@@ -1,5 +1,8 @@
 # Version 1.0.2rc1
 
+- factored out empty clause tracing into `set_inconsistent`
+  (as tracing was missing at two calls to it)
+
 - removed duplicated trace deletion in `compact_ring` during removal
   of root-level falsified literals in saved thread-local learned clauses,
   when the shrunken clause becomes binary (thus virtual)
