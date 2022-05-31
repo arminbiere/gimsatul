@@ -60,7 +60,7 @@ OPTION (unsigned, eliminate_bound,   16, 0, 1024) \
 OPTION (bool,     fail,              1, 0, 1) \
 OPTION (bool,     focus_initially,   1, 0, 1) \
 OPTION (bool,     force,             0, 0, 1) \
-OPTION (bool,     inprocessing,      1, 0, 1) \
+OPTION (bool,     inprocessing,      0, 0, 0) \
 OPTION (bool,     phase,             1, 0, 1) \
 OPTION (bool,     portfolio,         1, 0, 1) \
 OPTION (bool,     preprocessing,     1, 0, 1) \
