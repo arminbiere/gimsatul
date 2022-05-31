@@ -97,9 +97,9 @@ void
 dereference_clause (struct ring *ring, struct clause *clause)
 {
   assert (!binary_pointer (clause));
+  LOGCLAUSE (clause, "dereference once (was shared %u)", clause->shared);
   unsigned shared = atomic_fetch_sub (&clause->shared, 1);
   assert (shared + 1);
-  LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
   if (!shared)
     delete_clause (ring, clause);
 }

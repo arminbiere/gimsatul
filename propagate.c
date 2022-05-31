@@ -11,7 +11,7 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 		struct watch *ignore)
 {
   assert (!ring->inconsistent);
-  assert (ignore || !binary_pointer (ignore));
+  assert (!ignore || !binary_pointer (ignore));
   struct ring_trail *trail = &ring->trail;
   struct watch *conflict = 0;
   signed char *values = ring->values;
