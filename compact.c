@@ -429,6 +429,12 @@ compact_ring (struct ring *ring, unsigned *map, struct clauses *mapped)
 static void
 compact_rings (struct ruler *ruler, unsigned *map)
 {
+#ifndef NDEBUG
+  for (all_rings (ring))
+    for (all_clauses (clause, ring->saved))
+      if (!binary_pointer (clause))
+	assert (!clause->mapped);
+#endif
   struct clauses mapped_clauses;
   INIT (mapped_clauses);
 
