@@ -3,6 +3,7 @@
 #include "ring.h"
 #include "tagging.h"
 #include "trace.h"
+#include "ruler.h"
 #include "utilities.h"
 
 #include <string.h>
@@ -100,11 +101,37 @@ void
 dereference_clause (struct ring *ring, struct clause *clause)
 {
   assert (!binary_pointer (clause));
-  unsigned shared = atomic_fetch_sub (&clause->shared, 1);
-  assert (shared + 1);
-  LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
-  if (!shared)
-    delete_clause (ring, clause);
-  else if (ring->options.pretend_copying)
-    trace_delete_clause (&ring->trace, clause);
+  bool pretend_copying = ring->options.pretend_copying;
+  bool lock = pretend_copying && ring->trace.file;
+#ifdef LOGGING
+  if (verbosity == INT_MAX)
+    lock = true;
+#endif
+  if (lock)
+    {
+      struct ruler * ruler = ring->ruler;
+      if (pthread_mutex_lock (&ruler->locks.decrement))
+	fatal_error ("failed to acquire decrement lock");
+      assert (clause->shared);
+      unsigned shared = clause->shared--;
+      assert (shared + 1);
+      LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
+      if (!shared)
+	delete_clause (ring, clause);
+      else if (pretend_copying)
+	trace_delete_clause (&ring->trace, clause);
+      if (pthread_mutex_unlock (&ruler->locks.decrement))
+	fatal_error ("failed to acquire decrement lock");
+    }
+  else
+    {
+      assert (!ring->options.pretend_copying || !ring->trace.file);
+#ifdef LOGGING
+      assert (verbosity < INT_MAX);
+#endif
+      unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+      assert (shared + 1);
+      if (!shared)
+	delete_clause (ring, clause);
+    }
 }

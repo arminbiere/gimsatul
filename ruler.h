@@ -19,6 +19,7 @@ struct ruler_trail
 };
 
 #define LOCKS \
+  LOCK (decrement) \
   LOCK (rings) \
   LOCK (simplify) \
   LOCK (terminate) \
