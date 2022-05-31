@@ -64,6 +64,7 @@ OPTION (bool,     inprocessing,      0, 0, 0) \
 OPTION (bool,     phase,             1, 0, 1) \
 OPTION (bool,     portfolio,         1, 0, 1) \
 OPTION (bool,     preprocessing,     1, 0, 1) \
+OPTION (bool,     pretend_copying,   1, 0, 1) \
 OPTION (bool,     probe,             1, 0, 1) \
 OPTION (unsigned, probe_interval,    2e3, 1, INFINITY) \
 OPTION (unsigned, random_decisions,  100, 0, INFINITY) \
