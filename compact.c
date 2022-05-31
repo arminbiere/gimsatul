@@ -178,6 +178,12 @@ clean_ring (struct ring *ring, struct clauses *cleaned)
 static void
 clean_rings (struct ruler *ruler)
 {
+#ifndef NDEBUG
+  for (all_rings (ring))
+    for (all_clauses (clause, ring->saved))
+      if (!binary_pointer (clause))
+	assert (!clause->cleaned);
+#endif
   struct clauses cleaned_clauses;
   INIT (cleaned_clauses);
 
