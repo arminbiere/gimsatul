@@ -92,7 +92,8 @@ reference_clause (struct ring *ring, struct clause *clause, unsigned inc)
   LOGCLAUSE (clause, "reference %u times (was shared %u)", inc, shared);
   assert (shared < MAX_THREADS - inc), (void) shared;
   if (ring->options.pretend_copying)
-    trace_add_clause (&ring->trace, clause);
+    for (unsigned i = 0; i != inc; i++)
+      trace_add_clause (&ring->trace, clause);
 }
 
 void
