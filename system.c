@@ -62,7 +62,7 @@ current_resident_set_size (void)
 void
 summarize_used_resources (unsigned t)
 {
-  assert (threads);
+  assert (t);
   double w = current_time () - start_time;
   double p = process_time ();
   double m = maximum_resident_set_size () / (double) (1u<<20);
