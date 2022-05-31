@@ -30,6 +30,8 @@ copy_ruler_binaries (struct ring *ring)
 	  unsigned other = other_pointer (clause);
 	  if (other < lit)
 	    {
+	      if (ring->options.pretend_copying)
+		trace_add_binary (&ring->trace, lit, other);
 	      LOGBINARY (false, lit, other, "copying");
 	      copied++;
 	    }
