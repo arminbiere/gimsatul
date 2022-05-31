@@ -91,6 +91,8 @@ reference_clause (struct ring *ring, struct clause *clause, unsigned inc)
   unsigned shared = atomic_fetch_add (&clause->shared, inc);
   LOGCLAUSE (clause, "reference %u times (was shared %u)", inc, shared);
   assert (shared < MAX_THREADS - inc), (void) shared;
+  if (ring->options.pretend_copying)
+    trace_add_clause (&ring->trace, clause);
 }
 
 void
@@ -100,6 +102,8 @@ dereference_clause (struct ring *ring, struct clause *clause)
   unsigned shared = atomic_fetch_sub (&clause->shared, 1);
   assert (shared + 1);
   LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
+  if (ring->options.pretend_copying)
+    trace_delete_clause (&ring->trace, clause);
   if (!shared)
     delete_clause (ring, clause);
 }
