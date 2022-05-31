@@ -309,6 +309,7 @@ set_inconsistent (struct ring *ring, const char *msg)
   ring->inconsistent = true;
   assert (!ring->status);
   ring->status = 20;
+  trace_add_empty (&ring->trace);
   set_winner (ring);
 }
 

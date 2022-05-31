@@ -126,7 +126,6 @@ analyze (struct ring *ring, struct watch *reason)
   if (!ring->level)
     {
       set_inconsistent (ring, "conflict on root-level produces empty clause");
-      trace_add_empty (&ring->trace);
       return false;
     }
   struct unsigneds *clause = &ring->clause;
