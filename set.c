@@ -5,6 +5,10 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#ifndef NDEBUG
+#include "utilities.h"
+#endif
+
 #define DELETED ((void*) ~(size_t) 0)
 
 static size_t
@@ -33,16 +37,6 @@ hash_pointer_to_delta (struct set *set, void *ptr)
   res *= 2222222243u;
   return res;
 }
-
-#ifndef NDEBUG
-
-static bool
-is_power_of_two (size_t n)
-{
-  return n && !(n & (n - 1));
-}
-
-#endif
 
 static size_t
 reduce_hash (size_t hash, size_t allocated)
