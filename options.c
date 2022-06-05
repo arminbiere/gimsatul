@@ -328,6 +328,7 @@ parse_options (int argc, char **argv, struct options *opts)
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
       else if (opt[0] == '-' && \
                opt[1] == '-' && \
+	       !strcmp (#TYPE, "bool") && \
                parse_option (opt + 2, #NAME)) \
         opts->NAME = true;
 	OPTIONS
