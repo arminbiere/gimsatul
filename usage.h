@@ -9,9 +9,9 @@ static char * compact_usage =
 "  -a | --ascii               use ASCII format for proof output\n"
 "  -f | --force               force reading and writing\n"
 "  -h | --help  | --full      command line options ('--full' for full list)\n"
-"  -i | -id                   source code version identifier (GIT hash)\n"
+"  -i | --id                  source code version identifier (GIT hash)\n"
 #ifdef LOGGING            
-"  -l | --log[ging]           enable very verbose internal logging\n"
+"  -l | --log   | --logging   enable very verbose internal logging\n"
 #endif                    
 "  -n | --no-witness          do not print satisfying assignments\n"
 "  -O | -O<level>             increase simplification ticks and round limits\n"
