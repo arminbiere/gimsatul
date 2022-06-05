@@ -493,7 +493,7 @@ print_usage_of_generic_options (void)
   char buffer[80];
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
 do { \
-  (void) strcpy (buffer, " --"); \
+  (void) strcpy (buffer, "  --"); \
   char * b = buffer + strlen (buffer); \
   for (const char * p = #NAME; *p; p++) \
     *b++ = (*p == '_') ? '-' : *p; \
@@ -510,7 +510,7 @@ do { \
   size_t len = strlen (buffer); \
   assert (len < sizeof buffer); \
   fputs (buffer, stdout); \
-  while (len++ < 29) \
+  while (len++ < 30) \
     fputc (' ', stdout); \
   fputs (DESCRIPTION, stdout); \
   if (!strcmp (#TYPE, "bool")) \
