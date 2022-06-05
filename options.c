@@ -100,7 +100,7 @@ initialize_options (struct options *opts)
 {
   memset (opts, 0, sizeof *opts);
   opts->conflicts = -1;
-#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
   assert ((TYPE) MIN <= (TYPE) MAX); \
   opts->NAME = (TYPE) DEFAULT;
   OPTIONS
@@ -165,7 +165,7 @@ parse_unsigned_option_value (const char *opt,
 bool
 parse_option_with_value (struct options *options, const char *str)
 {
-#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
   if (parse_ ## TYPE ## _option_value (str, #NAME, \
                                        &options->NAME, MIN, MAX)) \
     return true;
@@ -177,7 +177,7 @@ parse_option_with_value (struct options *options, const char *str)
 static void
 print_embedded_options (void)
 {
-#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
   printf ("c --%s=%d\n", #NAME, (int) DEFAULT);
   OPTIONS
 #undef OPTION
@@ -186,7 +186,7 @@ print_embedded_options (void)
 static void
 print_option_ranges (void)
 {
-#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
   printf ("%s %d %d %d\n", #NAME, (int) DEFAULT, (int) MIN, (int) MAX);
   OPTIONS
 #undef OPTION
@@ -207,26 +207,27 @@ parse_options (int argc, char **argv, struct options *opts)
 	opts->binary = false;
       else if (!strcmp (opt, "-f"))
 	opts->force = true;
-      else if (!strcmp (opt, "-h"))
+      else if (!strcmp (opt, "-h") || !strcmp (opt, "--help") ||
+	       !strcmp (opt, "--full"))
 	{
 	  printf (compact_usage, (size_t) MAX_THREADS);
-	  exit (0);
-	}
-      else if (!strcmp (opt, "--help"))
-	{
-	  printf (compact_usage, (size_t) MAX_THREADS);
-	  printf ("\n");
-	  printf ("Less commonly used options are\n");
-	  printf ("\n");
-	  fputs (additional_less_common_options, stdout);
-	  printf ("\n");
-	  printf ("as well as these generic options\n");
-	  printf ("\n");
-	  print_usage_of_generic_options ();
-	  printf ("\n");
-	  printf ("which can also be used in the form '--<name>' and '--no-<name>'\n");
-	  printf ("for '<bool>' options instead of '--<name>=true' or '--<name>=false'\n");
-	  printf ("where 'true' / 'false' can be replaced by '1' / '0' as well.\n");
+	  if (strcmp (opt, "--full"))
+	    {
+	      printf ("\n");
+	      printf ("Less commonly used options are\n");
+	      printf ("\n");
+	      fputs (additional_less_common_options, stdout);
+	      printf ("\n");
+	      printf ("as well as these generic options\n");
+	      printf ("\n");
+	      print_usage_of_generic_options ();
+	      printf ("\n");
+// *INDENT-OFF*
+	      printf ("which can also be used in the form '--<name>' and '--no-<name>'\n");
+	      printf ("for '<bool>' options instead of '--<name>=true' or '--<name>=false'\n");
+	      printf ("where 'true' / 'false' can be replaced by '1' / '0' as well.\n");
+// *INDENT-ON*
+	    }
 	  exit (0);
 	}
       else if (!strcmp (opt, "-i") || !strcmp (opt, "--id"))
@@ -315,7 +316,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	  if (!opts->seconds)
 	    die ("invalid zero argument in '%s'", opt);
 	}
-#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
       else if (opt[0] == '-' && \
 	       opt[1] == '-' && \
 	       opt[2] == 'n' && \
@@ -325,7 +326,7 @@ parse_options (int argc, char **argv, struct options *opts)
         opts->NAME = false;
       OPTIONS
 #undef OPTION
-#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
       else if (opt[0] == '-' && \
                opt[1] == '-' && \
 	       !strcmp (#TYPE, "bool") && \
@@ -474,7 +475,7 @@ report_non_default_options (struct options *options)
   if (verbosity < 0)
     return;
   unsigned reported = 0;
-#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
 do { \
   if (options->NAME == (TYPE) DEFAULT) \
     break; \
@@ -489,23 +490,33 @@ do { \
 static void
 print_usage_of_generic_options (void)
 {
-#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
+  char buffer[80];
+#define OPTION(TYPE,NAME,DEFAULT,MIN,MAX,DESCRIPTION) \
 do { \
-  fputs ("  --", stdout); \
+  (void) strcpy (buffer, " --"); \
+  char * b = buffer + strlen (buffer); \
   for (const char * p = #NAME; *p; p++) \
-    fputc ((*p == '_') ? '-' : *p, stdout); \
-  fputc ('=', stdout); \
+    *b++ = (*p == '_') ? '-' : *p; \
+  *b++ = '='; \
   if (!strcmp (#TYPE, "bool")) \
-    printf ("<bool> (default '%s')", (bool) (DEFAULT) ? "true" : "false"); \
+    strcpy (b, "<bool>"); \
   else \
     { \
-      printf ("%u..", (unsigned) MIN); \
       if ((int) MAX != (int) INF) \
-	printf ("%u", (unsigned) MAX); \
+	sprintf (b, "%u..%u", (unsigned) MIN, (unsigned) MAX); \
       else \
-	fputc ('.', stdout); \
-      printf (" (default '%u')", (unsigned) DEFAULT); \
+	sprintf (b, "%u...", (unsigned) MIN); \
     } \
+  size_t len = strlen (buffer); \
+  assert (len < sizeof buffer); \
+  fputs (buffer, stdout); \
+  while (len++ < 29) \
+    fputc (' ', stdout); \
+  fputs (DESCRIPTION, stdout); \
+  if (!strcmp (#TYPE, "bool")) \
+    printf (" (default '%s')", (bool) (DEFAULT) ? "true" : "false"); \
+  else \
+    printf (" (default '%u')", (unsigned) DEFAULT); \
   fputc ('\n', stdout); \
 } while (0);
   OPTIONS
