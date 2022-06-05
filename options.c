@@ -211,7 +211,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	       !strcmp (opt, "--full"))
 	{
 	  printf (compact_usage, (size_t) MAX_THREADS);
-	  if (strcmp (opt, "--full"))
+	  if (!strcmp (opt, "--full"))
 	    {
 	      printf ("\n");
 	      printf ("Less commonly used options are\n");
