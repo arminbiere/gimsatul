@@ -17,16 +17,29 @@ print_ring_statistics (struct ring *ring)
   uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
   uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;
   uint64_t propagations = s->contexts[SEARCH_CONTEXT].propagations;
+  unsigned variables = ring->ruler->size;
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "conflicts:",
 	   conflicts, average (conflicts, search));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "decisions:",
 	   decisions, average (decisions, search));
   PRINTLN ("%-21s %17u %13.2f %% variables", "solving-fixed:",
-	   s->fixed, percent (s->fixed, ring->size));
+	   s->fixed, percent (s->fixed, variables));
   PRINTLN ("%-21s %17u %13.2f %% variables", "failed-literals:",
-	   s->failed, percent (s->failed, ring->size));
+	   s->failed, percent (s->failed, variables));
   PRINTLN ("%-21s %17u %13.2f %% variables", "lifted-literals:",
-	   s->lifted, percent (s->lifted, ring->size));
+	   s->lifted, percent (s->lifted, variables));
+  PRINTLN ("%-21s %17u %13.2f %% variables", "fixed-variables:",
+	   s->fixed, percent (s->fixed, variables));
+  if (ring->pool)
+    {
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% fixed",
+	       "  imported-units:", s->imported.units,
+	       percent (s->imported.units, s->fixed));
+      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% fixed",
+	       "  exported-units:", s->exported.units,
+	       percent (s->exported.units, s->fixed));
+    }
+
   PRINTLN ("%-21s %17" PRIu64 " %13.2f thousands per second",
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
 
@@ -81,9 +94,6 @@ print_ring_statistics (struct ring *ring)
 	       "imported-clauses:", s->imported.clauses,
 	       percent (s->imported.clauses, s->learned.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
-	       "  imported-units:", s->imported.units,
-	       percent (s->imported.units, s->imported.clauses));
-      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
 	       "  imported-binary:", s->imported.binary,
 	       percent (s->imported.binary, s->imported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% imported",
@@ -99,9 +109,6 @@ print_ring_statistics (struct ring *ring)
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	       "exported-clauses:", s->exported.clauses,
 	       percent (s->exported.clauses, s->learned.clauses));
-      PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
-	       "  exported-units:", s->exported.units,
-	       percent (s->exported.units, s->exported.clauses));
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% exported",
 	       "  exported-binary:", s->exported.binary,
 	       percent (s->exported.binary, s->exported.clauses));

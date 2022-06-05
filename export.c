@@ -33,7 +33,6 @@ export_units (struct ring *ring)
       very_verbose (ring, "exporting unit %d",
 		    unmap_and_export_literal (ruler->unmap, unit));
       assign_ruler_unit (ruler, unit);
-      ring->statistics.exported.clauses++;
       ring->statistics.exported.units++;
     }
 
@@ -86,11 +85,10 @@ export_clause (struct ring *ring, struct clause *clause, unsigned shared)
       if (previous)
 	dereference_clause (ring, (struct clause*) previous);
       else
-	{
-	  ring->statistics.exported.clauses++;
-	  exported++;
-	}
+	exported++;
     }
+  if (exported)
+    ring->statistics.exported.clauses++;
   return exported;
 }
 

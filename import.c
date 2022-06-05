@@ -38,7 +38,6 @@ import_units (struct ring *ring)
       very_verbose (ring, "importing unit %d",
 		    unmap_and_export_literal (ruler->unmap, unit));
       ring->statistics.imported.units++;
-      ring->statistics.imported.clauses++;
       imported++;
       if (value < 0)
 	{
