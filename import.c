@@ -377,6 +377,9 @@ import_shared (struct ring *ring)
     return false;
   if (import_units (ring))
     return true;
+  struct ring_statistics * statistics = &ring->statistics;
+  if (statistics->learned.clauses < statistics->imported.clauses)
+    return false;
   struct ruler *ruler = ring->ruler;
   size_t rings = SIZE (ruler->rings);
   assert (rings <= UINT_MAX);
