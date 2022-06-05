@@ -215,7 +215,6 @@ init_pool (struct ring *ring, unsigned threads)
   ring->threads = threads;
   ring->pool = allocate_aligned_and_clear_array (CACHE_LINE_SIZE,
                                                  threads, sizeof *ring->pool);
-  message (ring, "pool address %p", (void*) ring->pool);
 }
 
 static void
