@@ -33,15 +33,11 @@
 #define STABLE_RESTART_INTERVAL 500
 #define FOCUSED_RESTART_INTERVAL 5
 
-#define REPHASE_INTERVAL 1e3
-
 #define CLAUSE_SIZE_LIMIT 100
 #define OCCURRENCE_LIMIT 1000
 
 #define SUBSUMPTION_TICKS_LIMIT 20
 #define ELIMINATION_TICKS_LIMIT 20
-
-#define MINIMIZE_DEPTH 1000
 
 #define FAILED_EFFORT 0.02
 #define VIVIFY_EFFORT 0.03
@@ -60,12 +56,16 @@ OPTION (unsigned, eliminate_bound,   16, 0, 1024, "additionally added clause mar
 OPTION (bool,     fail,              1, 0, 1,     "failed literal probing") \
 OPTION (bool,     focus_initially,   1, 0, 1,     "start with focus mode initially") \
 OPTION (bool,     force,             0, 0, 1,     "force relaxed parsing and proof writing") \
+OPTION (bool,     minimize,          1, 0, 1,     "minimize learned clauses") \
+OPTION (unsigned, minimize_depth,    1000,1,INF,  "recursive clause minimization depth") \
 OPTION (bool,     phase,             1, 0, 1,     "initial decision phase") \
 OPTION (bool,     portfolio,         0, 0, 1,     "threads use different strategies") \
 OPTION (bool,     probe,             1, 0, 1,     "enable probing based inprocessing") \
 OPTION (unsigned, probe_interval,    2e3, 1, INF, "probing base conflict interval") \
 OPTION (unsigned, random_decisions,  0, 0, INF,   "initial random decisions") \
 OPTION (unsigned, reduce_interval,   1e3, 1, INF, "reduce base conflict interval") \
+OPTION (bool,     rephase,           1, 0, 1,     "reset saved phases regularly") \
+OPTION (unsigned, rephase_interval,  1e3, 1, INF, "base rephase conflict interval") \
 OPTION (bool,     simplify,          1, 0, 1,     "elimination, subsumption and substitution") \
 OPTION (unsigned, simplify_interval, 1e4, 1, INF, "simplification base conflict interval") \
 OPTION (bool,     simplify_initially,1, 0, 1,     "initial preprocessing through simplification") \

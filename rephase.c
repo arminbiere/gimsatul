@@ -46,6 +46,8 @@ rephase_original (struct ring *ring)
 bool
 rephasing (struct ring *ring)
 {
+  if (!ring->options.rephase)
+    return false;
   return ring->stable && SEARCH_CONFLICTS > ring->limits.rephase;
 }
 
@@ -77,7 +79,8 @@ rephase (struct ring *ring)
       ring->best = 0;
     }
   limits->rephase = SEARCH_CONFLICTS;
-  limits->rephase += REPHASE_INTERVAL * rephased * sqrt (rephased);
+  uint64_t interval = ring->options.rephase_interval;
+  limits->rephase += interval * rephased * sqrt (rephased);
   very_verbose (ring, "next rephase limit at %" PRIu64 " conflicts",
 		limits->rephase);
   report (ring, type);

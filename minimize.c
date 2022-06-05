@@ -6,7 +6,7 @@ static bool
 minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
 {
   assert (ring->values[lit] < 0);
-  if (depth >= MINIMIZE_DEPTH)
+  if (depth >= ring->options.minimize_depth)
     return false;
   unsigned idx = IDX (lit);
   struct variable *v = ring->variables + idx;
@@ -189,8 +189,9 @@ shrink_or_minimize_clause (struct ring *ring, unsigned glue)
   if (glue == 1 && deduced > 2)
     shrunken = shrink_clause (ring);
 
-  if (glue && !shrunken && deduced > 2)
-    minimized = minimize_clause (ring);
+  if (ring->options.minimize)
+    if (glue && !shrunken && deduced > 2)
+      minimized = minimize_clause (ring);
 
   size_t learned = SIZE (ring->clause);
   assert (learned + minimized + shrunken == deduced);
