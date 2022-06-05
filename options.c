@@ -8,13 +8,9 @@
 #include <ctype.h>
 #include <string.h>
 
-// *INDENT-OFF*
-
-static const char * usage_prefix =
 #include "usage.h"
-;
 
-// *INDENT-ON*
+static void print_usage_of_generic_options (void);
 
 static bool
 has_suffix (const char *str, const char *suffix)
@@ -211,11 +207,26 @@ parse_options (int argc, char **argv, struct options *opts)
 	opts->binary = false;
       else if (!strcmp (opt, "-f"))
 	opts->force = true;
-      else if (!strcmp (opt, "-h") || !strcmp (opt, "--help"))
+      else if (!strcmp (opt, "-h"))
 	{
-	  printf (usage_prefix, (size_t) MAX_THREADS);
-	  printf ("\nLess commonly used options are:\n\n");
-	  print_usage_of_options ();
+	  printf (compact_usage, (size_t) MAX_THREADS);
+	  exit (0);
+	}
+      else if (!strcmp (opt, "--help"))
+	{
+	  printf (compact_usage, (size_t) MAX_THREADS);
+	  printf ("\n");
+	  printf ("Less commonly used options are\n");
+	  printf ("\n");
+	  fputs (additional_less_common_options, stdout);
+	  printf ("\n");
+	  printf ("as well as these generic options\n");
+	  printf ("\n");
+	  print_usage_of_generic_options ();
+	  printf ("\n");
+	  printf ("which can also be used in the form '--<name>' and '--no-<name>'\n");
+	  printf ("for '<bool>' options instead of '--<name>=true' or '--<name>=false'\n");
+	  printf ("where 'true' / 'false' can be replaced by '1' / '0' as well.\n");
 	  exit (0);
 	}
       else if (!strcmp (opt, "-i") || !strcmp (opt, "--id"))
@@ -474,8 +485,8 @@ do { \
 #undef OPTION
 }
 
-void
-print_usage_of_options (void)
+static void
+print_usage_of_generic_options (void)
 {
 #define OPTION(TYPE,NAME,DEFAULT,MIN,MAX) \
 do { \
