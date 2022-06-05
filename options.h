@@ -60,16 +60,16 @@ OPTION (unsigned, eliminate_bound,   16, 0, 1024) \
 OPTION (bool,     fail,              1, 0, 1) \
 OPTION (bool,     focus_initially,   1, 0, 1) \
 OPTION (bool,     force,             0, 0, 1) \
-OPTION (bool,     inprocessing,      1, 0, 1) \
 OPTION (bool,     phase,             1, 0, 1) \
 OPTION (bool,     portfolio,         0, 0, 1) \
-OPTION (bool,     preprocessing,     1, 0, 1) \
 OPTION (bool,     probe,             1, 0, 1) \
 OPTION (unsigned, probe_interval,    2e3, 1, INFINITY) \
 OPTION (unsigned, random_decisions,  0, 0, INFINITY) \
 OPTION (unsigned, reduce_interval,   1e3, 1, INFINITY) \
-OPTION (unsigned, simplify,          2, 0, 2) \
+OPTION (bool,     simplify,          1, 0, 1) \
 OPTION (unsigned, simplify_interval, 1e4, 1, INFINITY) \
+OPTION (bool,     simplify_initially,1, 0, 1) \
+OPTION (bool,     simplify_regularly,1, 0, 1) \
 OPTION (unsigned, simplify_rounds,   4, 1, INFINITY) \
 OPTION (bool,     switch_mode,       1, 0, 1) \
 OPTION (unsigned, switch_interval,   3e3, 1, INFINITY) \

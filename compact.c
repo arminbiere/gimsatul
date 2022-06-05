@@ -461,13 +461,13 @@ compact_bool_array (bool **array_ptr,
 }
 
 void
-compact_ruler (struct simplifier *simplifier, bool preprocessing)
+compact_ruler (struct simplifier *simplifier, bool initially)
 {
   struct ruler *ruler = simplifier->ruler;
   if (ruler->inconsistent)
     return;
 
-  if (!preprocessing)
+  if (!initially)
     clean_rings (ruler);
 
   signed char *values = (signed char *) ruler->values;
@@ -568,7 +568,7 @@ compact_ruler (struct simplifier *simplifier, bool preprocessing)
   ruler->units.begin = allocate_array (new_compact, sizeof (unsigned));
   ruler->units.propagate = ruler->units.end = ruler->units.begin;
 
-  if (!preprocessing)
+  if (!initially)
     compact_rings (ruler, map);
 
   free (map);

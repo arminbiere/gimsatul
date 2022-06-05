@@ -609,24 +609,31 @@ simplify_ruler (struct ruler *ruler)
 #ifndef QUIET
   double start_simplification = START (ruler, simplify);
 #endif
-  bool preprocessing = !ruler->statistics.simplifications++;
   assert (!ruler->simplifying);
   ruler->simplifying = true;
 
   struct simplifier *simplifier = new_simplifier (ruler);
 
-  bool full = preprocessing ?
-    ruler->options.preprocessing : ruler->options.inprocessing;
+  bool initially = !ruler->statistics.simplifications++;
+  bool full_simplification = ruler->options.simplify;
+
+  if (full_simplification)
+    {
+      if (initially && !ruler->options.simplify_initially)
+	full_simplification = false;
+      if (!initially && !ruler->options.simplify_regularly)
+	full_simplification = false;
+    }
 
   message (0, 0);
 
-  if (full)
+  if (full_simplification)
     run_full_blown_simplification (simplifier);
   else
     run_only_root_level_propagation (simplifier);
 
   push_ruler_units_to_extension_stack (ruler);
-  compact_ruler (simplifier, preprocessing);
+  compact_ruler (simplifier, initially);
   delete_simplifier (simplifier);
 
   assert (ruler->simplifying);
@@ -634,12 +641,12 @@ simplify_ruler (struct ruler *ruler)
 
 #ifndef QUIET
   double end_simplification = STOP (ruler, simplify);
-  if (full)
+  if (full_simplification)
     message (0, 0);
   message (0, "simplification #%" PRIu64 " took %.2f seconds",
 	   ruler->statistics.simplifications,
 	   end_simplification - start_simplification);
-  if (!preprocessing)
+  if (!initially)
     message (0, 0);
 #endif
 }
@@ -823,7 +830,9 @@ simplify_ring (struct ring *ring)
 bool
 simplifying (struct ring *ring)
 {
-  if (ring->options.simplify < 2)
+  if (!ring->options.simplify)
+    return false;
+  if (!ring->options.simplify_regularly)
     return false;
   if (!ring->id)
     return ring->limits.simplify <= SEARCH_CONFLICTS;
