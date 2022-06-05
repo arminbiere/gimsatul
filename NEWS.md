@@ -1,5 +1,8 @@
 # Version 1.0.2rc1
 
+- added `-i` / `--id` command line option
+  (to get GIT id even for `./configure --quiet`)
+
 - made the pool cache-line-size aligned to maximes cache usage
   and still avoid false sharing (as one pool is cache-line sized).
 

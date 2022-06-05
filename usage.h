@@ -7,6 +7,7 @@
 "  -a|--ascii               use ASCII format for proof output\n"
 "  -f|--force               force reading and writing\n"
 "  -h|--help                print this command line option summary\n"
+"  -i|-id                   print version identifier (GIT hash)\n"
 #ifdef LOGGING   
 "  -l|--log[ging]           enable very verbose internal logging\n"
 #endif                   

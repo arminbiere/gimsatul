@@ -218,6 +218,11 @@ parse_options (int argc, char **argv, struct options *opts)
 	  print_usage_of_options ();
 	  exit (0);
 	}
+      else if (!strcmp (opt, "-i") || !strcmp (opt, "--id"))
+	{
+	  print_id ();
+	  exit (0);
+	}
       else if (!strcmp (opt, "-l") ||
 	       !strcmp (opt, "--log") || !strcmp (opt, "logging"))
 #ifdef LOGGING

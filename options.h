@@ -66,7 +66,7 @@ OPTION (bool,     portfolio,         0, 0, 1) \
 OPTION (bool,     preprocessing,     1, 0, 1) \
 OPTION (bool,     probe,             1, 0, 1) \
 OPTION (unsigned, probe_interval,    2e3, 1, INFINITY) \
-OPTION (unsigned, random_decisions,  100, 0, INFINITY) \
+OPTION (unsigned, random_decisions,  0, 0, INFINITY) \
 OPTION (unsigned, reduce_interval,   1e3, 1, INFINITY) \
 OPTION (unsigned, simplify,          2, 0, 2) \
 OPTION (unsigned, simplify_interval, 1e4, 1, INFINITY) \
