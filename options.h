@@ -49,7 +49,7 @@
 
 /*------------------------------------------------------------------------*/
 
-#define INFINITY INT_MAX
+#define INF INT_MAX
 
 #define OPTIONS \
 OPTION (bool,     binary,            1, 0, 1) \
@@ -63,16 +63,16 @@ OPTION (bool,     force,             0, 0, 1) \
 OPTION (bool,     phase,             1, 0, 1) \
 OPTION (bool,     portfolio,         0, 0, 1) \
 OPTION (bool,     probe,             1, 0, 1) \
-OPTION (unsigned, probe_interval,    2e3, 1, INFINITY) \
-OPTION (unsigned, random_decisions,  0, 0, INFINITY) \
-OPTION (unsigned, reduce_interval,   1e3, 1, INFINITY) \
+OPTION (unsigned, probe_interval,    2e3, 1, INF) \
+OPTION (unsigned, random_decisions,  0, 0, INF) \
+OPTION (unsigned, reduce_interval,   1e3, 1, INF) \
 OPTION (bool,     simplify,          1, 0, 1) \
-OPTION (unsigned, simplify_interval, 1e4, 1, INFINITY) \
+OPTION (unsigned, simplify_interval, 1e4, 1, INF) \
 OPTION (bool,     simplify_initially,1, 0, 1) \
 OPTION (bool,     simplify_regularly,1, 0, 1) \
-OPTION (unsigned, simplify_rounds,   4, 1, INFINITY) \
+OPTION (unsigned, simplify_rounds,   4, 1, INF) \
 OPTION (bool,     switch_mode,       1, 0, 1) \
-OPTION (unsigned, switch_interval,   3e3, 1, INFINITY) \
+OPTION (unsigned, switch_interval,   3e3, 1, INF) \
 OPTION (bool,     substitute,        1, 0, 1) \
 OPTION (bool,     subsume,           1, 0, 1) \
 OPTION (bool,     vivify,            1, 0, 1) \
