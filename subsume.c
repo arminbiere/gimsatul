@@ -202,7 +202,7 @@ forward_subsume_large_clause (struct simplifier *simplifier,
   ROGCLAUSE (clause, "subsumption candidate");
   assert (!binary_pointer (clause));
   assert (!clause->garbage);
-  assert (clause->size <= CLAUSE_SIZE_LIMIT);
+  assert (clause->size <= ruler->limits.clause_size_limit);
   mark_clause (simplifier->marks, clause, INVALID);
   unsigned remove = INVALID, other = INVALID;
   struct clause *subsuming = 0;

@@ -17,7 +17,7 @@ warming_up_saved_phases (struct ring *ring)
     {
       decisions++;
       decide (ring);
-      if (!ring_propagate (ring, false, 0))
+      if (ring_propagate (ring, false, 0))
 	conflicts++;
     }
   if (ring->level)
