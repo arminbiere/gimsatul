@@ -90,14 +90,16 @@ release_clauses (struct ruler *ruler)
   RELEASE (ruler->clauses);
 }
 
+#ifndef NDEBUG
+
 static void
 release_original (struct ruler *ruler)
 {
-  if (!ruler->original)
-    return;
   RELEASE (*ruler->original);
   free (ruler->original);
 }
+
+#endif
 
 void
 delete_ruler (struct ruler *ruler)
@@ -113,7 +115,9 @@ delete_ruler (struct ruler *ruler)
   release_clauses (ruler);
   RELEASE (ruler->extension[0]);
   RELEASE (ruler->extension[1]);
+#ifndef NDEBUG
   release_original (ruler);
+#endif
   RELEASE (ruler->rings);
   free (ruler->units.begin);
 

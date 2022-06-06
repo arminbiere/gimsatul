@@ -9,7 +9,9 @@ find_binary_and_gate_clauses (struct simplifier *simplifier,
 			      struct clauses *gate, struct clauses *nogate)
 {
   assert (!clause->garbage);
-  if (clause->size > CLAUSE_SIZE_LIMIT)
+  struct ruler *ruler = simplifier->ruler;
+  size_t clause_size_limit = ruler->options.clause_size_limit;
+  if (clause->size > clause_size_limit)
     return false;
   CLEAR (*gate);
   CLEAR (*nogate);
@@ -18,7 +20,6 @@ find_binary_and_gate_clauses (struct simplifier *simplifier,
     if (other != lit)
       marks[other] = 1;
   unsigned not_lit = NOT (lit);
-  struct ruler *ruler = simplifier->ruler;
   struct clauses *not_lit_clauses = &OCCURRENCES (not_lit);
   unsigned marked = 0;
   for (all_clauses (not_lit_clause, *not_lit_clauses))

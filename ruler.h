@@ -91,7 +91,9 @@ struct ruler
 
   struct clauses clauses;
   struct unsigneds extension[2];
+#ifndef NDEBUG
   struct unsigneds *original;
+#endif
   struct rings rings;
   struct ruler_trail units;
 
