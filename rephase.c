@@ -51,15 +51,10 @@ rephasing (struct ring *ring)
   return ring->stable && SEARCH_CONFLICTS > ring->limits.rephase;
 }
 
-// *INDENT-OFF*
-
-static char (*schedule[])(struct ring *) =
-{
+static char (*schedule[]) (struct ring *) = {
   rephase_original, rephase_best, rephase_walk,
   rephase_inverted, rephase_best, rephase_walk,
 };
-
-// *INDENT-ON*
 
 void
 rephase (struct ring *ring)

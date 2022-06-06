@@ -88,8 +88,6 @@ count_irredundant_non_garbage_clauses (struct ring *ring,
   return res;
 }
 
-// *INDENT-OFF*
-
 static double base_values[][2] = {
   {0.0, 2.00},
   {3.0, 2.50},
@@ -98,8 +96,6 @@ static double base_values[][2] = {
   {6.0, 5.10},
   {7.0, 7.40}
 };
-
-// *INDENT-ON*
 
 static double
 interpolate_base (double size)
