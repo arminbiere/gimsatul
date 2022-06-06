@@ -329,10 +329,11 @@ new_walker (struct ring *ring)
 	   percent (clauses, ring->statistics.irredundant));
 
   struct walker *walker = allocate_and_clear_block (sizeof *walker);
+  walker->ring = ring;
 
+  import_decisions (walker);
   disconnect_references (ring, &walker->saved);
 
-  walker->ring = ring;
   walker->counters =
     allocate_and_clear_array (clauses, sizeof *walker->counters);
   walker->occurrences = (struct counters *) ring->references;
@@ -340,7 +341,6 @@ new_walker (struct ring *ring)
   walker->unsatisfied.hash.function = hash_counter_or_binary;
   walker->unsatisfied.hash.state = walker->counters;
 
-  import_decisions (walker);
   double length = connect_counters (walker, last);
   set_walking_limits (walker);
   initialize_break_table (walker, length);
