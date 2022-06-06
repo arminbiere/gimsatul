@@ -214,7 +214,7 @@ init_pool (struct ring *ring, unsigned threads)
 {
   ring->threads = threads;
   ring->pool = allocate_aligned_and_clear_array (CACHE_LINE_SIZE,
-                                                 threads, sizeof *ring->pool);
+						 threads, sizeof *ring->pool);
 }
 
 static void
@@ -229,7 +229,7 @@ release_pool (struct ring *ring)
 	continue;
       for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
 	{
-	  struct clause *clause = (struct clause*) pool->share[i];
+	  struct clause *clause = (struct clause *) pool->share[i];
 	  if (!clause)
 	    continue;
 	  if (binary_pointer (clause))

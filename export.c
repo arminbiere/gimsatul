@@ -83,7 +83,7 @@ export_clause (struct ring *ring, struct clause *clause, unsigned shared)
       atomic_uintptr_t *share = &pool->share[shared];
       uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
       if (previous)
-	dereference_clause (ring, (struct clause*) previous);
+	dereference_clause (ring, (struct clause *) previous);
       else
 	exported++;
     }
@@ -140,7 +140,7 @@ flush_pool (struct ring *ring)
 	  if (!clause)
 	    continue;
 	  if (shared != BINARY_SHARED)
-	    dereference_clause (ring, (struct clause*) clause);
+	    dereference_clause (ring, (struct clause *) clause);
 	  flushed++;
 	}
     }

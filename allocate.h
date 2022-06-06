@@ -11,9 +11,9 @@ void *reallocate_block (void *ptr, size_t bytes);
 void *allocate_array (size_t num, size_t bytes);
 
 void *allocate_aligned_and_clear_array (size_t alignment,
-                                        size_t num, size_t bytes);
+					size_t num, size_t bytes);
 
-void deallocate_aligned (size_t alignment, void * ptr);
+void deallocate_aligned (size_t alignment, void *ptr);
 
 #define FREE(PTR) \
 do { \

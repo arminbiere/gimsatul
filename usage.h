@@ -24,9 +24,9 @@ static char * compact_usage =
 #endif                        
 "  -V | --version              print version\n"
 "\n"                          
-"  --conflicts=<conflicts>     limit conflicts (0... - default unlimited)\n"
-"  --threads=<number>          set number of threads (1..%zu - default 1)\n"
-"  --time=<seconds>            limit time (1... - default unlimited)\n"
+"  --conflicts=0...            limit conflicts (default unlimited)\n"
+"  --threads=1..65536          set number of threads (default 1)\n"
+"  --time=1...                 limit time in seconds (default unlimited)\n"
 "\n"
 "and '<dimacs>' is the input file in 'DIMACS' format ('<stdin>' if missing)\n"
 "and '<proof>' the proof trace file in 'DRAT' format (no proof if missing).\n"

@@ -210,7 +210,7 @@ parse_options (int argc, char **argv, struct options *opts)
       else if (!strcmp (opt, "-h") || !strcmp (opt, "--help") ||
 	       !strcmp (opt, "--full"))
 	{
-	  printf (compact_usage, (size_t) MAX_THREADS);
+	  fputs (compact_usage, stdout);
 	  if (!strcmp (opt, "--full"))
 	    {
 	      printf ("\n");
@@ -223,9 +223,11 @@ parse_options (int argc, char **argv, struct options *opts)
 	      print_usage_of_generic_options ();
 	      printf ("\n");
 // *INDENT-OFF*
-	      printf ("which can also be used in the form '--<name>' and '--no-<name>'\n");
-	      printf ("for '<bool>' options instead of '--<name>=true' or '--<name>=false'\n");
-	      printf ("where 'true' / 'false' can be replaced by '1' / '0' as well.\n");
+	      fputs (
+"which can also be used in the form '--<name>' and '--no-<name>'\n"
+"for '<bool>' options instead of '--<name>=true' or '--<name>=false'\n"
+"where 'true' / 'false' can be replaced by '1' / '0' as well.\n",
+		stdout);
 // *INDENT-ON*
 	    }
 	  exit (0);
@@ -390,7 +392,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	    }
 #else
 	  else if (has_suffix (opt, ".bz2") ||
-	           has_suffix (opt, ".gz") || has_suffix (opt, ".xz"))
+		   has_suffix (opt, ".gz") || has_suffix (opt, ".xz"))
 	    die ("can not handle compressed file '%s'", opt);
 #endif
 	  else

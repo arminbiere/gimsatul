@@ -64,11 +64,11 @@ allocate_aligned_and_clear_array (size_t alignment, size_t num, size_t bytes)
   assert (num);
   assert (bytes);
   assert (is_power_of_two (alignment));
-  assert (alignment >= 2*sizeof (size_t));
+  assert (alignment >= 2 * sizeof (size_t));
   size_t total = num * bytes;
   assert (bytes <= total);
   assert (num <= total);
-  void * res;
+  void *res;
 #ifdef _POSIX_C_SOURCE
 #ifndef HAVE_MEMALIGN
   if (posix_memalign (&res, alignment, total))
@@ -78,7 +78,7 @@ allocate_aligned_and_clear_array (size_t alignment, size_t num, size_t bytes)
 #endif
   if (!res)
     fatal_error ("can not allocate %zu aligned %zu = %zu * %zu bytes",
-                 alignment, total, num, bytes);
+		 alignment, total, num, bytes);
 #else
 /*
         8       payxxxx   4       payxxxx
@@ -98,20 +98,20 @@ allocate_aligned_and_clear_array (size_t alignment, size_t num, size_t bytes)
 0 1 2 3 4 5 6 7 8 9 a b
 
 */
-  size_t adjustment = 2*alignment;
+  size_t adjustment = 2 * alignment;
   size_t allocate = total + adjustment;
   assert (adjustment < allocate);
   assert (total < allocate);
-  size_t * start = allocate_and_clear_block (allocate);
+  size_t *start = allocate_and_clear_block (allocate);
   uintptr_t word = (uintptr_t) start;
   word &= ~((uintptr_t) alignment - 1);
   word += alignment;
-  size_t * middle = (size_t *) word;
+  size_t *middle = (size_t *) word;
   assert (start <= middle);
   word += alignment;
   res = (size_t *) word;
-  assert ((char*)res + total <= (char*) start + allocate);
-  middle[0] = (char*) res - (char*) start;
+  assert ((char *) res + total <= (char *) start + allocate);
+  middle[0] = (char *) res - (char *) start;
 #ifndef NDEBUG
   middle[1] = alignment;
 #endif
@@ -121,19 +121,18 @@ allocate_aligned_and_clear_array (size_t alignment, size_t num, size_t bytes)
 }
 
 void
-deallocate_aligned (size_t alignment, void * ptr)
+deallocate_aligned (size_t alignment, void *ptr)
 {
 #ifdef _POSIX_C_SOURCE
   free (ptr);
 #else
   assert (is_power_of_two (alignment));
   uintptr_t word = (uintptr_t) ptr;
-  assert (!(word & (alignment -1)));
+  assert (!(word & (alignment - 1)));
   word -= alignment;
-  size_t * middle = (size_t *) word;
+  size_t *middle = (size_t *) word;
   assert (middle[1] == alignment);
-  char * start = (char*) ptr - middle[0];
+  char *start = (char *) ptr - middle[0];
   free (start);
 #endif
 }
-

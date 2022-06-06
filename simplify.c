@@ -411,8 +411,8 @@ set_ruler_limits (struct ruler *ruler, unsigned optimize)
   else
     verbose (0, "keeping simplification ticks limits at their default");
 
-  struct ruler_limits * limits = &ruler->limits;
-  struct ruler_statistics * statistics = &ruler->statistics;
+  struct ruler_limits *limits = &ruler->limits;
+  struct ruler_statistics *statistics = &ruler->statistics;
   unsigned boost = statistics->simplifications == 1 ? 10 : 1;
 
   {
@@ -494,7 +494,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
 {
   struct ruler *ruler = simplifier->ruler;
 #ifndef QUIET
-  struct ruler_statistics * statistics = &ruler->statistics;
+  struct ruler_statistics *statistics = &ruler->statistics;
   uint64_t simplifications = statistics->simplifications;
   message (0, "starting full simplification #%" PRIu64, simplifications);
 #endif
@@ -507,7 +507,8 @@ run_full_blown_simplification (struct simplifier *simplifier)
   struct
   {
     size_t clauses, variables;
-    struct {
+    struct
+    {
       uint64_t elimination, subsumption;
     } ticks;
   } before, after, delta;

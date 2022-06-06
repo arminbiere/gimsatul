@@ -10,7 +10,7 @@ struct file
 {
   FILE *file;
   const char *path;
-  _Atomic(uint64_t) lines;
+    _Atomic (uint64_t) lines;
   bool lock;
   int close;
 };

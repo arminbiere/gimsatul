@@ -23,18 +23,20 @@ extern const char *prefix_format;
 
 #ifdef LOGGING
 #include <stdatomic.h>
-extern _Atomic(uint64_t) clause_ids;
+extern
+_Atomic (uint64_t)
+  clause_ids;
 #endif
 
-void acquire_message_lock (void);
-void release_message_lock (void);
+     void acquire_message_lock (void);
+     void release_message_lock (void);
 
-struct ring;
+     struct ring;
 
-void print_line_without_acquiring_lock (struct ring *, const char *, ...)
+     void print_line_without_acquiring_lock (struct ring *, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
-void message (struct ring *ring, const char *, ...)
+     void message (struct ring *ring, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
 #define PRINTLN(...) \
