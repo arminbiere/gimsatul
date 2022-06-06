@@ -57,9 +57,15 @@ struct ruler_last
 
 struct ruler_limits
 {
-  unsigned bound;
   uint64_t elimination;
   uint64_t subsumption;
+
+  size_t clause_size_limit;
+  size_t occurrence_limit;
+
+  unsigned current_bound;
+  unsigned max_bound;
+  unsigned max_rounds;
 };
 
 struct ruler

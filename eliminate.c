@@ -16,7 +16,7 @@ literal_with_too_many_occurrences (struct ruler *ruler, unsigned lit)
   ruler->statistics.ticks.elimination++;
   struct clauses *clauses = &OCCURRENCES (lit);
   size_t size = SIZE (*clauses);
-  size_t occurrence_limit = ruler->options.occurrence_limit;
+  size_t occurrence_limit = ruler->limits.occurrence_limit;
   bool res = size > occurrence_limit;
   if (res)
     ROG ("literal %s occurs %zu times (limit %zu)",
@@ -34,7 +34,7 @@ clause_with_too_many_occurrences (struct ruler *ruler,
       return literal_with_too_many_occurrences (ruler, other);
     }
 
-  size_t clause_size_limit = ruler->options.clause_size_limit;
+  size_t clause_size_limit = ruler->limits.clause_size_limit;
   if (clause->size > clause_size_limit)
     {
       ROGCLAUSE (clause, "antecedent size %zu exceeded by",
@@ -92,7 +92,7 @@ can_resolve_clause (struct simplifier *simplifier,
   else
     {
       assert (!clause->garbage);
-      assert (clause->size <= ruler->options.clause_size_limit);
+      assert (clause->size <= ruler->limits.clause_size_limit);
       ruler->statistics.ticks.elimination++;
       for (all_literals_in_clause (lit, clause))
 	{
@@ -138,7 +138,7 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   ROG ("trying next elimination candidate %s", ROGVAR (idx));
   ruler->eliminate[idx] = false;
 
-  size_t occurrence_limit = ruler->options.occurrence_limit;
+  size_t occurrence_limit = ruler->limits.occurrence_limit;
 
   unsigned pivot = LIT (idx);
   struct clauses *pos_clauses = &OCCURRENCES (pivot);
@@ -176,7 +176,7 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
 
   size_t resolvents = 0;
   size_t resolutions = 0;
-  unsigned bound = ruler->limits.bound;
+  unsigned bound = ruler->limits.current_bound;
   size_t limit = occurrences + bound;
   ROG ("actual limit %zu = occurrences %zu + bound %u",
        limit, occurrences, bound);
@@ -555,7 +555,7 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   RELEASE (simplifier->nogate[0]);
   RELEASE (simplifier->nogate[1]);
 
-  unsigned old_bound = ruler->limits.bound;
+  unsigned old_bound = ruler->limits.current_bound;
 #ifndef QUIET
   double end_round = STOP (ruler, eliminate);
   message (0, "[%u] eliminated %u variables %.0f%% "
@@ -577,7 +577,7 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   else
     {
       message (0, "[%u] all candidate variables 100%% tried", round);
-      unsigned max_bound = ruler->options.eliminate_bound;
+      unsigned max_bound = ruler->limits.max_bound;
       unsigned new_bound;
       if (eliminated)
 	new_bound = old_bound;
@@ -600,7 +600,7 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 	  message (0, "[%u] increasing elimination bound to %s%u",
 		   round, reached_max_bound, new_bound);
 	  memset (ruler->eliminate, 1, ruler->compact);
-	  ruler->limits.bound = new_bound;
+	  ruler->limits.current_bound = new_bound;
 	}
     }
 

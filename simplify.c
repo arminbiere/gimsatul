@@ -380,78 +380,124 @@ connect_all_large_clauses (struct ruler *ruler)
 }
 
 static uint64_t
-scale_ticks_limit (unsigned optimized, unsigned base)
+add_saturated (uint64_t a, uint64_t b, uint64_t limit)
 {
-  uint64_t res = base;
-  res *= 1e6;
-  for (unsigned i = 0; i != optimized; i++)
-    {
-      if (UINT64_MAX / 10 > res)
-	res *= 10;
-      else
-	{
-	  res = UINT64_MAX;
-	  break;
-	}
-    }
-  return res;
+  return (limit - a < b) ? limit : a + b;
+}
+
+static uint64_t
+multiply_saturated (uint64_t a, uint64_t b, uint64_t limit)
+{
+  if (!a)
+    return 0;
+  return (limit / a < b) ? limit : a * b;
 }
 
 static void
-set_ruler_limits (struct ruler *ruler, unsigned optimize)
+set_ruler_limits (struct ruler *ruler, unsigned level)
 {
-  verbose (0, "simplification optimization level %u", optimize);
-  if (optimize)
+  verbose (0, "simplification optimization level %u", level);
+
+  unsigned scale10 = 1, scale4 = 1, scale2 = 1;
+  for (unsigned i = 0; i != level; i++)
     {
-      unsigned scale = 1;
-      for (unsigned i = 0; i != optimize; i++)
-	scale *= 10;
-      verbose (0, "scaling simplification ticks limits by %u", scale);
+      scale10 = multiply_saturated (scale10, 10, UINT_MAX);
+      scale4 = multiply_saturated (scale4, 4, UINT_MAX);
+      scale2 = multiply_saturated (scale2, 2, UINT_MAX);
     }
+
+  if (level)
+    verbose (0, "scaling all simplification limits by %u", scale10);
   else
     verbose (0, "keeping simplification ticks limits at their default");
 
   struct ruler_limits *limits = &ruler->limits;
   struct ruler_statistics *statistics = &ruler->statistics;
-  unsigned boost = statistics->simplifications == 1 ? 10 : 1;
+  unsigned boost = 1;
+  if (statistics->simplifications == 1 && ruler->options.simplify_boost > 1)
+    {
+      boost = ruler->options.simplify_boost;
+      verbose (0, "boosting ticks limits initially by%s factor of %u",
+               (level ? " another" : ""), boost);
+    }
 
   {
-    uint64_t delta = scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-    uint64_t limit = statistics->ticks.elimination + boost * delta;
+    uint64_t ticks = 1e6*ruler->options.eliminate_ticks;
+    uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
+    uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
+    uint64_t current = statistics->ticks.elimination;
+    uint64_t limit = add_saturated (current, boosted, UINT64_MAX);
     limits->elimination = limit;
     verbose (0, "setting elimination limit to %" PRIu64
-	     " ticks after %" PRIu64, limit, boost * delta);
+	     " ticks after %" PRIu64, limit, boosted);
   }
 
   {
-    uint64_t delta = scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-    uint64_t limit = statistics->ticks.subsumption + boost * delta;
+    uint64_t ticks = 1e6*ruler->options.subsume_ticks;
+    uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
+    uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
+    uint64_t current = statistics->ticks.subsumption;
+    uint64_t limit = add_saturated (current, boosted, UINT64_MAX);
     limits->subsumption = limit;
     verbose (0, "setting subsumption limit to %" PRIu64
-	     " ticks after %" PRIu64, limit, boost * delta);
+	     " ticks after %" PRIu64, limit, boosted);
   }
-}
 
-static unsigned
-set_max_rounds (struct ruler *ruler, unsigned optimize)
-{
-  unsigned max_rounds = ruler->options.simplify_rounds;
-  unsigned res = max_rounds;
-  if (ruler->statistics.simplifications == 1)
-    res *= 4;
-  if (optimize)
-    {
-      unsigned scale = optimize + 1;
-      if ((UINT_MAX - 1) / scale >= max_rounds)
-	res *= scale;
-      else
-	res = UINT_MAX - 1;
-      verbose (0, "running at most %u simplification rounds (scaled by %u)",
-	       res, optimize);
-    }
-  else
-    verbose (0, "running at most %u simplification rounds (default)", res);
-  return res;
+  {
+    unsigned max_rounds = ruler->options.simplify_rounds;
+    if (level)
+      {
+	max_rounds = multiply_saturated (max_rounds, scale4, UINT_MAX);
+	verbose (0, "running at most %u simplification rounds (scaled %u)",
+		 max_rounds, scale4);
+      }
+    else
+      verbose (0, "running at most %u simplification rounds (default)",
+               max_rounds);
+    limits->max_rounds = max_rounds;
+  }
+
+  {
+    unsigned max_bound = ruler->options.eliminate_bound;
+    if (level)
+      {
+	max_bound = multiply_saturated (max_bound, scale2, UINT_MAX);
+	verbose (0, "maximum elimination bound %u (scaled %u)",
+		 max_bound, scale2);
+      }
+    else
+      verbose (0, "maximum elimination bound %u (default)", max_bound);
+    limits->max_bound = max_bound;
+  }
+
+  {
+    unsigned clause_size_limit = ruler->options.clause_size_limit;
+    if (level)
+      {
+	clause_size_limit =
+	  multiply_saturated (clause_size_limit, scale10, UINT_MAX);
+	verbose (0, "clause size limit %u (scaled %u)",
+		 clause_size_limit, scale10);
+      }
+    else
+      verbose (0, "clause size limit %u (default)", clause_size_limit);
+    limits->clause_size_limit = clause_size_limit;
+  }
+
+  {
+    unsigned occurrence_limit = ruler->options.occurrence_limit;
+    if (level)
+      {
+	occurrence_limit =
+	  multiply_saturated (occurrence_limit, scale10, UINT_MAX);
+	verbose (0, "occurrence limit %u (scaled %u)",
+		 occurrence_limit, scale10);
+      }
+    else
+      verbose (0, "occurrence limit %u (default)", occurrence_limit);
+
+    limits->occurrence_limit = occurrence_limit;
+  }
 }
 
 #ifndef QUIET
@@ -519,7 +565,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
   before.ticks.subsumption = statistics->ticks.subsumption;
 #endif
 
-  unsigned max_rounds = set_max_rounds (ruler, optimize);
+  unsigned max_rounds = ruler->limits.max_rounds;
 
   bool done = false;
 

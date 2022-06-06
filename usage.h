@@ -14,7 +14,7 @@ static char * compact_usage =
 "  -l  |  --logging           enable very verbose internal logging\n"
 #endif                        
 "  -n  |  --no-witness        do not print satisfying assignments\n"
-"  -O  |  -O<level>           boost simplification and round limits\n"
+"  -O  |  -O<level>           increase simplification limits\n"
 #ifndef QUIET                
 "  -q  |  --quiet             disable all additional messages\n"
 #endif                        

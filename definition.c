@@ -10,7 +10,7 @@ find_binary_and_gate_clauses (struct simplifier *simplifier,
 {
   assert (!clause->garbage);
   struct ruler *ruler = simplifier->ruler;
-  size_t clause_size_limit = ruler->options.clause_size_limit;
+  size_t clause_size_limit = ruler->limits.clause_size_limit;
   if (clause->size > clause_size_limit)
     return false;
   CLEAR (*gate);

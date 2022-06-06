@@ -17,7 +17,7 @@ is_subsumption_candidate (struct simplifier *simplifier,
   struct ruler *ruler = simplifier->ruler;
   ruler->statistics.ticks.subsumption++;
   bool *subsume = simplifier->ruler->subsume;
-  size_t clause_size_limit = ruler->options.clause_size_limit;
+  size_t clause_size_limit = ruler->limits.clause_size_limit;
   if (clause->size <= clause_size_limit && !clause->garbage)
     {
       unsigned count = 0;
@@ -38,7 +38,7 @@ get_subsumption_candidates (struct simplifier *simplifier,
   struct ruler *ruler = simplifier->ruler;
   struct clauses *clauses = &ruler->clauses;
   ruler->statistics.ticks.subsumption += SIZE (*clauses);
-  size_t clause_size_limit = ruler->options.clause_size_limit;
+  size_t clause_size_limit = ruler->limits.clause_size_limit;
   const size_t size_count = clause_size_limit + 1;
   size_t count[size_count];
   memset (count, 0, sizeof count);
@@ -71,7 +71,7 @@ find_subsuming_clause (struct simplifier *simplifier, unsigned lit,
   size_t size_clauses = SIZE (*clauses);
   struct clause *res = 0;
   uint64_t ticks = 1;
-  size_t occurrence_limit = ruler->options.occurrence_limit;
+  size_t occurrence_limit = ruler->limits.occurrence_limit;
   if (size_clauses <= occurrence_limit)
     {
       signed char *marks = simplifier->marks;
