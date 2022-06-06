@@ -119,9 +119,10 @@ interpolate_base (double size)
 static void
 initialize_break_table (struct walker *walker, double length)
 {
+  struct ring *ring = walker->ring;
+  verbose (ring, "average clause length %.2f", length);
   double epsilon = 1;
   unsigned maxbreak = 0;
-  struct ring *ring = walker->ring;
   uint64_t walked = ring->statistics.walked;
   const double base = (walked & 1) ? 2.0 : interpolate_base (length);
   verbose (ring, "propability exponential sample base %.2f", base);
@@ -202,7 +203,8 @@ connect_counters (struct walker *walker, struct clause *last)
     }
   for (all_ring_literals (lit))
     {
-      if (values[lit] >= 0)
+      signed char lit_value = values[lit];
+      if (!lit_value)
 	continue;
       struct counters *counters = &COUNTERS (lit);
       ticks++;
@@ -211,26 +213,33 @@ connect_counters (struct walker *walker, struct clause *last)
 	continue;
       unsigned *p, other;
       for (p = binaries; (other = *p) != INVALID; p++)
-	if (lit < other && values[other] < 0)
-	  {
-	    LOGBINARY (false, lit, other, "initially broken");
-	    void *ptr = tag_pointer (false, lit, other);
-	    assert (ptr == min_max_tag_pointer (false, lit, other));
-	    set_insert (&walker->unsatisfied, ptr);
-	    ticks++;
-	  }
+	{
+	  if (lit > other)
+	    continue;
+	  signed char other_value = values[other];
+	  if (!other_value)
+	    continue;
+	  sum_lengths += 2;
+	  clauses++;
+	  if (lit_value > 0)
+	    continue;
+	  if (other_value > 0)
+	    continue;
+	  LOGBINARY (false, lit, other, "initially broken");
+	  void *ptr = tag_pointer (false, lit, other);
+	  assert (ptr == min_max_tag_pointer (false, lit, other));
+	  set_insert (&walker->unsatisfied, ptr);
+	  ticks++;
+	}
       ticks += cache_lines (p, binaries);
     }
-
-  double average_length = average (sum_lengths, clauses);
-  verbose (ring, "average clause length %.2f", average_length);
-  (void) average_length;
 
   very_verbose (ring, "connecting counters took %" PRIu64 " extra ticks",
 		ticks);
 
   walker->extra += ticks;
 
+  double average_length = average (sum_lengths, clauses);
   return average_length;
 }
 
@@ -248,6 +257,7 @@ import_decisions (struct walker *walker)
   unsigned pos = 0, neg = 0, ignored = 0;
   struct variable *v = ring->variables;
   signed char *q = values;
+  assert (!ring->level);
   for (all_phases (p))
     {
       signed char phase = p->saved;
@@ -700,8 +710,16 @@ walking_loop (struct walker *walker)
   struct ring *ring = walker->ring;
   uint64_t *ticks = &ring->statistics.contexts[WALK_CONTEXT].ticks;
   uint64_t limit = walker->limit;
+#ifndef QUIET
+  uint64_t ticks_before = *ticks;
+#endif
   while (walker->minimum && *ticks <= limit)
     walking_step (walker);
+#ifndef QUIET
+  uint64_t ticks_after = *ticks;
+  uint64_t ticks_delta = ticks_after - ticks_before;
+  very_verbose (ring, "walking used %" PRIu64 " ticks", ticks_delta);
+#endif
 }
 
 void
