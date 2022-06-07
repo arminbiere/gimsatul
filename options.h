@@ -56,10 +56,10 @@ OPTION (bool,     minimize,                1, 0, 1,     "minimize learned clause
 OPTION (unsigned, minimize_depth,          1000,1,INF,  "recursive clause minimization depth") \
 OPTION (unsigned, occurrence_limit,        1000,0,INF,  "literal occurrence limit in simplification") \
 OPTION (bool,     phase,                   1, 0, 1,     "initial decision phase") \
-OPTION (bool,     portfolio,               0, 0, 1,     "threads use different strategies") \
+OPTION (bool,     portfolio,               1, 0, 1,     "threads use different strategies") \
 OPTION (bool,     probe,                   1, 0, 1,     "enable probing based inprocessing") \
 OPTION (unsigned, probe_interval,          2e3, 1, INF, "probing base conflict interval") \
-OPTION (unsigned, random_decisions,        0, 0, INF,   "initial random decisions") \
+OPTION (unsigned, random_decisions,        100, 0, INF,   "initial random decisions") \
 OPTION (unsigned, reduce_interval,         1e3, 1, INF, "reduce base conflict interval") \
 OPTION (bool,     rephase,                 1, 0, 1,     "reset saved phases regularly") \
 OPTION (unsigned, rephase_interval,        1e3, 1, INF, "base rephase conflict interval") \
