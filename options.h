@@ -69,7 +69,7 @@ OPTION (unsigned, simplify_boost_rounds,   16, 2, INF,   "initial increase round
 OPTION (unsigned, simplify_boost_ticks,    10, 2, INF,  "initial increase of ticks limits") \
 OPTION (unsigned, simplify_interval,       1e4, 1, INF, "simplification base conflict interval") \
 OPTION (bool,     simplify_initially,      1, 0, 1,     "initial preprocessing through simplification") \
-OPTION (bool,     simplify_regularly,      1, 0, 1,     "regular preprocessing through simplification") \
+OPTION (bool,     simplify_regularly,      0, 0, 1,     "regular preprocessing through simplification") \
 OPTION (unsigned, simplify_rounds,         4, 1, INF,   "number of rounds per simplification") \
 OPTION (bool,     switch_mode,             1, 0, 1,     "switch between focused and stable mode") \
 OPTION (unsigned, switch_interval,         3e3, 1, INF, "mode switching base conflict interval") \
