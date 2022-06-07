@@ -65,7 +65,7 @@ OPTION (bool,     rephase,                 1, 0, 1,     "reset saved phases regu
 OPTION (unsigned, rephase_interval,        1e3, 1, INF, "base rephase conflict interval") \
 OPTION (bool,     simplify,                1, 0, 1,     "elimination, subsumption and substitution") \
 OPTION (unsigned, simplify_boost,          1, 0, 1,     "additional initial boost to simplification") \
-OPTION (unsigned, simplify_boost_rounds,   16, 2, INF,   "initial increase rounds limit") \
+OPTION (unsigned, simplify_boost_rounds,   4, 2, INF,   "initial increase rounds limit") \
 OPTION (unsigned, simplify_boost_ticks,    10, 2, INF,  "initial increase of ticks limits") \
 OPTION (unsigned, simplify_interval,       1e4, 1, INF, "simplification base conflict interval") \
 OPTION (bool,     simplify_initially,      1, 0, 1,     "initial preprocessing through simplification") \
