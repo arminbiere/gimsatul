@@ -78,7 +78,7 @@ OPTION (bool,     subsume,                 1, 0, 1,     "clause subsumption and 
 OPTION (unsigned, subsume_ticks,           20, 0, INF,  "subsumption ticks limit in millions") \
 OPTION (bool,     vivify,                  1, 0, 1,     "vivification of redundant clauses") \
 OPTION (bool,     walk_initially,          0, 0, 1,     "local search initially") \
-OPTION (bool,     warm_up,                 0, 0, 1,     "unit propagation warm-up of local search") \
+OPTION (bool,     warm_up_local_search,    1, 0, 1,     "unit propagation warm-up of local search") \
 OPTION (bool,     witness,                 1, 0, 1,     "print satisfying assignment") \
 
 struct options

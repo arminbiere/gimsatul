@@ -10,7 +10,7 @@
 void
 warming_up_saved_phases (struct ring *ring)
 {
-  if (!ring->options.warm_up)
+  if (!ring->options.warm_up_local_search)
     return;
   assert (!ring->level);
   assert (ring->trail.propagate == ring->trail.end);
