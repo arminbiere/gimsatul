@@ -53,6 +53,7 @@ struct ruler_last
 {
   unsigned fixed;
   uint64_t garbage;
+  uint64_t search;
 };
 
 struct ruler_limits

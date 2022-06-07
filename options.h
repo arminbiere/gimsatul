@@ -33,8 +33,11 @@
 #define STABLE_RESTART_INTERVAL 500
 #define FOCUSED_RESTART_INTERVAL 5
 
+#define ELIMINATE_EFFORT 0.10
 #define FAILED_EFFORT 0.02
+#define SUBSUME_EFFORT 0.10
 #define VIVIFY_EFFORT 0.03
+
 #define WALK_EFFORT 0.02
 
 /*------------------------------------------------------------------------*/

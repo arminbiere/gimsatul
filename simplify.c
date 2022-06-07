@@ -423,8 +423,15 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
 		 (level ? " another" : ""), boost);
       }
 
+
+    struct ring * first = first_ring (ruler);
+    uint64_t search = first->statistics.contexts[SEARCH_CONTEXT].ticks;
+    search -= ruler->last.search;
+
     {
-      uint64_t ticks = 1e6*ruler->options.eliminate_ticks;
+      uint64_t effort = ELIMINATE_EFFORT * search;
+      uint64_t base = ruler->options.eliminate_ticks;
+      uint64_t ticks = MAX (effort, base);
       uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
       uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
       uint64_t current = statistics->ticks.elimination;
@@ -435,7 +442,9 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
     }
 
     {
-      uint64_t ticks = 1e6*ruler->options.subsume_ticks;
+      uint64_t effort = SUBSUME_EFFORT * search;
+      uint64_t base = ruler->options.subsume_ticks;
+      uint64_t ticks = MAX (effort, base);
       uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
       uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
       uint64_t current = statistics->ticks.subsumption;
@@ -853,6 +862,7 @@ finish_ring_simplification (struct ring *ring)
   unsigned interval = ring->options.simplify_interval;
   assert (interval);
   limits->simplify += interval * nlogn (statistics->simplifications);
+  ruler->last.search = statistics->contexts[SEARCH_CONTEXT].ticks;
   very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
 		limits->simplify);
 }
