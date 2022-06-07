@@ -1,5 +1,6 @@
 #include "backtrack.h"
 #include "clause.h"
+#include "decide.h"
 #include "logging.h"
 #include "message.h"
 #include "random.h"
@@ -258,9 +259,11 @@ import_decisions (struct walker *walker)
   struct variable *v = ring->variables;
   signed char *q = values;
   assert (!ring->level);
-  for (all_phases (p))
+  for (all_ring_indices (idx))
     {
-      signed char phase = p->saved;
+      assert (q == values + LIT (idx));
+      signed phase = decide_phase (ring, idx);
+      assert (phase);
       if (*q)
 	{
 	  phase = 0;

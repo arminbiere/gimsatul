@@ -164,7 +164,9 @@ parse_dimacs_body (struct ruler *ruler, int variables, int expected)
 #ifndef QUIET
   double start_parsing = START (ruler, parse);
 #endif
+#if 0
   bool force = ruler->options.force;
+#endif
   struct file *dimacs = &ruler->options.dimacs;
   signed char *marked = allocate_and_clear_block (variables);
   struct unsigneds clause;

@@ -10,6 +10,8 @@
 void
 warming_up_saved_phases (struct ring *ring)
 {
+  if (!ring->options.warm_up)
+    return;
   assert (!ring->level);
   assert (ring->trail.propagate == ring->trail.end);
   uint64_t decisions = 0, conflicts = 0;
