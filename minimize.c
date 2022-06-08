@@ -14,12 +14,12 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
     return true;
   if (!ring->used[v->level])
     return false;
-  if (v->poison)
-    return false;
-  if (v->minimize)
-    return true;
   if (depth && (v->seen))
     return true;
+  if (v->minimize)
+    return true;
+  if (v->poison)
+    return false;
   struct watch *reason = v->reason;
   if (!reason)
     return false;
