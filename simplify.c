@@ -424,13 +424,22 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
       }
 
 
-    struct ring * first = first_ring (ruler);
-    uint64_t search = first->statistics.contexts[SEARCH_CONTEXT].ticks;
-    search -= ruler->last.search;
+    uint64_t search;
+    if (EMPTY (ruler->rings))
+      {
+	search = 0;
+	assert (!ruler->last.search);
+      }
+    else
+      {
+	struct ring * first = first_ring (ruler);
+	search = first->statistics.contexts[SEARCH_CONTEXT].ticks;
+	search -= ruler->last.search;
+      }
 
     {
       uint64_t effort = ELIMINATE_EFFORT * search;
-      uint64_t base = ruler->options.eliminate_ticks;
+      uint64_t base = 1e6*ruler->options.eliminate_ticks;
       uint64_t ticks = MAX (effort, base);
       uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
       uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
@@ -443,7 +452,7 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
 
     {
       uint64_t effort = SUBSUME_EFFORT * search;
-      uint64_t base = ruler->options.subsume_ticks;
+      uint64_t base = 1e6*ruler->options.subsume_ticks;
       uint64_t ticks = MAX (effort, base);
       uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
       uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
@@ -478,47 +487,50 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
     limits->max_rounds = max_rounds;
   }
 
-  {
-    unsigned max_bound = ruler->options.eliminate_bound;
-    if (level)
+  if (ruler->statistics.simplifications == 1)
+    {
       {
-	max_bound = multiply_saturated (max_bound, scale2, UINT_MAX);
-	verbose (0, "maximum elimination bound %u (scaled %" PRIu64 ")",
-		 max_bound, scale2);
+	unsigned max_bound = ruler->options.eliminate_bound;
+	if (level)
+	  {
+	    max_bound = multiply_saturated (max_bound, scale2, UINT_MAX);
+	    verbose (0, "maximum elimination bound %u (scaled %" PRIu64 ")",
+		     max_bound, scale2);
+	  }
+	else
+	  verbose (0, "maximum elimination bound %u (default)", max_bound);
+	limits->max_bound = max_bound;
       }
-    else
-      verbose (0, "maximum elimination bound %u (default)", max_bound);
-    limits->max_bound = max_bound;
-  }
 
-  {
-    unsigned clause_size_limit = ruler->options.clause_size_limit;
-    if (level)
       {
-	clause_size_limit =
-	  multiply_saturated (clause_size_limit, scale10, UINT_MAX);
-	verbose (0, "clause size limit %u (scaled %" PRIu64 ")",
-		 clause_size_limit, scale10);
+	unsigned clause_size_limit = ruler->options.clause_size_limit;
+	if (level)
+	  {
+	    clause_size_limit =
+	      multiply_saturated (clause_size_limit, scale10, UINT_MAX);
+	    verbose (0, "clause size limit %u (scaled %" PRIu64 ")",
+		     clause_size_limit, scale10);
+	  }
+	else
+	  verbose (0, "clause size limit %u (default)", clause_size_limit);
+	limits->clause_size_limit = clause_size_limit;
       }
-    else
-      verbose (0, "clause size limit %u (default)", clause_size_limit);
-    limits->clause_size_limit = clause_size_limit;
-  }
 
-  {
-    unsigned occurrence_limit = ruler->options.occurrence_limit;
-    if (level)
       {
-	occurrence_limit =
-	  multiply_saturated (occurrence_limit, scale10, UINT_MAX);
-	verbose (0, "occurrence limit %u (scaled %" PRIu64 ")",
-		 occurrence_limit, scale10);
-      }
-    else
-      verbose (0, "occurrence limit %u (default)", occurrence_limit);
+	unsigned occurrence_limit = ruler->options.occurrence_limit;
+	if (level)
+	  {
+	    occurrence_limit =
+	      multiply_saturated (occurrence_limit, scale10, UINT_MAX);
+	    verbose (0, "occurrence limit %u (scaled %" PRIu64 ")",
+		     occurrence_limit, scale10);
+	  }
+	else
+	  verbose (0, "occurrence limit %u (default)", occurrence_limit);
 
-    limits->occurrence_limit = occurrence_limit;
-  }
+	limits->occurrence_limit = occurrence_limit;
+      }
+    }
 }
 
 #ifndef QUIET
