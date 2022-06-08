@@ -97,8 +97,6 @@ catch_signal (int sig)
   if (ruler)
     print_ruler_statistics (ruler);
 #endif
-  while (true)
-    ;
   raise (sig);
   exit (1);
 }
