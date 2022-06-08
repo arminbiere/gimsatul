@@ -555,57 +555,52 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
   RELEASE (simplifier->nogate[0]);
   RELEASE (simplifier->nogate[1]);
 
-  unsigned old_bound = ruler->limits.current_bound;
 #ifndef QUIET
+  unsigned old_bound = ruler->limits.current_bound;
   double end_round = STOP (ruler, eliminate);
   message (0, "[%u] eliminated %u variables %.0f%% "
 	   "with bound %u in %.2f seconds", round,
 	   eliminated, percent (eliminated, ruler->compact),
 	   old_bound, end_round - start_round);
-#endif
-
   if (remaining)
     {
-#ifndef QUIET
       unsigned completed = scheduled - remaining;
       message (0, "[%u] tried %u candidate variables %.0f%% "
 	       "(%u remain %.0f%%)", round, completed,
 	       percent (completed, variables),
 	       remaining, percent (remaining, variables));
-#endif
     }
   else
-    {
-      message (0, "[%u] all candidate variables 100%% tried", round);
-      unsigned max_bound = ruler->limits.max_bound;
-      unsigned new_bound;
-      if (eliminated)
-	new_bound = old_bound;
-      else
-	{
-	  new_bound = old_bound ? 2 * old_bound : 1;
-	  if (new_bound > max_bound)
-	    new_bound = max_bound;
-	}
-      assert (old_bound <= new_bound);
-#ifndef QUIET
-      const char *reached_max_bound =
-	new_bound == max_bound ? "maximum " : "";
+    message (0, "[%u] all candidate variables 100%% tried", round);
 #endif
-      if (old_bound == new_bound)
-	message (0, "[%u] keeping elimination bound at %s%u",
-		 round, reached_max_bound, old_bound);
-      else
-	{
-	  message (0, "[%u] increasing elimination bound to %s%u",
-		   round, reached_max_bound, new_bound);
-	  memset (ruler->eliminate, 1, ruler->compact);
-	  ruler->limits.current_bound = new_bound;
-	}
-    }
 
   assert (ruler->eliminating);
   ruler->eliminating = false;
 
   return eliminated;
+}
+
+void
+try_to_increase_elimination_bound (struct ruler * ruler)
+{
+  unsigned max_bound = ruler->limits.max_bound;
+  unsigned old_bound = ruler->limits.current_bound;
+  unsigned new_bound = old_bound ? 2 * old_bound : 1;
+  if (new_bound > max_bound)
+    new_bound = max_bound;
+  assert (old_bound <= new_bound);
+#ifndef QUIET
+  const char *reached_max_bound =
+    new_bound == max_bound ? "maximum " : "";
+#endif
+  if (old_bound == new_bound)
+    verbose (0, "keeping elimination bound at %s%u",
+	     reached_max_bound, old_bound);
+  else
+    {
+      message (0, "increasing elimination bound to %s%u",
+	       reached_max_bound, new_bound);
+      memset (ruler->eliminate, 1, ruler->compact);
+      ruler->limits.current_bound = new_bound;
+    }
 }

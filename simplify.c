@@ -531,6 +531,8 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
 	limits->occurrence_limit = occurrence_limit;
       }
     }
+
+  verbose (0, "current elimination bound %u", ruler->limits.current_bound);
 }
 
 #ifndef QUIET
@@ -600,36 +602,37 @@ run_full_blown_simplification (struct simplifier *simplifier)
 
   unsigned max_rounds = ruler->limits.max_rounds;
 
-  bool done = false;
+  bool complete = false;
 
-  for (unsigned round = 1; !done && round <= max_rounds; round++)
+  for (unsigned round = 1; !complete && round <= max_rounds; round++)
     {
-      done = true;
+      complete = true;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
       if (equivalent_literal_substitution (simplifier, round))
-	done = false;
+	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
       if (remove_duplicated_binaries (simplifier, round))
-	done = false;
+	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
       if (subsume_clauses (simplifier, round))
-	done = false;
+	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
       if (eliminate_variables (simplifier, round))
-	done = false;
+	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
       if (elimination_ticks_limit_hit (simplifier))
 	break;
     }
+
 #ifndef QUIET
   message (0, 0);
   after.variables = statistics->active;
@@ -678,6 +681,9 @@ run_full_blown_simplification (struct simplifier *simplifier)
 	   after.ticks.subsumption, delta.ticks.subsumption,
 	   subsumption_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
 #endif
+
+  if (complete)
+    try_to_increase_elimination_bound (ruler);
 }
 
 void
