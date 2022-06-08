@@ -1,5 +1,9 @@
 # Version 1.0.2rc1
 
+- added termination checks to simplifiers and local search
+
+- improved scheduling of simplification limits and bounds
+
 - added `-i` / `--id` command line option
   (to get GIT id even for `./configure --quiet`)
 
