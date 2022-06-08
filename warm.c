@@ -2,7 +2,7 @@
 #include "decide.h"
 #include "message.h"
 #include "propagate.h"
-#include "ring.h"
+#include "ruler.h"
 #include "warm.h"
 
 #include <inttypes.h>
@@ -15,7 +15,8 @@ warming_up_saved_phases (struct ring *ring)
   assert (!ring->level);
   assert (ring->trail.propagate == ring->trail.end);
   uint64_t decisions = 0, conflicts = 0;
-  while (ring->unassigned)
+  volatile bool * terminate = &ring->ruler->terminate;
+  while (ring->unassigned && !*terminate)
     {
       decisions++;
       decide (ring);

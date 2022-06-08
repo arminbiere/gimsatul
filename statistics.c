@@ -196,7 +196,7 @@ print_ruler_statistics (struct ruler *ruler)
   printf ("c\n");
 
   printf ("c %-30s %23.2f %%\n", "utilization:",
-	  percent (process / SIZE (ruler->rings), total));
+	  percent (process / ruler->options.threads, total));
   printf ("c %-30s %23.2f seconds\n", "process-time:", process);
   printf ("c %-30s %23.2f seconds\n", "wall-clock-time:", total);
   printf ("c %-30s %23.2f MB\n", "maximum-resident-set-size:", memory);

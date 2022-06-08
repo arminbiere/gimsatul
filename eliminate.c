@@ -535,6 +535,8 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
     {
       if (ruler->inconsistent)
 	break;
+      if (ruler->terminate)
+	break;
       if (elimination_ticks_limit_hit (simplifier))
 	break;
       unsigned idx = POP (candidates);

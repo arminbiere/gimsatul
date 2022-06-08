@@ -4,7 +4,7 @@
 #include "logging.h"
 #include "message.h"
 #include "random.h"
-#include "ring.h"
+#include "ruler.h"
 #include "search.h"
 #include "set.h"
 #include "tagging.h"
@@ -160,6 +160,7 @@ connect_counters (struct walker *walker, struct clause *last)
   double sum_lengths = 0;
   size_t clauses = 0;
   uint64_t ticks = 1;
+  volatile bool * terminate = &ring->ruler->terminate;
   for (all_watches (watch, ring->watches))
     {
       ticks++;
@@ -201,6 +202,8 @@ connect_counters (struct walker *walker, struct clause *last)
       p++;
       if (clause == last)
 	break;
+      if (*terminate)
+	break;
     }
   for (all_ring_literals (lit))
     {
@@ -233,6 +236,8 @@ connect_counters (struct walker *walker, struct clause *last)
 	  ticks++;
 	}
       ticks += cache_lines (p, binaries);
+      if (*terminate)
+	break;
     }
 
   very_verbose (ring, "connecting counters took %" PRIu64 " extra ticks",
@@ -713,10 +718,11 @@ walking_loop (struct walker *walker)
   struct ring *ring = walker->ring;
   uint64_t *ticks = &ring->statistics.contexts[WALK_CONTEXT].ticks;
   uint64_t limit = walker->limit;
+  volatile bool * terminate = &ring->ruler->terminate;
 #ifndef QUIET
   uint64_t ticks_before = *ticks;
 #endif
-  while (walker->minimum && *ticks <= limit)
+  while (walker->minimum && *ticks <= limit && !*terminate)
     walking_step (walker);
 #ifndef QUIET
   uint64_t ticks_after = *ticks;

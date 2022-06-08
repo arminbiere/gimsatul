@@ -81,6 +81,8 @@ remove_duplicated_binaries (struct simplifier *simplifier, unsigned round)
   size_t removed = 0;
   for (all_ruler_literals (lit))
     {
+      if (ruler->terminate)
+	break;
       if (values[lit])
 	continue;
       if (eliminated[IDX (lit)])

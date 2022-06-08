@@ -50,7 +50,7 @@ detach_and_delete_rings (struct ruler *ruler)
       for (unsigned i = 0; i != threads; i++)
 	stop_detaching_and_deleting_ring (ruler, i);
     }
-  else
+  else if (threads)
     {
       if (verbosity > 0)
 	{

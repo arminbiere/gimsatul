@@ -606,6 +606,9 @@ run_full_blown_simplification (struct simplifier *simplifier)
 
   for (unsigned round = 1; !complete && round <= max_rounds; round++)
     {
+      if (ruler->terminate)
+	break;
+
       complete = true;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
@@ -614,15 +617,21 @@ run_full_blown_simplification (struct simplifier *simplifier)
 	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
+      if (ruler->terminate)
+	break;
 
       if (remove_duplicated_binaries (simplifier, round))
 	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
+      if (ruler->terminate)
+	break;
 
       if (subsume_clauses (simplifier, round))
 	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
+	break;
+      if (ruler->terminate)
 	break;
 
       if (eliminate_variables (simplifier, round))
@@ -630,6 +639,8 @@ run_full_blown_simplification (struct simplifier *simplifier)
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
       if (elimination_ticks_limit_hit (simplifier))
+	break;
+      if (ruler->terminate)
 	break;
     }
 

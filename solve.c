@@ -122,6 +122,8 @@ set_ring_limits (struct ring *ring, long long conflicts)
 struct ring *
 solve_rings (struct ruler *ruler)
 {
+  if (ruler->terminate)
+    return ruler->winner;
 #ifndef QUIET
   double start_solving = START (ruler, solve);
 #endif

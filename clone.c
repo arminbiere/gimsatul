@@ -211,6 +211,8 @@ stop_cloning_ring (struct ring *first, unsigned clone)
 void
 clone_rings (struct ruler *ruler)
 {
+  if (ruler->terminate)
+    return;
   unsigned threads = ruler->options.threads;
   assert (0 < threads);
   assert (threads <= MAX_THREADS);

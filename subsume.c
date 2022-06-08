@@ -358,6 +358,8 @@ subsume_clauses (struct simplifier *simplifier, unsigned round)
   struct clause **end_candidates = candidates + size_candidates;
   for (struct clause ** p = candidates; p != end_candidates; p++)
     {
+      if (ruler->terminate)
+	break;
       forward_subsume_large_clause (simplifier, *p);
       if (subsumption_ticks_limit_hit (simplifier))
 	break;

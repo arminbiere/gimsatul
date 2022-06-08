@@ -254,6 +254,8 @@ substitute_equivalent_literals (struct simplifier *simplifier, unsigned *repr)
   signed char *values = (signed char *) ruler->values;
   for (all_ruler_indices (idx))
     {
+      if (ruler->terminate)
+	break;
       unsigned lit = LIT (idx);
       if (values[lit])
 	continue;
