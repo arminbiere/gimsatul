@@ -37,7 +37,10 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
       struct clause *clause = reason->clause;
       for (all_literals_in_clause (other, clause))
 	if (other != not_lit && !minimize_literal (ring, other, depth))
-	  res = false;
+	  {
+	    res = false;
+	    break;;
+	  }
     }
   if (!v->shrinkable)
     PUSH (ring->minimize, idx);
