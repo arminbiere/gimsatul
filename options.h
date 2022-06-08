@@ -67,13 +67,13 @@ OPTION (unsigned, reduce_interval,         1e3, 1, INF, "reduce base conflict in
 OPTION (bool,     rephase,                 1, 0, 1,     "reset saved phases regularly") \
 OPTION (unsigned, rephase_interval,        1e3, 1, INF, "base rephase conflict interval") \
 OPTION (bool,     simplify,                1, 0, 1,     "elimination, subsumption and substitution") \
-OPTION (unsigned, simplify_boost,          1, 0, 1,     "additional initial boost to simplification") \
+OPTION (unsigned, simplify_boost,          0, 0, 1,     "additional initial boost to simplification") \
 OPTION (unsigned, simplify_boost_rounds,   4, 2, INF,   "initial increase rounds limit") \
 OPTION (unsigned, simplify_boost_ticks,    10, 2, INF,  "initial increase of ticks limits") \
 OPTION (unsigned, simplify_interval,       1e4, 1, INF, "simplification base conflict interval") \
-OPTION (bool,     simplify_initially,      1, 0, 1,     "initial preprocessing through simplification") \
+OPTION (bool,     simplify_initially,      0, 0, 1,     "initial preprocessing through simplification") \
 OPTION (bool,     simplify_regularly,      1, 0, 1,     "regular preprocessing through simplification") \
-OPTION (unsigned, simplify_rounds,         4, 1, INF,   "number of rounds per simplification") \
+OPTION (unsigned, simplify_rounds,         2, 1, INF,   "number of rounds per simplification") \
 OPTION (bool,     switch_mode,             1, 0, 1,     "switch between focused and stable mode") \
 OPTION (unsigned, switch_interval,         3e3, 1, INF, "mode switching base conflict interval") \
 OPTION (bool,     substitute,              1, 0, 1,     "equivalent literal substitution") \
