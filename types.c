@@ -48,14 +48,14 @@ check_types (void)
 
   {
     size_t glue_in_clause_bytes = sizeof ((struct clause *) 0)->glue;
-    if (glue_in_clause_bytes << 8 <= MAX_GLUE)
+    if (1 << (glue_in_clause_bytes * 8) <= MAX_GLUE)
       fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (clause.glue) = %zu'",
 		   MAX_GLUE, glue_in_clause_bytes);
   }
 
   {
     size_t glue_in_watch_bytes = sizeof ((struct watch *) 0)->glue;
-    if (glue_in_watch_bytes << 8 <= MAX_GLUE)
+    if (1 << (glue_in_watch_bytes * 8) <= MAX_GLUE)
       fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (watch.glue) = %zu'",
 		   MAX_GLUE, glue_in_watch_bytes);
   }
