@@ -3,11 +3,11 @@
 
 #include <stdbool.h>
 
-struct watch;
+struct clause;
 struct ring;
 
 struct watch *ring_propagate (struct ring *,
 			      bool stop_at_conflict,
-			      struct watch *ignored_large_clause);
+			      struct clause *ignored_large_clause);
 
 #endif

@@ -8,10 +8,10 @@
 
 struct watch *
 ring_propagate (struct ring *ring, bool stop_at_conflict,
-		struct watch *ignore)
+		struct clause *ignore)
 {
   assert (!ring->inconsistent);
-  assert (!ignore || !binary_pointer (ignore));
+  assert (!ignore || !is_binary_pointer (ignore));
   struct ring_trail *trail = &ring->trail;
   struct watch *conflict = 0;
   signed char *values = ring->values;
@@ -31,7 +31,7 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 	  unsigned other, *p;
 	  for (p = binaries; (other = *p) != INVALID; p++)
 	    {
-	      struct watch *watch = tag_pointer (false, other, not_lit);
+	      struct watch *watch = tag_binary (false, other, not_lit);
 	      signed char other_value = values[other];
 	      if (other_value < 0)
 		{
@@ -41,7 +41,7 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 		}
 	      else if (!other_value)
 		{
-		  struct watch *reason = tag_pointer (false, other, not_lit);
+		  struct watch *reason = tag_binary (false, other, not_lit);
 		  assign_with_reason (ring, other, reason);
 		  ticks++;
 		}
@@ -57,18 +57,14 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 	{
 	  assert (!stop_at_conflict || !conflict);
 	  struct watch *watch = *q++ = *p++;
-	  if (ignore && watch == ignore)
+	  unsigned blocking = other_pointer (watch);
+	  signed char blocking_value = values[blocking];
+	  if (blocking_value > 0)
 	    continue;
-	  unsigned other;
-	  signed char other_value;
-	  if (binary_pointer (watch))
+	  if (is_binary_pointer (watch))
 	    {
 	      assert (lit_pointer (watch) == not_lit);
-	      other = other_pointer (watch);
-	      other_value = values[other];
-	      if (other_value > 0)
-		continue;
-	      if (other_value < 0)
+	      if (blocking_value < 0)
 		{
 		  conflict = watch;
 		  if (stop_at_conflict)
@@ -76,29 +72,45 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 		}
 	      else
 		{
-		  struct watch *reason = tag_pointer (false, other, not_lit);
-		  assign_with_reason (ring, other, reason);
+		  struct watch *reason =
+		    tag_binary (false, blocking, not_lit);
+		  assign_with_reason (ring, blocking, reason);
 		  ticks++;
 		}
 	    }
 	  else
 	    {
 	      ticks++;
-	      if (watch->garbage)
+	      unsigned idx = index_pointer (watch);
+	      struct watcher *watcher = index_to_watcher (ring, idx);
+	      if (watcher->garbage)
 		continue;
-	      other = watch->sum ^ not_lit;
-	      assert (other < 2 * ring->size);
-	      other_value = values[other];
-	      if (other_value > 0)
+	      struct clause *clause = watcher->clause;
+	      if (ignore && clause == ignore)
 		continue;
-	      struct clause *clause = watch->clause;
+	      unsigned other = watcher->sum ^ not_lit;
+	      signed char other_value;
+	      if (other == blocking)
+		other_value = blocking_value;
+	      else
+		{
+		  assert (other < 2 * ring->size);
+		  other_value = values[other];
+		  if (other_value > 0)
+		    {
+		      bool redundant = redundant_pointer (watch);
+		      watch = tag_index (redundant, idx, other);
+		      q[-1] = watch;
+		      continue;
+		    }
+		}
 	      unsigned replacement = INVALID;
 	      signed char replacement_value = -1;
 	      unsigned *literals = clause->literals;
 	      unsigned *end_literals = literals + clause->size;
 #ifndef NMIDDLE
-	      assert (watch->middle <= clause->size);
-	      unsigned *middle_literals = literals + watch->middle;
+	      assert (watcher->middle <= clause->size);
+	      unsigned *middle_literals = literals + watcher->middle;
 	      unsigned *r = middle_literals;
 #else
 	      unsigned *r = literals;
@@ -131,13 +143,14 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 		      r++;
 		    }
 		}
-	      watch->middle = r - literals;
+	      watcher->middle = r - literals;
 #endif
 	      if (replacement_value >= 0)
 		{
-		  watch->sum = other ^ replacement;
-		  LOGCLAUSE (watch->clause, "unwatching %s in", LOGLIT (lit));
-		  watch_literal (ring, replacement, watch);
+		  watcher->sum = other ^ replacement;
+		  LOGCLAUSE (watcher->clause,
+			     "unwatching %s in", LOGLIT (not_lit));
+		  watch_literal (ring, replacement, other, watcher);
 		  ticks++;
 		  q--;
 		}

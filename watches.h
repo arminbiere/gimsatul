@@ -5,8 +5,9 @@
 
 struct clause;
 struct ring;
+struct unsigneds;
 
-struct watch
+struct watcher
 {
   unsigned short used;
   unsigned char glue;
@@ -20,6 +21,15 @@ struct watch
   unsigned sum;
   struct clause *clause;
 };
+
+struct watchers
+{
+  struct watcher *begin, *end, *allocated;
+};
+
+/*------------------------------------------------------------------------*/
+
+struct watch;
 
 struct watches
 {
@@ -51,13 +61,15 @@ struct watch *watch_first_two_literals_in_large_clause (struct ring *,
 							struct clause *);
 
 void mark_garbage_watch (struct ring *, struct watch *);
+void mark_garbage_watcher (struct ring *, struct watcher *);
 
-void flush_watches (struct ring *);
+unsigned *map_watchers (struct ring *);
+void flush_watchers (struct ring *);
 void reconnect_watches (struct ring *, struct watches *saved);
 
 void release_references (struct ring *);
 void disconnect_references (struct ring *, struct watches *);
-void sort_redundant_watches (size_t size, struct watch **);
+void sort_redundant_watcher_indices (struct ring *, size_t, unsigned *);
 
 /*------------------------------------------------------------------------*/
 

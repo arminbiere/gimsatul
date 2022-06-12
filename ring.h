@@ -123,7 +123,7 @@ struct ring
   struct phases *phases;
   struct queue queue;
 
-  struct watches watches;
+  struct watchers watchers;
   struct clauses saved;
 
   struct trace trace;
@@ -174,6 +174,12 @@ struct rings
   AVG != END_ ## AVG; \
   ++AVG
 
+#define all_watchers(WATCHER) \
+  struct watcher * WATCHER = ring->watchers.begin + 1, \
+                  * END_ ## WATCHER = ring->watchers.end; \
+  (WATCHER != END_ ## WATCHER); \
+  ++WATCHER
+
 /*------------------------------------------------------------------------*/
 
 void init_ring (struct ring *);
@@ -196,11 +202,57 @@ void print_ring_profiles (struct ring *);
 
 /*------------------------------------------------------------------------*/
 
+static inline unsigned
+watcher_to_index (struct ring *ring, struct watcher *watcher)
+{
+  assert (ring->watchers.begin <= watcher);
+  assert (watcher < ring->watchers.end);
+  size_t idx = watcher - ring->watchers.begin;
+  assert (idx <= MAX_WATCHER_INDEX);
+  assert (idx <= UINT_MAX);
+  return idx;
+}
+
+static inline struct watcher *
+index_to_watcher (struct ring *ring, unsigned idx)
+{
+  return &PEEK (ring->watchers, idx);
+}
+
+
+static inline struct watcher *
+get_watcher (struct ring *ring, struct watch *watch)
+{
+  assert (!is_binary_pointer (watch));
+  size_t idx = index_pointer (watch);
+  return &PEEK (ring->watchers, idx);
+}
+
+static inline struct clause *
+get_clause (struct ring *ring, struct watch *watch)
+{
+  assert (watch);
+  return get_watcher (ring, watch)->clause;
+}
+
+/*------------------------------------------------------------------------*/
+
 static inline void
-watch_literal (struct ring *ring, unsigned lit, struct watch *watch)
+push_watch (struct ring *ring, unsigned lit, struct watch *watch)
 {
   LOGWATCH (watch, "watching %s in", LOGLIT (lit));
   PUSH (REFERENCES (lit), watch);
 }
+
+static inline void
+watch_literal (struct ring *ring,
+	       unsigned lit, unsigned other, struct watcher *watcher)
+{
+  unsigned idx = watcher_to_index (ring, watcher);
+  struct watch *watch = tag_index (watcher->redundant, idx, other);
+  push_watch (ring, lit, watch);
+}
+
+/*------------------------------------------------------------------------*/
 
 #endif

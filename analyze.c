@@ -12,14 +12,15 @@
 static void
 bump_reason (struct ring *ring, struct watch *watch)
 {
-  if (!watch->redundant)
+  struct watcher *watcher = get_watcher (ring, watch);
+  if (!watcher->redundant)
     return;
-  if (watch->glue <= TIER1_GLUE_LIMIT)
+  if (watcher->glue <= TIER1_GLUE_LIMIT)
     return;
-  if (watch->glue <= TIER2_GLUE_LIMIT)
-    watch->used = 2;
+  if (watcher->glue <= TIER2_GLUE_LIMIT)
+    watcher->used = 2;
   else
-    watch->used = 1;
+    watcher->used = 1;
 }
 
 static void
@@ -51,14 +52,14 @@ bump_reason_side_literals (struct ring *ring)
       if (!reason)
 	continue;
       assert (v->seen || v->shrinkable);
-      if (binary_pointer (reason))
+      if (is_binary_pointer (reason))
 	{
 	  assert (NOT (lit) == lit_pointer (reason));
 	  bump_reason_side_literal (ring, other_pointer (reason));
 	}
       else
 	{
-	  struct clause *clause = reason->clause;
+	  struct clause *clause = get_clause (ring, reason);
 	  const unsigned not_lit = NOT (lit);
 	  for (all_literals_in_clause (other, clause))
 	    if (other != not_lit)
@@ -108,7 +109,7 @@ do { \
       open++; \
       break; \
     } \
-  PUSH (*clause, OTHER); \
+  PUSH (*ring_clause, OTHER); \
   if (!used[OTHER_LEVEL]) \
     { \
       glue++; \
@@ -128,23 +129,23 @@ analyze (struct ring *ring, struct watch *reason)
       set_inconsistent (ring, "conflict on root-level produces empty clause");
       return false;
     }
-  struct unsigneds *clause = &ring->clause;
+  struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *analyzed = &ring->analyzed;
   struct unsigneds *levels = &ring->levels;
-  assert (EMPTY (*clause));
+  assert (EMPTY (*ring_clause));
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
   bool *used = ring->used;
   struct variable *variables = ring->variables;
   struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;
-  PUSH (*clause, INVALID);
+  PUSH (*ring_clause, INVALID);
   const unsigned level = ring->level;
   unsigned uip = INVALID, jump = 0, glue = 0, open = 0;
   for (;;)
     {
       LOGWATCH (reason, "analyzing");
-      if (binary_pointer (reason))
+      if (is_binary_pointer (reason))
 	{
 	  unsigned lit = lit_pointer (reason);
 	  unsigned other = other_pointer (reason);
@@ -154,7 +155,8 @@ analyze (struct ring *ring, struct watch *reason)
       else
 	{
 	  bump_reason (ring, reason);
-	  for (all_literals_in_clause (lit, reason->clause))
+	  struct clause *reason_clause = get_clause (ring, reason);
+	  for (all_literals_in_clause (lit, reason_clause))
 	    ANALYZE_LITERAL (lit);
 	}
       do
@@ -178,7 +180,7 @@ analyze (struct ring *ring, struct watch *reason)
   double filled = percent (assigned, ring->size);
   LOG ("assigned %u variables %.0f%% filled", assigned, filled);
   update_average (&averages->trail, SLOW_ALPHA, filled);
-  unsigned *literals = clause->begin;
+  unsigned *literals = ring_clause->begin;
   const unsigned not_uip = NOT (uip);
   literals[0] = not_uip;
   LOGTMP ("first UIP %s", LOGLIT (uip));
@@ -192,7 +194,7 @@ analyze (struct ring *ring, struct watch *reason)
   update_best_and_target_phases (ring);
   if (jump < level - 1)
     backtrack (ring, jump);
-  unsigned size = SIZE (*clause);
+  unsigned size = SIZE (*ring_clause);
   assert (size);
   if (size == 1)
     {
@@ -216,28 +218,29 @@ analyze (struct ring *ring, struct watch *reason)
 	  if (VAR (other)->level != jump)
 	    {
 	      unsigned *p = literals + 2, replacement;
-	      while (assert (p != clause->end),
+	      while (assert (p != ring_clause->end),
 		     VAR (replacement = *p)->level != jump)
 		p++;
 	      literals[1] = replacement;
 	      *p = other;
 	    }
-	  struct clause *clause =
+	  struct clause *learned_clause =
 	    new_large_clause (size, literals, true, glue);
-	  LOGCLAUSE (clause, "new");
-	  learned = watch_first_two_literals_in_large_clause (ring, clause);
-	  assert (!binary_pointer (learned));
-	  trace_add_clause (&ring->trace, clause);
+	  LOGCLAUSE (learned_clause, "new");
+	  learned =
+	    watch_first_two_literals_in_large_clause (ring, learned_clause);
+	  assert (!is_binary_pointer (learned));
+	  trace_add_clause (&ring->trace, learned_clause);
 	  if (glue == 1)
-	    export_glue1_clause (ring, clause);
+	    export_glue1_clause (ring, learned_clause);
 	  else if (glue <= TIER1_GLUE_LIMIT)
-	    export_tier1_clause (ring, clause);
+	    export_tier1_clause (ring, learned_clause);
 	  else if (glue <= TIER2_GLUE_LIMIT)
-	    export_tier2_clause (ring, clause);
+	    export_tier2_clause (ring, learned_clause);
 	}
       assign_with_reason (ring, not_uip, learned);
     }
-  CLEAR (*clause);
+  CLEAR (*ring_clause);
 
   clear_analyzed (ring);
 

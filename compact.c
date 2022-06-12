@@ -32,13 +32,13 @@ map_occurrences (struct ruler *ruler, unsigned *map, unsigned src)
   for (struct clause ** p = begin; p != end; p++)
     {
       struct clause *src_clause = *p;
-      if (!binary_pointer (src_clause))
+      if (!is_binary_pointer (src_clause))
 	continue;
       assert (lit_pointer (src_clause) == src);
       unsigned src_other = other_pointer (src_clause);
       unsigned dst_other = map_literal (map, src_other);
       assert (!redundant_pointer (src_clause));
-      struct clause *dst_clause = tag_pointer (false, dst, dst_other);
+      struct clause *dst_clause = tag_binary (false, dst, dst_other);
       *q++ = dst_clause;
     }
   dst_occurrences->end = q;
@@ -47,7 +47,7 @@ map_occurrences (struct ruler *ruler, unsigned *map, unsigned src)
 static void
 map_large_clause (unsigned *map, struct clause *clause)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   assert (!clause->redundant);
   unsigned *literals = clause->literals;
   unsigned *end = literals + clause->size;
@@ -83,7 +83,7 @@ clean_ring (struct ring *ring, struct clauses *cleaned)
   while (p != end)
     {
       struct clause *clause = *p++;
-      if (binary_pointer (clause))
+      if (is_binary_pointer (clause))
 	*q++ = clause;
       else if (clause->garbage)
 	dereference_clause (ring, clause);
@@ -142,7 +142,7 @@ clean_ring (struct ring *ring, struct clauses *cleaned)
 		  if (lit > other)
 		    SWAP (unsigned, lit, other);
 		  LOGBINARY (true, lit, other, "cleaned");
-		  struct clause *binary = tag_pointer (true, lit, other);
+		  struct clause *binary = tag_binary (true, lit, other);
 		  dereference_clause (ring, clause);
 		  *q++ = binary;
 		}
@@ -284,7 +284,7 @@ compact_saved (struct ring *ring, unsigned *map, struct clauses *mapped)
   while (p != end)
     {
       struct clause *src_clause = *p++;
-      if (binary_pointer (src_clause))
+      if (is_binary_pointer (src_clause))
 	{
 	  assert (redundant_pointer (src_clause));
 	  unsigned src_lit = lit_pointer (src_clause);
@@ -296,9 +296,9 @@ compact_saved (struct ring *ring, unsigned *map, struct clauses *mapped)
 	      struct clause *dst_clause;
 	      LOGBINARY (true, src_lit, src_other, "mapping");
 	      if (dst_lit < dst_other)
-		dst_clause = tag_pointer (true, dst_lit, dst_other);
+		dst_clause = tag_binary (true, dst_lit, dst_other);
 	      else
-		dst_clause = tag_pointer (true, dst_other, dst_lit);
+		dst_clause = tag_binary (true, dst_other, dst_lit);
 	      assert (dst_clause);
 	      LOG ("mapped redundant binary clause %u(%d) %u(%d)",
 		   dst_lit, unmap_and_export_literal (unmap, src_lit),
@@ -413,7 +413,7 @@ compact_ring (struct ring *ring, unsigned *map, struct clauses *mapped)
   compact_heap (ring, &ring->heap, old_size, new_size, map);
   compact_queue (ring, &ring->queue, old_size, new_size, map);
 
-  assert (EMPTY (ring->watches));
+  assert (SIZE (ring->watchers) == 1);
   compact_saved (ring, map, mapped);
   ring->size = new_size;
   ring->statistics.active = new_size;

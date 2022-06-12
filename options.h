@@ -8,8 +8,11 @@
 
 /*------------------------------------------------------------------------*/
 
-#define MAX_VAR ((1u<<30) - 1)
+#define INVALID_VAR ((1u<<30) - 1)
+#define MAX_VAR (INVALID_VAR - 1)
+#define INVALID_LIT ((1u << 31) - 1)
 #define MAX_LIT NOT (LIT (MAX_VAR))
+#define MAX_WATCHER_INDEX ((1u << 31) - 1)
 
 #define MAX_GLUE 255
 #define MAX_SCORE 1e150

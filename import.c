@@ -94,7 +94,7 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
     SWAP (unsigned, lit, other);
   for (all_watches (watch, REFERENCES (lit)))
-    if (binary_pointer (watch) && other_pointer (watch) == other)
+    if (is_binary_pointer (watch) && other_pointer (watch) == other)
       return true;
   return false;
 }
@@ -102,7 +102,7 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 static bool
 import_binary (struct ring *ring, struct clause *clause)
 {
-  assert (binary_pointer (clause));
+  assert (is_binary_pointer (clause));
   assert (redundant_pointer (clause));
   signed char *values = ring->values;
   unsigned lit = lit_pointer (clause);
@@ -202,12 +202,12 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
       struct references *watches = &REFERENCES (best);
       for (all_watches (watch, *watches))
 	{
-	  if (binary_pointer (watch))
+	  if (is_binary_pointer (watch))
 	    continue;
-	  if (!watch->redundant)
+	  if (!redundant_pointer (watch))
 	    continue;
 	  res = true;
-	  struct clause *other_clause = watch->clause;
+	  struct clause *other_clause = get_clause (ring, watch);
 	  for (all_literals_in_clause (other, other_clause))
 	    {
 	      if (other == best)
@@ -376,11 +376,6 @@ import_shared (struct ring *ring)
     return false;
   if (import_units (ring))
     return true;
-#if 0
-  struct ring_statistics *statistics = &ring->statistics;
-  if (statistics->learned.clauses < statistics->imported.clauses)
-    return false;
-#endif
   struct ruler *ruler = ring->ruler;
   size_t rings = SIZE (ruler->rings);
   assert (rings <= UINT_MAX);
@@ -402,7 +397,7 @@ import_shared (struct ring *ring)
       clause = (struct clause *) atomic_exchange (p, 0);
   if (!clause)
     return false;
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     return import_binary (ring, clause);
   return import_large_clause (ring, clause);
 }

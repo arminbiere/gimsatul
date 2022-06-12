@@ -40,7 +40,7 @@ upper_pointer (void *watch)
 }
 
 static inline bool
-binary_pointer (void *watch)
+is_binary_pointer (void *watch)
 {
   unsigned lower = lower_pointer (watch);
   return tagged_literal (lower);
@@ -49,7 +49,6 @@ binary_pointer (void *watch)
 static inline bool
 redundant_pointer (void *watch)
 {
-  assert (binary_pointer (watch));
   unsigned upper = upper_pointer (watch);
   return tagged_literal (upper);
 }
@@ -57,7 +56,7 @@ redundant_pointer (void *watch)
 static inline unsigned
 lit_pointer (void *watch)
 {
-  assert (binary_pointer (watch));
+  assert (is_binary_pointer (watch));
   unsigned lower = lower_pointer (watch);
   return untag_literal (lower);
 }
@@ -65,21 +64,42 @@ lit_pointer (void *watch)
 static inline unsigned
 other_pointer (void *watch)
 {
-  assert (binary_pointer (watch));
   unsigned upper = upper_pointer (watch);
   return untag_literal (upper);
 }
 
 static inline void *
-tag_pointer (bool redundant, unsigned lit, unsigned other)
+tag_binary (bool redundant, unsigned lit, unsigned other)
 {
   unsigned lower = tag_literal (true, lit);
   unsigned upper = tag_literal (redundant, other);
   size_t word = lower | (size_t) upper << 32;
   void *res = (void *) word;
-  assert (binary_pointer (res));
+  assert (is_binary_pointer (res));
   assert (lit_pointer (res) == lit);
   assert (other_pointer (res) == other);
+  assert (redundant_pointer (res) == redundant);
+  return res;
+}
+
+static inline unsigned
+index_pointer (void *watch)
+{
+  assert (!is_binary_pointer (watch));
+  unsigned lower = lower_pointer (watch);
+  return untag_literal (lower);
+}
+
+static inline void *
+tag_index (bool redundant, unsigned idx, unsigned blocking)
+{
+  unsigned lower = tag_literal (false, idx);
+  unsigned upper = tag_literal (redundant, blocking);
+  size_t word = lower | (size_t) upper << 32;
+  void *res = (void *) word;
+  assert (!is_binary_pointer (res));
+  assert (index_pointer (res) == idx);
+  assert (other_pointer (res) == blocking);
   assert (redundant_pointer (res) == redundant);
   return res;
 }

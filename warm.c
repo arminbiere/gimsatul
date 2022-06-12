@@ -15,7 +15,7 @@ warming_up_saved_phases (struct ring *ring)
   assert (!ring->level);
   assert (ring->trail.propagate == ring->trail.end);
   uint64_t decisions = 0, conflicts = 0;
-  volatile bool * terminate = &ring->ruler->terminate;
+  volatile bool *terminate = &ring->ruler->terminate;
   while (ring->unassigned && !*terminate)
     {
       decisions++;

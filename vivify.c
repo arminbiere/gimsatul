@@ -13,30 +13,42 @@
 
 #include <inttypes.h>
 
+static inline bool
+watched_vivification_candidate (struct watcher *watcher)
+{
+  if (watcher->garbage)
+    return false;
+  if (!watcher->redundant)
+    return false;
+  if (watcher->glue > TIER2_GLUE_LIMIT)
+    return false;
+  return true;
+}
+
 static size_t
 reschedule_vivification_candidates (struct ring *ring,
-				    struct watches *candidates)
+				    struct unsigneds *candidates)
 {
   assert (EMPTY (*candidates));
-  for (all_watches (watch, ring->watches))
-    if (watch->vivify && !watch->garbage)
-      PUSH (*candidates, watch);
+  for (all_watchers (watcher))
+    if (watcher->vivify && !watcher->garbage)
+      PUSH (*candidates, watcher_to_index (ring, watcher));
   size_t size = SIZE (*candidates);
-  sort_redundant_watches (size, candidates->begin);
+  sort_redundant_watcher_indices (ring, size, candidates->begin);
   return size;
 }
 
 static size_t
 schedule_vivification_candidates (struct ring *ring,
-				  struct watches *candidates)
+				  struct unsigneds *candidates)
 {
   size_t before = SIZE (*candidates);
-  for (all_watches (watch, ring->watches))
-    if (!watch->vivify && watched_vivification_candidate (watch))
-      PUSH (*candidates, watch);
+  for (all_watchers (watcher))
+    if (!watcher->vivify && watched_vivification_candidate (watcher))
+      PUSH (*candidates, watcher_to_index (ring, watcher));
   size_t after = SIZE (*candidates);
   size_t delta = after - before;
-  sort_redundant_watches (delta, candidates->begin + before);
+  sort_redundant_watcher_indices (ring, delta, candidates->begin + before);
   return after;
 }
 
@@ -59,22 +71,22 @@ do { \
     } \
   open++; \
   if (!v->reason) \
-    PUSH (*clause, other); \
+    PUSH (*ring_clause, other); \
 } while (0)
 
 struct watch *
 vivify_strengthen (struct ring *ring, struct watch *candidate)
 {
   LOGWATCH (candidate, "vivify strengthening");
-  assert (!binary_pointer (candidate));
+  assert (!is_binary_pointer (candidate));
   struct unsigneds *analyzed = &ring->analyzed;
   struct variable *variables = ring->variables;
-  struct unsigneds *clause = &ring->clause;
+  struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *levels = &ring->levels;
   bool *used = ring->used;
   struct ring_trail *trail = &ring->trail;
   assert (EMPTY (*analyzed));
-  assert (EMPTY (*clause));
+  assert (EMPTY (*ring_clause));
   struct watch *reason = candidate;
   unsigned *t = trail->end;
   unsigned open = 0;
@@ -82,14 +94,16 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
     {
       assert (reason);
       LOGWATCH (reason, "vivify analyzing");
-      if (binary_pointer (reason))
+      if (is_binary_pointer (reason))
 	{
 	  unsigned other = other_pointer (reason);
 	  ANALYZE (other);
 	}
       else
 	{
-	  for (all_literals_in_clause (other, reason->clause))
+	  struct watcher *watcher = get_watcher (ring, reason);
+	  struct clause *reason_clause = watcher->clause;
+	  for (all_literals_in_clause (other, reason_clause))
 	    ANALYZE (other);
 	}
       assert (open);
@@ -118,10 +132,10 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
     }
   while (open);
   LOGTMP ("vivify strengthened");
-  size_t size = SIZE (*clause);
+  size_t size = SIZE (*ring_clause);
   assert (size);
-  assert (size < candidate->clause->size);
-  unsigned *literals = clause->begin;
+  assert (size < get_clause (ring, candidate)->size);
+  unsigned *literals = ring_clause->begin;
   struct watch *res = 0;
   if (size == 1)
     {
@@ -144,11 +158,12 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
     }
   else
     {
+      struct watcher *watcher = get_watcher (ring, candidate);
       unsigned glue = SIZE (*levels);
       LOG ("computed glue %u", glue);
-      if (glue > candidate->glue)
+      if (glue > watcher->glue)
 	{
-	  glue = candidate->glue;
+	  glue = watcher->glue;
 	  LOG ("but candidate glue %u smaller", glue);
 	}
       assert (glue < size);
@@ -163,7 +178,7 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
 	export_tier2_clause (ring, clause);
     }
   clear_analyzed (ring);
-  CLEAR (*clause);
+  CLEAR (*ring_clause);
   return res;
 }
 
@@ -171,9 +186,6 @@ void
 vivify_clauses (struct ring *ring)
 {
   if (ring->inconsistent)
-    return;
-  struct watches *watches = &ring->watches;
-  if (EMPTY (*watches))
     return;
   START (ring, vivify);
   assert (SEARCH_TICKS >= ring->last.probing);
@@ -185,7 +197,7 @@ vivify_clauses (struct ring *ring)
   uint64_t probing_ticks_before = PROBING_TICKS;
   uint64_t limit = probing_ticks_before + delta_probing_ticks;
   size_t implied = 0, strengthened = 0, tried = 0, vivified = 0;
-  struct watches candidates;
+  struct unsigneds candidates;
   INIT (candidates);
   size_t rescheduled = reschedule_vivification_candidates (ring, &candidates);
   very_verbose (ring, "rescheduling %zu vivification candidates",
@@ -196,9 +208,9 @@ vivify_clauses (struct ring *ring)
 		scheduled);
   (void) scheduled;
   signed char *values = ring->values;
-  struct watch **begin = candidates.begin;
-  struct watch **end = candidates.end;
-  struct watch **p = begin;
+  unsigned *begin = candidates.begin;
+  unsigned *end = candidates.end;
+  unsigned *p = begin;
   while (p != end)
     {
       if (PROBING_TICKS > limit)
@@ -219,11 +231,11 @@ vivify_clauses (struct ring *ring)
 	}
       tried++;
       assert (!ring->level);
-      struct watch *watch = *p++;
-      assert (!binary_pointer (watch));
-      assert (watched_vivification_candidate (watch));
-      watch->vivify = false;
-      struct clause *clause = watch->clause;
+      unsigned idx = *p++;
+      struct watcher *watcher = index_to_watcher (ring, idx);
+      assert (watched_vivification_candidate (watcher));
+      watcher->vivify = false;
+      struct clause *clause = watcher->clause;
       unsigned non_root_level_falsified = 0;
       for (all_literals_in_clause (lit, clause))
 	{
@@ -235,7 +247,7 @@ vivify_clauses (struct ring *ring)
 	      unsigned not_lit = NOT (lit);
 	      LOG ("assuming %s", LOGLIT (not_lit));
 	      assign_decision (ring, not_lit);
-	      if (ring_propagate (ring, false, watch))
+	      if (ring_propagate (ring, false, clause))
 		goto IMPLIED;
 	    }
 	  else
@@ -247,15 +259,15 @@ vivify_clauses (struct ring *ring)
 		  if (v->level)
 		    {
 		    IMPLIED:
-		      LOGWATCH (watch, "vivify implied");
+		      LOGCLAUSE (clause, "vivify implied");
 		      ring->statistics.vivify.succeeded++;
 		      ring->statistics.vivify.implied++;
 		      vivified++;
 		      implied++;
 		    }
 		  else
-		    LOGWATCH (watch, "root-level satisfied");
-		  mark_garbage_watch (ring, watch);
+		    LOGCLAUSE (clause, "root-level satisfied");
+		  mark_garbage_watcher (ring, watcher);
 		  break;
 		}
 	      else if (value < 0)
@@ -265,20 +277,26 @@ vivify_clauses (struct ring *ring)
 		}
 	    }
 	}
-      if (!watch->garbage && non_root_level_falsified)
+      if (!watcher->garbage && non_root_level_falsified)
 	{
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.strengthened++;
 	  strengthened++;
+	  struct watch *watch = tag_index (true, idx, INVALID_LIT);
 	  struct watch *strengthened = vivify_strengthen (ring, watch);
-	  mark_garbage_watch (ring, watch);
+	  watcher = index_to_watcher (ring, idx);
+	  mark_garbage_watcher (ring, watcher);
 	  if (ring->inconsistent)
 	    break;
-	  if (strengthened && !binary_pointer (strengthened))
+	  if (strengthened && !is_binary_pointer (strengthened))
 	    {
-	      assert (watched_vivification_candidate (strengthened));
+#ifndef NDEBUG
+	      struct watcher *swatcher = get_watcher (ring, strengthened);
+	      assert (watched_vivification_candidate (swatcher));
+#endif
 	      size_t pos = p - begin;
-	      PUSH (candidates, strengthened);
+	      unsigned sidx = index_pointer (strengthened);
+	      PUSH (candidates, sidx);
 	      if (candidates.begin != begin)
 		{
 		  begin = candidates.begin;
@@ -290,9 +308,9 @@ vivify_clauses (struct ring *ring)
       if (ring->level)
 	backtrack (ring, 0);
     }
-  if (p != end && !(*p)->vivify)
+  if (p != end && !index_to_watcher (ring, *p)->vivify)
     while (p != end)
-      (*p++)->vivify = true;
+      index_to_watcher (ring, *p++)->vivify = true;
   RELEASE (candidates);
   very_verbose (ring,
 		"vivified %zu clauses %.0f%% from %zu tried %.0f%% "

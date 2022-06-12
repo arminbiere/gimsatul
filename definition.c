@@ -23,7 +23,7 @@ find_binary_and_gate_clauses (struct simplifier *simplifier,
   struct clauses *not_lit_clauses = &OCCURRENCES (not_lit);
   unsigned marked = 0;
   for (all_clauses (not_lit_clause, *not_lit_clauses))
-    if (binary_pointer (not_lit_clause))
+    if (is_binary_pointer (not_lit_clause))
       {
 	unsigned other = other_pointer (not_lit_clause);
 	unsigned not_other = NOT (other);
@@ -51,7 +51,7 @@ find_and_gate (struct simplifier *simplifier, unsigned lit,
 {
   struct ruler *ruler = simplifier->ruler;
   for (all_clauses (clause, OCCURRENCES (lit)))
-    if (!binary_pointer (clause))
+    if (!is_binary_pointer (clause))
       if (find_binary_and_gate_clauses (simplifier, lit, clause,
 					gate, nogate))
 	return clause;
@@ -64,12 +64,12 @@ find_equivalence_gate (struct simplifier *simplifier, unsigned lit)
   signed char *marks = simplifier->marks;
   struct ruler *ruler = simplifier->ruler;
   for (all_clauses (clause, OCCURRENCES (lit)))
-    if (binary_pointer (clause))
+    if (is_binary_pointer (clause))
       marks[other_pointer (clause)] = 1;
   unsigned not_lit = NOT (lit);
   unsigned res = INVALID;
   for (all_clauses (clause, OCCURRENCES (not_lit)))
-    if (binary_pointer (clause))
+    if (is_binary_pointer (clause))
       {
 	unsigned other = other_pointer (clause);
 	unsigned not_other = NOT (other);
@@ -80,7 +80,7 @@ find_equivalence_gate (struct simplifier *simplifier, unsigned lit)
 	  }
       }
   for (all_clauses (clause, OCCURRENCES (lit)))
-    if (binary_pointer (clause))
+    if (is_binary_pointer (clause))
       marks[other_pointer (clause)] = 0;
   return res;
 }
@@ -101,7 +101,7 @@ find_definition (struct simplifier *simplifier, unsigned lit)
 	  CLEAR (gate[0]);
 	  CLEAR (nogate[0]);
 	  unsigned not_other = NOT (other);
-	  struct clause *lit_clause = tag_pointer (false, lit, not_other);
+	  struct clause *lit_clause = tag_binary (false, lit, not_other);
 	  bool found = false;
 	  PUSH (gate[0], lit_clause);
 	  for (all_clauses (clause, OCCURRENCES (lit)))
@@ -115,7 +115,7 @@ find_definition (struct simplifier *simplifier, unsigned lit)
 	  CLEAR (gate[1]);
 	  CLEAR (nogate[1]);
 	  unsigned not_lit = NOT (lit);
-	  struct clause *not_lit_clause = tag_pointer (false, not_lit, other);
+	  struct clause *not_lit_clause = tag_binary (false, not_lit, other);
 	  bool found = false;
 	  PUSH (gate[1], not_lit_clause);
 	  for (all_clauses (clause, OCCURRENCES (not_lit)))

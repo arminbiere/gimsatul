@@ -54,10 +54,10 @@ check_types (void)
   }
 
   {
-    size_t glue_in_watch_bytes = sizeof ((struct watch *) 0)->glue;
-    if (1 << (glue_in_watch_bytes * 8) <= MAX_GLUE)
-      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (watch.glue) = %zu'",
-		   MAX_GLUE, glue_in_watch_bytes);
+    size_t glue_in_watcher_bytes = sizeof ((struct watcher *) 0)->glue;
+    if (1 << (glue_in_watcher_bytes * 8) <= MAX_GLUE)
+      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (watcher.glue) = %zu'",
+		   MAX_GLUE, glue_in_watcher_bytes);
   }
 
   if (verbosity > 0)
@@ -67,6 +67,6 @@ check_types (void)
       printf ("c sizeof (struct counter) = %zu\n", sizeof (struct counter));
       printf ("c sizeof (struct phases) = %zu\n", sizeof (struct phases));
       printf ("c sizeof (struct variable) = %zu\n", sizeof (struct variable));
-      printf ("c sizeof (struct watch) = %zu\n", sizeof (struct watch));
+      printf ("c sizeof (struct watcher) = %zu\n", sizeof (struct watcher));
     }
 }

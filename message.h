@@ -23,9 +23,11 @@ extern const char *prefix_format;
 
 #ifdef LOGGING
 #include <stdatomic.h>
+// *INDENT-OFF
 extern
 _Atomic (uint64_t)
   clause_ids;
+// *INDENT-ON
 #endif
 
      void acquire_message_lock (void);

@@ -26,7 +26,7 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
   depth++;
   bool res = true;
   const unsigned not_lit = NOT (lit);
-  if (binary_pointer (reason))
+  if (is_binary_pointer (reason))
     {
       assert (lit_pointer (reason) == not_lit);
       unsigned other = other_pointer (reason);
@@ -34,7 +34,7 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
     }
   else
     {
-      struct clause *clause = reason->clause;
+      struct clause *clause = get_clause (ring, reason);
       for (all_literals_in_clause (other, clause))
 	if (other != not_lit && !minimize_literal (ring, other, depth))
 	  {
@@ -130,14 +130,14 @@ shrink_clause (struct ring *ring)
       if (!v->shrinkable)
 	continue;
       struct watch *reason = v->reason;
-      if (binary_pointer (reason))
+      if (is_binary_pointer (reason))
 	{
 	  unsigned other = other_pointer (reason);
 	  SHRINK_LITERAL (other);
 	}
       else if (reason)
 	{
-	  struct clause *clause = reason->clause;
+	  struct clause *clause = get_clause (ring, reason);
 	  for (all_literals_in_clause (other, clause))
 	    SHRINK_LITERAL (other);
 	}

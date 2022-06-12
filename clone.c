@@ -24,7 +24,7 @@ copy_ruler_binaries (struct ring *ring)
       unsigned *b = references->binaries = binaries;
       for (all_clauses (clause, *occurrences))
 	{
-	  assert (binary_pointer (clause));
+	  assert (is_binary_pointer (clause));
 	  assert (lit_pointer (clause) == lit);
 	  assert (!redundant_pointer (clause));
 	  unsigned other = other_pointer (clause);
@@ -91,22 +91,22 @@ restore_saved_redundant_clauses (struct ring *ring)
   size_t binaries = 0, large = 0;
   for (all_clauses (clause, *saved))
     {
-      if (binary_pointer (clause))
+      if (is_binary_pointer (clause))
 	{
 	  struct watch *lit_watch = (struct watch *) clause;
 	  unsigned lit = lit_pointer (clause);
-	  watch_literal (ring, lit, lit_watch);
+	  push_watch (ring, lit, lit_watch);
 	  assert (redundant_pointer (clause));
 	  unsigned other = other_pointer (clause);
-	  struct watch *other_watch = tag_pointer (true, other, lit);
-	  watch_literal (ring, other, other_watch);
+	  struct watch *other_watch = tag_binary (true, other, lit);
+	  push_watch (ring, other, other_watch);
 	  binaries++;
 	}
       else
 	{
 	  assert (!clause->mapped);
 	  assert (!clause->garbage);
-	  watch_first_two_literals_in_large_clause (ring, clause);
+	  (void) watch_first_two_literals_in_large_clause (ring, clause);
 	  large++;
 	}
     }

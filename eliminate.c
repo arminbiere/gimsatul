@@ -28,7 +28,7 @@ static bool
 clause_with_too_many_occurrences (struct ruler *ruler,
 				  struct clause *clause, unsigned except)
 {
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
       return literal_with_too_many_occurrences (ruler, other);
@@ -38,7 +38,7 @@ clause_with_too_many_occurrences (struct ruler *ruler,
   if (clause->size > clause_size_limit)
     {
       ROGCLAUSE (clause, "antecedent size %zu exceeded by",
-                 clause_size_limit);
+		 clause_size_limit);
       return true;
     }
 
@@ -58,7 +58,7 @@ actual_occurrences (struct clauses *clauses)
   while (p != end)
     {
       struct clause *clause = *q++ = *p++;
-      if (binary_pointer (clause))
+      if (is_binary_pointer (clause))
 	continue;
       ticks++;
       if (clause->garbage)
@@ -76,7 +76,7 @@ can_resolve_clause (struct simplifier *simplifier,
   signed char *marks = simplifier->marks;
   struct ruler *ruler = simplifier->ruler;
   signed char *values = (signed char *) ruler->values;
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
       signed char value = values[other];
@@ -266,7 +266,7 @@ add_first_antecedent_literals (struct simplifier *simplifier,
   ROGCLAUSE (clause, "1st %s antecedent", ROGLIT (pivot));
   signed char *values = (signed char *) ruler->values;
   struct unsigneds *resolvent = &simplifier->resolvent;
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
       signed char value = values[other];
@@ -314,7 +314,7 @@ add_second_antecedent_literals (struct simplifier *simplifier,
   signed char *values = (signed char *) ruler->values;
   signed char *marks = simplifier->marks;
   struct unsigneds *resolvent = &simplifier->resolvent;
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     {
       unsigned other = other_pointer (clause);
       signed char value = values[other];
@@ -474,7 +474,7 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
 		 ruler->statistics.weakened, ROGLIT (pivot));
       PUSH (*extension, INVALID);
       PUSH (*extension, unmap_literal (unmap, pivot));
-      if (binary_pointer (clause))
+      if (is_binary_pointer (clause))
 	{
 	  unsigned other = other_pointer (clause);
 	  PUSH (*extension, unmap_literal (unmap, other));
@@ -583,7 +583,7 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
 }
 
 void
-try_to_increase_elimination_bound (struct ruler * ruler)
+try_to_increase_elimination_bound (struct ruler *ruler)
 {
   unsigned max_bound = ruler->limits.max_bound;
   unsigned old_bound = ruler->limits.current_bound;
@@ -592,8 +592,7 @@ try_to_increase_elimination_bound (struct ruler * ruler)
     new_bound = max_bound;
   assert (old_bound <= new_bound);
 #ifndef QUIET
-  const char *reached_max_bound =
-    new_bound == max_bound ? "maximum " : "";
+  const char *reached_max_bound = new_bound == max_bound ? "maximum " : "";
 #endif
   if (old_bound == new_bound)
     verbose (0, "keeping elimination bound at %s%u",

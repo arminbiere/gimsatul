@@ -45,7 +45,7 @@ find_equivalent_literals (struct simplifier *simplifier, unsigned round)
 	      struct clauses *clauses = &OCCURRENCES (not_lit);
 	      for (all_clauses (clause, *clauses))
 		{
-		  if (!binary_pointer (clause))
+		  if (!is_binary_pointer (clause))
 		    continue;
 		  unsigned other = other_pointer (clause);
 		  if (values[other])
@@ -99,7 +99,7 @@ find_equivalent_literals (struct simplifier *simplifier, unsigned round)
 	      struct clauses *clauses = &OCCURRENCES (not_lit);
 	      for (all_clauses (clause, *clauses))
 		{
-		  if (!binary_pointer (clause))
+		  if (!is_binary_pointer (clause))
 		    continue;
 		  unsigned other = other_pointer (clause);
 		  if (values[other])
@@ -142,7 +142,7 @@ substitute_clause (struct simplifier *simplifier,
   struct unsigneds *resolvent = &simplifier->resolvent;
   CLEAR (*resolvent);
   unsigned not_dst = NOT (dst);
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     {
       assert (lit_pointer (clause) == src);
       unsigned other = other_pointer (clause);
@@ -208,7 +208,7 @@ substitute_literal (struct simplifier *simplifier, unsigned src, unsigned dst)
   struct clauses *clauses = &OCCURRENCES (src);
   for (all_clauses (clause, *clauses))
     {
-      if (!binary_pointer (clause) && clause->garbage)
+      if (!is_binary_pointer (clause) && clause->garbage)
 	continue;
       substitute_clause (simplifier, src, dst, clause);
       if (ruler->inconsistent)

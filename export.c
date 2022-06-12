@@ -43,7 +43,7 @@ export_units (struct ring *ring)
 void
 export_binary (struct ring *ring, struct watch *watch)
 {
-  assert (binary_pointer (watch));
+  assert (is_binary_pointer (watch));
   unsigned threads = ring->threads;
   if (threads < 2)
     return;
@@ -95,7 +95,7 @@ export_clause (struct ring *ring, struct clause *clause, unsigned shared)
 void
 export_glue1_clause (struct ring *ring, struct clause *clause)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   assert (clause->glue <= 1);
   if (ring->pool)
     ring->statistics.exported.glue1 +=
@@ -105,7 +105,7 @@ export_glue1_clause (struct ring *ring, struct clause *clause)
 void
 export_tier1_clause (struct ring *ring, struct clause *clause)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   assert (1 < clause->glue);
   assert (clause->glue <= TIER2_GLUE_LIMIT);
   if (ring->pool)
@@ -116,7 +116,7 @@ export_tier1_clause (struct ring *ring, struct clause *clause)
 void
 export_tier2_clause (struct ring *ring, struct clause *clause)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   assert (TIER1_GLUE_LIMIT < clause->glue);
   assert (clause->glue <= TIER2_GLUE_LIMIT);
   if (ring->pool)

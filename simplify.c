@@ -99,7 +99,7 @@ ruler_propagate (struct simplifier *simplifier)
 	  bool satisfied = false;
 	  unsigned unit = INVALID;
 	  unsigned non_false = 0;
-	  if (binary_pointer (clause))
+	  if (is_binary_pointer (clause))
 	    {
 	      assert (lit_pointer (clause) == not_lit);
 	      unsigned other = other_pointer (clause);
@@ -225,7 +225,7 @@ flush_garbage_and_satisfied_occurrences (struct simplifier *simplifier)
       while (p != end)
 	{
 	  struct clause *clause = *q++ = *p++;
-	  if (binary_pointer (clause))
+	  if (is_binary_pointer (clause))
 	    {
 	      assert (lit_pointer (clause) == lit);
 	      unsigned other = other_pointer (clause);
@@ -407,7 +407,8 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
     }
 
   if (level)
-    verbose (0, "scaling all simplification ticks limits by %" PRIu64, scale10);
+    verbose (0, "scaling all simplification ticks limits by %" PRIu64,
+	     scale10);
   else
     verbose (0, "keeping simplification ticks limits at their default");
 
@@ -432,14 +433,14 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
       }
     else
       {
-	struct ring * first = first_ring (ruler);
+	struct ring *first = first_ring (ruler);
 	search = first->statistics.contexts[SEARCH_CONTEXT].ticks;
 	search -= ruler->last.search;
       }
 
     {
       uint64_t effort = ELIMINATE_EFFORT * search;
-      uint64_t base = 1e6*ruler->options.eliminate_ticks;
+      uint64_t base = 1e6 * ruler->options.eliminate_ticks;
       uint64_t ticks = MAX (effort, base);
       uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
       uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
@@ -452,7 +453,7 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
 
     {
       uint64_t effort = SUBSUME_EFFORT * search;
-      uint64_t base = 1e6*ruler->options.subsume_ticks;
+      uint64_t base = 1e6 * ruler->options.subsume_ticks;
       uint64_t ticks = MAX (effort, base);
       uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
       uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
@@ -483,7 +484,7 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
       }
     else
       verbose (0, "running at most %u simplification rounds (default)",
-               max_rounds);
+	       max_rounds);
     limits->max_rounds = max_rounds;
   }
 

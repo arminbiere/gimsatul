@@ -104,6 +104,15 @@ init_ring (struct ring *ring)
   ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
 }
 
+static void
+init_watchers (struct ring *ring)
+{
+  assert (EMPTY (ring->watchers));
+  ENLARGE (ring->watchers);
+  memset (ring->watchers.begin, 0, sizeof *ring->watchers.begin);
+  ring->watchers.end++;
+}
+
 void
 release_ring (struct ring *ring, bool keep_values)
 {
@@ -143,6 +152,7 @@ new_ring (struct ruler *ruler)
   ring->size = size;
   verbose (ring, "new ring[%u] of size %u", ring->id, size);
 
+  init_watchers (ring);
   init_ring (ring);
 
   struct heap *heap = &ring->heap;
@@ -178,19 +188,18 @@ new_ring (struct ruler *ruler)
 }
 
 static void
-release_watches (struct ring *ring)
+release_watchers (struct ring *ring)
 {
-  for (all_watches (watch, ring->watches))
+  for (all_watchers (watcher))
     {
-      assert (!binary_pointer (watch));
-      struct clause *clause = watch->clause;
+      assert (!is_binary_pointer (watcher));
+      struct clause *clause = watcher->clause;
       unsigned shared = atomic_fetch_sub (&clause->shared, 1);
       assert (shared + 1);
       if (!shared)
 	free (clause);
-      free (watch);
     }
-  RELEASE (ring->watches);
+  RELEASE (ring->watchers);
 }
 
 static void
@@ -198,7 +207,7 @@ release_saved (struct ring *ring)
 {
   for (all_clauses (clause, ring->saved))
     {
-      if (binary_pointer (clause))
+      if (is_binary_pointer (clause))
 	continue;
       unsigned shared = atomic_fetch_sub (&clause->shared, 1);
       assert (shared + 1);
@@ -232,7 +241,7 @@ release_pool (struct ring *ring)
 	  struct clause *clause = (struct clause *) pool->share[i];
 	  if (!clause)
 	    continue;
-	  if (binary_pointer (clause))
+	  if (is_binary_pointer (clause))
 	    continue;
 	  unsigned shared = atomic_fetch_sub (&clause->shared, 1);
 	  assert (shared + 1);
@@ -270,7 +279,7 @@ delete_ring (struct ring *ring)
   free (ring->phases);
   free (ring->queue.links);
 
-  release_watches (ring);
+  release_watchers (ring);
   release_saved (ring);
 
   RELEASE (ring->trace.buffer);
@@ -330,12 +339,14 @@ mark_satisfied_ring_clauses_as_garbage (struct ring *ring)
   size_t marked = 0;
   signed char *values = ring->values;
   struct variable *variables = ring->variables;
-  for (all_watches (watch, ring->watches))
+  size_t size = 0;
+  for (all_watchers (watcher))
     {
-      if (watch->garbage)
+      size++;
+      if (watcher->garbage)
 	continue;
       bool satisfied = false;
-      struct clause *clause = watch->clause;
+      struct clause *clause = watcher->clause;
       for (all_literals_in_clause (lit, clause))
 	{
 	  if (values[lit] <= 0)
@@ -348,10 +359,10 @@ mark_satisfied_ring_clauses_as_garbage (struct ring *ring)
 	}
       if (!satisfied)
 	continue;
-      mark_garbage_watch (ring, watch);
+      mark_garbage_watcher (ring, watcher);
       marked++;
     }
   ring->last.fixed = ring->statistics.fixed;
   verbose (ring, "marked %zu satisfied clauses as garbage %.0f%%",
-	   marked, percent (marked, SIZE (ring->watches)));
+	   marked, percent (marked, size));
 }
