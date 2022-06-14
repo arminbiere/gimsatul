@@ -3,7 +3,6 @@
 void
 update_average (struct average *average, double alpha, double y)
 {
-  double beta = 1 - alpha;
   double old_biased = average->biased;
   double delta = y - old_biased;
   double scaled_delta = alpha * delta;
@@ -13,6 +12,7 @@ update_average (struct average *average, double alpha, double y)
   double new_value;
   if (old_exp)
     {
+      double beta = 1 - alpha;
       double new_exp = old_exp * beta;
       average->exp = new_exp;
       double div = 1 - new_exp;
