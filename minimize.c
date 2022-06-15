@@ -189,8 +189,9 @@ shrink_or_minimize_clause (struct ring *ring, unsigned glue)
   size_t minimized = 0;
   size_t shrunken = 0;
 
-  if (glue == 1 && deduced > 2)
-    shrunken = shrink_clause (ring);
+  if (ring->options.shrink)
+    if (glue == 1 && deduced > 2)
+      shrunken = shrink_clause (ring);
 
   if (ring->options.minimize)
     if (glue && !shrunken && deduced > 2)

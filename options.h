@@ -69,6 +69,7 @@ OPTION (unsigned, random_decisions,        100, 0, INF,   "initial random decisi
 OPTION (unsigned, reduce_interval,         1e3, 1, INF, "reduce base conflict interval") \
 OPTION (bool,     rephase,                 1, 0, 1,     "reset saved phases regularly") \
 OPTION (unsigned, rephase_interval,        1e3, 1, INF, "base rephase conflict interval") \
+OPTION (bool,     shrink,                  0, 0, 1,     "shrink (glue 1) learned clauses") \
 OPTION (bool,     simplify,                1, 0, 1,     "elimination, subsumption and substitution") \
 OPTION (unsigned, simplify_boost,          1, 0, 1,     "additional initial boost to simplification") \
 OPTION (unsigned, simplify_boost_rounds,   4, 2, INF,   "initial increase rounds limit") \
