@@ -14,9 +14,15 @@ print_ring_statistics (struct ring *ring)
   double search = ring->profiles.search.time;
   double walk = ring->profiles.solve.time;
   struct ring_statistics *s = &ring->statistics;
-  uint64_t conflicts = s->contexts[SEARCH_CONTEXT].conflicts;
-  uint64_t decisions = s->contexts[SEARCH_CONTEXT].decisions;
-  uint64_t propagations = s->contexts[SEARCH_CONTEXT].propagations;
+  struct context *c = s->contexts + SEARCH_CONTEXT;
+  uint64_t conflicts = c->conflicts;
+  uint64_t decisions = c->decisions;
+  uint64_t propagations = c->propagations;
+#ifdef METRICS
+  uint64_t visits = 0;
+  for (unsigned i = 0; i != SIZE_VISITS; i++)
+    visits += c->visits[i];
+#endif
   unsigned variables = ring->ruler->size;
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second", "conflicts:",
 	   conflicts, average (conflicts, search));
@@ -126,6 +132,28 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-21s %17" PRIu64 " %13.2f millions per second",
 	   "propagations:", propagations, average (propagations,
 						   1e6 * search));
+#ifdef METRICS
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f per propagation",
+	   "visits:", visits, average (visits, propagations));
+#define PRINTVISITS(SIZE) \
+  if (SIZE < SIZE_VISITS) \
+    PRINTLN ("%-21s %17" PRIu64 " %13.2f %% visits", \
+	     "  visits" #SIZE ":", c->visits[SIZE], percent (c->visits[SIZE], visits))
+  PRINTVISITS (0);
+  PRINTVISITS (3);
+  PRINTVISITS (4);
+  PRINTVISITS (5);
+  PRINTVISITS (6);
+  PRINTVISITS (7);
+  PRINTVISITS (8);
+  PRINTVISITS (9);
+  PRINTVISITS (10);
+  PRINTVISITS (11);
+  PRINTVISITS (12);
+  PRINTVISITS (13);
+  PRINTVISITS (14);
+  PRINTVISITS (15);
+#endif
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	   "probings:", s->probings, average (conflicts, s->probings));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",

@@ -10,9 +10,8 @@
 #include "utilities.h"
 
 static void
-bump_reason (struct ring *ring, struct watch *watch)
+bump_reason (struct ring *ring, struct watcher *watcher)
 {
-  struct watcher *watcher = get_watcher (ring, watch);
   if (!watcher->redundant)
     return;
   if (watcher->glue <= TIER1_GLUE_LIMIT)
@@ -154,10 +153,14 @@ analyze (struct ring *ring, struct watch *reason)
 	}
       else
 	{
-	  bump_reason (ring, reason);
-	  struct clause *reason_clause = get_clause (ring, reason);
-	  for (all_literals_in_clause (lit, reason_clause))
-	    ANALYZE_LITERAL (lit);
+	  struct watcher *watcher = get_watcher (ring, reason);
+	  bump_reason (ring, watcher);
+	  if (watcher->size)
+	    for (all_watcher_literals (lit, watcher))
+	      ANALYZE_LITERAL (lit);
+	  else
+	    for (all_literals_in_clause (lit, watcher->clause))
+	      ANALYZE_LITERAL (lit);
 	}
       do
 	{

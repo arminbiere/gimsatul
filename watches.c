@@ -94,26 +94,43 @@ watch_literals_in_large_clause (struct ring *ring,
   struct watcher *watcher = ring->watchers.end++;
   assert (ring->watchers.end <= ring->watchers.allocated);
 
-  bool redundant = clause->redundant;
+  unsigned size = clause->size;
   unsigned glue = clause->glue;
+  bool redundant = clause->redundant;
+
+  if (size > 4)			// TODO was 4
+    size = 0;
+
+  unsigned used;
+  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
+    used = 2;
+  else if (redundant && glue >= TIER2_GLUE_LIMIT)
+    used = 1;
+  else
+    used = 0;
+
+  assert (size < (1 << (8 * sizeof watcher->size)));
+  assert (glue < (1 << (8 * sizeof watcher->glue)));
+  assert (used < (1 << (8 * sizeof watcher->used)));
+
+  watcher->size = size;
+  watcher->glue = glue;
+  watcher->used = used;
 
   watcher->garbage = false;
   watcher->reason = false;
   watcher->redundant = redundant;
   watcher->vivify = false;
-  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
-    watcher->used = 2;
-  else if (redundant && glue >= TIER2_GLUE_LIMIT)
-    watcher->used = 1;
-  else
-    watcher->used = 0;
-  assert (glue <= MAX_GLUE);
-  watcher->glue = glue;
-#ifndef NMIDDLE
-  watcher->middle = 2;
-#endif
+
   watcher->sum = first ^ second;
   watcher->clause = clause;
+
+  if (size)
+    memcpy (watcher->aux, clause->literals, size * sizeof (unsigned));
+#ifndef NMIDDLE
+  else
+    watcher->aux[0] = 2;
+#endif
 
   inc_clauses (ring, redundant);
 

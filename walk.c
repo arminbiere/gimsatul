@@ -740,7 +740,7 @@ local_search (struct ring *ring)
   if (ring->level)
     backtrack (ring, 0);
   if (ring->last.fixed != ring->statistics.fixed)
-    mark_satisfied_ring_clauses_as_garbage (ring);
+    mark_satisfied_watchers_as_garbage (ring);
   struct walker *walker = new_walker (ring);
   walking_loop (walker);
   save_final_minimum (walker);

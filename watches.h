@@ -9,17 +9,16 @@ struct unsigneds;
 
 struct watcher
 {
-  unsigned short used;
+  unsigned char size;
   unsigned char glue;
+  unsigned char used;
   bool garbage:1;
   bool reason:1;
   bool redundant:1;
   bool vivify:1;
-#ifndef NMIDDLE
-  unsigned middle;
-#endif
   unsigned sum;
   struct clause *clause;
+  unsigned aux[4];
 };
 
 struct watchers
@@ -46,6 +45,12 @@ struct references
 
 #define all_watches(ELEM,WATCHES) \
   all_pointers_on_stack (struct watch, ELEM, WATCHES)
+
+#define all_watcher_literals(LIT,WATCHER) \
+  unsigned * P_ ## LIT = (assert ((WATCHER)->size), (WATCHER)->aux), \
+           * END_ ## LIT = P_ ## LIT + (WATCHER)->size, LIT; \
+  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
+  ++ P_ ## LIT
 
 /*------------------------------------------------------------------------*/
 

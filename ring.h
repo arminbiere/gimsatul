@@ -190,7 +190,7 @@ void delete_ring (struct ring *);
 
 void init_pool (struct ring *, unsigned threads);
 
-void mark_satisfied_ring_clauses_as_garbage (struct ring *);
+void mark_satisfied_watchers_as_garbage (struct ring *);
 
 void inc_clauses (struct ring *ring, bool redundant);
 void dec_clauses (struct ring *ring, bool redundant);

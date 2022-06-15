@@ -243,7 +243,7 @@ reduce (struct ring *ring)
   INIT (candidates);
   bool fixed = ring->last.fixed != ring->statistics.fixed;
   if (fixed)
-    mark_satisfied_ring_clauses_as_garbage (ring);
+    mark_satisfied_watchers_as_garbage (ring);
   gather_reduce_candidates (ring, &candidates);
   sort_redundant_watcher_indices (ring, SIZE (candidates), candidates.begin);
   mark_reduce_candidates_as_garbage (ring, &candidates);

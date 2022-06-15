@@ -10,12 +10,17 @@ struct ruler;
 
 /*------------------------------------------------------------------------*/
 
+#define SIZE_VISITS 7
+
 struct context
 {
-  uint64_t propagations;
   uint64_t ticks;
+  uint64_t propagations;
   uint64_t conflicts;
   uint64_t decisions;
+#ifdef METRICS
+  uint64_t visits[SIZE_VISITS];
+#endif
 };
 
 #define SEARCH_CONTEXT 0
