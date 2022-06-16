@@ -199,6 +199,7 @@ shrink_or_minimize_clause (struct ring *ring, unsigned glue)
 
   size_t learned = SIZE (ring->clause);
   assert (learned + minimized + shrunken == deduced);
+  (void) learned, (void) minimized;
 
   ring->statistics.learned.clauses++;
 #ifdef METRICS
