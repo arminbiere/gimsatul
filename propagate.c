@@ -246,13 +246,9 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 #endif
 		  unsigned *literals = clause->literals;
 		  unsigned *end_literals = literals + clause->size;
-#ifndef NMIDDLE
 		  assert (watcher->aux[0] <= clause->size);
 		  unsigned *middle_literals = literals + watcher->aux[0];
 		  unsigned *r = middle_literals;
-#else
-		  unsigned *r = literals;
-#endif
 		  while (r != end_literals)
 		    {
 		      replacement = *r;
@@ -264,7 +260,6 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 			}
 		      r++;
 		    }
-#ifndef NMIDDLE
 		  if (replacement_value < 0)
 		    {
 		      r = literals;
@@ -281,7 +276,6 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
 			}
 		    }
 		  watcher->aux[0] = r - literals;
-#endif
 		}
 
 	      if (replacement_value >= 0)

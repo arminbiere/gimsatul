@@ -33,7 +33,7 @@ export_units (struct ring *ring)
       very_verbose (ring, "exporting unit %d",
 		    unmap_and_export_literal (ruler->unmap, unit));
       assign_ruler_unit (ruler, unit);
-      ring->statistics.exported.units++;
+      INC_UNIT_CLAUSE_STATISTICS (exported);
     }
 
   if (locked && pthread_mutex_unlock (&ruler->locks.units))
@@ -97,3 +97,27 @@ export_large_clause (struct ring *ring, struct clause *clause)
     }
   INC_LARGE_CLAUSE_STATISTICS (exported, glue);
 }
+
+void
+flush_pool (struct ring *ring)
+{
+  size_t flushed = 0;
+  for (unsigned i = 0; i != ring->threads; i++)
+    {
+      if (i == ring->id)
+       continue;
+      struct pool *pool = ring->pool + i;
+      for (unsigned shared = 0; shared != SIZE_SHARED; shared++)
+       {
+         atomic_uintptr_t *share = &pool->share[shared];
+         uintptr_t clause = atomic_exchange (share, 0);
+         if (!clause)
+           continue;
+         if (shared != BINARY_SHARED)
+           dereference_clause (ring, (struct clause *) clause);
+         flushed++;
+       }
+    }
+  very_verbose (ring, "flushed %zu clauses to be exported", flushed);
+}
+

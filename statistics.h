@@ -10,7 +10,9 @@ struct ruler;
 
 /*------------------------------------------------------------------------*/
 
-#define SIZE_VISITS 7
+#ifdef METRICS
+#define SIZE_VISITS 16
+#endif
 
 struct context
 {
@@ -66,11 +68,11 @@ struct ring_statistics
     uint64_t implied;
   } vivify;
 
-#define SIZE_GLUE_STATISTICS 7
+#define SIZE_GLUE_STATISTICS 16
 
   struct
   {
-    uint64_t units;
+    uint64_t FIXunits;
     uint64_t FIXclauses;
     uint64_t FIXbinaries;
     uint64_t FIXtier1, FIXtier2, FIXtier3;
@@ -83,9 +85,9 @@ do { \
   struct ring_statistics * S = &ring->statistics; \
   if ((SIZE) == 1) \
     { \
-      /* Note: units are NOT clauses */ \
+      /* NOTE: units are NOT clauses */ \
       assert (!(GLUE)); \
-      S->NAME.units++; \
+      S->NAME.FIXunits++; \
     } \
   else \
     { \
@@ -94,7 +96,8 @@ do { \
       S->NAME.FIXclauses++; \
       if ((SIZE) == 2) \
 	{ \
-          /* Note: binaries ARE clauses */ \
+          /* NOTE: binaries ARE clauses */ \
+          /* NOTE: binaries ARE tier1 clauses too */ \
 	  assert ((GLUE) == 1); \
 	  S->NAME.FIXbinaries++; \
 	} \

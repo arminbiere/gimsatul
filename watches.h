@@ -7,6 +7,8 @@ struct clause;
 struct ring;
 struct unsigneds;
 
+#define SIZE_WATCHER_LITERALS 4
+
 struct watcher
 {
   unsigned char size;
@@ -18,7 +20,7 @@ struct watcher
   bool vivify:1;
   unsigned sum;
   struct clause *clause;
-  unsigned aux[4];
+  unsigned aux[SIZE_WATCHER_LITERALS];
 };
 
 struct watchers

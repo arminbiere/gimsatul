@@ -98,7 +98,7 @@ watch_literals_in_large_clause (struct ring *ring,
   unsigned glue = clause->glue;
   bool redundant = clause->redundant;
 
-  if (size > 4)			// TODO was 4
+  if (size > SIZE_WATCHER_LITERALS)
     size = 0;
 
   unsigned used;
@@ -127,10 +127,8 @@ watch_literals_in_large_clause (struct ring *ring,
 
   if (size)
     memcpy (watcher->aux, clause->literals, size * sizeof (unsigned));
-#ifndef NMIDDLE
   else
     watcher->aux[0] = 2;
-#endif
 
   inc_clauses (ring, redundant);
 

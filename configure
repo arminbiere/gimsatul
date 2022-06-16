@@ -16,7 +16,6 @@ where '<option>' is one of the following:
                  
 -f...             passed to compiler, e.g., '-fsanitize=address,undefined'
 --no-fast-path    no lock-less fast path for synchronization
---no-middle       no literal traversal middle search cache
 EOF
 exit 1
 }
@@ -26,7 +25,6 @@ debug=no
 fastpath=yes
 logging=no
 metrics=no
-middle=yes
 options=""
 pedantic=no
 quiet=no
@@ -49,7 +47,6 @@ do
     -fsanitize=*thread*) options="$options $1"; fastpath=no;;
     -f*) options="$options $1";;
     --no-fast-path) fastpath=no;;
-    --no-middle) middle=no;;
     *)  die "invalid option '$1' (try '-h')";;
   esac
   shift
@@ -68,7 +65,6 @@ CFLAGS="-Wall$options"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $fastpath = no ] && CFLAGS="$CFLAGS -DNFASTPATH"
 [ $metrics = yes ] && CFLAGS="$CFLAGS -DMETRICS"
-[ $middle = no ] && CFLAGS="$CFLAGS -DNMIDDLE"
 [ $quiet = yes ] && CFLAGS="$CFLAGS -DQUIET"
 echo "configure: $CC $CFLAGS"
 rm -f makefile
