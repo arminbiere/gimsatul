@@ -201,6 +201,7 @@ shrink_or_minimize_clause (struct ring *ring, unsigned glue)
   assert (learned + minimized + shrunken == deduced);
 
   ring->statistics.learned.clauses++;
+#ifdef METRICS
   if (learned == 1)
     ring->statistics.learned.units++;
   else if (learned == 2)
@@ -213,11 +214,11 @@ shrink_or_minimize_clause (struct ring *ring, unsigned glue)
     ring->statistics.learned.tier2++;
   else
     ring->statistics.learned.tier3++;
-
   ring->statistics.literals.learned += learned;
   ring->statistics.literals.minimized += minimized;
   ring->statistics.literals.shrunken += shrunken;
   ring->statistics.literals.deduced += deduced;
+#endif
 
   struct variable *variables = ring->variables;
   for (all_elements_on_stack (unsigned, idx, *minimize))

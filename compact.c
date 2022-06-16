@@ -6,6 +6,8 @@
 
 #include <string.h>
 
+#include "cover.h"
+
 static unsigned
 map_literal (unsigned *map, unsigned original_lit)
 {
@@ -284,6 +286,9 @@ compact_saved (struct ring *ring, unsigned *map, struct clauses *mapped)
   while (p != end)
     {
       struct clause *src_clause = *p++;
+
+      COVER (is_binary_pointer (src_clause));
+
       if (is_binary_pointer (src_clause))
 	{
 	  assert (redundant_pointer (src_clause));

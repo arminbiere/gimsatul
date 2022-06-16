@@ -62,6 +62,7 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per learned clause",
 	   "learned-literals:", s->literals.learned,
 	   average (s->literals.learned, s->learned.clauses));
+#ifdef METRICS
   PRINTLN ("%-21s %17" PRIu64 " %13.2f times learned literals",
 	   "  deduced-literals:", s->literals.deduced,
 	   average (s->literals.deduced, s->literals.learned));
@@ -71,10 +72,11 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per deduced literal",
 	   "  shrunken-literals:", s->literals.shrunken,
 	   percent (s->literals.shrunken, s->literals.deduced));
-
+#endif
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second",
 	   "learned-clauses:", s->learned.clauses,
 	   average (s->learned.clauses, search));
+#ifdef METRICS
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	   "  learned-units:", s->learned.units,
 	   percent (s->learned.units, s->learned.clauses));
@@ -93,7 +95,7 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	   "  learned-tier3:", s->learned.tier3,
 	   percent (s->learned.tier3, s->learned.clauses));
-
+#endif
   if (ring->pool)
     {
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",

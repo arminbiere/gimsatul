@@ -44,9 +44,11 @@ struct ring_statistics
   struct
   {
     uint64_t learned;
+#ifdef METRICS
     uint64_t deduced;
     uint64_t minimized;
     uint64_t shrunken;
+#endif
   } literals;
 
   unsigned active;
@@ -66,13 +68,15 @@ struct ring_statistics
 
   struct
   {
+    uint64_t clauses;
+#ifdef METRICS
     uint64_t units;
     uint64_t binary;
-    uint64_t clauses;
     uint64_t glue1;
     uint64_t tier1;
     uint64_t tier2;
     uint64_t tier3;
+#endif
   } learned;
 
   struct
