@@ -37,16 +37,16 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-22s %17u %13.2f %% variables", "fixed-variables:",
 	   s->fixed, percent (s->fixed, variables));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% fixed",
-	   "  learned-units:", s->learned.FIXunits,
-	   percent (s->learned.FIXunits, s->fixed));
+	   "  learned-units:", s->learned.units,
+	   percent (s->learned.units, s->fixed));
   if (ring->pool)
     {
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% fixed",
-	       "  imported-units:", s->imported.FIXunits,
-	       percent (s->imported.FIXunits, s->fixed));
+	       "  imported-units:", s->imported.units,
+	       percent (s->imported.units, s->fixed));
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% fixed",
-	       "  exported-units:", s->exported.FIXunits,
-	       percent (s->exported.FIXunits, s->fixed));
+	       "  exported-units:", s->exported.units,
+	       percent (s->exported.units, s->fixed));
     }
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f thousands per second",
@@ -54,7 +54,7 @@ print_ring_statistics (struct ring *ring)
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per learned clause",
 	   "vivified-clauses:", s->vivify.succeeded,
-	   percent (s->vivify.succeeded, s->learned.FIXclauses));
+	   percent (s->vivify.succeeded, s->learned.clauses));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivified clause",
 	   "vivify-implied:", s->vivify.implied,
 	   percent (s->vivify.implied, s->vivify.succeeded));
@@ -64,7 +64,7 @@ print_ring_statistics (struct ring *ring)
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned clause",
 	   "learned-literals:", s->literals.learned,
-	   average (s->literals.learned, s->learned.FIXclauses));
+	   average (s->literals.learned, s->learned.clauses));
 #ifdef METRICS
   PRINTLN ("%-22s %17" PRIu64 " %13.2f times learned literals",
 	   "  deduced-literals:", s->literals.deduced,
@@ -80,43 +80,43 @@ print_ring_statistics (struct ring *ring)
 #define PRINT_CLAUSE_METRICS(NAME) \
 do { \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
-	   "  " #NAME "-binaries:", s->NAME.FIXbinaries, \
-	   percent (s->NAME.FIXbinaries, s->NAME.FIXclauses)); \
+	   "  " #NAME "-binaries:", s->NAME.binaries, \
+	   percent (s->NAME.binaries, s->NAME.clauses)); \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
-	   "  " #NAME "-tier1:", s->NAME.FIXtier1, \
-	   percent (s->NAME.FIXtier1, s->NAME.FIXclauses)); \
+	   "  " #NAME "-tier1:", s->NAME.tier1, \
+	   percent (s->NAME.tier1, s->NAME.clauses)); \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
-	   "  " #NAME "-tier2:", s->NAME.FIXtier2, \
-	   percent (s->NAME.FIXtier2, s->NAME.FIXclauses)); \
+	   "  " #NAME "-tier2:", s->NAME.tier2, \
+	   percent (s->NAME.tier2, s->NAME.clauses)); \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
-	   "  " #NAME "-tier3:", s->NAME.FIXtier3, \
-	   percent (s->NAME.FIXtier3, s->NAME.FIXclauses)); \
+	   "  " #NAME "-tier3:", s->NAME.tier3, \
+	   percent (s->NAME.tier3, s->NAME.clauses)); \
   INSTANTIATE(1,SIZE_GLUE_STATISTICS-1,NAME); \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned", \
-	   "  " #NAME "-glue-large:", s->NAME.FIXglue[0], \
-	   percent (s->NAME.FIXglue[0], s->NAME.FIXclauses)); \
+	   "  " #NAME "-glue-large:", s->NAME.glue[0], \
+	   percent (s->NAME.glue[0], s->NAME.clauses)); \
 } while (0)
 
 #define MACRO(SIZE,NAME) \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
-	   "  " #NAME "-glue" #SIZE ":", s->NAME.FIXglue[SIZE], \
-	   percent (s->NAME.FIXglue[SIZE], s->NAME.FIXclauses))
+	   "  " #NAME "-glue" #SIZE ":", s->NAME.glue[SIZE], \
+	   percent (s->NAME.glue[SIZE], s->NAME.clauses))
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per second",
-	   "learned-clauses:", s->learned.FIXclauses,
-	   average (s->learned.FIXclauses, search));
+	   "learned-clauses:", s->learned.clauses,
+	   average (s->learned.clauses, search));
   PRINT_CLAUSE_METRICS (learned);
 
   if (ring->pool)
     {
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
-	       "imported-clauses:", s->imported.FIXclauses,
-	       percent (s->imported.FIXclauses, s->learned.FIXclauses));
+	       "imported-clauses:", s->imported.clauses,
+	       percent (s->imported.clauses, s->learned.clauses));
       PRINT_CLAUSE_METRICS (imported);
 
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
-	       "exported-clauses:", s->exported.FIXclauses,
-	       percent (s->exported.FIXclauses, s->learned.FIXclauses));
+	       "exported-clauses:", s->exported.clauses,
+	       percent (s->exported.clauses, s->learned.clauses));
       PRINT_CLAUSE_METRICS (exported);
     }
 

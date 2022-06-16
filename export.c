@@ -61,7 +61,7 @@ export_binary_clause (struct ring *ring, struct watch *watch)
       uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
       exported += !previous;
     }
-  INC_BINARY_CLAUSE_STATISTICS (exported);
+  ADD_BINARY_CLAUSE_STATISTICS (exported, exported);
 }
 
 void
@@ -95,7 +95,7 @@ export_large_clause (struct ring *ring, struct clause *clause)
       else
 	exported++;
     }
-  INC_LARGE_CLAUSE_STATISTICS (exported, glue);
+  ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue);
 }
 
 void

@@ -72,62 +72,65 @@ struct ring_statistics
 
   struct
   {
-    uint64_t FIXunits;
-    uint64_t FIXclauses;
-    uint64_t FIXbinaries;
-    uint64_t FIXtier1, FIXtier2, FIXtier3;
-    uint64_t FIXglue[SIZE_GLUE_STATISTICS];
+    uint64_t units;
+    uint64_t clauses;
+    uint64_t binaries;
+    uint64_t tier1, tier2, tier3;
+    uint64_t glue[SIZE_GLUE_STATISTICS];
   } learned, exported, imported;
 };
 
-#define INC_CLAUSE_STATISTICS(NAME,GLUE,SIZE) \
+#define ADD_CLAUSE_STATISTICS(NAME,INC,GLUE,SIZE) \
 do { \
   struct ring_statistics * S = &ring->statistics; \
   if ((SIZE) == 1) \
     { \
       /* NOTE: units are NOT clauses */ \
       assert (!(GLUE)); \
-      S->NAME.FIXunits++; \
+      S->NAME.units += (INC); \
     } \
   else \
     { \
       assert ((GLUE) > 0); \
       assert ((SIZE) > 1); \
-      S->NAME.FIXclauses++; \
+      S->NAME.clauses += (INC); \
       if ((SIZE) == 2) \
 	{ \
           /* NOTE: binaries ARE clauses */ \
           /* NOTE: binaries ARE tier1 clauses too */ \
 	  assert ((GLUE) == 1); \
-	  S->NAME.FIXbinaries++; \
+	  S->NAME.binaries += (INC); \
 	} \
       if ((GLUE) <= TIER1_GLUE_LIMIT) \
-	S->NAME.FIXtier1++; \
+	S->NAME.tier1 += (INC); \
       else if ((GLUE) <= TIER2_GLUE_LIMIT) \
-	S->NAME.FIXtier2++; \
+	S->NAME.tier2 += (INC); \
       else \
-	S->NAME.FIXtier3++; \
+	S->NAME.tier3 += (INC); \
       if ((GLUE) < SIZE_GLUE_STATISTICS) \
-	S->NAME.FIXglue[(GLUE)]++; \
+	S->NAME.glue[(GLUE)] += (INC); \
       else \
-	S->NAME.FIXglue[0]++; \
+	S->NAME.glue[0] += (INC); \
     } \
 } while (0)
 
 #define INC_UNIT_CLAUSE_STATISTICS(NAME) \
-do { \
-  INC_CLAUSE_STATISTICS (NAME, 0, 1); \
-} while (0)
+  ADD_CLAUSE_STATISTICS (NAME, 1, 0, 1)
+
+#define INC_CLAUSE_STATISTICS(NAME,GLUE,SIZE) \
+  ADD_CLAUSE_STATISTICS (NAME, 1, (GLUE), (SIZE))
+
+#define ADD_BINARY_CLAUSE_STATISTICS(NAME,INC) \
+  ADD_CLAUSE_STATISTICS (NAME, (INC), 1, 2)
+
+#define ADD_LARGE_CLAUSE_STATISTICS(NAME,INC,GLUE) \
+  ADD_CLAUSE_STATISTICS (NAME, (INC), (GLUE), 3)
 
 #define INC_BINARY_CLAUSE_STATISTICS(NAME) \
-do { \
-  INC_CLAUSE_STATISTICS (NAME, 1, 2); \
-} while (0)
+  ADD_BINARY_CLAUSE_STATISTICS (NAME, 1)
 
 #define INC_LARGE_CLAUSE_STATISTICS(NAME,GLUE) \
-do { \
-  INC_CLAUSE_STATISTICS (NAME, GLUE, 3); \
-} while (0)
+  ADD_LARGE_CLAUSE_STATISTICS (NAME, 1, (GLUE))
 
 #define SEARCH_CONFLICTS \
   ring->statistics.contexts[SEARCH_CONTEXT].conflicts
