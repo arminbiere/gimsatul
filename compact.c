@@ -287,8 +287,6 @@ compact_saved (struct ring *ring, unsigned *map, struct clauses *mapped)
     {
       struct clause *src_clause = *p++;
 
-      COVER (is_binary_pointer (src_clause));
-
       if (is_binary_pointer (src_clause))
 	{
 	  assert (redundant_pointer (src_clause));
