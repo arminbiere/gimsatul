@@ -62,6 +62,7 @@ export_binary_clause (struct ring *ring, struct watch *watch)
       exported += !previous;
     }
   ADD_BINARY_CLAUSE_STATISTICS (exported, exported);
+  INC_BINARY_CLAUSE_STATISTICS (shared);
 }
 
 void
@@ -96,6 +97,7 @@ export_large_clause (struct ring *ring, struct clause *clause)
 	exported++;
     }
   ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue);
+  INC_LARGE_CLAUSE_STATISTICS (shared, glue);
 }
 
 void

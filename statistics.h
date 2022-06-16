@@ -77,7 +77,7 @@ struct ring_statistics
     uint64_t binaries;
     uint64_t tier1, tier2, tier3;
     uint64_t glue[SIZE_GLUE_STATISTICS];
-  } learned, exported, imported;
+  } learned, exported, imported, shared;
 };
 
 #define ADD_CLAUSE_STATISTICS(NAME,INC,GLUE,SIZE) \
