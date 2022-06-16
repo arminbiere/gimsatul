@@ -154,7 +154,7 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
       unsigned lit = literals[0], other = literals[1];
       res = new_local_binary_clause (ring, true, lit, other);
       trace_add_binary (&ring->trace, lit, other);
-      export_binary (ring, res);
+      export_binary_clause (ring, res);
     }
   else
     {
@@ -170,12 +170,7 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
       struct clause *clause = new_large_clause (size, literals, true, glue);
       res = watch_first_two_literals_in_large_clause (ring, clause);
       trace_add_clause (&ring->trace, clause);
-      if (glue <= 1)
-	export_glue1_clause (ring, clause);
-      else if (glue <= TIER1_GLUE_LIMIT)
-	export_tier1_clause (ring, clause);
-      else if (glue <= TIER2_GLUE_LIMIT)
-	export_tier2_clause (ring, clause);
+      export_large_clause (ring, clause);
     }
   clear_analyzed (ring);
   CLEAR (*ring_clause);

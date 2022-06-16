@@ -236,7 +236,7 @@ release_pool (struct ring *ring)
     {
       if (i == ring->id)
 	continue;
-      for (unsigned i = GLUE1_SHARED; i != SIZE_SHARED; i++)
+      for (unsigned i = 1; i != SIZE_SHARED; i++)
 	{
 	  struct clause *clause = (struct clause *) pool->share[i];
 	  if (!clause)

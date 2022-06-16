@@ -23,11 +23,6 @@ struct context
 #endif
 };
 
-#define SEARCH_CONTEXT 0
-#define PROBING_CONTEXT 1
-#define WALK_CONTEXT 2
-#define SIZE_CONTEXTS 3
-
 struct ring_statistics
 {
   uint64_t flips;
@@ -38,6 +33,11 @@ struct ring_statistics
   uint64_t simplifications;
   uint64_t switched;
   uint64_t walked;
+
+#define SEARCH_CONTEXT 0
+#define PROBING_CONTEXT 1
+#define WALK_CONTEXT 2
+#define SIZE_CONTEXTS 3
 
   struct context contexts[SIZE_CONTEXTS];
 
@@ -66,29 +66,65 @@ struct ring_statistics
     uint64_t implied;
   } vivify;
 
-  struct
-  {
-    uint64_t clauses;
-#ifdef METRICS
-    uint64_t units;
-    uint64_t binary;
-    uint64_t glue1;
-    uint64_t tier1;
-    uint64_t tier2;
-    uint64_t tier3;
-#endif
-  } learned;
+#define SIZE_GLUE_STATISTICS 7
 
   struct
   {
     uint64_t units;
-    uint64_t binary;
-    uint64_t clauses;
-    uint64_t glue1;
-    uint64_t tier1;
-    uint64_t tier2;
-  } exported, imported;
+    uint64_t FIXclauses;
+    uint64_t FIXbinaries;
+    uint64_t FIXtier1, FIXtier2, FIXtier3;
+    uint64_t FIXglue[SIZE_GLUE_STATISTICS];
+  } learned, exported, imported;
 };
+
+#define INC_CLAUSE_STATISTICS(NAME,GLUE,SIZE) \
+do { \
+  struct ring_statistics * S = &ring->statistics; \
+  if ((SIZE) == 1) \
+    { \
+      /* Note: units are NOT clauses */ \
+      assert (!(GLUE)); \
+      S->NAME.units++; \
+    } \
+  else \
+    { \
+      assert ((GLUE) > 0); \
+      assert ((SIZE) > 1); \
+      S->NAME.FIXclauses++; \
+      if ((SIZE) == 2) \
+	{ \
+          /* Note: binaries ARE clauses */ \
+	  assert ((GLUE) == 1); \
+	  S->NAME.FIXbinaries++; \
+	} \
+      if ((GLUE) <= TIER1_GLUE_LIMIT) \
+	S->NAME.FIXtier1++; \
+      else if ((GLUE) <= TIER2_GLUE_LIMIT) \
+	S->NAME.FIXtier2++; \
+      else \
+	S->NAME.FIXtier3++; \
+      if ((GLUE) < SIZE_GLUE_STATISTICS) \
+	S->NAME.FIXglue[(GLUE)]++; \
+      else \
+	S->NAME.FIXglue[0]++; \
+    } \
+} while (0)
+
+#define INC_UNIT_CLAUSE_STATISTICS(NAME) \
+do { \
+  INC_CLAUSE_STATISTICS (NAME, 0, 1); \
+} while (0)
+
+#define INC_BINARY_CLAUSE_STATISTICS(NAME) \
+do { \
+  INC_CLAUSE_STATISTICS (NAME, 1, 2); \
+} while (0)
+
+#define INC_LARGE_CLAUSE_STATISTICS(NAME,GLUE) \
+do { \
+  INC_CLAUSE_STATISTICS (NAME, GLUE, 3); \
+} while (0)
 
 #define SEARCH_CONFLICTS \
   ring->statistics.contexts[SEARCH_CONTEXT].conflicts

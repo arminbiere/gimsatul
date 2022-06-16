@@ -201,20 +201,8 @@ shrink_or_minimize_clause (struct ring *ring, unsigned glue)
   assert (learned + minimized + shrunken == deduced);
   (void) learned, (void) minimized;
 
-  ring->statistics.learned.clauses++;
+  INC_CLAUSE_STATISTICS (learned, glue, learned);
 #ifdef METRICS
-  if (learned == 1)
-    ring->statistics.learned.units++;
-  else if (learned == 2)
-    ring->statistics.learned.binary++;
-  else if (glue == 1)
-    ring->statistics.learned.glue1++;
-  else if (glue <= TIER1_GLUE_LIMIT)
-    ring->statistics.learned.tier1++;
-  else if (glue <= TIER2_GLUE_LIMIT)
-    ring->statistics.learned.tier2++;
-  else
-    ring->statistics.learned.tier3++;
   ring->statistics.literals.learned += learned;
   ring->statistics.literals.minimized += minimized;
   ring->statistics.literals.shrunken += shrunken;

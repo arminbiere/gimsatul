@@ -41,13 +41,16 @@ export_units (struct ring *ring)
 }
 
 void
-export_binary (struct ring *ring, struct watch *watch)
+export_binary_clause (struct ring *ring, struct watch *watch)
 {
   assert (is_binary_pointer (watch));
+  if (!ring->options.share_learned_clauses)
+    return;
   unsigned threads = ring->threads;
   if (threads < 2)
     return;
   LOGWATCH (watch, "exporting");
+  unsigned exported = 0;
   for (unsigned i = 0; i != threads; i++)
     {
       if (i == ring->id)
@@ -56,17 +59,22 @@ export_binary (struct ring *ring, struct watch *watch)
       struct clause *clause = (struct clause *) watch;
       atomic_uintptr_t *share = &pool->share[BINARY_SHARED];
       uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
-      if (previous)
-	continue;
-      ring->statistics.exported.binary++;
-      ring->statistics.exported.clauses++;
+      exported += !previous;
     }
+  INC_BINARY_CLAUSE_STATISTICS (exported);
 }
 
-static unsigned
-export_clause (struct ring *ring, struct clause *clause, unsigned shared)
+void
+export_large_clause (struct ring *ring, struct clause *clause)
 {
-  assert (shared < SIZE_SHARED);
+  assert (!is_binary_pointer (clause));
+  if (!ring->options.share_learned_clauses)
+    return;
+  unsigned glue = clause->glue;
+  assert (glue);
+  if (glue > ring->options.maximum_shared_glue)
+    return;
+  assert (glue < SIZE_SHARED);
   LOGCLAUSE (clause, "exporting");
   unsigned threads = ring->threads;
   assert (threads);
@@ -80,69 +88,12 @@ export_clause (struct ring *ring, struct clause *clause, unsigned shared)
     {
       if (i == ring->id)
 	continue;
-      atomic_uintptr_t *share = &pool->share[shared];
+      atomic_uintptr_t *share = &pool->share[glue];
       uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
       if (previous)
 	dereference_clause (ring, (struct clause *) previous);
       else
 	exported++;
     }
-  if (exported)
-    ring->statistics.exported.clauses++;
-  return exported;
-}
-
-void
-export_glue1_clause (struct ring *ring, struct clause *clause)
-{
-  assert (!is_binary_pointer (clause));
-  assert (clause->glue <= 1);
-  if (ring->pool)
-    ring->statistics.exported.glue1 +=
-      export_clause (ring, clause, GLUE1_SHARED);
-}
-
-void
-export_tier1_clause (struct ring *ring, struct clause *clause)
-{
-  assert (!is_binary_pointer (clause));
-  assert (1 < clause->glue);
-  assert (clause->glue <= TIER2_GLUE_LIMIT);
-  if (ring->pool)
-    ring->statistics.exported.tier1 +=
-      export_clause (ring, clause, TIER1_SHARED);
-}
-
-void
-export_tier2_clause (struct ring *ring, struct clause *clause)
-{
-  assert (!is_binary_pointer (clause));
-  assert (TIER1_GLUE_LIMIT < clause->glue);
-  assert (clause->glue <= TIER2_GLUE_LIMIT);
-  if (ring->pool)
-    ring->statistics.exported.tier2 +=
-      export_clause (ring, clause, TIER2_SHARED);
-}
-
-void
-flush_pool (struct ring *ring)
-{
-  size_t flushed = 0;
-  for (unsigned i = 0; i != ring->threads; i++)
-    {
-      if (i == ring->id)
-	continue;
-      struct pool *pool = ring->pool + i;
-      for (unsigned shared = 0; shared != SIZE_SHARED; shared++)
-	{
-	  atomic_uintptr_t *share = &pool->share[shared];
-	  uintptr_t clause = atomic_exchange (share, 0);
-	  if (!clause)
-	    continue;
-	  if (shared != BINARY_SHARED)
-	    dereference_clause (ring, (struct clause *) clause);
-	  flushed++;
-	}
-    }
-  very_verbose (ring, "flushed %zu clauses to be exported", flushed);
+  INC_LARGE_CLAUSE_STATISTICS (exported, glue);
 }

@@ -51,7 +51,7 @@ print_ring_statistics (struct ring *ring)
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per learned clause",
 	   "vivified-clauses:", s->vivify.succeeded,
-	   percent (s->vivify.succeeded, s->learned.clauses));
+	   percent (s->vivify.succeeded, s->learned.FIXclauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% per vivified clause",
 	   "vivify-implied:", s->vivify.implied,
 	   percent (s->vivify.implied, s->vivify.succeeded));
@@ -61,7 +61,7 @@ print_ring_statistics (struct ring *ring)
 
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per learned clause",
 	   "learned-literals:", s->literals.learned,
-	   average (s->literals.learned, s->learned.clauses));
+	   average (s->literals.learned, s->learned.FIXclauses));
 #ifdef METRICS
   PRINTLN ("%-21s %17" PRIu64 " %13.2f times learned literals",
 	   "  deduced-literals:", s->literals.deduced,
@@ -74,18 +74,15 @@ print_ring_statistics (struct ring *ring)
 	   percent (s->literals.shrunken, s->literals.deduced));
 #endif
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per second",
-	   "learned-clauses:", s->learned.clauses,
-	   average (s->learned.clauses, search));
-#ifdef METRICS
+	   "learned-clauses:", s->learned.FIXclauses,
+	   average (s->learned.FIXclauses, search));
+
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	   "  learned-units:", s->learned.units,
-	   percent (s->learned.units, s->learned.clauses));
+	   percent (s->learned.units, s->learned.FIXclauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	   "  learned-binary:", s->learned.binary,
+	   "  learned-binaries:", s->learned.FIXbinaries,
 	   percent (s->learned.binary, s->learned.clauses));
-  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
-	   "  learned-glue1:", s->learned.glue1,
-	   percent (s->learned.glue1, s->learned.clauses));
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	   "  learned-tier1:", s->learned.tier1,
 	   percent (s->learned.tier1, s->learned.clauses));
@@ -95,7 +92,14 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
 	   "  learned-tier3:", s->learned.tier3,
 	   percent (s->learned.tier3, s->learned.clauses));
-#endif
+
+#define MACRO(SIZE) \
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned", \
+	   "  learned-glue" #SIZE ":", s->learned.glue[SIZE], \
+	   percent (s->learned.glue[SIZE], s->learned.clauses))
+  INSTANTIATE(0,SIZE_GLUE_STATISTICS-1);
+#undef MACRO
+
   if (ring->pool)
     {
       PRINTLN ("%-21s %17" PRIu64 " %13.2f %% learned",
@@ -137,24 +141,11 @@ print_ring_statistics (struct ring *ring)
 #ifdef METRICS
   PRINTLN ("%-21s %17" PRIu64 " %13.2f per propagation",
 	   "visits:", visits, average (visits, propagations));
-#define PRINTVISITS(SIZE) \
-  if (SIZE < SIZE_VISITS) \
-    PRINTLN ("%-21s %17" PRIu64 " %13.2f %% visits", \
-	     "  visits" #SIZE ":", c->visits[SIZE], percent (c->visits[SIZE], visits))
-  PRINTVISITS (0);
-  PRINTVISITS (3);
-  PRINTVISITS (4);
-  PRINTVISITS (5);
-  PRINTVISITS (6);
-  PRINTVISITS (7);
-  PRINTVISITS (8);
-  PRINTVISITS (9);
-  PRINTVISITS (10);
-  PRINTVISITS (11);
-  PRINTVISITS (12);
-  PRINTVISITS (13);
-  PRINTVISITS (14);
-  PRINTVISITS (15);
+#define MACRO(SIZE) \
+  PRINTLN ("%-21s %17" PRIu64 " %13.2f %% visits", \
+	   "  visits" #SIZE ":", c->visits[SIZE], percent (c->visits[SIZE], visits))
+  INSTANTIATE(0, SIZE_VISITS-1);
+#undef MACRO
 #endif
   PRINTLN ("%-21s %17" PRIu64 " %13.2f conflict interval",
 	   "probings:", s->probings, average (conflicts, s->probings));

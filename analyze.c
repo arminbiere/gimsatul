@@ -214,7 +214,7 @@ analyze (struct ring *ring, struct watch *reason)
 	  assert (VAR (other)->level == jump);
 	  learned = new_local_binary_clause (ring, true, not_uip, other);
 	  trace_add_binary (&ring->trace, not_uip, other);
-	  export_binary (ring, learned);
+	  export_binary_clause (ring, learned);
 	}
       else
 	{
@@ -234,12 +234,7 @@ analyze (struct ring *ring, struct watch *reason)
 	    watch_first_two_literals_in_large_clause (ring, learned_clause);
 	  assert (!is_binary_pointer (learned));
 	  trace_add_clause (&ring->trace, learned_clause);
-	  if (glue == 1)
-	    export_glue1_clause (ring, learned_clause);
-	  else if (glue <= TIER1_GLUE_LIMIT)
-	    export_tier1_clause (ring, learned_clause);
-	  else if (glue <= TIER2_GLUE_LIMIT)
-	    export_tier2_clause (ring, learned_clause);
+	  export_large_clause (ring, learned_clause);
 	}
       assign_with_reason (ring, not_uip, learned);
     }

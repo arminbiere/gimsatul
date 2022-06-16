@@ -69,10 +69,7 @@ struct ring_trail
 };
 
 #define BINARY_SHARED 0
-#define GLUE1_SHARED 1
-#define TIER1_SHARED 2
-#define TIER2_SHARED 3
-#define SIZE_SHARED 4
+#define SIZE_SHARED 16
 
 #define ALLOCATED_SHARED \
   (CACHE_LINE_SIZE / sizeof (struct clause *))

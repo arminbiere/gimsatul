@@ -58,6 +58,7 @@ OPTION (unsigned, eliminate_ticks,         20, 0, INF,  "elimination ticks limit
 OPTION (bool,     fail,                    1, 0, 1,     "failed literal probing") \
 OPTION (bool,     focus_initially,         1, 0, 1,     "start with focus mode initially") \
 OPTION (bool,     force,                   0, 0, 1,     "force relaxed parsing and proof writing") \
+OPTION (unsigned, maximum_shared_glue,     6, 0, 15,    "share 0=binary 1=glue1 2=glue2 ... clauses") \
 OPTION (bool,     minimize,                1, 0, 1,     "minimize learned clauses") \
 OPTION (unsigned, minimize_depth,          1000,1,INF,  "recursive clause minimization depth") \
 OPTION (unsigned, occurrence_limit,        1000,0,INF,  "literal occurrence limit in simplification") \
@@ -65,11 +66,12 @@ OPTION (bool,     phase,                   1, 0, 1,     "initial decision phase"
 OPTION (bool,     portfolio,               1, 0, 1,     "threads use different strategies") \
 OPTION (bool,     probe,                   1, 0, 1,     "enable probing based inprocessing") \
 OPTION (unsigned, probe_interval,          2e3, 1, INF, "probing base conflict interval") \
-OPTION (unsigned, random_decisions,        100, 0, INF,   "initial random decisions") \
+OPTION (unsigned, random_decisions,        100, 0, INF, "initial random decisions") \
 OPTION (unsigned, reduce_interval,         1e3, 1, INF, "reduce base conflict interval") \
 OPTION (bool,     rephase,                 1, 0, 1,     "reset saved phases regularly") \
 OPTION (unsigned, rephase_interval,        1e3, 1, INF, "base rephase conflict interval") \
-OPTION (bool,     shrink,                  0, 0, 1,     "shrink (glue 1) learned clauses") \
+OPTION (bool,     share_learned_clauses,   1, 0, 1,     "export and import learned clauses") \
+OPTION (bool,     shrink,                  1, 0, 1,     "shrink (glue 1) learned clauses") \
 OPTION (bool,     simplify,                1, 0, 1,     "elimination, subsumption and substitution") \
 OPTION (unsigned, simplify_boost,          1, 0, 1,     "additional initial boost to simplification") \
 OPTION (unsigned, simplify_boost_rounds,   4, 2, INF,   "initial increase rounds limit") \

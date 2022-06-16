@@ -64,8 +64,7 @@ really_import_binary_clause (struct ring *ring, unsigned lit, unsigned other)
 {
   (void) new_local_binary_clause (ring, true, lit, other);
   trace_add_binary (&ring->trace, lit, other);
-  ring->statistics.imported.binary++;
-  ring->statistics.imported.clauses++;
+  INC_BINARY_CLAUSE_STATISTICS (imported);
 }
 
 static void
@@ -239,19 +238,11 @@ really_import_large_clause (struct ring *ring, struct clause *clause,
 			    unsigned first, unsigned second)
 {
   watch_literals_in_large_clause (ring, clause, first, second);
-  unsigned glue = clause->glue;
   assert (clause->redundant);
-  struct ring_statistics *statistics = &ring->statistics;
-  if (glue <= 1)
-    statistics->imported.glue1++;
-  else if (glue <= TIER1_GLUE_LIMIT)
-    statistics->imported.tier1++;
-  else
-    {
-      assert (glue <= TIER2_GLUE_LIMIT);
-      statistics->imported.tier2++;
-    }
-  statistics->imported.clauses++;
+  unsigned glue = clause->glue;
+  assert (0 < glue);
+  assert (glue <= ring->options.maximum_shared_glue);
+  INC_LARGE_CLAUSE_STATISTICS (imported, glue);
 }
 
 static unsigned
