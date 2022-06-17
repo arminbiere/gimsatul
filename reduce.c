@@ -230,6 +230,7 @@ flush_references (struct ring *ring, bool fixed, unsigned *map)
 void
 reduce (struct ring *ring)
 {
+  START (ring, reduce);
 #ifndef NDEBUG
   check_clause_statistics (ring);
 #endif
@@ -263,4 +264,5 @@ reduce (struct ring *ring)
   very_verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
 		limits->reduce);
   report (ring, '-');
+  STOP (ring, reduce);
 }
