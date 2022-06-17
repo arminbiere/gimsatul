@@ -58,7 +58,7 @@ OPTION (unsigned, eliminate_ticks,         20, 0, INF,  "elimination ticks limit
 OPTION (bool,     fail,                    1, 0, 1,     "failed literal probing") \
 OPTION (bool,     focus_initially,         1, 0, 1,     "start with focus mode initially") \
 OPTION (bool,     force,                   0, 0, 1,     "force relaxed parsing and proof writing") \
-OPTION (unsigned, maximum_shared_glue,     8, 0, 15,    "share 0=binary 1=glue1 2=glue2 ... clauses") \
+OPTION (unsigned, maximum_shared_glue,     15, 0, 15,   "share 0=binary 1=glue1 2=glue2 ... clauses") \
 OPTION (bool,     minimize,                1, 0, 1,     "minimize learned clauses") \
 OPTION (unsigned, minimize_depth,          1000,1,INF,  "recursive clause minimization depth") \
 OPTION (unsigned, occurrence_limit,        1000,0,INF,  "literal occurrence limit in simplification") \
