@@ -69,14 +69,11 @@ struct ring_trail
 };
 
 #define BINARY_SHARED 0
-#define SIZE_SHARED 16
-
-#define ALLOCATED_SHARED \
-  (CACHE_LINE_SIZE / sizeof (struct clause *))
+#define SIZE_SHARED 32
 
 struct pool
 {
-  atomic_uintptr_t share[ALLOCATED_SHARED];
+  atomic_uintptr_t share[SIZE_SHARED];
 };
 
 struct ring
