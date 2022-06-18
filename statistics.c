@@ -77,7 +77,14 @@ print_ring_statistics (struct ring *ring)
 	   percent (s->literals.shrunken, s->literals.deduced));
 #endif
 
+#ifdef METRICS
 #define PRINT_CLAUSE_METRICS(NAME,MAXGLUE) \
+  INSTANTIATE (1, MAXGLUE, NAME)
+#else
+#define PRINT_CLAUSE_METRICS(NAME,MAXGLUE) /**/
+#endif
+
+#define PRINT_CLAUSE_STATISTICS(NAME,MAXGLUE) \
 do { \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
 	   "  " #NAME "-binaries:", s->NAME.binaries, \
@@ -91,7 +98,7 @@ do { \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
 	   "  " #NAME "-tier3:", s->NAME.tier3, \
 	   percent (s->NAME.tier3, s->NAME.clauses)); \
-  INSTANTIATE (1, MAXGLUE, NAME); \
+  PRINT_CLAUSE_METRICS(NAME,MAXGLUE); \
 } while (0)
 
 #define MACRO(SIZE,NAME) \
@@ -102,7 +109,8 @@ do { \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per second",
 	   "learned-clauses:", s->learned.clauses,
 	   average (s->learned.clauses, search));
-  PRINT_CLAUSE_METRICS (learned, SIZE_GLUE_STATISTICS-1);
+  PRINT_CLAUSE_STATISTICS (learned, SIZE_GLUE_STATISTICS-1);
+#ifdef METRICS
   uint64_t learned_glue_small = 0;
   for (unsigned glue = 1; glue != SIZE_GLUE_STATISTICS; glue++)
     learned_glue_small += s->learned.glue[glue];
@@ -112,19 +120,22 @@ do { \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
 	   "  learned-glue-large:", s->learned.glue[0],
 	   percent (s->learned.glue[0], s->learned.clauses));
+#endif
 
   if (ring->pool)
     {
+#ifdef METRICS
       unsigned maximum_shared_glue = ring->options.maximum_shared_glue;
+#endif
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
 	       "imported-clauses:", s->imported.clauses,
 	       percent (s->imported.clauses, s->learned.clauses));
-      PRINT_CLAUSE_METRICS (imported, maximum_shared_glue);
+      PRINT_CLAUSE_STATISTICS (imported, maximum_shared_glue);
 
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
 	       "exported-clauses:", s->exported.clauses,
 	       percent (s->exported.clauses, s->learned.clauses));
-      PRINT_CLAUSE_METRICS (exported, maximum_shared_glue);
+      PRINT_CLAUSE_STATISTICS (exported, maximum_shared_glue);
 
       PRINTLN ("%-22s %17" PRIu64 " %13.2f exported clauses rate",
 	       "shared-clauses:", s->shared.clauses,
@@ -142,12 +153,14 @@ do { \
       PRINTLN ("%-22s %17" PRIu64 " %13.2f exported tier3 rate",
 	       "  shared-tier3:", s->shared.tier3,
 	       average (s->exported.tier3, s->shared.tier3));
+#ifdef METRICS
 #undef MACRO
 #define MACRO(SIZE,NAME) \
       PRINTLN ("%-22s %17" PRIu64 " %13.2f exported glue" #SIZE " rate", \
 	       "  " #NAME "-glue" #SIZE ":", s->NAME.glue[SIZE], \
 	       average (s->exported.glue[SIZE], s->NAME.glue[SIZE]))
       INSTANTIATE (1, maximum_shared_glue, shared);
+#endif
 #undef MACRO
     }
 

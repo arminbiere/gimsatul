@@ -68,7 +68,7 @@ struct ring_statistics
     uint64_t implied;
   } vivify;
 
-#define SIZE_GLUE_STATISTICS 64
+#define SIZE_GLUE_STATISTICS 16
 
   struct
   {
@@ -76,9 +76,27 @@ struct ring_statistics
     uint64_t clauses;
     uint64_t binaries;
     uint64_t tier1, tier2, tier3;
+#ifdef METRICS
     uint64_t glue[SIZE_GLUE_STATISTICS];
+#endif
   } learned, exported, imported, shared;
 };
+
+#ifdef METRICS
+
+#define ADD_CLAUSE_METRICS(NAME,INC,GLUE,SIZE) \
+do { \
+  if ((GLUE) < SIZE_GLUE_STATISTICS) \
+    S->NAME.glue[(GLUE)] += (INC); \
+  else \
+    S->NAME.glue[0] += (INC); \
+} while (0)
+
+#else
+
+#define ADD_CLAUSE_METRICS(...) do { } while (0)
+
+#endif
 
 #define ADD_CLAUSE_STATISTICS(NAME,INC,GLUE,SIZE) \
 do { \
@@ -107,10 +125,7 @@ do { \
 	S->NAME.tier2 += (INC); \
       else \
 	S->NAME.tier3 += (INC); \
-      if ((GLUE) < SIZE_GLUE_STATISTICS) \
-	S->NAME.glue[(GLUE)] += (INC); \
-      else \
-	S->NAME.glue[0] += (INC); \
+      ADD_CLAUSE_METRICS (NAME, (INC), (GLUE), (SIZE)); \
     } \
 } while (0)
 

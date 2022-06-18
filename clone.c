@@ -86,9 +86,9 @@ static void
 restore_saved_redundant_clauses (struct ring *ring)
 {
   struct clauses *saved = &ring->saved;
-  if (EMPTY (*saved))
-    return;
   size_t binaries = 0, large = 0;
+  unsigned tier2 = INVALID;
+  ring->redundant = SIZE (ring->watchers);
   for (all_clauses (clause, *saved))
     {
       if (is_binary_pointer (clause))
@@ -106,6 +106,8 @@ restore_saved_redundant_clauses (struct ring *ring)
 	{
 	  assert (!clause->mapped);
 	  assert (!clause->garbage);
+	  if (tier2 == INVALID && clause->glue > TIER1_GLUE_LIMIT)
+	    tier2 = SIZE (ring->watchers);
 	  (void) watch_first_two_literals_in_large_clause (ring, clause);
 	  large++;
 	}
@@ -113,8 +115,15 @@ restore_saved_redundant_clauses (struct ring *ring)
   RELEASE (*saved);
   very_verbose (ring, "restored %zu binary and %zu large clause",
 		binaries, large);
-
   ring->statistics.redundant += binaries;
+  very_verbose (ring, "redundant large clauses start at watcher index %u",
+                ring->redundant);
+  ring->tier2 = tier2;
+  if (tier2 == INVALID)
+    very_verbose (ring, "no tier2 clauses found");
+  else
+    very_verbose (ring, "redundant tier2 clauses start at watcher index %u",
+		  ring->tier2);
 }
 
 void

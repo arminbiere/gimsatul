@@ -28,7 +28,7 @@ do { \
 #define INSTANTIATE(FROM,TO,...) \
 do { \
   assert (0 <= (FROM));  \
-  assert ((TO) <= 31); \
+  assert ((TO) <= 15); \
   GUARDED(FROM,TO,0,__VA_ARGS__); \
   GUARDED(FROM,TO,1,__VA_ARGS__); \
   GUARDED(FROM,TO,2,__VA_ARGS__); \
@@ -45,21 +45,5 @@ do { \
   GUARDED(FROM,TO,13,__VA_ARGS__); \
   GUARDED(FROM,TO,14,__VA_ARGS__); \
   GUARDED(FROM,TO,15,__VA_ARGS__); \
-  GUARDED(FROM,TO,16,__VA_ARGS__); \
-  GUARDED(FROM,TO,17,__VA_ARGS__); \
-  GUARDED(FROM,TO,18,__VA_ARGS__); \
-  GUARDED(FROM,TO,19,__VA_ARGS__); \
-  GUARDED(FROM,TO,20,__VA_ARGS__); \
-  GUARDED(FROM,TO,21,__VA_ARGS__); \
-  GUARDED(FROM,TO,22,__VA_ARGS__); \
-  GUARDED(FROM,TO,23,__VA_ARGS__); \
-  GUARDED(FROM,TO,24,__VA_ARGS__); \
-  GUARDED(FROM,TO,25,__VA_ARGS__); \
-  GUARDED(FROM,TO,26,__VA_ARGS__); \
-  GUARDED(FROM,TO,27,__VA_ARGS__); \
-  GUARDED(FROM,TO,28,__VA_ARGS__); \
-  GUARDED(FROM,TO,29,__VA_ARGS__); \
-  GUARDED(FROM,TO,30,__VA_ARGS__); \
-  GUARDED(FROM,TO,31,__VA_ARGS__); \
 } while (0)
 #endif

@@ -69,7 +69,7 @@ struct ring_trail
 };
 
 #define BINARY_SHARED 0
-#define SIZE_SHARED 64
+#define SIZE_SHARED 16
 
 struct pool
 {
@@ -117,6 +117,8 @@ struct ring
   struct phases *phases;
   struct queue queue;
 
+  unsigned tier2;
+  unsigned redundant;
   struct watchers watchers;
   struct clauses saved;
 
