@@ -1,5 +1,7 @@
 # Version 1.0.2rc1
 
+- Removed the compile-time option './configure --no-middle'.
+
 - The pools for sharing clauses are now indexed by the glue of the shared
   clause which makes it more fine grained.  We now also allow clauses to
   be shared with much larger glue (at least up-to glue 15 as this makes the

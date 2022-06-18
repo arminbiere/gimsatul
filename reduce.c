@@ -293,7 +293,11 @@ reduce (struct ring *ring)
   if (fixed)
     mark_satisfied_watchers_as_garbage (ring);
   else
+#if 1
     start = ring->tier2;
+#else
+    start = ring->redundant;
+#endif
   gather_reduce_candidates (ring, &candidates);
   sort_redundant_watcher_indices (ring, SIZE (candidates), candidates.begin);
   mark_reduce_candidates_as_garbage (ring, &candidates);
@@ -308,7 +312,7 @@ reduce (struct ring *ring)
   limits->reduce = SEARCH_CONFLICTS;
   unsigned interval = ring->options.reduce_interval;
   assert (interval);
-  limits->reduce += interval * sqrt (statistics->reductions);
+  limits->reduce += interval * sqrt (statistics->reductions + 1);
   very_verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
 		limits->reduce);
   report (ring, '-');
