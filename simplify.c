@@ -899,6 +899,7 @@ finish_ring_simplification (struct ring *ring)
 
 #ifndef NDEBUG
 void check_clause_statistics (struct ring *);
+void check_redundant_and_tier2_offsets (struct ring *);
 #endif
 
 int
@@ -919,7 +920,10 @@ simplify_ring (struct ring *ring)
   finish_ring_simplification (ring);
 #ifndef NDEBUG
   if (!ring->ruler->inconsistent)
-    check_clause_statistics (ring);
+    {
+      check_clause_statistics (ring);
+      check_redundant_and_tier2_offsets (ring);
+    }
 #endif
   report (ring, 's');
   START_SEARCH ();

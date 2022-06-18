@@ -176,6 +176,12 @@ struct rings
   (WATCHER != END_ ## WATCHER); \
   ++WATCHER
 
+#define all_redundant_watchers(WATCHER) \
+  struct watcher * WATCHER = ring->watchers.begin + ring->redundant, \
+                  * END_ ## WATCHER = ring->watchers.end; \
+  (WATCHER != END_ ## WATCHER); \
+  ++WATCHER
+
 /*------------------------------------------------------------------------*/
 
 void init_ring (struct ring *);

@@ -19,46 +19,83 @@ reducing (struct ring *ring)
 void
 check_clause_statistics (struct ring *ring)
 {
-  size_t redundant = 0;
-  size_t irredundant = 0;
-
-  for (all_ring_literals (lit))
-    {
-      struct references *watches = &REFERENCES (lit);
-      for (all_watches (watch, *watches))
-	{
-	  if (!is_binary_pointer (watch))
-	    continue;
-	  assert (lit == lit_pointer (watch));
-	  unsigned other = other_pointer (watch);
-	  if (lit < other)
-	    continue;
-	  assert (redundant_pointer (watch));
-	  redundant++;
-	}
-
-      unsigned *binaries = watches->binaries;
-      if (!binaries)
-	continue;
-      for (unsigned *p = binaries, other; (other = *p) != INVALID; p++)
-	if (lit < other)
-	  irredundant++;
-    }
-
-  for (all_watchers (watcher))
-    {
-      if (watcher->garbage)
-	continue;
-      assert (watcher->clause->redundant == watcher->redundant);
-      if (watcher->redundant)
-	redundant++;
-      else
-	irredundant++;
-    }
 #ifndef NDEBUG
-  struct ring_statistics *statistics = &ring->statistics;
-  assert (statistics->redundant == redundant);
-  assert (statistics->irredundant == irredundant);
+  {
+    size_t redundant = 0;
+    size_t irredundant = 0;
+
+    for (all_ring_literals (lit))
+      {
+	struct references *watches = &REFERENCES (lit);
+	for (all_watches (watch, *watches))
+	  {
+	    if (!is_binary_pointer (watch))
+	      continue;
+	    assert (lit == lit_pointer (watch));
+	    unsigned other = other_pointer (watch);
+	    if (lit < other)
+	      continue;
+	    assert (redundant_pointer (watch));
+	    redundant++;
+	  }
+
+	unsigned *binaries = watches->binaries;
+	if (!binaries)
+	  continue;
+	for (unsigned *p = binaries, other; (other = *p) != INVALID; p++)
+	  if (lit < other)
+	    irredundant++;
+      }
+
+    for (all_watchers (watcher))
+      {
+	if (watcher->garbage)
+	  continue;
+	assert (watcher->clause->redundant == watcher->redundant);
+	if (watcher->redundant)
+	  redundant++;
+	else
+	  irredundant++;
+      }
+
+    struct ring_statistics *statistics = &ring->statistics;
+    assert (statistics->redundant == redundant);
+    assert (statistics->irredundant == irredundant);
+  }
+#else
+  (void) ring;
+#endif
+}
+
+void
+check_redundant_and_tier2_offsets (struct ring * ring)
+{
+#ifndef NDBEUG
+  struct watchers * watchers = &ring->watchers;
+  struct watcher * begin = watchers->begin;
+  struct watcher * redundant = begin + ring->redundant;
+  struct watcher * tier2 = begin + ring->tier2;
+  struct watcher * end = watchers->end;
+
+  for (struct watcher * watcher = begin; watcher != redundant; watcher++)
+    assert (!watcher->redundant);
+
+  assert (begin <= redundant);
+  assert (redundant <= end);
+
+  for (struct watcher * watcher = redundant; watcher != tier2; watcher++)
+    {
+      assert (watcher->redundant);
+      assert (watcher->glue <= TIER1_GLUE_LIMIT);
+    }
+
+  assert (redundant <= tier2);
+  assert (tier2 <= end);
+  
+  for (struct watcher * watcher = tier2; watcher != end; watcher++)
+    assert (watcher->redundant);
+#else
+  (void) ring;
 #endif
 }
 
@@ -86,8 +123,14 @@ mark_reasons (struct ring *ring)
     }
 }
 
+static unsigned
+map_idx (unsigned src, unsigned start, unsigned * map)
+{
+  return (src < start) ? src : map[src - start];
+}
+
 static void
-unmark_reasons (struct ring *ring, unsigned *map)
+unmark_reasons (struct ring *ring, unsigned start, unsigned *map)
 {
   for (all_literals_on_trail_with_reason (lit))
     {
@@ -101,7 +144,7 @@ unmark_reasons (struct ring *ring, unsigned *map)
       struct watcher *watcher = index_to_watcher (ring, src);
       assert (watcher->reason);
       watcher->reason = false;
-      unsigned dst = map[src];
+      unsigned dst = map_idx (src, start, map);
       assert (dst);
       bool redundant = redundant_pointer (watch);
       unsigned other = other_pointer (watch);
@@ -113,7 +156,11 @@ unmark_reasons (struct ring *ring, unsigned *map)
 static void
 gather_reduce_candidates (struct ring *ring, struct unsigneds *candidates)
 {
-  for (all_watchers (watcher))
+  struct watchers * watchers = &ring->watchers;
+  struct watcher * begin = watchers->begin;
+  struct watcher * end = watchers->end;
+  struct watcher * tier2 = begin + ring->tier2;
+  for (struct watcher * watcher = tier2; watcher != end; watcher++)
     {
       if (watcher->garbage)
 	continue;
@@ -155,7 +202,7 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
 }
 
 static void
-flush_references (struct ring *ring, bool fixed, unsigned *map)
+flush_references (struct ring *ring, bool fixed, unsigned start, unsigned *map)
 {
   size_t flushed = 0;
   signed char *values = ring->values;
@@ -211,7 +258,7 @@ flush_references (struct ring *ring, bool fixed, unsigned *map)
 		flushed++;
 	      else
 		{
-		  unsigned dst = map[src];
+		  unsigned dst = map_idx (src, start, map);
 		  assert (dst);
 		  bool redundant = redundant_pointer (watch);
 		  unsigned other = other_pointer (watch);
@@ -231,9 +278,8 @@ void
 reduce (struct ring *ring)
 {
   START (ring, reduce);
-#ifndef NDEBUG
   check_clause_statistics (ring);
-#endif
+  check_redundant_and_tier2_offsets (ring);
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
   statistics->reductions++;
@@ -243,20 +289,22 @@ reduce (struct ring *ring)
   struct unsigneds candidates;
   INIT (candidates);
   bool fixed = ring->last.fixed != ring->statistics.fixed;
+  unsigned start = 1;
   if (fixed)
     mark_satisfied_watchers_as_garbage (ring);
+  else
+    start = ring->tier2;
   gather_reduce_candidates (ring, &candidates);
   sort_redundant_watcher_indices (ring, SIZE (candidates), candidates.begin);
   mark_reduce_candidates_as_garbage (ring, &candidates);
   RELEASE (candidates);
-  unsigned *map = map_watchers (ring);
-  flush_references (ring, fixed, map);
-  unmark_reasons (ring, map);
+  unsigned *map = map_watchers (ring,  start);
+  flush_references (ring, fixed, start, map);
+  unmark_reasons (ring, start, map);
   free (map);
-  flush_watchers (ring);
-#ifndef NDEBUG
+  flush_watchers (ring, start);
   check_clause_statistics (ring);
-#endif
+  check_redundant_and_tier2_offsets (ring);
   limits->reduce = SEARCH_CONFLICTS;
   unsigned interval = ring->options.reduce_interval;
   assert (interval);

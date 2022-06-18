@@ -30,7 +30,7 @@ reschedule_vivification_candidates (struct ring *ring,
 				    struct unsigneds *candidates)
 {
   assert (EMPTY (*candidates));
-  for (all_watchers (watcher))
+  for (all_redundant_watchers (watcher))
     if (watcher->vivify && !watcher->garbage)
       PUSH (*candidates, watcher_to_index (ring, watcher));
   size_t size = SIZE (*candidates);
@@ -43,7 +43,7 @@ schedule_vivification_candidates (struct ring *ring,
 				  struct unsigneds *candidates)
 {
   size_t before = SIZE (*candidates);
-  for (all_watchers (watcher))
+  for (all_redundant_watchers (watcher))
     if (!watcher->vivify && watched_vivification_candidate (watcher))
       PUSH (*candidates, watcher_to_index (ring, watcher));
   size_t after = SIZE (*candidates);
