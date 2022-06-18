@@ -1,8 +1,20 @@
 # Version 1.0.2rc1
 
+- The pools for sharing clauses are now indexed by the glue of the shared
+  clause which makes it more fine grained.  We now also allow clauses to
+  be shared with much larger glue (at least up-to glue 15 as this makes the
+  pools 128 bytes big, thus the size of a cache-line).  This in essence
+  gives a priority queue for importing clauses with lower glue clauses being
+  preferred (even if they are older) and for the same glue the newer clause.
+
+- Added './configure --metrics' compile-time option to produce and print
+  slightly more expensive statistics (clause visits counters broken down
+  by size, much more learned, exported, and imported counters broken down
+  by glue and a new shared clause counter with export per shared rate).
+
 - We further increased the watcher stack size by 8 bytes (from 24 to 32)
   making room for storing the literals of clauses of size 3 and 4 directly
-  in the watcher.  This thus avoids another memory dereference to such short
+  in the watcher.  Thus this avoids another memory dereference to such short
   but non-binary clauses.  For those short clauses the middle reference is
   not needed giving room for one more literal and the previously unused
   padding needed for the 8-byte aligned clause pointer in a watcher gave
