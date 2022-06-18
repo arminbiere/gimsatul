@@ -44,10 +44,10 @@ void
 export_binary_clause (struct ring *ring, struct watch *watch)
 {
   assert (is_binary_pointer (watch));
-  if (!ring->options.share_learned_clauses)
-    return;
   unsigned threads = ring->threads;
   if (threads < 2)
+    return;
+  if (!ring->options.share_learned_clauses)
     return;
   LOGWATCH (watch, "exporting");
   unsigned exported = 0;
@@ -68,6 +68,9 @@ export_binary_clause (struct ring *ring, struct watch *watch)
 void
 export_large_clause (struct ring *ring, struct clause *clause)
 {
+  unsigned threads = ring->threads;
+  if (threads < 2)
+    return;
   assert (!is_binary_pointer (clause));
   if (!ring->options.share_learned_clauses)
     return;
@@ -77,8 +80,6 @@ export_large_clause (struct ring *ring, struct clause *clause)
     return;
   assert (glue < SIZE_SHARED);
   LOGCLAUSE (clause, "exporting");
-  unsigned threads = ring->threads;
-  assert (threads);
   unsigned inc = threads - 1;
   assert (inc);
   reference_clause (ring, clause, inc);

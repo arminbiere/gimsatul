@@ -260,7 +260,7 @@ reduce (struct ring *ring)
   limits->reduce = SEARCH_CONFLICTS;
   unsigned interval = ring->options.reduce_interval;
   assert (interval);
-  limits->reduce += interval * sqrt (statistics->reductions + 1);
+  limits->reduce += interval * sqrt (statistics->reductions);
   very_verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
 		limits->reduce);
   report (ring, '-');

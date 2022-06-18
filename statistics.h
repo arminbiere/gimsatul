@@ -68,7 +68,7 @@ struct ring_statistics
     uint64_t implied;
   } vivify;
 
-#define SIZE_GLUE_STATISTICS 32
+#define SIZE_GLUE_STATISTICS 64
 
   struct
   {

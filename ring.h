@@ -69,7 +69,7 @@ struct ring_trail
 };
 
 #define BINARY_SHARED 0
-#define SIZE_SHARED 32
+#define SIZE_SHARED 64
 
 struct pool
 {
