@@ -181,8 +181,61 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
   return res;
 }
 
+static bool
+less_vivification_probe (struct ring * ring, unsigned a, unsigned b)
+{
+  signed char * values = ring->values;
+  signed char a_value = values[a];
+  signed char b_value = values[b];
+  if (a_value && !b_value)
+    return true;
+  if (!a_value && b_value)
+    return false;
+  if (a_value && b_value)
+    return a < b;
+  assert (!a_value);
+  assert (!b_value);
+  unsigned a_idx = IDX (a);
+  unsigned b_idx = IDX (b);
+  assert (a_idx != b_idx);
+  if (ring->stable)
+    {
+      double a_score = ring->heap.nodes[a_idx].score;
+      double b_score = ring->heap.nodes[b_idx].score;
+      if (a_score > b_score)
+	return true;
+      if (a_score < b_score)
+	return false;
+    }
+  else
+    {
+      uint64_t a_stamp = ring->queue.links[a_idx].stamp;
+      uint64_t b_stamp = ring->queue.links[b_idx].stamp;
+      if (a_stamp > b_stamp)
+	return true;
+      if (a_stamp < b_stamp)
+	return false;
+    }
+  return a < b;
+}
+
+static void
+sort_vivification_probes (struct ring * ring, struct unsigneds * sorted)
+{
+  if (SIZE (*sorted) < 2)
+    return;
+  unsigned * begin = sorted->begin;
+  unsigned * end = sorted->end;
+  for (unsigned * p = begin; p + 1 != end; p++)
+    for (unsigned * q = p + 1; q != end; q++)
+      if (less_vivification_probe (ring, *q, *p))
+	SWAP (unsigned, *p, *q);
+}
+
 static unsigned
-vivify_watcher (struct ring * ring, struct unsigneds * decisions, unsigned idx)
+vivify_watcher (struct ring * ring,
+                struct unsigneds * decisions, struct unsigneds * sorted,
+		unsigned idx)
 {
   struct watcher * watcher = index_to_watcher (ring, idx);
   assert (watched_vivification_candidate (watcher));
@@ -242,6 +295,7 @@ vivify_watcher (struct ring * ring, struct unsigneds * decisions, unsigned idx)
 #endif
     }
 
+  CLEAR (*sorted);
   for (all_literals_in_clause (lit, clause))
     {
       signed char value = values[lit];
@@ -254,6 +308,16 @@ vivify_watcher (struct ring * ring, struct unsigneds * decisions, unsigned idx)
 	  assert (v->level);
 	  continue;
 	}
+      PUSH (*sorted, lit);
+    }
+
+  sort_vivification_probes (ring, sorted);
+
+  for (all_elements_on_stack (unsigned, lit, *sorted))
+    {
+      signed char value = values[lit];
+      struct variable *v = VAR (lit);
+      assert (!value || !v->level || !v->reason);
       if (!value)
 	{
 	  ring->level++;
@@ -265,36 +329,34 @@ vivify_watcher (struct ring * ring, struct unsigneds * decisions, unsigned idx)
 	  if (ring_propagate (ring, false, clause))
 	    goto IMPLIED;
 	}
-      else
+      else if (value > 0)
 	{
-	  if (value > 0)
+	  if (!v->level)
 	    {
-	      if (!v->level)
-		{
-		  LOGCLAUSE (clause, "root-level satisfied");
-		  mark_garbage_watcher (ring, watcher);
-		}
-	      else
-		{
-		IMPLIED:
-		  LOGCLAUSE (clause, "vivify implied");
+	      LOGCLAUSE (clause, "root-level satisfied");
+	      mark_garbage_watcher (ring, watcher);
+	    }
+	  else
+	    {
+	    IMPLIED:
+	      LOGCLAUSE (clause, "vivify implied");
 #if 0
-		  message (ring, "vivification implied glue %u (size %u)",
-			   clause->glue, clause->size);
+	      message (ring, "vivification implied glue %u (size %u)",
+		       clause->glue, clause->size);
 #endif
-		  ring->statistics.vivify.succeeded++;
-		  ring->statistics.vivify.implied++;
+	      ring->statistics.vivify.succeeded++;
+	      ring->statistics.vivify.implied++;
 
-		  mark_garbage_watcher (ring, watcher);
-		}
-	      clause_implied = true;
-	      break;
+	      mark_garbage_watcher (ring, watcher);
 	    }
-	  else if (value < 0)
-	    {
-	      if (v->level)
-		non_root_level_falsified++;
-	    }
+	  clause_implied = true;
+	  break;
+	}
+      else 
+	{
+	  assert (value < 0);
+	  if (v->level)
+	    non_root_level_falsified++;
 	}
     }
 
@@ -362,7 +424,9 @@ vivify_clauses (struct ring *ring)
   uint64_t tried = ring->statistics.vivify.tried;
 
   struct unsigneds decisions;
+  struct unsigneds sorted;
   INIT (decisions);
+  INIT (sorted);
 
   size_t i = 0;
   while (i != SIZE (candidates))
@@ -384,7 +448,7 @@ vivify_clauses (struct ring *ring)
 	  RESIZE (decisions, ring->level);
 	}
       unsigned idx = candidates.begin[i++];
-      unsigned sidx = vivify_watcher (ring, &decisions, idx);
+      unsigned sidx = vivify_watcher (ring, &decisions, &sorted, idx);
       if (sidx)
 	PUSH (candidates, sidx);
       else if (ring->inconsistent)
@@ -392,6 +456,8 @@ vivify_clauses (struct ring *ring)
     }
 
   RELEASE (decisions);
+  RELEASE (sorted);
+
   if (!ring->inconsistent && ring->level)
     backtrack (ring, 0);
 
