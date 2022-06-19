@@ -317,47 +317,47 @@ vivify_watcher (struct ring * ring,
     {
       signed char value = values[lit];
       struct variable *v = VAR (lit);
-      assert (!value || !v->level || !v->reason);
+      assert (!value || !v->level || v->reason);
       if (!value)
 	{
 	  ring->level++;
 	  ring->statistics.contexts[PROBING_CONTEXT].decisions++;
 	  unsigned not_lit = NOT (lit);
-	  LOG ("assuming %s", LOGLIT (not_lit));
+#ifdef LOGGING
+	  if (ring->stable)
+	    LOG ("assuming %s score %g",
+	         LOGLIT (not_lit), ring->heap.nodes[IDX (not_lit)].score);
+	  else
+	    LOG ("assuming %s stamp %" PRIu64,
+	         LOGLIT (not_lit), ring->queue.links[IDX (not_lit)].stamp);
+#endif
 	  assign_decision (ring, not_lit);
 	  PUSH (*decisions, not_lit);
 	  if (ring_propagate (ring, false, clause))
 	    goto IMPLIED;
 	}
-      else if (value > 0)
+      else if (value < 0)
+	non_root_level_falsified += !! v->level;
+      else if (!v->level)
 	{
-	  if (!v->level)
-	    {
-	      LOGCLAUSE (clause, "root-level satisfied");
-	      mark_garbage_watcher (ring, watcher);
-	    }
-	  else
-	    {
-	    IMPLIED:
-	      LOGCLAUSE (clause, "vivify implied");
+	  LOGCLAUSE (clause, "root-level satisfied");
+	  mark_garbage_watcher (ring, watcher);
+	}
+      else
+	{
+	IMPLIED:
+	  LOGCLAUSE (clause, "vivify implied");
 #if 0
-	      message (ring, "vivification implied glue %u (size %u)",
-		       clause->glue, clause->size);
+	  message (ring, "vivification implied glue %u (size %u)",
+		   clause->glue, clause->size);
 #endif
-	      ring->statistics.vivify.succeeded++;
-	      ring->statistics.vivify.implied++;
+	  ring->statistics.vivify.succeeded++;
+	  ring->statistics.vivify.implied++;
 
-	      mark_garbage_watcher (ring, watcher);
-	    }
-	  clause_implied = true;
-	  break;
+	  mark_garbage_watcher (ring, watcher);
 	}
-      else 
-	{
-	  assert (value < 0);
-	  if (v->level)
-	    non_root_level_falsified++;
-	}
+      clause_implied = true;
+      break;
     }
 
   unsigned res = 0;
