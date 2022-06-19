@@ -64,7 +64,7 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per learned clause",
 	   "  vivify-tried:", s->vivify.tried,
 	   percent (s->vivify.tried, s->learned.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivified clause",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivify-tried",
 	   "  vivify-reused:", s->vivify.reused,
 	   percent (s->vivify.reused, s->vivify.tried));
 

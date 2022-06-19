@@ -41,6 +41,8 @@
 #define SUBSUME_EFFORT 0.10
 #define VIVIFY_EFFORT 0.03
 
+#define VIVIFY_CLAUSE_SIZE_LIMIT 16
+
 #define WALK_EFFORT 0.02
 
 /*------------------------------------------------------------------------*/

@@ -191,6 +191,10 @@ vivify_watcher (struct ring * ring, struct unsigneds * decisions, unsigned idx)
   signed char *values = ring->values;
   struct clause *clause = watcher->clause;
 
+  if (watcher->glue > TIER1_GLUE_LIMIT &&
+      clause->size > VIVIFY_CLAUSE_SIZE_LIMIT)
+    return 0;
+
   LOGCLAUSE (clause, "trying to vivify");
   ring->statistics.vivify.tried++;
 
