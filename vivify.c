@@ -166,7 +166,7 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
 	  glue = watcher->glue;
 	  LOG ("but candidate glue %u smaller", glue);
 	}
-#if 1
+#if 0
       message (ring, "vivification reduced glue to %u (size %u) from %u (size %u)",
                glue, size, watcher->glue, get_clause (ring, candidate)->size);
 #endif
@@ -222,7 +222,7 @@ vivify_watcher (struct ring * ring, unsigned idx)
 		{
 		IMPLIED:
 		  LOGCLAUSE (clause, "vivify implied");
-#if 1
+#if 0
 		  message (ring, "vivification implied glue %u (size %u)",
 			   clause->glue, clause->size);
 #endif
