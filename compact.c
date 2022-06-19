@@ -6,8 +6,6 @@
 
 #include <string.h>
 
-#include "cover.h"
-
 static unsigned
 map_literal (unsigned *map, unsigned original_lit)
 {

@@ -232,11 +232,51 @@ sort_vivification_probes (struct ring * ring, struct unsigneds * sorted)
 	SWAP (unsigned, *p, *q);
 }
 
+static void
+backtrack_if_reason (struct ring * ring, struct unsigneds * decisions,
+                     struct clause * clause, unsigned candidate_idx)
+{
+  assert (ring->level);
+  signed char * values = ring->values;
+  unsigned unit = INVALID;
+  for (all_literals_in_clause (lit, clause))
+    {
+      signed value = values[lit];
+      if (!value)
+	return;
+      if (value < 0)
+	continue;
+      if (unit != INVALID)
+	return;
+      unit = lit;
+    }
+  if (unit == INVALID)
+    return;
+  assert (unit != INVALID);
+  struct variable * v = VAR (unit);
+  if (!v->level)
+    return;
+  struct watch * reason = v->reason;
+  if (!reason)
+    return;
+  if (is_binary_pointer (reason))
+    return;
+  unsigned reason_idx = index_pointer (reason);
+  if (reason_idx != candidate_idx)
+    return;
+  LOGCLAUSE (clause, "need to reset %s reason", LOGLIT (unit));
+  unsigned new_level = v->level - 1;
+  RESIZE (*decisions, new_level);
+  backtrack (ring, new_level);
+}
+
 static unsigned
 vivify_watcher (struct ring * ring,
                 struct unsigneds * decisions, struct unsigneds * sorted,
 		unsigned idx)
 {
+  assert (SIZE (*decisions) == ring->level);
+
   struct watcher * watcher = index_to_watcher (ring, idx);
   assert (watched_vivification_candidate (watcher));
   watcher->vivify = false;
@@ -247,6 +287,9 @@ vivify_watcher (struct ring * ring,
   if (watcher->glue > TIER1_GLUE_LIMIT &&
       clause->size > VIVIFY_CLAUSE_SIZE_LIMIT)
     return 0;
+
+  if (ring->level)
+    backtrack_if_reason (ring, decisions, clause, idx);
 
   LOGCLAUSE (clause, "trying to vivify");
   ring->statistics.vivify.tried++;
@@ -375,15 +418,21 @@ vivify_watcher (struct ring * ring,
       if (ring->inconsistent)
 	return 0;
 
-      if (strengthened && !is_binary_pointer (strengthened))
+      if (strengthened)
 	{
+	  if (!is_binary_pointer (strengthened))
+	    {
 #ifndef NDEBUG
-	  struct watcher *swatcher = get_watcher (ring, strengthened);
-	  assert (watched_vivification_candidate (swatcher));
+	      struct watcher *swatcher = get_watcher (ring, strengthened);
+	      assert (watched_vivification_candidate (swatcher));
 #endif
-	  res = index_pointer (strengthened);
+	      res = index_pointer (strengthened);
+	    }
 	}
     }
+
+  if (!clause_implied && !non_root_level_falsified)
+    LOGCLAUSE (clause, "vivification failed of");
 
   return res;
 }
@@ -439,13 +488,15 @@ vivify_clauses (struct ring *ring)
 	{
 	  if (ring->inconsistent)
 	    break;
+	  if (ring->level)
+	    backtrack (ring, 0);
+	  CLEAR (decisions);
 	  if (ring_propagate (ring, false, 0))
 	    {
 	      set_inconsistent (ring, "propagation of imported clauses "
 				"during vivification fails");
 	      break;
 	    }
-	  RESIZE (decisions, ring->level);
 	}
       unsigned idx = candidates.begin[i++];
       unsigned sidx = vivify_watcher (ring, &decisions, &sorted, idx);

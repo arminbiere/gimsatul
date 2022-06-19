@@ -17,8 +17,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "cover.h"
-
 struct doubles
 {
   double *begin, *end, *allocated;

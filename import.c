@@ -139,7 +139,11 @@ do { \
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
       really_import_binary_clause (ring, lit, other);
+#if 0
       return false;
+#else
+      return ring->context == PROBING_CONTEXT;
+#endif
     }
 
   unsigned *pos = ring->trail.pos;
@@ -328,7 +332,11 @@ do { \
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
       really_import_large_clause (ring, clause, lit, other);
+#if 0
       return false;
+#else
+      return ring->context == PROBING_CONTEXT;
+#endif
     }
 
   unsigned lit_pos = ring->trail.pos[IDX (lit)];
