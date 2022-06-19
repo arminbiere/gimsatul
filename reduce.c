@@ -253,18 +253,17 @@ flush_references (struct ring *ring, bool fixed, unsigned start, unsigned *map)
 	  else
 	    {
 	      unsigned src = index_pointer (watch);
-	      struct watcher *watcher = index_to_watcher (ring, src);
-	      if (watcher->garbage && !watcher->reason)
-		flushed++;
-	      else
+	      unsigned dst = map_idx (src, start, map);
+	      if (dst)
 		{
-		  unsigned dst = map_idx (src, start, map);
 		  assert (dst);
 		  bool redundant = redundant_pointer (watch);
 		  unsigned other = other_pointer (watch);
 		  struct watch *mapped = tag_index (redundant, dst, other);
 		  *q++ = mapped;
 		}
+	      else
+		flushed++;
 	    }
 	}
       watches->end = q;
@@ -293,7 +292,7 @@ reduce (struct ring *ring)
   if (fixed)
     mark_satisfied_watchers_as_garbage (ring);
   else
-#if 1
+#if 0
     start = ring->tier2;
 #else
     start = ring->redundant;
