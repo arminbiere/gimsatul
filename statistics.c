@@ -52,15 +52,21 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("%-22s %17" PRIu64 " %13.2f thousands per second",
 	   "flips:", s->flips, average (s->flips, 1e3 * walk));
 
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per learned clause",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per tried clause",
 	   "vivified-clauses:", s->vivify.succeeded,
-	   percent (s->vivify.succeeded, s->learned.clauses));
+	   percent (s->vivify.succeeded, s->vivify.tried));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivified clause",
-	   "vivify-implied:", s->vivify.implied,
+	   "  vivify-implied:", s->vivify.implied,
 	   percent (s->vivify.implied, s->vivify.succeeded));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivified clause",
-	   "vivify-strengthened:", s->vivify.strengthened,
+	   "  vivify-strengthened:", s->vivify.strengthened,
 	   percent (s->vivify.strengthened, s->vivify.succeeded));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per learned clause",
+	   "  vivify-tried:", s->vivify.tried,
+	   percent (s->vivify.tried, s->learned.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivified clause",
+	   "  vivify-reused:", s->vivify.reused,
+	   percent (s->vivify.reused, s->vivify.tried));
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned clause",
 	   "learned-literals:", s->literals.learned,

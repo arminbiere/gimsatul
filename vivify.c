@@ -192,6 +192,7 @@ vivify_watcher (struct ring * ring, struct unsigneds * decisions, unsigned idx)
   struct clause *clause = watcher->clause;
 
   LOGCLAUSE (clause, "trying to vivify");
+  ring->statistics.vivify.tried++;
 
   unsigned non_root_level_falsified = 0;
   bool clause_implied = false;
@@ -229,10 +230,13 @@ vivify_watcher (struct ring * ring, struct unsigneds * decisions, unsigned idx)
       break;
     }
 
-#if 0
   if (!EMPTY (*decisions))
-    message (ring, "vivification reuses %zu decisions", SIZE (*decisions));
+    {
+      ring->statistics.vivify.reused++;
+#if 0
+      message (ring, "vivification reuses %zu decisions", SIZE (*decisions));
 #endif
+    }
 
   for (all_literals_in_clause (lit, clause))
     {
@@ -351,7 +355,7 @@ vivify_clauses (struct ring *ring)
   uint64_t implied = ring->statistics.vivify.implied;
   uint64_t strengthened = ring->statistics.vivify.strengthened;
   uint64_t vivified = ring->statistics.vivify.succeeded;
-  uint64_t tried = 0;
+  uint64_t tried = ring->statistics.vivify.tried;
 
   struct unsigneds decisions;
   INIT (decisions);
@@ -375,7 +379,6 @@ vivify_clauses (struct ring *ring)
 	    }
 	  RESIZE (decisions, ring->level);
 	}
-      tried++;
       unsigned idx = candidates.begin[i++];
       unsigned sidx = vivify_watcher (ring, &decisions, idx);
       if (sidx)
@@ -397,6 +400,7 @@ vivify_clauses (struct ring *ring)
   implied = ring->statistics.vivify.implied - implied;
   strengthened = ring->statistics.vivify.strengthened - strengthened;
   vivified = ring->statistics.vivify.succeeded - vivified;
+  tried = ring->statistics.vivify.tried - tried;
 
   very_verbose (ring,
 		"vivified %" PRIu64 " clauses %.0f%% from %" PRIu64 " tried %.0f%% "
