@@ -162,71 +162,51 @@ new_local_binary_clause (struct ring *ring, bool redundant,
 }
 
 unsigned *
-map_watchers (struct ring *ring, unsigned start)
-{
-  assert (start);
-  struct watchers *watchers = &ring->watchers;
-  assert (!EMPTY (*watchers));
-  assert (!watchers->begin[0].sum);
-  struct watcher *begin = watchers->begin + start;
-  struct watcher *end = watchers->end;
-
-  size_t size = end - begin;
-  unsigned *map = allocate_and_clear_array (size, sizeof *map);
-
-  unsigned dst = start;
-  unsigned mapped = 0;
-  unsigned src = 0;
-
-  for (struct watcher * p = begin; p != end; p++, src++)
-    if (!p->garbage || p->reason)
-      {
-	assert (src < size);
-	assert (dst < MAX_WATCHER_INDEX);
-	map[src] = dst++;
-	mapped++;
-      }
-
-  verbose (ring, "mapped %u non-garbage watchers %.0f%%",
-	   mapped, percent (mapped, size));
-#ifdef QUIET
-  (void) mapped;
-#endif
-  return map;
-}
-
-void
 flush_watchers (struct ring *ring, unsigned start)
 {
   assert (start);
   struct watchers *watchers = &ring->watchers;
   assert (!EMPTY (*watchers));
   assert (!watchers->begin[0].sum);
+
   struct watcher *begin = watchers->begin + start;
   struct watcher *end = watchers->end;
   struct watcher *q = begin;
-  size_t flushed = 0;
-  size_t deleted = 0;
 
-  unsigned idx = start;
+  size_t size = end - begin;
+  unsigned *map = allocate_and_clear_array (size, sizeof *map);
+
+  unsigned src = 0;
+  unsigned dst = start;
+
   unsigned redundant = 0;
   unsigned tier2 = 0;
+
+  unsigned flushed = 0;
+  unsigned deleted = 0;
+  unsigned mapped = 0;
+
   if (start >= ring->redundant)
     {
       assert (ring->redundant);
       redundant = ring->redundant;
     }
 
-  for (struct watcher * p = begin; p != end; p++)
+  for (struct watcher * p = begin; p != end; p++, src++)
     {
       if (!p->garbage || p->reason)
 	{
-	  if (!redundant && p->redundant)
-	    redundant = idx;
-	  if (!tier2 && p->redundant && TIER1_GLUE_LIMIT < p->glue)
-	    tier2 = idx;
 	  *q++ = *p;
-	  idx++;
+
+	  if (!redundant && p->redundant)
+	    redundant = dst;
+	  if (!tier2 && p->redundant && TIER1_GLUE_LIMIT < p->glue)
+	    tier2 = dst;
+
+	  assert (src < size);
+	  assert (dst < MAX_WATCHER_INDEX);
+	  map[src] = dst++;
+	  mapped++;
 	}
       else
 	{
@@ -236,8 +216,11 @@ flush_watchers (struct ring *ring, unsigned start)
 	}
     }
   watchers->end = q;
+
+  verbose (ring, "mapped %u non-garbage watchers %.0f%%",
+	   mapped, percent (mapped, size));
   verbose (ring,
-	   "flushed %zu garbage watched and deleted %zu clauses %.0f%%",
+	   "flushed %u garbage watched and deleted %u clauses %.0f%%",
 	   flushed, deleted, percent (deleted, flushed));
 
   if (redundant)
@@ -269,7 +252,10 @@ flush_watchers (struct ring *ring, unsigned start)
 #ifdef QUIET
   (void) deleted;
   (void) flushed;
+  (void) mapped;
 #endif
+
+  return map;
 }
 
 void

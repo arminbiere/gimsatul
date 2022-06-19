@@ -70,8 +70,7 @@ struct watch *watch_first_two_literals_in_large_clause (struct ring *,
 void mark_garbage_watch (struct ring *, struct watch *);
 void mark_garbage_watcher (struct ring *, struct watcher *);
 
-unsigned *map_watchers (struct ring *, unsigned start);
-void flush_watchers (struct ring *, unsigned start);
+unsigned * flush_watchers (struct ring *, unsigned start);
 void reconnect_watches (struct ring *, struct watches *saved);
 
 void release_references (struct ring *);

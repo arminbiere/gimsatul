@@ -106,7 +106,7 @@ check_redundant_and_tier2_offsets (struct ring * ring)
   ++ P_ ## LIT
 
 static void
-mark_reasons (struct ring *ring)
+mark_reasons (struct ring *ring, unsigned start)
 {
   for (all_literals_on_trail_with_reason (lit))
     {
@@ -117,6 +117,8 @@ mark_reasons (struct ring *ring)
       if (is_binary_pointer (watch))
 	continue;
       unsigned src = index_pointer (watch);
+      if (src < start)
+	continue;
       struct watcher *watcher = index_to_watcher (ring, src);
       assert (!watcher->reason);
       watcher->reason = true;
@@ -141,11 +143,13 @@ unmark_reasons (struct ring *ring, unsigned start, unsigned *map)
       if (is_binary_pointer (watch))
 	continue;
       unsigned src = index_pointer (watch);
-      struct watcher *watcher = index_to_watcher (ring, src);
-      assert (watcher->reason);
-      watcher->reason = false;
+      if (src < start)
+	continue;
       unsigned dst = map_idx (src, start, map);
       assert (dst);
+      struct watcher *watcher = index_to_watcher (ring, dst);
+      assert (watcher->reason);
+      watcher->reason = false;
       bool redundant = redundant_pointer (watch);
       unsigned other = other_pointer (watch);
       struct watch *mapped = tag_index (redundant, dst, other);
@@ -284,9 +288,6 @@ reduce (struct ring *ring)
   statistics->reductions++;
   verbose (ring, "reduction %" PRIu64 " at %" PRIu64 " conflicts",
 	   statistics->reductions, SEARCH_CONFLICTS);
-  mark_reasons (ring);
-  struct unsigneds candidates;
-  INIT (candidates);
   bool fixed = ring->last.fixed != ring->statistics.fixed;
   unsigned start = 1;
   if (fixed)
@@ -297,15 +298,17 @@ reduce (struct ring *ring)
 #else
     start = ring->redundant;
 #endif
+  mark_reasons (ring, start);
+  struct unsigneds candidates;
+  INIT (candidates);
   gather_reduce_candidates (ring, &candidates);
   sort_redundant_watcher_indices (ring, SIZE (candidates), candidates.begin);
   mark_reduce_candidates_as_garbage (ring, &candidates);
   RELEASE (candidates);
-  unsigned *map = map_watchers (ring,  start);
-  flush_references (ring, fixed, start, map);
+  unsigned *map = flush_watchers (ring, start);
   unmark_reasons (ring, start, map);
+  flush_references (ring, fixed, start, map);
   free (map);
-  flush_watchers (ring, start);
   check_clause_statistics (ring);
   check_redundant_and_tier2_offsets (ring);
   limits->reduce = SEARCH_CONFLICTS;
