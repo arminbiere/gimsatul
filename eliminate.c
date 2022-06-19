@@ -548,7 +548,9 @@ eliminate_variables (struct simplifier *simplifier, unsigned round)
       idx++;
     }
 
+#ifndef QUIET
   unsigned remaining = SIZE (candidates);
+#endif
   RELEASE (candidates);
 
   RELEASE (simplifier->resolvent);

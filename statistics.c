@@ -83,7 +83,6 @@ print_ring_statistics (struct ring *ring)
 #else
 #define PRINT_CLAUSE_METRICS(NAME,MAXGLUE) /**/
 #endif
-
 #define PRINT_CLAUSE_STATISTICS(NAME,MAXGLUE) \
 do { \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
@@ -100,16 +99,14 @@ do { \
 	   percent (s->NAME.tier3, s->NAME.clauses)); \
   PRINT_CLAUSE_METRICS(NAME,MAXGLUE); \
 } while (0)
-
 #define MACRO(SIZE,NAME) \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
 	   "  " #NAME "-glue" #SIZE ":", s->NAME.glue[SIZE], \
 	   percent (s->NAME.glue[SIZE], s->NAME.clauses))
-
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f per second",
-	   "learned-clauses:", s->learned.clauses,
-	   average (s->learned.clauses, search));
-  PRINT_CLAUSE_STATISTICS (learned, SIZE_GLUE_STATISTICS-1);
+    PRINTLN ("%-22s %17" PRIu64 " %13.2f per second",
+	     "learned-clauses:", s->learned.clauses,
+	     average (s->learned.clauses, search));
+  PRINT_CLAUSE_STATISTICS (learned, SIZE_GLUE_STATISTICS - 1);
 #ifdef METRICS
   uint64_t learned_glue_small = 0;
   for (unsigned glue = 1; glue != SIZE_GLUE_STATISTICS; glue++)
@@ -174,9 +171,9 @@ do { \
 #define MACRO(SIZE,DUMMY) \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% visits", \
 	   "  visits" #SIZE ":", c->visits[SIZE], percent (c->visits[SIZE], visits))
-  INSTANTIATE(SIZE_WATCHER_LITERALS + 1, SIZE_VISITS-1);
+  INSTANTIATE (SIZE_WATCHER_LITERALS + 1, SIZE_VISITS - 1);
 #undef MACRO
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% visits", \
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% visits",
 	   "  visits-large:", c->visits[0], percent (c->visits[0], visits));
 #endif
 

@@ -1,5 +1,9 @@
 # Version 1.0.2rc1
 
+- Simplified and improved 'reduce':  reduce only goes over 'tier2' clauses
+  ignoring references before that if no new fixed root-level unit was found;
+  flushing and mapping references was merged (only one watcher pass now).
+
 - Removed the compile-time option './configure --no-middle'.
 
 - The pools for sharing clauses are now indexed by the glue of the shared

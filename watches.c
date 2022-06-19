@@ -181,11 +181,11 @@ flush_watchers (struct ring *ring, unsigned start)
 
   unsigned redundant = 0;
   unsigned tier2 = 0;
-
+#ifndef QUIET
   unsigned flushed = 0;
   unsigned deleted = 0;
   unsigned mapped = 0;
-
+#endif
   if (start >= ring->redundant)
     {
       assert (ring->redundant);
@@ -194,25 +194,32 @@ flush_watchers (struct ring *ring, unsigned start)
 
   for (struct watcher * p = begin; p != end; p++, src++)
     {
-      if (!p->garbage || p->reason)
+      if (p->garbage && !p->reason)
+	{
+	  struct clause *clause = p->clause;
+#ifndef QUIET
+	  deleted += dereference_clause (ring, clause);
+	  flushed++;
+#else
+	  (void) dereference_clause (ring, clause);
+#endif
+	}
+      else
 	{
 	  *q++ = *p;
 
 	  if (!redundant && p->redundant)
 	    redundant = dst;
+
 	  if (!tier2 && p->redundant && TIER1_GLUE_LIMIT < p->glue)
 	    tier2 = dst;
 
 	  assert (src < size);
 	  assert (dst < MAX_WATCHER_INDEX);
 	  map[src] = dst++;
+#ifndef QUIET
 	  mapped++;
-	}
-      else
-	{
-	  struct clause *clause = p->clause;
-	  deleted += dereference_clause (ring, clause);
-	  flushed++;
+#endif
 	}
     }
   watchers->end = q;
@@ -243,17 +250,11 @@ flush_watchers (struct ring *ring, unsigned start)
   else
     {
       very_verbose (ring, "no tier2 clauses watched");
-      ring->tier2 = SIZE (ring->watchers);
+      ring->tier2 = SIZE (*watchers);
     }
 
   assert (ring->redundant);
   assert (ring->tier2);
-
-#ifdef QUIET
-  (void) deleted;
-  (void) flushed;
-  (void) mapped;
-#endif
 
   return map;
 }

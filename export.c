@@ -108,19 +108,18 @@ flush_pool (struct ring *ring)
   for (unsigned i = 0; i != ring->threads; i++)
     {
       if (i == ring->id)
-       continue;
+	continue;
       struct pool *pool = ring->pool + i;
       for (unsigned shared = 0; shared != SIZE_SHARED; shared++)
-       {
-         atomic_uintptr_t *share = &pool->share[shared];
-         uintptr_t clause = atomic_exchange (share, 0);
-         if (!clause)
-           continue;
-         if (shared != BINARY_SHARED)
-           dereference_clause (ring, (struct clause *) clause);
-         flushed++;
-       }
+	{
+	  atomic_uintptr_t *share = &pool->share[shared];
+	  uintptr_t clause = atomic_exchange (share, 0);
+	  if (!clause)
+	    continue;
+	  if (shared != BINARY_SHARED)
+	    dereference_clause (ring, (struct clause *) clause);
+	  flushed++;
+	}
     }
   very_verbose (ring, "flushed %zu clauses to be exported", flushed);
 }
-

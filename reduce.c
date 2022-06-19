@@ -68,14 +68,14 @@ check_clause_statistics (struct ring *ring)
 }
 
 void
-check_redundant_and_tier2_offsets (struct ring * ring)
+check_redundant_and_tier2_offsets (struct ring *ring)
 {
 #ifndef NDBEUG
-  struct watchers * watchers = &ring->watchers;
-  struct watcher * begin = watchers->begin;
-  struct watcher * redundant = begin + ring->redundant;
-  struct watcher * tier2 = begin + ring->tier2;
-  struct watcher * end = watchers->end;
+  struct watchers *watchers = &ring->watchers;
+  struct watcher *begin = watchers->begin;
+  struct watcher *redundant = begin + ring->redundant;
+  struct watcher *tier2 = begin + ring->tier2;
+  struct watcher *end = watchers->end;
 
   for (struct watcher * watcher = begin; watcher != redundant; watcher++)
     assert (!watcher->redundant);
@@ -91,7 +91,7 @@ check_redundant_and_tier2_offsets (struct ring * ring)
 
   assert (redundant <= tier2);
   assert (tier2 <= end);
-  
+
   for (struct watcher * watcher = tier2; watcher != end; watcher++)
     assert (watcher->redundant);
 #else
@@ -126,7 +126,7 @@ mark_reasons (struct ring *ring, unsigned start)
 }
 
 static unsigned
-map_idx (unsigned src, unsigned start, unsigned * map)
+map_idx (unsigned src, unsigned start, unsigned *map)
 {
   return (src < start) ? src : map[src - start];
 }
@@ -160,10 +160,10 @@ unmark_reasons (struct ring *ring, unsigned start, unsigned *map)
 static void
 gather_reduce_candidates (struct ring *ring, struct unsigneds *candidates)
 {
-  struct watchers * watchers = &ring->watchers;
-  struct watcher * begin = watchers->begin;
-  struct watcher * end = watchers->end;
-  struct watcher * tier2 = begin + ring->tier2;
+  struct watchers *watchers = &ring->watchers;
+  struct watcher *begin = watchers->begin;
+  struct watcher *end = watchers->end;
+  struct watcher *tier2 = begin + ring->tier2;
   for (struct watcher * watcher = tier2; watcher != end; watcher++)
     {
       if (watcher->garbage)
@@ -206,7 +206,8 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
 }
 
 static void
-flush_references (struct ring *ring, bool fixed, unsigned start, unsigned *map)
+flush_references (struct ring *ring, bool fixed, unsigned start,
+		  unsigned *map)
 {
   size_t flushed = 0;
   signed char *values = ring->values;
@@ -293,11 +294,7 @@ reduce (struct ring *ring)
   if (fixed)
     mark_satisfied_watchers_as_garbage (ring);
   else
-#if 0
     start = ring->tier2;
-#else
-    start = ring->redundant;
-#endif
   mark_reasons (ring, start);
   struct unsigneds candidates;
   INIT (candidates);
@@ -314,7 +311,7 @@ reduce (struct ring *ring)
   limits->reduce = SEARCH_CONFLICTS;
   unsigned interval = ring->options.reduce_interval;
   assert (interval);
-  limits->reduce += interval * sqrt (statistics->reductions + 1);
+  limits->reduce += interval * sqrt (statistics->reductions);
   very_verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
 		limits->reduce);
   report (ring, '-');
