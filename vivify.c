@@ -182,7 +182,7 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
 }
 
 static unsigned
-vivify_watcher (struct ring * ring, unsigned idx)
+vivify_watcher (struct ring * ring, struct unsigneds * decisions, unsigned idx)
 {
   struct watcher * watcher = index_to_watcher (ring, idx);
   assert (watched_vivification_candidate (watcher));
@@ -191,12 +191,61 @@ vivify_watcher (struct ring * ring, unsigned idx)
   signed char *values = ring->values;
   struct clause *clause = watcher->clause;
 
+  LOGCLAUSE (clause, "trying to vivify");
+
   unsigned non_root_level_falsified = 0;
   bool clause_implied = false;
+
+  for (unsigned level = 0; level != SIZE (*decisions); level++)
+    {
+      unsigned decision = decisions->begin[level];
+      assert (VAR (decision)->level == level + 1);
+      assert (!VAR (decision)->reason);
+      bool found = false;
+      for (all_literals_in_clause (lit, clause))
+	if (NOT (lit) == decision)
+	  {
+	    found = true;
+	    break;
+	  }
+      if (found)
+	{
+	  assert (VAR (decision)->level == level + 1);
+	  assert (!VAR (decision)->reason);
+	  signed char value = values[decision];
+	  assert (value);
+	  if (value > 0)
+	    {
+	      LOG ("reusing decision %s", LOGLIT (decision));
+	      continue;
+	    }
+	  LOG ("decision %s with opposite phase", LOGLIT (decision));
+	}
+      else
+	LOG ("decision %s not in clause", LOGLIT (decision));
+      assert (level < ring->level);
+      backtrack (ring, level);
+      RESIZE (*decisions, level);
+      break;
+    }
+
+#if 0
+  if (!EMPTY (*decisions))
+    message (ring, "vivification reuses %zu decisions", SIZE (*decisions));
+#endif
 
   for (all_literals_in_clause (lit, clause))
     {
       signed char value = values[lit];
+      struct variable *v = VAR (lit);
+      if (value && v->level && !v->reason)
+	{
+	  LOG ("skipping reused decision %s", LOGLIT (lit));
+	  assert (!v->reason);
+	  assert (value < 0);
+	  assert (v->level);
+	  continue;
+	}
       if (!value)
 	{
 	  ring->level++;
@@ -204,13 +253,12 @@ vivify_watcher (struct ring * ring, unsigned idx)
 	  unsigned not_lit = NOT (lit);
 	  LOG ("assuming %s", LOGLIT (not_lit));
 	  assign_decision (ring, not_lit);
+	  PUSH (*decisions, not_lit);
 	  if (ring_propagate (ring, false, clause))
 	    goto IMPLIED;
 	}
       else
 	{
-	  const unsigned idx = IDX (lit);
-	  struct variable *v = ring->variables + idx;
 	  if (value > 0)
 	    {
 	      if (!v->level)
@@ -267,9 +315,6 @@ vivify_watcher (struct ring * ring, unsigned idx)
 	}
     }
 
-  if (ring->level)
-    backtrack (ring, 0);
-
   return res;
 }
 
@@ -308,6 +353,9 @@ vivify_clauses (struct ring *ring)
   uint64_t vivified = ring->statistics.vivify.succeeded;
   uint64_t tried = 0;
 
+  struct unsigneds decisions;
+  INIT (decisions);
+
   size_t i = 0;
   while (i != SIZE (candidates))
     {
@@ -325,16 +373,20 @@ vivify_clauses (struct ring *ring)
 				"during vivification fails");
 	      break;
 	    }
+	  RESIZE (decisions, ring->level);
 	}
       tried++;
-      assert (!ring->level);
       unsigned idx = candidates.begin[i++];
-      unsigned sidx = vivify_watcher (ring, idx);
+      unsigned sidx = vivify_watcher (ring, &decisions, idx);
       if (sidx)
 	PUSH (candidates, sidx);
       else if (ring->inconsistent)
 	break;
     }
+
+  RELEASE (decisions);
+  if (!ring->inconsistent && ring->level)
+    backtrack (ring, 0);
 
   if (i != SIZE (candidates))
     while (i != SIZE (candidates))
