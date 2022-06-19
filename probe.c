@@ -14,7 +14,10 @@ probing (struct ring *ring)
 {
   if (!ring->options.probe)
     return false;
-  return SEARCH_CONFLICTS > ring->limits.probe;
+  uint64_t conflicts = SEARCH_CONFLICTS;
+  if (conflicts != ring->last.reduce)
+    return false;
+  return conflicts > ring->limits.probe;
 }
 
 int

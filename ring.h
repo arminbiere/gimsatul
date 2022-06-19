@@ -58,6 +58,7 @@ struct ring_last
 {
   unsigned fixed;
   uint64_t probing;
+  uint64_t reduce;
   uint64_t walk;
 };
 

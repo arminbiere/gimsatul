@@ -1,8 +1,12 @@
 # Version 1.0.2rc1
 
+- Optimized vivification by first waiting for the next reduce to avoid
+  spending time on garbage collected 'tier2' clauses and second ...
+
 - Simplified and improved 'reduce':  reduce only goes over 'tier2' clauses
-  ignoring references before that if no new fixed root-level unit was found;
-  flushing and mapping references was merged (only one watcher pass now).
+  ignoring references before the cached start of the first 'tier2' clause
+  if no new fixed root-level unit was found; flushing and mapping references
+  was merged in order to have just one pass over the watchers.
 
 - Removed the compile-time option './configure --no-middle'.
 
