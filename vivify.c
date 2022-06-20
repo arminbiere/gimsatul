@@ -165,11 +165,6 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
 	  glue = watcher->glue;
 	  LOG ("but candidate glue %u smaller", glue);
 	}
-#if 0
-      message (ring,
-	       "vivification reduced glue to %u (size %u) from %u (size %u)",
-	       glue, size, watcher->glue, get_clause (ring, candidate)->size);
-#endif
       assert (glue < size);
       struct clause *clause = new_large_clause (size, literals, true, glue);
       res = watch_first_two_literals_in_large_clause (ring, clause);
@@ -331,12 +326,7 @@ vivify_watcher (struct ring *ring,
     }
 
   if (!EMPTY (*decisions))
-    {
-      ring->statistics.vivify.reused++;
-#if 0
-      message (ring, "vivification reuses %zu decisions", SIZE (*decisions));
-#endif
-    }
+    ring->statistics.vivify.reused++;
 
   CLEAR (*sorted);
   for (all_literals_in_clause (lit, clause))
@@ -390,10 +380,7 @@ vivify_watcher (struct ring *ring,
 	{
 	IMPLIED:
 	  LOGCLAUSE (clause, "vivify implied");
-#if 0
-	  message (ring, "vivification implied glue %u (size %u)",
-		   clause->glue, clause->size);
-#endif
+
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.implied++;
 
