@@ -130,7 +130,7 @@ do { \
       LOGBINARY (true, LIT, OTHER, "subsumed imported"); \
       return false; \
     } \
-} while (0);
+} while (0)
 
   if ((lit_value >= 0 && other_value >= 0) ||
       (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
