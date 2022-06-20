@@ -13,8 +13,6 @@
 
 #include <inttypes.h>
 
-#include "cover.h"
-
 static inline bool
 watched_vivification_candidate (struct watcher *watcher)
 {
@@ -338,7 +336,7 @@ vivify_watcher (struct ring *ring,
 	    continue;
 
 	  LOGCLAUSE (clause, "vivify implied after conflict");
-IMPLIED:
+	IMPLIED:
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.implied++;
 	  mark_garbage_watcher (ring, watcher);
@@ -349,13 +347,13 @@ IMPLIED:
       if (value > 0)
 	{
 	  LOGCLAUSE (clause,
-	             "vivify implied (through literal %s)", LOGLIT (lit));
+		     "vivify implied (through literal %s)", LOGLIT (lit));
 	  goto IMPLIED;
 	}
 
       assert (value < 0);
-      struct variable * v = VAR (lit);
-      non_root_level_falsified += !! v->level;
+      struct variable *v = VAR (lit);
+      non_root_level_falsified += !!v->level;
     }
 
   unsigned res = 0;
