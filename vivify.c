@@ -166,8 +166,9 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
 	  LOG ("but candidate glue %u smaller", glue);
 	}
 #if 0
-      message (ring, "vivification reduced glue to %u (size %u) from %u (size %u)",
-               glue, size, watcher->glue, get_clause (ring, candidate)->size);
+      message (ring,
+	       "vivification reduced glue to %u (size %u) from %u (size %u)",
+	       glue, size, watcher->glue, get_clause (ring, candidate)->size);
 #endif
       assert (glue < size);
       struct clause *clause = new_large_clause (size, literals, true, glue);
@@ -181,9 +182,9 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
 }
 
 static bool
-less_vivification_probe (struct ring * ring, unsigned a, unsigned b)
+less_vivification_probe (struct ring *ring, unsigned a, unsigned b)
 {
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   signed char a_value = values[a];
   signed char b_value = values[b];
   if (a_value && !b_value)
@@ -219,24 +220,24 @@ less_vivification_probe (struct ring * ring, unsigned a, unsigned b)
 }
 
 static void
-sort_vivification_probes (struct ring * ring, struct unsigneds * sorted)
+sort_vivification_probes (struct ring *ring, struct unsigneds *sorted)
 {
   if (SIZE (*sorted) < 2)
     return;
-  unsigned * begin = sorted->begin;
-  unsigned * end = sorted->end;
-  for (unsigned * p = begin; p + 1 != end; p++)
-    for (unsigned * q = p + 1; q != end; q++)
+  unsigned *begin = sorted->begin;
+  unsigned *end = sorted->end;
+  for (unsigned *p = begin; p + 1 != end; p++)
+    for (unsigned *q = p + 1; q != end; q++)
       if (less_vivification_probe (ring, *q, *p))
 	SWAP (unsigned, *p, *q);
 }
 
 static void
-backtrack_if_reason (struct ring * ring, struct unsigneds * decisions,
-                     struct clause * clause, unsigned candidate_idx)
+backtrack_if_reason (struct ring *ring, struct unsigneds *decisions,
+		     struct clause *clause, unsigned candidate_idx)
 {
   assert (ring->level);
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   unsigned unit = INVALID;
   for (all_literals_in_clause (lit, clause))
     {
@@ -252,10 +253,10 @@ backtrack_if_reason (struct ring * ring, struct unsigneds * decisions,
   if (unit == INVALID)
     return;
   assert (unit != INVALID);
-  struct variable * v = VAR (unit);
+  struct variable *v = VAR (unit);
   if (!v->level)
     return;
-  struct watch * reason = v->reason;
+  struct watch *reason = v->reason;
   if (!reason)
     return;
   if (is_binary_pointer (reason))
@@ -270,13 +271,13 @@ backtrack_if_reason (struct ring * ring, struct unsigneds * decisions,
 }
 
 static unsigned
-vivify_watcher (struct ring * ring,
-                struct unsigneds * decisions, struct unsigneds * sorted,
+vivify_watcher (struct ring *ring,
+		struct unsigneds *decisions, struct unsigneds *sorted,
 		unsigned idx)
 {
   assert (SIZE (*decisions) == ring->level);
 
-  struct watcher * watcher = index_to_watcher (ring, idx);
+  struct watcher *watcher = index_to_watcher (ring, idx);
   assert (watched_vivification_candidate (watcher));
   watcher->vivify = false;
 
@@ -368,10 +369,10 @@ vivify_watcher (struct ring * ring,
 #ifdef LOGGING
 	  if (ring->stable)
 	    LOG ("assuming %s score %g",
-	         LOGLIT (not_lit), ring->heap.nodes[IDX (not_lit)].score);
+		 LOGLIT (not_lit), ring->heap.nodes[IDX (not_lit)].score);
 	  else
 	    LOG ("assuming %s stamp %" PRIu64,
-	         LOGLIT (not_lit), ring->queue.links[IDX (not_lit)].stamp);
+		 LOGLIT (not_lit), ring->queue.links[IDX (not_lit)].stamp);
 #endif
 	  assign_decision (ring, not_lit);
 	  PUSH (*decisions, not_lit);
@@ -379,7 +380,7 @@ vivify_watcher (struct ring * ring,
 	    goto IMPLIED;
 	}
       else if (value < 0)
-	non_root_level_falsified += !! v->level;
+	non_root_level_falsified += !!v->level;
       else if (!v->level)
 	{
 	  LOGCLAUSE (clause, "root-level satisfied");
@@ -523,10 +524,9 @@ vivify_clauses (struct ring *ring)
   tried = ring->statistics.vivify.tried - tried;
 
   very_verbose (ring,
-		"vivified %" PRIu64 " clauses %.0f%% from %" PRIu64 " tried %.0f%% "
-		"after %" PRIu64 " ticks (%s)",
-		vivified, percent (vivified, tried),
-		tried, percent (tried, scheduled),
+		"vivified %" PRIu64 " clauses %.0f%% from %" PRIu64
+		" tried %.0f%% " "after %" PRIu64 " ticks (%s)", vivified,
+		percent (vivified, tried), tried, percent (tried, scheduled),
 		PROBING_TICKS - probing_ticks_before,
 		(PROBING_TICKS > limit ? "limit hit" : "completed"));
 

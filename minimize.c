@@ -34,7 +34,7 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
     }
   else
     {
-      struct watcher * watcher = get_watcher (ring, reason);
+      struct watcher *watcher = get_watcher (ring, reason);
       for (all_watcher_literals (other, watcher))
 	if (other != not_lit && !minimize_literal (ring, other, depth))
 	  {
@@ -137,7 +137,7 @@ shrink_clause (struct ring *ring)
 	}
       else if (reason)
 	{
-	  struct watcher * watcher = get_watcher (ring, reason);
+	  struct watcher *watcher = get_watcher (ring, reason);
 	  for (all_watcher_literals (other, watcher))
 	    SHRINK_LITERAL (other);
 	}
