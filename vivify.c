@@ -318,8 +318,7 @@ vivify_watcher (struct ring *ring,
   for (all_elements_on_stack (unsigned, lit, *sorted))
     {
       signed char value = values[lit];
-      struct variable *v = VAR (lit);
-      assert (!value || !v->level || v->reason);
+
       if (!value)
 	{
 	  ring->level++;
@@ -335,24 +334,28 @@ vivify_watcher (struct ring *ring,
 #endif
 	  assign_decision (ring, not_lit);
 	  PUSH (*decisions, not_lit);
-	  if (ring_propagate (ring, false, clause))
-	    goto IMPLIED;
-	}
-      else if (value < 0)
-	non_root_level_falsified += !!v->level;
-      else
-	{
-	  assert (v->level);
-	IMPLIED:
-	  LOGCLAUSE (clause, "vivify implied");
+	  if (!ring_propagate (ring, false, clause))
+	    continue;
 
+	  LOGCLAUSE (clause, "vivify implied after conflict");
+IMPLIED:
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.implied++;
-
 	  mark_garbage_watcher (ring, watcher);
+	  clause_implied = true;
+	  break;
 	}
-      clause_implied = true;
-      break;
+
+      if (value > 0)
+	{
+	  LOGCLAUSE (clause,
+	             "vivify implied (through literal %s)", LOGLIT (lit));
+	  goto IMPLIED;
+	}
+
+      assert (value < 0);
+      struct variable * v = VAR (lit);
+      non_root_level_falsified += !! v->level;
     }
 
   unsigned res = 0;
