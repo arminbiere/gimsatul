@@ -476,8 +476,8 @@ vivify_clauses (struct ring *ring)
 	  if (ring->inconsistent)
 	    break;
 	  if (ring->level)
-	    backtrack (ring, 0);
-	  CLEAR (decisions);
+	    backtrack (ring, ring->level - 1);
+	  RESIZE (decisions, ring->level);
 	  if (ring_propagate (ring, false, 0))
 	    {
 	      set_inconsistent (ring, "propagation of imported clauses "
