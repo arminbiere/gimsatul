@@ -49,8 +49,12 @@ struct references
   all_pointers_on_stack (struct watch, ELEM, WATCHES)
 
 #define all_watcher_literals(LIT,WATCHER) \
-  unsigned * P_ ## LIT = (assert ((WATCHER)->size), (WATCHER)->aux), \
-           * END_ ## LIT = P_ ## LIT + (WATCHER)->size, LIT; \
+  unsigned * P_ ## LIT = ((WATCHER)->size ? \
+                          (WATCHER)->aux : (WATCHER)->clause->literals), \
+           * END_ ## LIT = P_ ## LIT + \
+	                   ((WATCHER)->size ? \
+			   (WATCHER)->size : (WATCHER)->clause->size), \
+	   LIT; \
   P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
   ++ P_ ## LIT
 

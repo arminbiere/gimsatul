@@ -34,12 +34,12 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
     }
   else
     {
-      struct clause *clause = get_clause (ring, reason);
-      for (all_literals_in_clause (other, clause))
+      struct watcher * watcher = get_watcher (ring, reason);
+      for (all_watcher_literals (other, watcher))
 	if (other != not_lit && !minimize_literal (ring, other, depth))
 	  {
 	    res = false;
-	    break;;
+	    break;
 	  }
     }
   if (!v->shrinkable)
@@ -137,8 +137,8 @@ shrink_clause (struct ring *ring)
 	}
       else if (reason)
 	{
-	  struct clause *clause = get_clause (ring, reason);
-	  for (all_literals_in_clause (other, clause))
+	  struct watcher * watcher = get_watcher (ring, reason);
+	  for (all_watcher_literals (other, watcher))
 	    SHRINK_LITERAL (other);
 	}
       assert (open);
