@@ -511,7 +511,7 @@ do { \
   size_t len = strlen (buffer); \
   assert (len < sizeof buffer); \
   fputs (buffer, stdout); \
-  while (len++ < 30) \
+  while (len++ < 32) \
     fputc (' ', stdout); \
   fputs (DESCRIPTION, stdout); \
   if (!strcmp (#TYPE, "bool")) \

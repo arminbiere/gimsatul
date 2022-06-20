@@ -47,7 +47,7 @@ export_binary_clause (struct ring *ring, struct watch *watch)
   unsigned threads = ring->threads;
   if (threads < 2)
     return;
-  if (!ring->options.share_learned_clauses)
+  if (!ring->options.share_learned)
     return;
   LOGWATCH (watch, "exporting");
   unsigned exported = 0;
@@ -72,7 +72,7 @@ export_large_clause (struct ring *ring, struct clause *clause)
   if (threads < 2)
     return;
   assert (!is_binary_pointer (clause));
-  if (!ring->options.share_learned_clauses)
+  if (!ring->options.share_learned)
     return;
   unsigned glue = clause->glue;
   assert (glue);
