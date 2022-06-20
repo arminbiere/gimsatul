@@ -13,6 +13,8 @@
 
 #include <inttypes.h>
 
+#include "cover.h"
+
 static inline bool
 watched_vivification_candidate (struct watcher *watcher)
 {
@@ -227,44 +229,6 @@ sort_vivification_probes (struct ring *ring, struct unsigneds *sorted)
 	SWAP (unsigned, *p, *q);
 }
 
-static void
-backtrack_if_reason (struct ring *ring, struct unsigneds *decisions,
-		     struct clause *clause, unsigned candidate_idx)
-{
-  assert (ring->level);
-  signed char *values = ring->values;
-  unsigned unit = INVALID;
-  for (all_literals_in_clause (lit, clause))
-    {
-      signed value = values[lit];
-      if (!value)
-	return;
-      if (value < 0)
-	continue;
-      if (unit != INVALID)
-	return;
-      unit = lit;
-    }
-  if (unit == INVALID)
-    return;
-  assert (unit != INVALID);
-  struct variable *v = VAR (unit);
-  if (!v->level)
-    return;
-  struct watch *reason = v->reason;
-  if (!reason)
-    return;
-  if (is_binary_pointer (reason))
-    return;
-  unsigned reason_idx = index_pointer (reason);
-  if (reason_idx != candidate_idx)
-    return;
-  LOGCLAUSE (clause, "need to reset %s reason", LOGLIT (unit));
-  unsigned new_level = v->level - 1;
-  RESIZE (*decisions, new_level);
-  backtrack (ring, new_level);
-}
-
 static unsigned
 vivify_watcher (struct ring *ring,
 		struct unsigneds *decisions, struct unsigneds *sorted,
@@ -283,14 +247,16 @@ vivify_watcher (struct ring *ring,
       clause->size > VIVIFY_CLAUSE_SIZE_LIMIT)
     return 0;
 
-  if (ring->level)
-    backtrack_if_reason (ring, decisions, clause, idx);
+  for (all_literals_in_clause (lit, clause))
+    if (values[lit] > 0 && !VAR (lit)->level)
+      {
+	LOGCLAUSE (clause, "root-level satisfied");
+	mark_garbage_watcher (ring, watcher);
+	return 0;
+      }
 
   LOGCLAUSE (clause, "trying to vivify");
   ring->statistics.vivify.tried++;
-
-  unsigned non_root_level_falsified = 0;
-  bool clause_implied = false;
 
   for (unsigned level = 0; level != SIZE (*decisions); level++)
     {
@@ -346,6 +312,9 @@ vivify_watcher (struct ring *ring,
 
   sort_vivification_probes (ring, sorted);
 
+  unsigned non_root_level_falsified = 0;
+  bool clause_implied = false;
+
   for (all_elements_on_stack (unsigned, lit, *sorted))
     {
       signed char value = values[lit];
@@ -371,13 +340,9 @@ vivify_watcher (struct ring *ring,
 	}
       else if (value < 0)
 	non_root_level_falsified += !!v->level;
-      else if (!v->level)
-	{
-	  LOGCLAUSE (clause, "root-level satisfied");
-	  mark_garbage_watcher (ring, watcher);
-	}
       else
 	{
+	  assert (v->level);
 	IMPLIED:
 	  LOGCLAUSE (clause, "vivify implied");
 
