@@ -346,32 +346,15 @@ mark_satisfied_watchers_as_garbage (struct ring *ring)
       if (watcher->garbage)
 	continue;
       bool satisfied = false;
-      if (watcher->size)
+      for (all_watcher_literals (lit, watcher))
 	{
-	  for (all_watcher_literals (lit, watcher))
-	    {
-	      if (values[lit] <= 0)
-		continue;
-	      unsigned idx = IDX (lit);
-	      if (variables[idx].level)
-		continue;
-	      satisfied = true;
-	      break;
-	    }
-	}
-      else
-	{
-	  struct clause *clause = watcher->clause;
-	  for (all_literals_in_clause (lit, clause))
-	    {
-	      if (values[lit] <= 0)
-		continue;
-	      unsigned idx = IDX (lit);
-	      if (variables[idx].level)
-		continue;
-	      satisfied = true;
-	      break;
-	    }
+	  if (values[lit] <= 0)
+	    continue;
+	  unsigned idx = IDX (lit);
+	  if (variables[idx].level)
+	    continue;
+	  satisfied = true;
+	  break;
 	}
       if (!satisfied)
 	continue;

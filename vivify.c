@@ -102,8 +102,7 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
       else
 	{
 	  struct watcher *watcher = get_watcher (ring, reason);
-	  struct clause *reason_clause = watcher->clause;
-	  for (all_literals_in_clause (other, reason_clause))
+	  for (all_watcher_literals (other, watcher))
 	    ANALYZE (other);
 	}
       assert (open);

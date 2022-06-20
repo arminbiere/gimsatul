@@ -58,9 +58,9 @@ bump_reason_side_literals (struct ring *ring)
 	}
       else
 	{
-	  struct clause *clause = get_clause (ring, reason);
 	  const unsigned not_lit = NOT (lit);
-	  for (all_literals_in_clause (other, clause))
+	  struct watcher * watcher = get_watcher (ring, reason);
+	  for (all_watcher_literals (other, watcher))
 	    if (other != not_lit)
 	      bump_reason_side_literal (ring, other);
 	}
@@ -143,6 +143,7 @@ analyze (struct ring *ring, struct watch *reason)
   unsigned uip = INVALID, jump = 0, glue = 0, open = 0;
   for (;;)
     {
+      assert (reason);
       LOGWATCH (reason, "analyzing");
       if (is_binary_pointer (reason))
 	{
@@ -155,12 +156,8 @@ analyze (struct ring *ring, struct watch *reason)
 	{
 	  struct watcher *watcher = get_watcher (ring, reason);
 	  bump_reason (ring, watcher);
-	  if (watcher->size)
-	    for (all_watcher_literals (lit, watcher))
-	      ANALYZE_LITERAL (lit);
-	  else
-	    for (all_literals_in_clause (lit, watcher->clause))
-	      ANALYZE_LITERAL (lit);
+	  for (all_watcher_literals (lit, watcher))
+	    ANALYZE_LITERAL (lit);
 	}
       do
 	{
