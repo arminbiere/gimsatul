@@ -1,4 +1,4 @@
-# Version 1.0.2rc1
+# Version 1.0.2
 
 - Optimized vivification by first waiting for the next reduce to avoid
   spending time on garbage collected 'tier2' clauses, sorting probed
