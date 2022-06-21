@@ -394,6 +394,11 @@ import_shared (struct ring *ring)
     ring->import++;
   if (ring->import >= rings)
     ring->import = 0;
+  if (ring->import == ring->id)
+    {
+      assert (!ring->id);
+      ring->import++;
+    }
   unsigned id = ring->import++;
 #endif
   assert (id < rings);
