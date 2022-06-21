@@ -1,9 +1,10 @@
 #include "backtrack.h"
 #include "clause.h"
+#include "decide.h"
 #include "logging.h"
 #include "message.h"
 #include "random.h"
-#include "ring.h"
+#include "ruler.h"
 #include "search.h"
 #include "set.h"
 #include "tagging.h"
@@ -15,8 +16,6 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
-
-#include "cover.h"
 
 struct doubles
 {
@@ -73,22 +72,19 @@ count_irredundant_non_garbage_clauses (struct ring *ring,
 {
   size_t res = 0;
   struct clause *last = 0;
-  for (all_watches (watch, ring->watches))
+  for (all_watchers (watcher))
     {
-      assert (!binary_pointer (watch));
-      if (watch->garbage)
+      if (watcher->garbage)
 	continue;
-      if (watch->redundant)
+      if (watcher->redundant)
 	continue;
-      struct clause *clause = watch->clause;
+      struct clause *clause = watcher->clause;
       last = clause;
       res++;
     }
   *last_ptr = last;
   return res;
 }
-
-// *INDENT-OFF*
 
 static double base_values[][2] = {
   {0.0, 2.00},
@@ -98,8 +94,6 @@ static double base_values[][2] = {
   {6.0, 5.10},
   {7.0, 7.40}
 };
-
-// *INDENT-ON*
 
 static double
 interpolate_base (double size)
@@ -123,9 +117,10 @@ interpolate_base (double size)
 static void
 initialize_break_table (struct walker *walker, double length)
 {
+  struct ring *ring = walker->ring;
+  verbose (ring, "average clause length %.2f", length);
   double epsilon = 1;
   unsigned maxbreak = 0;
-  struct ring *ring = walker->ring;
   uint64_t walked = ring->statistics.walked;
   const double base = (walked & 1) ? 2.0 : interpolate_base (length);
   verbose (ring, "propability exponential sample base %.2f", base);
@@ -145,12 +140,12 @@ initialize_break_table (struct walker *walker, double length)
 }
 
 static void *
-min_max_tag_pointer (bool redundant, unsigned first, unsigned second)
+min_max_tag_binary (bool redundant, unsigned first, unsigned second)
 {
   assert (first != second);
   unsigned min = first < second ? first : second;
   unsigned max = first < second ? second : first;
-  return tag_pointer (redundant, min, max);
+  return tag_binary (redundant, min, max);
 }
 
 static double
@@ -162,14 +157,15 @@ connect_counters (struct walker *walker, struct clause *last)
   double sum_lengths = 0;
   size_t clauses = 0;
   uint64_t ticks = 1;
-  for (all_watches (watch, ring->watches))
+  volatile bool *terminate = &ring->ruler->terminate;
+  for (all_watchers (watcher))
     {
       ticks++;
-      if (watch->garbage)
+      if (watcher->garbage)
 	continue;
-      if (watch->redundant)
+      if (watcher->redundant)
 	continue;
-      struct clause *clause = watch->clause;
+      struct clause *clause = watcher->clause;
       unsigned length = 0;
       ticks++;
       for (all_literals_in_clause (lit, clause))
@@ -203,10 +199,13 @@ connect_counters (struct walker *walker, struct clause *last)
       p++;
       if (clause == last)
 	break;
+      if (*terminate)
+	break;
     }
   for (all_ring_literals (lit))
     {
-      if (values[lit] >= 0)
+      signed char lit_value = values[lit];
+      if (!lit_value)
 	continue;
       struct counters *counters = &COUNTERS (lit);
       ticks++;
@@ -215,26 +214,35 @@ connect_counters (struct walker *walker, struct clause *last)
 	continue;
       unsigned *p, other;
       for (p = binaries; (other = *p) != INVALID; p++)
-	if (lit < other && values[other] < 0)
-	  {
-	    LOGBINARY (false, lit, other, "initially broken");
-	    void *ptr = tag_pointer (false, lit, other);
-	    assert (ptr == min_max_tag_pointer (false, lit, other));
-	    set_insert (&walker->unsatisfied, ptr);
-	    ticks++;
-	  }
+	{
+	  if (lit > other)
+	    continue;
+	  signed char other_value = values[other];
+	  if (!other_value)
+	    continue;
+	  sum_lengths += 2;
+	  clauses++;
+	  if (lit_value > 0)
+	    continue;
+	  if (other_value > 0)
+	    continue;
+	  LOGBINARY (false, lit, other, "initially broken");
+	  void *ptr = tag_binary (false, lit, other);
+	  assert (ptr == min_max_tag_binary (false, lit, other));
+	  set_insert (&walker->unsatisfied, ptr);
+	  ticks++;
+	}
       ticks += cache_lines (p, binaries);
+      if (*terminate)
+	break;
     }
-
-  double average_length = average (sum_lengths, clauses);
-  verbose (ring, "average clause length %.2f", average_length);
-  (void) average_length;
 
   very_verbose (ring, "connecting counters took %" PRIu64 " extra ticks",
 		ticks);
 
   walker->extra += ticks;
 
+  double average_length = average (sum_lengths, clauses);
   return average_length;
 }
 
@@ -252,9 +260,12 @@ import_decisions (struct walker *walker)
   unsigned pos = 0, neg = 0, ignored = 0;
   struct variable *v = ring->variables;
   signed char *q = values;
-  for (all_phases (p))
+  assert (!ring->level);
+  for (all_ring_indices (idx))
     {
-      signed char phase = p->saved;
+      assert (q == values + LIT (idx));
+      signed phase = decide_phase (ring, idx);
+      assert (phase);
       if (*q)
 	{
 	  phase = 0;
@@ -310,7 +321,7 @@ set_walking_limits (struct walker *walker)
 static size_t
 hash_counter_or_binary (void *state, void *ptr)
 {
-  if (binary_pointer (ptr))
+  if (is_binary_pointer (ptr))
     return (size_t) ptr;
   struct counter *counters = state;
   struct counter *counter = ptr;
@@ -329,10 +340,11 @@ new_walker (struct ring *ring)
 	   percent (clauses, ring->statistics.irredundant));
 
   struct walker *walker = allocate_and_clear_block (sizeof *walker);
+  walker->ring = ring;
 
+  import_decisions (walker);
   disconnect_references (ring, &walker->saved);
 
-  walker->ring = ring;
   walker->counters =
     allocate_and_clear_array (clauses, sizeof *walker->counters);
   walker->occurrences = (struct counters *) ring->references;
@@ -340,7 +352,6 @@ new_walker (struct ring *ring)
   walker->unsatisfied.hash.function = hash_counter_or_binary;
   walker->unsatisfied.hash.state = walker->counters;
 
-  import_decisions (walker);
   double length = connect_counters (walker, last);
   set_walking_limits (walker);
   initialize_break_table (walker, length);
@@ -389,7 +400,7 @@ break_count (struct walker *walker, unsigned lit)
   for (all_counters (counter, *counters))
     {
       ticks++;
-      assert (!binary_pointer (counter));
+      assert (!is_binary_pointer (counter));
       if (counter->count == 1)
 	res++;
     }
@@ -534,7 +545,7 @@ make_literal (struct walker *walker, unsigned lit)
   for (all_counters (counter, *counters))
     {
       ticks++;
-      assert (!binary_pointer (counter));
+      assert (!is_binary_pointer (counter));
       if (counter->count++)
 	continue;
       LOGCLAUSE (counter->clause, "literal %s makes", LOGLIT (lit));
@@ -549,7 +560,7 @@ make_literal (struct walker *walker, unsigned lit)
 	if (values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "literal %s makes", LOGLIT (lit));
-	    void *ptr = min_max_tag_pointer (false, lit, other);
+	    void *ptr = min_max_tag_binary (false, lit, other);
 	    set_remove (&walker->unsatisfied, ptr);
 	    ticks++;
 	  }
@@ -569,7 +580,7 @@ break_literal (struct walker *walker, unsigned lit)
   for (all_counters (counter, *counters))
     {
       ticks++;
-      assert (!binary_pointer (counter));
+      assert (!is_binary_pointer (counter));
       assert (counter->count);
       if (--counter->count)
 	continue;
@@ -586,7 +597,7 @@ break_literal (struct walker *walker, unsigned lit)
 	if (values[other] < 0)
 	  {
 	    LOGBINARY (false, lit, other, "literal %s breaks", LOGLIT (lit));
-	    void *ptr = min_max_tag_pointer (false, lit, other);
+	    void *ptr = min_max_tag_binary (false, lit, other);
 	    set_insert (&walker->unsatisfied, ptr);
 	    ticks++;
 	  }
@@ -677,7 +688,7 @@ walking_step (struct walker *walker)
   struct ring *ring = walker->ring;
   struct counter *counter = random_set (&ring->random, unsatisfied);
   unsigned lit;
-  if (binary_pointer (counter))
+  if (is_binary_pointer (counter))
     {
       unsigned first = lit_pointer (counter);
       unsigned second = other_pointer (counter);
@@ -704,8 +715,17 @@ walking_loop (struct walker *walker)
   struct ring *ring = walker->ring;
   uint64_t *ticks = &ring->statistics.contexts[WALK_CONTEXT].ticks;
   uint64_t limit = walker->limit;
-  while (walker->minimum && *ticks <= limit)
+  volatile bool *terminate = &ring->ruler->terminate;
+#ifndef QUIET
+  uint64_t ticks_before = *ticks;
+#endif
+  while (walker->minimum && *ticks <= limit && !*terminate)
     walking_step (walker);
+#ifndef QUIET
+  uint64_t ticks_after = *ticks;
+  uint64_t ticks_delta = ticks_after - ticks_before;
+  very_verbose (ring, "walking used %" PRIu64 " ticks", ticks_delta);
+#endif
 }
 
 void
@@ -718,7 +738,7 @@ local_search (struct ring *ring)
   if (ring->level)
     backtrack (ring, 0);
   if (ring->last.fixed != ring->statistics.fixed)
-    mark_satisfied_ring_clauses_as_garbage (ring);
+    mark_satisfied_watchers_as_garbage (ring);
   struct walker *walker = new_walker (ring);
   walking_loop (walker);
   save_final_minimum (walker);

@@ -17,7 +17,8 @@ is_subsumption_candidate (struct simplifier *simplifier,
   struct ruler *ruler = simplifier->ruler;
   ruler->statistics.ticks.subsumption++;
   bool *subsume = simplifier->ruler->subsume;
-  if (clause->size <= CLAUSE_SIZE_LIMIT && !clause->garbage)
+  size_t clause_size_limit = ruler->limits.clause_size_limit;
+  if (clause->size <= clause_size_limit && !clause->garbage)
     {
       unsigned count = 0;
       for (all_literals_in_clause (lit, clause))
@@ -37,7 +38,8 @@ get_subsumption_candidates (struct simplifier *simplifier,
   struct ruler *ruler = simplifier->ruler;
   struct clauses *clauses = &ruler->clauses;
   ruler->statistics.ticks.subsumption += SIZE (*clauses);
-  const size_t size_count = CLAUSE_SIZE_LIMIT + 1;
+  size_t clause_size_limit = ruler->limits.clause_size_limit;
+  const size_t size_count = clause_size_limit + 1;
   size_t count[size_count];
   memset (count, 0, sizeof count);
   for (all_clauses (clause, *clauses))
@@ -69,14 +71,15 @@ find_subsuming_clause (struct simplifier *simplifier, unsigned lit,
   size_t size_clauses = SIZE (*clauses);
   struct clause *res = 0;
   uint64_t ticks = 1;
-  if (size_clauses <= OCCURRENCE_LIMIT)
+  size_t occurrence_limit = ruler->limits.occurrence_limit;
+  if (size_clauses <= occurrence_limit)
     {
       signed char *marks = simplifier->marks;
       ticks += cache_lines (clauses->end, clauses->begin);
       for (all_clauses (clause, *clauses))
 	{
 	  resolved = strengthen_only ? lit : INVALID;
-	  if (binary_pointer (clause))
+	  if (is_binary_pointer (clause))
 	    {
 	      unsigned other = other_pointer (clause);
 	      signed char mark = marked_literal (marks, other);
@@ -132,7 +135,7 @@ static struct clause *
 strengthen_ternary_clause (struct simplifier *simplifier,
 			   struct clause *clause, unsigned remove)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   assert (clause->size == 3);
   assert (remove != INVALID);
   unsigned lit = INVALID, other = INVALID;
@@ -163,7 +166,7 @@ strengthen_ternary_clause (struct simplifier *simplifier,
   trace_delete_clause (&ruler->trace, clause);
   ruler->statistics.garbage++;
   clause->garbage = true;
-  return tag_pointer (false, lit, other);
+  return tag_binary (false, lit, other);
 }
 
 static void
@@ -172,7 +175,7 @@ strengthen_very_large_clause (struct simplifier *simplifier,
 {
   struct ruler *ruler = simplifier->ruler;
   ROGCLAUSE (clause, "strengthening by removing %s in", ROGLIT (remove));
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   assert (remove != INVALID);
   unsigned old_size = clause->size;
   assert (old_size > 3);
@@ -197,9 +200,9 @@ forward_subsume_large_clause (struct simplifier *simplifier,
 {
   struct ruler *ruler = simplifier->ruler;
   ROGCLAUSE (clause, "subsumption candidate");
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   assert (!clause->garbage);
-  assert (clause->size <= CLAUSE_SIZE_LIMIT);
+  assert (clause->size <= ruler->limits.clause_size_limit);
   mark_clause (simplifier->marks, clause, INVALID);
   unsigned remove = INVALID, other = INVALID;
   struct clause *subsuming = 0;
@@ -234,7 +237,7 @@ forward_subsume_large_clause (struct simplifier *simplifier,
       if (subsuming)
 	{
 	  assert (remove != INVALID);
-	  bool selfsubsuming = !binary_pointer (subsuming) &&
+	  bool selfsubsuming = !is_binary_pointer (subsuming) &&
 	    (clause->size == subsuming->size);
 	  if (selfsubsuming)
 	    ROGCLAUSE (subsuming,
@@ -247,7 +250,7 @@ forward_subsume_large_clause (struct simplifier *simplifier,
 	  if (clause->size == 3)
 	    {
 	      clause = strengthen_ternary_clause (simplifier, clause, remove);
-	      assert (binary_pointer (clause));
+	      assert (is_binary_pointer (clause));
 	    }
 	  else
 	    strengthen_very_large_clause (simplifier, clause, remove);
@@ -267,7 +270,7 @@ forward_subsume_large_clause (struct simplifier *simplifier,
 	      subsuming->garbage = true;
 	    }
 	}
-      if (!binary_pointer (clause))
+      if (!is_binary_pointer (clause))
 	{
 	  unsigned min_lit = INVALID;
 	  unsigned min_size = UINT_MAX;
@@ -286,7 +289,7 @@ forward_subsume_large_clause (struct simplifier *simplifier,
 	  connect_literal (ruler, min_lit, clause);
 	}
     }
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     {
       unsigned lit = lit_pointer (clause);
       unsigned other = other_pointer (clause);
@@ -355,6 +358,8 @@ subsume_clauses (struct simplifier *simplifier, unsigned round)
   struct clause **end_candidates = candidates + size_candidates;
   for (struct clause ** p = candidates; p != end_candidates; p++)
     {
+      if (ruler->terminate)
+	break;
       forward_subsume_large_clause (simplifier, *p);
       if (subsumption_ticks_limit_hit (simplifier))
 	break;

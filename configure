@@ -9,13 +9,13 @@ where '<option>' is one of the following:
 -g | --debugging  debugging compile (implies '-c', '-l' and '-s')
 -h | --help       print this command line option summary
 -l | --logging    include logging code even without '-g'
+-m | --metrics    include code for additional statistics
 -p | --pedantic   pedantic compilation for C11
 -q | --quiet      disable messages and profiling
 -s | --symbols    add symbol table even without '-g'
                  
 -f...             passed to compiler, e.g., '-fsanitize=address,undefined'
 --no-fast-path    no lock-less fast path for synchronization
---no-middle       no literal traversal middle search cache
 EOF
 exit 1
 }
@@ -24,7 +24,7 @@ compact=yes
 debug=no
 fastpath=yes
 logging=no
-middle=yes
+metrics=no
 options=""
 pedantic=no
 quiet=no
@@ -40,17 +40,18 @@ do
     -g|--debugging) debug=yes;;
     -h|--help) usage; exit 0;;
     -l|--logging) logging=yes;;
-    -s|--symbols) symbols=yes;;
+    -m|--metrics) metrics=yes;;
     -p|--pedantic) pedantic=yes;;
     -q|--quiet) quiet=yes;;
+    -s|--symbols) symbols=yes;;
     -fsanitize=*thread*) options="$options $1"; fastpath=no;;
     -f*) options="$options $1";;
     --no-fast-path) fastpath=no;;
-    --no-middle) middle=no;;
     *)  die "invalid option '$1' (try '-h')";;
   esac
   shift
 done
+[ $quiet = yes ] && metrics=no
 [ "$CC" = "" ] && CC=gcc
 CFLAGS="-Wall$options"
 [ $pedantic = yes ] && CFLAGS="$CFLAGS -Werror -std=c11 --pedantic"
@@ -63,7 +64,7 @@ CFLAGS="-Wall$options"
 [ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $fastpath = no ] && CFLAGS="$CFLAGS -DNFASTPATH"
-[ $middle = no ] && CFLAGS="$CFLAGS -DNMIDDLE"
+[ $metrics = yes ] && CFLAGS="$CFLAGS -DMETRICS"
 [ $quiet = yes ] && CFLAGS="$CFLAGS -DQUIET"
 echo "configure: $CC $CFLAGS"
 rm -f makefile

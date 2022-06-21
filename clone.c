@@ -24,7 +24,7 @@ copy_ruler_binaries (struct ring *ring)
       unsigned *b = references->binaries = binaries;
       for (all_clauses (clause, *occurrences))
 	{
-	  assert (binary_pointer (clause));
+	  assert (is_binary_pointer (clause));
 	  assert (lit_pointer (clause) == lit);
 	  assert (!redundant_pointer (clause));
 	  unsigned other = other_pointer (clause);
@@ -86,35 +86,56 @@ static void
 restore_saved_redundant_clauses (struct ring *ring)
 {
   struct clauses *saved = &ring->saved;
-  if (EMPTY (*saved))
-    return;
   size_t binaries = 0, large = 0;
+  unsigned tier2 = 0;
+  ring->redundant = SIZE (ring->watchers);
   for (all_clauses (clause, *saved))
     {
-      if (binary_pointer (clause))
+      if (is_binary_pointer (clause))
 	{
 	  struct watch *lit_watch = (struct watch *) clause;
 	  unsigned lit = lit_pointer (clause);
-	  watch_literal (ring, lit, lit_watch);
+	  push_watch (ring, lit, lit_watch);
 	  assert (redundant_pointer (clause));
 	  unsigned other = other_pointer (clause);
-	  struct watch *other_watch = tag_pointer (true, other, lit);
-	  watch_literal (ring, other, other_watch);
+	  struct watch *other_watch = tag_binary (true, other, lit);
+	  push_watch (ring, other, other_watch);
 	  binaries++;
 	}
       else
 	{
 	  assert (!clause->mapped);
 	  assert (!clause->garbage);
-	  watch_first_two_literals_in_large_clause (ring, clause);
+	  if (!tier2 && clause->glue > TIER1_GLUE_LIMIT)
+	    tier2 = SIZE (ring->watchers);
+	  (void) watch_first_two_literals_in_large_clause (ring, clause);
 	  large++;
 	}
     }
   RELEASE (*saved);
   very_verbose (ring, "restored %zu binary and %zu large clause",
 		binaries, large);
-
   ring->statistics.redundant += binaries;
+
+  if (ring->redundant == 1)
+    very_verbose (ring, "no redundant clauses watched");
+  else
+    very_verbose (ring, "redundant clauses start at watcher index %u",
+		  ring->redundant);
+  if (tier2)
+    {
+      very_verbose (ring, "tier2 clauses start at watcher index %u",
+		    ring->tier2);
+      ring->tier2 = tier2;
+    }
+  else
+    {
+      very_verbose (ring, "no tier2 clauses watched");
+      ring->tier2 = SIZE (ring->watchers);
+    }
+
+  assert (ring->redundant);
+  assert (ring->tier2);
 }
 
 void
@@ -211,6 +232,8 @@ stop_cloning_ring (struct ring *first, unsigned clone)
 void
 clone_rings (struct ruler *ruler)
 {
+  if (ruler->terminate)
+    return;
   unsigned threads = ruler->options.threads;
   assert (0 < threads);
   assert (threads <= MAX_THREADS);

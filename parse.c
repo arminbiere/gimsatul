@@ -164,12 +164,17 @@ parse_dimacs_body (struct ruler *ruler, int variables, int expected)
 #ifndef QUIET
   double start_parsing = START (ruler, parse);
 #endif
+#if 0
+  bool force = ruler->options.force;
+#endif
   struct file *dimacs = &ruler->options.dimacs;
   signed char *marked = allocate_and_clear_block (variables);
   struct unsigneds clause;
   INIT (clause);
   int signed_lit = 0, parsed = 0;
+#ifndef NDEBUG
   struct unsigneds *original = ruler->original;
+#endif
   bool trivial = false;
   for (;;)
     {
@@ -208,8 +213,9 @@ parse_dimacs_body (struct ruler *ruler, int variables, int expected)
 	  signed char sign = (signed_lit < 0) ? -1 : 1;
 	  signed char mark = marked[idx];
 	  unsigned unsigned_lit = 2 * idx + (sign < 0);
-	  if (original)
-	    PUSH (*original, unsigned_lit);
+#ifndef NDEBUG
+	  PUSH (*original, unsigned_lit);
+#endif
 	  if (mark == -sign)
 	    {
 	      ROG ("skipping trivial clause");
@@ -225,8 +231,9 @@ parse_dimacs_body (struct ruler *ruler, int variables, int expected)
 	}
       else
 	{
-	  if (original)
-	    PUSH (*original, INVALID);
+#ifndef NDEBUG
+	  PUSH (*original, INVALID);
+#endif
 	  parsed++;
 	  unsigned *literals = clause.begin;
 	  if (!ruler->inconsistent && !trivial)

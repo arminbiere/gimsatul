@@ -53,6 +53,6 @@ void mark_clause (signed char *marks, struct clause *, unsigned except);
 void unmark_clause (signed char *marks, struct clause *, unsigned except);
 
 void reference_clause (struct ring *, struct clause *, unsigned inc);
-void dereference_clause (struct ring *, struct clause *);
+bool dereference_clause (struct ring *, struct clause *);
 
 #endif

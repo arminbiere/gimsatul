@@ -53,13 +53,20 @@ struct ruler_last
 {
   unsigned fixed;
   uint64_t garbage;
+  uint64_t search;
 };
 
 struct ruler_limits
 {
-  unsigned bound;
   uint64_t elimination;
   uint64_t subsumption;
+
+  size_t clause_size_limit;
+  size_t occurrence_limit;
+
+  unsigned current_bound;
+  unsigned max_bound;
+  unsigned max_rounds;
 };
 
 struct ruler
@@ -91,7 +98,9 @@ struct ruler
 
   struct clauses clauses;
   struct unsigneds extension[2];
+#ifndef NDEBUG
   struct unsigneds *original;
+#endif
   struct rings rings;
   struct ruler_trail units;
 

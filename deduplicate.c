@@ -22,7 +22,7 @@ remove_duplicated_binaries_of_literal (struct simplifier *simplifier,
   while (p != end)
     {
       struct clause *clause = *q++ = *p++;
-      if (!binary_pointer (clause))
+      if (!is_binary_pointer (clause))
 	continue;
       unsigned other = other_pointer (clause);
       if (values[other])
@@ -37,7 +37,7 @@ remove_duplicated_binaries_of_literal (struct simplifier *simplifier,
 	  assert (ruler->statistics.binaries);
 	  ruler->statistics.binaries--;
 	  trace_delete_binary (&ruler->trace, lit, other);
-	  struct clause *other_clause = tag_pointer (false, other, lit);
+	  struct clause *other_clause = tag_binary (false, other, lit);
 	  disconnect_literal (ruler, other, other_clause);
 	  mark_eliminate_literal (simplifier, other);
 	  ruler->statistics.deduplicated++;
@@ -59,7 +59,7 @@ remove_duplicated_binaries_of_literal (struct simplifier *simplifier,
     }
   clauses->end = q;
   for (all_clauses (clause, *clauses))
-    if (binary_pointer (clause))
+    if (is_binary_pointer (clause))
       marks[IDX (other_pointer (clause))] = 0;
   if (removed)
     mark_eliminate_literal (simplifier, lit);
@@ -81,6 +81,8 @@ remove_duplicated_binaries (struct simplifier *simplifier, unsigned round)
   size_t removed = 0;
   for (all_ruler_literals (lit))
     {
+      if (ruler->terminate)
+	break;
       if (values[lit])
 	continue;
       if (eliminated[IDX (lit)])

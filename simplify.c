@@ -99,7 +99,7 @@ ruler_propagate (struct simplifier *simplifier)
 	  bool satisfied = false;
 	  unsigned unit = INVALID;
 	  unsigned non_false = 0;
-	  if (binary_pointer (clause))
+	  if (is_binary_pointer (clause))
 	    {
 	      assert (lit_pointer (clause) == not_lit);
 	      unsigned other = other_pointer (clause);
@@ -225,7 +225,7 @@ flush_garbage_and_satisfied_occurrences (struct simplifier *simplifier)
       while (p != end)
 	{
 	  struct clause *clause = *q++ = *p++;
-	  if (binary_pointer (clause))
+	  if (is_binary_pointer (clause))
 	    {
 	      assert (lit_pointer (clause) == lit);
 	      unsigned other = other_pointer (clause);
@@ -380,78 +380,160 @@ connect_all_large_clauses (struct ruler *ruler)
 }
 
 static uint64_t
-scale_ticks_limit (unsigned optimized, unsigned base)
+add_saturated (uint64_t a, uint64_t b, uint64_t limit)
 {
-  uint64_t res = base;
-  res *= 1e6;
-  for (unsigned i = 0; i != optimized; i++)
-    {
-      if (UINT64_MAX / 10 > res)
-	res *= 10;
-      else
-	{
-	  res = UINT64_MAX;
-	  break;
-	}
-    }
-  return res;
+  return (limit - a < b) ? limit : a + b;
+}
+
+static uint64_t
+multiply_saturated (uint64_t a, uint64_t b, uint64_t limit)
+{
+  if (!a)
+    return 0;
+  return (limit / a < b) ? limit : a * b;
 }
 
 static void
-set_ruler_limits (struct ruler *ruler, unsigned optimize)
+set_ruler_limits (struct ruler *ruler, unsigned level)
 {
-  verbose (0, "simplification optimization level %u", optimize);
-  if (optimize)
+  verbose (0, "simplification optimization level %u", level);
+
+  uint64_t scale10 = 1, scale4 = 1, scale2 = 1;
+  for (unsigned i = 0; i != level; i++)
     {
-      unsigned scale = 1;
-      for (unsigned i = 0; i != optimize; i++)
-	scale *= 10;
-      verbose (0, "scaling simplification ticks limits by %u", scale);
+      scale10 = multiply_saturated (scale10, 10, UINT64_MAX);
+      scale4 = multiply_saturated (scale4, 4, UINT64_MAX);
+      scale2 = multiply_saturated (scale2, 2, UINT64_MAX);
     }
+
+  if (level)
+    verbose (0, "scaling all simplification ticks limits by %" PRIu64,
+	     scale10);
   else
     verbose (0, "keeping simplification ticks limits at their default");
 
-  struct ruler_limits * limits = &ruler->limits;
-  struct ruler_statistics * statistics = &ruler->statistics;
-  unsigned boost = statistics->simplifications == 1 ? 10 : 1;
+  struct ruler_limits *limits = &ruler->limits;
+  struct ruler_statistics *statistics = &ruler->statistics;
 
   {
-    uint64_t delta = scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-    uint64_t limit = statistics->ticks.elimination + boost * delta;
-    limits->elimination = limit;
-    verbose (0, "setting elimination limit to %" PRIu64
-	     " ticks after %" PRIu64, limit, boost * delta);
-  }
+    unsigned boost = 1;
+    if (statistics->simplifications == 1 && ruler->options.simplify_boost)
+      {
+	boost = ruler->options.simplify_boost_ticks;
+	verbose (0, "boosting ticks limits initially by%s factor of %u",
+		 (level ? " another" : ""), boost);
+      }
 
-  {
-    uint64_t delta = scale_ticks_limit (optimize, ELIMINATION_TICKS_LIMIT);
-    uint64_t limit = statistics->ticks.subsumption + boost * delta;
-    limits->subsumption = limit;
-    verbose (0, "setting subsumption limit to %" PRIu64
-	     " ticks after %" PRIu64, limit, boost * delta);
-  }
-}
 
-static unsigned
-set_max_rounds (struct ruler *ruler, unsigned optimize)
-{
-  unsigned max_rounds = ruler->options.simplify_rounds;
-  unsigned res = max_rounds;
-  if (ruler->statistics.simplifications == 1)
-    res *= 4;
-  if (optimize)
+    uint64_t search;
+    if (EMPTY (ruler->rings))
+      {
+	search = 0;
+	assert (!ruler->last.search);
+      }
+    else
+      {
+	struct ring *first = first_ring (ruler);
+	search = first->statistics.contexts[SEARCH_CONTEXT].ticks;
+	search -= ruler->last.search;
+      }
+
     {
-      unsigned scale = optimize + 1;
-      if ((UINT_MAX - 1) / scale >= max_rounds)
-	res *= scale;
-      else
-	res = UINT_MAX - 1;
-      verbose (0, "running at most %u simplification rounds (scaled by %u)",
-	       res, optimize);
+      uint64_t effort = ELIMINATE_EFFORT * search;
+      uint64_t base = 1e6 * ruler->options.eliminate_ticks;
+      uint64_t ticks = MAX (effort, base);
+      uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
+      uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
+      uint64_t current = statistics->ticks.elimination;
+      uint64_t limit = add_saturated (current, boosted, UINT64_MAX);
+      limits->elimination = limit;
+      verbose (0, "setting elimination limit to %" PRIu64
+	       " ticks after %" PRIu64, limit, boosted);
     }
-  else
-    verbose (0, "running at most %u simplification rounds (default)", res);
-  return res;
+
+    {
+      uint64_t effort = SUBSUME_EFFORT * search;
+      uint64_t base = 1e6 * ruler->options.subsume_ticks;
+      uint64_t ticks = MAX (effort, base);
+      uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
+      uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
+      uint64_t current = statistics->ticks.subsumption;
+      uint64_t limit = add_saturated (current, boosted, UINT64_MAX);
+      limits->subsumption = limit;
+      verbose (0, "setting subsumption limit to %" PRIu64
+	       " ticks after %" PRIu64, limit, boosted);
+    }
+  }
+
+  {
+    unsigned boost = 1;
+    if (statistics->simplifications == 1 && ruler->options.simplify_boost)
+      {
+	boost = ruler->options.simplify_boost_rounds;
+	verbose (0, "boosting round limits initially by%s factor of %u",
+		 (level ? " another" : ""), boost);
+      }
+
+    unsigned max_rounds = ruler->options.simplify_rounds;
+    if (level || boost > 1)
+      {
+	unsigned scale = multiply_saturated (boost, scale4, UINT_MAX);
+	max_rounds = multiply_saturated (max_rounds, scale, UINT_MAX);
+	verbose (0, "running at most %u simplification rounds (scaled %u)",
+		 max_rounds, scale);
+      }
+    else
+      verbose (0, "running at most %u simplification rounds (default)",
+	       max_rounds);
+    limits->max_rounds = max_rounds;
+  }
+
+  if (ruler->statistics.simplifications == 1)
+    {
+      {
+	unsigned max_bound = ruler->options.eliminate_bound;
+	if (level)
+	  {
+	    max_bound = multiply_saturated (max_bound, scale2, UINT_MAX);
+	    verbose (0, "maximum elimination bound %u (scaled %" PRIu64 ")",
+		     max_bound, scale2);
+	  }
+	else
+	  verbose (0, "maximum elimination bound %u (default)", max_bound);
+	limits->max_bound = max_bound;
+      }
+
+      {
+	unsigned clause_size_limit = ruler->options.clause_size_limit;
+	if (level)
+	  {
+	    clause_size_limit =
+	      multiply_saturated (clause_size_limit, scale10, UINT_MAX);
+	    verbose (0, "clause size limit %u (scaled %" PRIu64 ")",
+		     clause_size_limit, scale10);
+	  }
+	else
+	  verbose (0, "clause size limit %u (default)", clause_size_limit);
+	limits->clause_size_limit = clause_size_limit;
+      }
+
+      {
+	unsigned occurrence_limit = ruler->options.occurrence_limit;
+	if (level)
+	  {
+	    occurrence_limit =
+	      multiply_saturated (occurrence_limit, scale10, UINT_MAX);
+	    verbose (0, "occurrence limit %u (scaled %" PRIu64 ")",
+		     occurrence_limit, scale10);
+	  }
+	else
+	  verbose (0, "occurrence limit %u (default)", occurrence_limit);
+
+	limits->occurrence_limit = occurrence_limit;
+      }
+    }
+
+  verbose (0, "current elimination bound %u", ruler->limits.current_bound);
 }
 
 #ifndef QUIET
@@ -494,7 +576,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
 {
   struct ruler *ruler = simplifier->ruler;
 #ifndef QUIET
-  struct ruler_statistics * statistics = &ruler->statistics;
+  struct ruler_statistics *statistics = &ruler->statistics;
   uint64_t simplifications = statistics->simplifications;
   message (0, "starting full simplification #%" PRIu64, simplifications);
 #endif
@@ -507,7 +589,8 @@ run_full_blown_simplification (struct simplifier *simplifier)
   struct
   {
     size_t clauses, variables;
-    struct {
+    struct
+    {
       uint64_t elimination, subsumption;
     } ticks;
   } before, after, delta;
@@ -518,38 +601,50 @@ run_full_blown_simplification (struct simplifier *simplifier)
   before.ticks.subsumption = statistics->ticks.subsumption;
 #endif
 
-  unsigned max_rounds = set_max_rounds (ruler, optimize);
+  unsigned max_rounds = ruler->limits.max_rounds;
 
-  bool done = false;
+  bool complete = false;
 
-  for (unsigned round = 1; !done && round <= max_rounds; round++)
+  for (unsigned round = 1; !complete && round <= max_rounds; round++)
     {
-      done = true;
+      if (ruler->terminate)
+	break;
+
+      complete = true;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
 
       if (equivalent_literal_substitution (simplifier, round))
-	done = false;
+	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
+	break;
+      if (ruler->terminate)
 	break;
 
       if (remove_duplicated_binaries (simplifier, round))
-	done = false;
+	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
+	break;
+      if (ruler->terminate)
 	break;
 
       if (subsume_clauses (simplifier, round))
-	done = false;
+	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
+	break;
+      if (ruler->terminate)
 	break;
 
       if (eliminate_variables (simplifier, round))
-	done = false;
+	complete = false;
       if (!propagate_and_flush_ruler_units (simplifier))
 	break;
       if (elimination_ticks_limit_hit (simplifier))
 	break;
+      if (ruler->terminate)
+	break;
     }
+
 #ifndef QUIET
   message (0, 0);
   after.variables = statistics->active;
@@ -598,6 +693,9 @@ run_full_blown_simplification (struct simplifier *simplifier)
 	   after.ticks.subsumption, delta.ticks.subsumption,
 	   subsumption_ticks_limit_hit (simplifier) ? " (limit hit)" : "");
 #endif
+
+  if (complete)
+    try_to_increase_elimination_bound (ruler);
 }
 
 void
@@ -609,24 +707,31 @@ simplify_ruler (struct ruler *ruler)
 #ifndef QUIET
   double start_simplification = START (ruler, simplify);
 #endif
-  bool preprocessing = !ruler->statistics.simplifications++;
   assert (!ruler->simplifying);
   ruler->simplifying = true;
 
   struct simplifier *simplifier = new_simplifier (ruler);
 
-  bool full = preprocessing ?
-    ruler->options.preprocessing : ruler->options.inprocessing;
+  bool initially = !ruler->statistics.simplifications++;
+  bool full_simplification = ruler->options.simplify;
+
+  if (full_simplification)
+    {
+      if (initially && !ruler->options.simplify_initially)
+	full_simplification = false;
+      if (!initially && !ruler->options.simplify_regularly)
+	full_simplification = false;
+    }
 
   message (0, 0);
 
-  if (full)
+  if (full_simplification)
     run_full_blown_simplification (simplifier);
   else
     run_only_root_level_propagation (simplifier);
 
   push_ruler_units_to_extension_stack (ruler);
-  compact_ruler (simplifier, preprocessing);
+  compact_ruler (simplifier, initially);
   delete_simplifier (simplifier);
 
   assert (ruler->simplifying);
@@ -634,12 +739,12 @@ simplify_ruler (struct ruler *ruler)
 
 #ifndef QUIET
   double end_simplification = STOP (ruler, simplify);
-  if (full)
+  if (full_simplification)
     message (0, 0);
   message (0, "simplification #%" PRIu64 " took %.2f seconds",
 	   ruler->statistics.simplifications,
 	   end_simplification - start_simplification);
-  if (!preprocessing)
+  if (!initially)
     message (0, 0);
 #endif
 }
@@ -787,12 +892,14 @@ finish_ring_simplification (struct ring *ring)
   unsigned interval = ring->options.simplify_interval;
   assert (interval);
   limits->simplify += interval * nlogn (statistics->simplifications);
+  ruler->last.search = statistics->contexts[SEARCH_CONTEXT].ticks;
   very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
 		limits->simplify);
 }
 
 #ifndef NDEBUG
 void check_clause_statistics (struct ring *);
+void check_redundant_and_tier2_offsets (struct ring *);
 #endif
 
 int
@@ -813,7 +920,10 @@ simplify_ring (struct ring *ring)
   finish_ring_simplification (ring);
 #ifndef NDEBUG
   if (!ring->ruler->inconsistent)
-    check_clause_statistics (ring);
+    {
+      check_clause_statistics (ring);
+      check_redundant_and_tier2_offsets (ring);
+    }
 #endif
   report (ring, 's');
   START_SEARCH ();
@@ -823,7 +933,9 @@ simplify_ring (struct ring *ring)
 bool
 simplifying (struct ring *ring)
 {
-  if (ring->options.simplify < 2)
+  if (!ring->options.simplify)
+    return false;
+  if (!ring->options.simplify_regularly)
     return false;
   if (!ring->id)
     return ring->limits.simplify <= SEARCH_CONFLICTS;

@@ -12,7 +12,7 @@ initial_phase (struct ring *ring)
   return ring->options.phase ? 1 : -1;
 }
 
-static signed char
+signed char
 decide_phase (struct ring *ring, unsigned idx)
 {
   struct phases *p = ring->phases + idx;

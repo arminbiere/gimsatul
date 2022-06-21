@@ -65,9 +65,10 @@ summarize_used_resources (unsigned t)
   assert (t);
   double w = current_time () - start_time;
   double p = process_time ();
-  double m = maximum_resident_set_size () / (double) (1u<<20);
+  double m = maximum_resident_set_size () / (double) (1u << 20);
   double u = percent (p, w) / t;
-  printf ("c resources: %.0f%% utilization = %.2f / %.2f sec / %u threads, %.2f MB\n",
-          u, p, w, t, m);
+  printf
+    ("c resources: %.0f%% utilization = %.2f / %.2f sec / %u threads, %.2f MB\n",
+     u, p, w, t, m);
   fflush (stdout);
 }

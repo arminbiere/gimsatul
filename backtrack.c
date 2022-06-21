@@ -34,6 +34,7 @@ void
 backtrack (struct ring *ring, unsigned new_level)
 {
   assert (ring->level > new_level);
+  LOG ("backtracking to decision level %u", new_level);
   struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;
   while (t != trail->begin)
@@ -49,6 +50,7 @@ backtrack (struct ring *ring, unsigned new_level)
   assert (trail->export <= trail->propagate);
   assert (trail->iterate <= trail->propagate);
   ring->level = new_level;
+  LOG ("backtracked to decision level %u", new_level);
 }
 
 void

@@ -42,7 +42,7 @@ As far preprocessing and inprocessing is concerned equivalent literal
 substitution, subsumption including strengthening and of course bounded
 variable elimination are first run before solvers are cloned to share
 original irredundant clauses.  The same code is used to simplify the
-the formula in regular intervals. This requires all solvers to synchronize.
+formula in regular intervals. This requires all solvers to synchronize.
 Then one thread runs the global single-threaded simplification code.
 Further inprocessing is scheduled in form of failed literal probing and
 vivification locally within each solver thread.  It would also be useful to

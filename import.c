@@ -37,13 +37,11 @@ import_units (struct ring *ring)
 	continue;
       very_verbose (ring, "importing unit %d",
 		    unmap_and_export_literal (ruler->unmap, unit));
-      ring->statistics.imported.units++;
-      ring->statistics.imported.clauses++;
+      INC_UNIT_CLAUSE_STATISTICS (imported);
       imported++;
       if (value < 0)
 	{
 	  set_inconsistent (ring, "imported falsified unit");
-	  trace_add_empty (&ring->trace);
 	  imported = INVALID;
 	  break;
 	}
@@ -66,8 +64,7 @@ really_import_binary_clause (struct ring *ring, unsigned lit, unsigned other)
 {
   (void) new_local_binary_clause (ring, true, lit, other);
   trace_add_binary (&ring->trace, lit, other);
-  ring->statistics.imported.binary++;
-  ring->statistics.imported.clauses++;
+  INC_BINARY_CLAUSE_STATISTICS (imported);
 }
 
 static void
@@ -96,7 +93,7 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
     SWAP (unsigned, lit, other);
   for (all_watches (watch, REFERENCES (lit)))
-    if (binary_pointer (watch) && other_pointer (watch) == other)
+    if (is_binary_pointer (watch) && other_pointer (watch) == other)
       return true;
   return false;
 }
@@ -104,7 +101,7 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 static bool
 import_binary (struct ring *ring, struct clause *clause)
 {
-  assert (binary_pointer (clause));
+  assert (is_binary_pointer (clause));
   assert (redundant_pointer (clause));
   signed char *values = ring->values;
   unsigned lit = lit_pointer (clause);
@@ -133,7 +130,7 @@ do { \
       LOGBINARY (true, LIT, OTHER, "subsumed imported"); \
       return false; \
     } \
-} while (0);
+} while (0)
 
   if ((lit_value >= 0 && other_value >= 0) ||
       (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
@@ -142,7 +139,7 @@ do { \
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
       really_import_binary_clause (ring, lit, other);
-      return false;
+      return ring->context == PROBING_CONTEXT;
     }
 
   unsigned *pos = ring->trail.pos;
@@ -204,12 +201,12 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
       struct references *watches = &REFERENCES (best);
       for (all_watches (watch, *watches))
 	{
-	  if (binary_pointer (watch))
+	  if (is_binary_pointer (watch))
 	    continue;
-	  if (!watch->redundant)
+	  if (!redundant_pointer (watch))
 	    continue;
 	  res = true;
-	  struct clause *other_clause = watch->clause;
+	  struct clause *other_clause = get_clause (ring, watch);
 	  for (all_literals_in_clause (other, other_clause))
 	    {
 	      if (other == best)
@@ -241,19 +238,11 @@ really_import_large_clause (struct ring *ring, struct clause *clause,
 			    unsigned first, unsigned second)
 {
   watch_literals_in_large_clause (ring, clause, first, second);
-  unsigned glue = clause->glue;
   assert (clause->redundant);
-  struct ring_statistics *statistics = &ring->statistics;
-  if (glue <= 1)
-    statistics->imported.glue1++;
-  else if (glue <= TIER1_GLUE_LIMIT)
-    statistics->imported.tier1++;
-  else
-    {
-      assert (glue <= TIER2_GLUE_LIMIT);
-      statistics->imported.tier2++;
-    }
-  statistics->imported.clauses++;
+  unsigned glue = clause->glue;
+  assert (0 < glue);
+  assert (glue <= ring->options.maximum_shared_glue);
+  INC_LARGE_CLAUSE_STATISTICS (imported, glue);
 }
 
 static unsigned
@@ -339,7 +328,7 @@ do { \
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
       really_import_large_clause (ring, clause, lit, other);
-      return false;
+      return ring->context == PROBING_CONTEXT;
     }
 
   unsigned lit_pos = ring->trail.pos[IDX (lit)];
@@ -390,16 +379,16 @@ import_shared (struct ring *ring)
   struct ring *src = ruler->rings.begin[id];
   assert (src->pool);
   struct pool *pool = src->pool + ring->id;
-  atomic_uintptr_t * end = pool->share + SIZE_SHARED;
+  atomic_uintptr_t *end = pool->share + SIZE_SHARED;
   struct clause *clause = 0;
-  for (atomic_uintptr_t *p = pool->share; !clause && p != end; p++)
+  for (atomic_uintptr_t * p = pool->share; !clause && p != end; p++)
 #ifndef NFASTPATH
     if (*p)
 #endif
-      clause = (struct clause*) atomic_exchange (p, 0);
+      clause = (struct clause *) atomic_exchange (p, 0);
   if (!clause)
     return false;
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     return import_binary (ring, clause);
   return import_large_clause (ring, clause);
 }

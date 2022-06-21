@@ -85,19 +85,21 @@ static void
 release_clauses (struct ruler *ruler)
 {
   for (all_clauses (clause, ruler->clauses))
-    if (!binary_pointer (clause))
+    if (!is_binary_pointer (clause))
       free (clause);
   RELEASE (ruler->clauses);
 }
 
+#ifndef NDEBUG
+
 static void
 release_original (struct ruler *ruler)
 {
-  if (!ruler->original)
-    return;
   RELEASE (*ruler->original);
   free (ruler->original);
 }
+
+#endif
 
 void
 delete_ruler (struct ruler *ruler)
@@ -113,7 +115,9 @@ delete_ruler (struct ruler *ruler)
   release_clauses (ruler);
   RELEASE (ruler->extension[0]);
   RELEASE (ruler->extension[1]);
+#ifndef NDEBUG
   release_original (ruler);
+#endif
   RELEASE (ruler->rings);
   free (ruler->units.begin);
 
@@ -137,7 +141,7 @@ flush_large_clause_occurrences (struct ruler *ruler)
       while (p != end)
 	{
 	  struct clause *clause = *p++;
-	  if (binary_pointer (clause))
+	  if (is_binary_pointer (clause))
 	    *q++ = clause;
 	  else
 	    flushed++;
@@ -151,7 +155,7 @@ static void
 connect_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
 {
   struct clauses *clauses = &OCCURRENCES (lit);
-  struct clause *watch_lit = tag_pointer (false, lit, other);
+  struct clause *watch_lit = tag_binary (false, lit, other);
   PUSH (*clauses, watch_lit);
 }
 
@@ -196,7 +200,7 @@ disconnect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
 void
 connect_large_clause (struct ruler *ruler, struct clause *clause)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   for (all_literals_in_clause (lit, clause))
     connect_literal (ruler, lit, clause);
 }
@@ -227,12 +231,12 @@ recycle_clause (struct simplifier *simplifier,
 		struct clause *clause, unsigned lit)
 {
   struct ruler *ruler = simplifier->ruler;
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     {
       assert (lit == lit_pointer (clause));
       assert (!redundant_pointer (clause));
       unsigned other = other_pointer (clause);
-      struct clause *other_clause = tag_pointer (false, other, lit);
+      struct clause *other_clause = tag_binary (false, other, lit);
       disconnect_literal (ruler, other, other_clause);
       ROGBINARY (lit, other, "disconnected and deleted");
       assert (ruler->statistics.binaries);

@@ -100,4 +100,10 @@ cache_lines (void *p, void *q)
   return res;
 }
 
+static inline bool
+is_power_of_two (size_t n)
+{
+  return n && !(n & (n - 1));
+}
+
 #endif
