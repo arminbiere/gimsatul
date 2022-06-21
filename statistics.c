@@ -133,6 +133,9 @@ do { \
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
 	       "imported-clauses:", s->imported.clauses,
 	       percent (s->imported.clauses, s->learned.clauses));
+      PRINTLN ("%-22s %17" PRIu64 " %13.2f %% imported clauses",
+	       "  diverged-imports:", s->diverged,
+	       percent (s->diverged, s->imported.clauses));
       PRINT_CLAUSE_STATISTICS (imported, maximum_shared_glue);
 
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
