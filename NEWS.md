@@ -1,7 +1,8 @@
-# Version 1.0.2rc1
+# Version 1.0.2
 
 - Optimized vivification by first waiting for the next reduce to avoid
-  spending time on garbage collected 'tier2' clauses and second ...
+  spending time on garbage collected 'tier2' clauses, sorting probed
+  literals in the vivified clause by score / stamp and reusing decisions.
 
 - Simplified and improved 'reduce':  reduce only goes over 'tier2' clauses
   ignoring references before the cached start of the first 'tier2' clause
