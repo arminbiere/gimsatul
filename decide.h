@@ -4,6 +4,8 @@
 struct ring;
 
 void decide (struct ring *);
+
 signed char initial_phase (struct ring *);
+signed char decide_phase (struct ring *, unsigned idx);
 
 #endif

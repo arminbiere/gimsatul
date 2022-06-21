@@ -41,7 +41,7 @@ new_large_clause (size_t size, unsigned *literals,
 void
 mark_clause (signed char *marks, struct clause *clause, unsigned except)
 {
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     mark_literal (marks, other_pointer (clause));
   else
     for (all_literals_in_clause (other, clause))
@@ -52,7 +52,7 @@ mark_clause (signed char *marks, struct clause *clause, unsigned except)
 void
 unmark_clause (signed char *marks, struct clause *clause, unsigned except)
 {
-  if (binary_pointer (clause))
+  if (is_binary_pointer (clause))
     unmark_literal (marks, other_pointer (clause));
   else
     for (all_literals_in_clause (other, clause))
@@ -63,7 +63,7 @@ unmark_clause (signed char *marks, struct clause *clause, unsigned except)
 void
 trace_add_clause (struct trace *trace, struct clause *clause)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   trace_add_literals (trace, clause->size, clause->literals, INVALID);
 }
 
@@ -77,7 +77,7 @@ trace_delete_clause (struct trace *trace, struct clause *clause)
 static void
 delete_clause (struct ring *ring, struct clause *clause)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   LOGCLAUSE (clause, "delete");
   trace_delete_clause (&ring->trace, clause);
   free (clause);
@@ -87,19 +87,21 @@ void
 reference_clause (struct ring *ring, struct clause *clause, unsigned inc)
 {
   assert (inc);
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
   unsigned shared = atomic_fetch_add (&clause->shared, inc);
   LOGCLAUSE (clause, "reference %u times (was shared %u)", inc, shared);
   assert (shared < MAX_THREADS - inc), (void) shared;
 }
 
-void
+bool
 dereference_clause (struct ring *ring, struct clause *clause)
 {
-  assert (!binary_pointer (clause));
+  assert (!is_binary_pointer (clause));
+  LOGCLAUSE (clause, "dereference once (was shared %u)", clause->shared);
   unsigned shared = atomic_fetch_sub (&clause->shared, 1);
   assert (shared + 1);
-  LOGCLAUSE (clause, "dereference once (was shared %u)", shared);
-  if (!shared)
-    delete_clause (ring, clause);
+  if (shared)
+    return false;
+  delete_clause (ring, clause);
+  return true;
 }

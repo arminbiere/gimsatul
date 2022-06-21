@@ -58,6 +58,7 @@ struct ring_last
 {
   unsigned fixed;
   uint64_t probing;
+  uint64_t reduce;
   uint64_t walk;
 };
 
@@ -69,17 +70,11 @@ struct ring_trail
 };
 
 #define BINARY_SHARED 0
-#define GLUE1_SHARED 1
-#define TIER1_SHARED 2
-#define TIER2_SHARED 3
-#define SIZE_SHARED 4
-
-#define ALLOCATED_SHARED \
-  (CACHE_LINE_SIZE / sizeof (struct clause *))
+#define SIZE_SHARED 16
 
 struct pool
 {
-  atomic_uintptr_t share[ALLOCATED_SHARED];
+  atomic_uintptr_t share[SIZE_SHARED];
 };
 
 struct ring
@@ -123,7 +118,9 @@ struct ring
   struct phases *phases;
   struct queue queue;
 
-  struct watches watches;
+  unsigned tier2;
+  unsigned redundant;
+  struct watchers watchers;
   struct clauses saved;
 
   struct trace trace;
@@ -174,6 +171,18 @@ struct rings
   AVG != END_ ## AVG; \
   ++AVG
 
+#define all_watchers(WATCHER) \
+  struct watcher * WATCHER = ring->watchers.begin + 1, \
+                  * END_ ## WATCHER = ring->watchers.end; \
+  (WATCHER != END_ ## WATCHER); \
+  ++WATCHER
+
+#define all_redundant_watchers(WATCHER) \
+  struct watcher * WATCHER = ring->watchers.begin + ring->redundant, \
+                  * END_ ## WATCHER = ring->watchers.end; \
+  (WATCHER != END_ ## WATCHER); \
+  ++WATCHER
+
 /*------------------------------------------------------------------------*/
 
 void init_ring (struct ring *);
@@ -184,7 +193,7 @@ void delete_ring (struct ring *);
 
 void init_pool (struct ring *, unsigned threads);
 
-void mark_satisfied_ring_clauses_as_garbage (struct ring *);
+void mark_satisfied_watchers_as_garbage (struct ring *);
 
 void inc_clauses (struct ring *ring, bool redundant);
 void dec_clauses (struct ring *ring, bool redundant);
@@ -196,11 +205,57 @@ void print_ring_profiles (struct ring *);
 
 /*------------------------------------------------------------------------*/
 
+static inline unsigned
+watcher_to_index (struct ring *ring, struct watcher *watcher)
+{
+  assert (ring->watchers.begin <= watcher);
+  assert (watcher < ring->watchers.end);
+  size_t idx = watcher - ring->watchers.begin;
+  assert (idx <= MAX_WATCHER_INDEX);
+  assert (idx <= UINT_MAX);
+  return idx;
+}
+
+static inline struct watcher *
+index_to_watcher (struct ring *ring, unsigned idx)
+{
+  return &PEEK (ring->watchers, idx);
+}
+
+
+static inline struct watcher *
+get_watcher (struct ring *ring, struct watch *watch)
+{
+  assert (!is_binary_pointer (watch));
+  size_t idx = index_pointer (watch);
+  return &PEEK (ring->watchers, idx);
+}
+
+static inline struct clause *
+get_clause (struct ring *ring, struct watch *watch)
+{
+  assert (watch);
+  return get_watcher (ring, watch)->clause;
+}
+
+/*------------------------------------------------------------------------*/
+
 static inline void
-watch_literal (struct ring *ring, unsigned lit, struct watch *watch)
+push_watch (struct ring *ring, unsigned lit, struct watch *watch)
 {
   LOGWATCH (watch, "watching %s in", LOGLIT (lit));
   PUSH (REFERENCES (lit), watch);
 }
+
+static inline void
+watch_literal (struct ring *ring,
+	       unsigned lit, unsigned other, struct watcher *watcher)
+{
+  unsigned idx = watcher_to_index (ring, watcher);
+  struct watch *watch = tag_index (watcher->redundant, idx, other);
+  push_watch (ring, lit, watch);
+}
+
+/*------------------------------------------------------------------------*/
 
 #endif

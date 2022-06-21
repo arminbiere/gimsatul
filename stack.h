@@ -62,8 +62,17 @@ do { \
   (STACK).end = (STACK).begin; \
 } while (0)
 
+#define RESIZE(STACK,NEW_SIZE) \
+do { \
+  assert ((NEW_SIZE) <= SIZE (STACK)); \
+  (STACK).end = (STACK).begin + (NEW_SIZE); \
+} while (0)
+
 #define TOP(STACK) \
   (assert (!EMPTY (STACK)), (STACK).end[-1])
+
+#define PEEK(STACK,IDX) \
+  ((STACK).begin[assert ((size_t)(IDX) < SIZE (STACK)), (size_t)(IDX)])
 
 #define POP(STACK) \
   (assert (!EMPTY (STACK)), *--(STACK).end)

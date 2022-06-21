@@ -22,3 +22,9 @@ print_version (void)
 {
   printf ("%s\n", VERSION);
 }
+
+void
+print_id (void)
+{
+  printf ("%s\n", GITID ? GITID : "unknown");
+}

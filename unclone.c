@@ -23,7 +23,7 @@ save_ring_binaries (struct ring *ring)
       struct references *references = &REFERENCES (lit);
       for (all_watches (watch, *references))
 	{
-	  if (!binary_pointer (watch))
+	  if (!is_binary_pointer (watch))
 	    continue;
 	  assert (redundant_pointer (watch));
 	  unsigned other = other_pointer (watch);
@@ -41,7 +41,7 @@ save_ring_binaries (struct ring *ring)
       struct clauses *occurrenes = &OCCURRENCES (lit);
       for (unsigned *p = binaries, other; (other = *p) != INVALID; p++)
 	{
-	  struct clause *clause = tag_pointer (false, lit, other);
+	  struct clause *clause = tag_binary (false, lit, other);
 	  PUSH (*occurrenes, clause);
 	  if (lit < other)
 	    irredundant++;
@@ -67,27 +67,26 @@ save_ring_binaries (struct ring *ring)
 }
 
 static void
-save_large_watches (struct ring *ring)
+save_large_watched_clauses (struct ring *ring)
 {
   struct ruler *ruler = ring->ruler;
   struct clauses *clauses = &ruler->clauses;
   assert (ring->id || EMPTY (*clauses));
-  struct watches *watches = &ring->watches;
   struct clauses *save = &ring->saved;
   size_t transferred = 0, collected = 0, saved = 0, flushed = 0;
-  for (all_watches (watch, *watches))
+  for (all_watchers (watcher))
     {
-      struct clause *clause = watch->clause;
-      if (watch->garbage)
+      struct clause *clause = watcher->clause;
+      if (watcher->garbage)
 	{
 	  dereference_clause (ring, clause);
 	  collected++;
 	}
       else
 	{
-	  if (watch->redundant)
+	  if (watcher->redundant)
 	    {
-	      PUSH (*save, watch->clause);
+	      PUSH (*save, watcher->clause);
 	      saved++;
 	    }
 	  else if (ring->id)
@@ -100,11 +99,10 @@ save_large_watches (struct ring *ring)
 	      PUSH (*clauses, clause);
 	      transferred++;
 	    }
-	  dec_clauses (ring, watch->redundant);
+	  dec_clauses (ring, watcher->redundant);
 	}
-      free (watch);
     }
-  RELEASE (*watches);
+  RESIZE (ring->watchers, 1);
   very_verbose (ring, "saved %zu redundant large watches", saved);
   if (ring->id)
     {
@@ -123,8 +121,8 @@ void
 unclone_ring (struct ring *ring)
 {
   save_ring_binaries (ring);
-  save_large_watches (ring);
-  assert (EMPTY (ring->watches));
+  save_large_watched_clauses (ring);
+  assert (SIZE (ring->watchers) == 1);
   release_ring (ring, true);
-  assert (EMPTY (ring->watches));
+  assert (SIZE (ring->watchers) == 1);
 }

@@ -65,7 +65,6 @@ failed_literal_probing (struct ring *ring)
 	    break;
 	  if (ring_propagate (ring, false, 0))
 	    {
-	      trace_add_empty (&ring->trace);
 	      set_inconsistent (ring,
 				"unit propagation fails after importing shared clauses "
 				"during failed literal probing");

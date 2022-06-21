@@ -6,7 +6,7 @@ static bool
 minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
 {
   assert (ring->values[lit] < 0);
-  if (depth >= MINIMIZE_DEPTH)
+  if (depth >= ring->options.minimize_depth)
     return false;
   unsigned idx = IDX (lit);
   struct variable *v = ring->variables + idx;
@@ -14,19 +14,19 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
     return true;
   if (!ring->used[v->level])
     return false;
-  if (v->poison)
-    return false;
-  if (v->minimize)
-    return true;
   if (depth && (v->seen))
     return true;
+  if (v->minimize)
+    return true;
+  if (v->poison)
+    return false;
   struct watch *reason = v->reason;
   if (!reason)
     return false;
   depth++;
   bool res = true;
   const unsigned not_lit = NOT (lit);
-  if (binary_pointer (reason))
+  if (is_binary_pointer (reason))
     {
       assert (lit_pointer (reason) == not_lit);
       unsigned other = other_pointer (reason);
@@ -34,10 +34,13 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
     }
   else
     {
-      struct clause *clause = reason->clause;
-      for (all_literals_in_clause (other, clause))
+      struct watcher *watcher = get_watcher (ring, reason);
+      for (all_watcher_literals (other, watcher))
 	if (other != not_lit && !minimize_literal (ring, other, depth))
-	  res = false;
+	  {
+	    res = false;
+	    break;
+	  }
     }
   if (!v->shrinkable)
     PUSH (ring->minimize, idx);
@@ -127,15 +130,15 @@ shrink_clause (struct ring *ring)
       if (!v->shrinkable)
 	continue;
       struct watch *reason = v->reason;
-      if (binary_pointer (reason))
+      if (is_binary_pointer (reason))
 	{
 	  unsigned other = other_pointer (reason);
 	  SHRINK_LITERAL (other);
 	}
       else if (reason)
 	{
-	  struct clause *clause = reason->clause;
-	  for (all_literals_in_clause (other, clause))
+	  struct watcher *watcher = get_watcher (ring, reason);
+	  for (all_watcher_literals (other, watcher))
 	    SHRINK_LITERAL (other);
 	}
       assert (open);
@@ -186,33 +189,25 @@ shrink_or_minimize_clause (struct ring *ring, unsigned glue)
   size_t minimized = 0;
   size_t shrunken = 0;
 
-  if (glue == 1 && deduced > 2)
-    shrunken = shrink_clause (ring);
+  if (ring->options.shrink)
+    if (glue == 1 && deduced > 2)
+      shrunken = shrink_clause (ring);
 
-  if (glue && !shrunken && deduced > 2)
-    minimized = minimize_clause (ring);
+  if (ring->options.minimize)
+    if (glue && !shrunken && deduced > 2)
+      minimized = minimize_clause (ring);
 
   size_t learned = SIZE (ring->clause);
   assert (learned + minimized + shrunken == deduced);
+  (void) minimized;
 
-  ring->statistics.learned.clauses++;
-  if (learned == 1)
-    ring->statistics.learned.units++;
-  else if (learned == 2)
-    ring->statistics.learned.binary++;
-  else if (glue == 1)
-    ring->statistics.learned.glue1++;
-  else if (glue <= TIER1_GLUE_LIMIT)
-    ring->statistics.learned.tier1++;
-  else if (glue <= TIER2_GLUE_LIMIT)
-    ring->statistics.learned.tier2++;
-  else
-    ring->statistics.learned.tier3++;
-
+  INC_CLAUSE_STATISTICS (learned, glue, learned);
   ring->statistics.literals.learned += learned;
+#ifdef METRICS
   ring->statistics.literals.minimized += minimized;
   ring->statistics.literals.shrunken += shrunken;
   ring->statistics.literals.deduced += deduced;
+#endif
 
   struct variable *variables = ring->variables;
   for (all_elements_on_stack (unsigned, idx, *minimize))

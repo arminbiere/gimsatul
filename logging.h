@@ -67,7 +67,7 @@ do { \
 
 #define LOGCLAUSE(CLAUSE, ...) \
 do { \
-  if (binary_pointer (CLAUSE)) \
+  if (is_binary_pointer (CLAUSE)) \
     { \
       bool REDUNDANT = redundant_pointer (CLAUSE); \
       unsigned LIT = lit_pointer (CLAUSE); \
@@ -93,7 +93,7 @@ do { \
 
 #define LOGWATCH(WATCH, ...) \
 do { \
-  if (binary_pointer (WATCH)) \
+  if (is_binary_pointer (WATCH)) \
     { \
       unsigned LIT = lit_pointer (WATCH); \
       unsigned OTHER = other_pointer (WATCH); \
@@ -101,7 +101,7 @@ do { \
       LOGBINARY (REDUNDANT, LIT, OTHER, __VA_ARGS__); \
     } \
   else \
-    LOGCLAUSE ((WATCH)->clause, __VA_ARGS__); \
+    LOGCLAUSE (get_clause (ring, WATCH), __VA_ARGS__); \
 } while (0)
 
 #define ROGPREFIX(...) \
@@ -136,7 +136,7 @@ do { \
 
 #define ROGCLAUSE(CLAUSE, ...) \
 do { \
-  if (binary_pointer (CLAUSE)) \
+  if (is_binary_pointer (CLAUSE)) \
     { \
       assert (!redundant_pointer (CLAUSE)); \
       unsigned LIT = lit_pointer (CLAUSE); \
