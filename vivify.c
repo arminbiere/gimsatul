@@ -75,7 +75,8 @@ do { \
 } while (0)
 
 struct watch *
-vivify_strengthen (struct ring *ring, struct watch *candidate)
+vivify_strengthen (struct ring *ring, struct watch *candidate,
+                   struct unsigneds * decisions)
 {
   LOGWATCH (candidate, "vivify strengthening");
   assert (!is_binary_pointer (candidate));
@@ -141,6 +142,7 @@ vivify_strengthen (struct ring *ring, struct watch *candidate)
       unsigned unit = literals[0];
       assert (ring->level);
       backtrack (ring, 0);
+      CLEAR (*decisions);
       trace_add_unit (&ring->trace, unit);
       if (ring_propagate (ring, false, 0))
 	set_inconsistent (ring,
@@ -364,7 +366,8 @@ vivify_watcher (struct ring *ring,
       ring->statistics.vivify.strengthened++;
 
       struct watch *watch = tag_index (true, idx, INVALID_LIT);
-      struct watch *strengthened = vivify_strengthen (ring, watch);
+      struct watch *strengthened =
+        vivify_strengthen (ring, watch, decisions);
       watcher = index_to_watcher (ring, idx);
       mark_garbage_watcher (ring, watcher);
 
