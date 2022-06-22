@@ -146,7 +146,12 @@ do { \
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
       really_import_binary_clause (ring, lit, other);
-      return ring->context == PROBING_CONTEXT;
+      if (ring->context == PROBING_CONTEXT)
+	{
+	  ring->statistics.diverged++;
+	  return true;
+	}
+      return false;
     }
 
   unsigned *pos = ring->trail.pos;
@@ -163,6 +168,7 @@ do { \
 		 "importing (repropagate first literal %s)", LOGLIT (lit));
       force_to_repropagate (ring, lit);
       really_import_binary_clause (ring, lit, other);
+      ring->statistics.diverged++;
       return true;
     }
 
@@ -176,6 +182,7 @@ do { \
 	     "importing (repropagate second literal %s))", LOGLIT (other));
   force_to_repropagate (ring, other);
   really_import_binary_clause (ring, lit, other);
+  ring->statistics.diverged++;
   return true;
 }
 
@@ -342,7 +349,12 @@ do { \
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
       really_import_large_clause (ring, clause, lit, other);
-      return ring->context == PROBING_CONTEXT;
+      if (ring->context == PROBING_CONTEXT)
+	{
+	  ring->statistics.diverged++;
+	  return true;
+	}
+      return false;
     }
 
   unsigned lit_pos = ring->trail.pos[IDX (lit)];
@@ -358,6 +370,7 @@ do { \
 		 LOGLIT (lit));
       force_to_repropagate (ring, lit);
       really_import_large_clause (ring, clause, lit, other);
+      ring->statistics.diverged++;
       return true;
     }
 
@@ -371,6 +384,7 @@ do { \
 	     LOGLIT (other));
   force_to_repropagate (ring, other);
   really_import_large_clause (ring, clause, lit, other);
+  ring->statistics.diverged++;
   return true;
 }
 
@@ -385,9 +399,22 @@ import_shared (struct ring *ring)
   size_t rings = SIZE (ruler->rings);
   assert (rings <= UINT_MAX);
   assert (rings > 1);
+#if 0
   unsigned id = random_modulo (&ring->random, rings - 1) + ring->id + 1;
   if (id >= rings)
     id -= rings;
+#else
+  if (ring->import == ring->id)
+    ring->import++;
+  if (ring->import >= rings)
+    ring->import = 0;
+  if (ring->import == ring->id)
+    {
+      assert (!ring->id);
+      ring->import++;
+    }
+  unsigned id = ring->import++;
+#endif
   assert (id < rings);
   assert (id != ring->id);
   struct ring *src = ruler->rings.begin[id];

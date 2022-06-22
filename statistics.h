@@ -72,6 +72,8 @@ struct ring_statistics
 
 #define SIZE_GLUE_STATISTICS 16
 
+  uint64_t diverged;
+
   struct
   {
     uint64_t units;
