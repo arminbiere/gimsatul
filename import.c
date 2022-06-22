@@ -132,8 +132,15 @@ do { \
     } \
 } while (0)
 
-  if ((lit_value >= 0 && other_value >= 0) ||
-      (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
+  if (lit_value >= 0 && other_value >= 0)
+    {
+      SUBSUME_BINARY (lit, other);
+      LOGBINARY (true, lit, other, "importing (no propagation)");
+      really_import_binary_clause (ring, lit, other);
+      return false;
+    }
+
+  if ((lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
       (other_value > 0 && lit_value < 0 && other_level <= lit_level))
     {
       SUBSUME_BINARY (lit, other);
@@ -321,8 +328,15 @@ do { \
     } \
 } while (0)
 
-  if ((lit_value >= 0 && other_value >= 0) ||
-      (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
+  if (lit_value >= 0 && other_value >= 0)
+    {
+      SUBSUME_LARGE_CLAUSE (clause);
+      LOGCLAUSE (clause, "importing (no propagation)");
+      really_import_large_clause (ring, clause, lit, other);
+      return false;
+    }
+
+  if ((lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
       (other_value > 0 && lit_value < 0 && other_level <= lit_level))
     {
       SUBSUME_LARGE_CLAUSE (clause);
