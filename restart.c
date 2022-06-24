@@ -4,6 +4,7 @@
 #include "restart.h"
 #include "report.h"
 #include "ring.h"
+#include "utilities.h"
 
 #include <inttypes.h>
 
@@ -32,7 +33,7 @@ restart (struct ring *ring)
   update_best_and_target_phases (ring);
   backtrack (ring, 0);
   struct ring_limits *limits = &ring->limits;
-  limits->restart = SEARCH_CONFLICTS;
+  uint64_t interval;
   if (ring->stable)
     {
       struct reluctant *reluctant = &ring->reluctant;
@@ -41,12 +42,14 @@ restart (struct ring *ring)
 	u++, v = 1;
       else
 	v *= 2;
-      limits->restart += STABLE_RESTART_INTERVAL * v;
+      interval = STABLE_RESTART_INTERVAL * v;
       reluctant->u = u, reluctant->v = v;
     }
   else
-    limits->restart += FOCUSED_RESTART_INTERVAL;
-  very_verbose (ring, "next restart limit at %" PRIu64 " conflicts",
-		limits->restart);
+    interval = FOCUSED_RESTART_INTERVAL + logn (statistics->restarts) - 1;
+  limits->restart = SEARCH_CONFLICTS + interval;
+  very_verbose (ring, "next restart limit at %" PRIu64
+                " after %" PRIu64 " conflicts",
+		limits->restart, interval);
   verbose_report (ring, 'r', 1);
 }

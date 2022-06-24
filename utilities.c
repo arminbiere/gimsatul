@@ -2,11 +2,13 @@
 
 #include <math.h>
 
-static double
+double
 logn (uint64_t count)
 {
-  assert (count);
-  return log10 (count + 9);
+  assert (count > 0);
+  double res = log10 (count + 9);
+  assert (res >= 1);
+  return res;
 }
 
 double
