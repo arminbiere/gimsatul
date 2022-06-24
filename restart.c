@@ -43,6 +43,8 @@ restart (struct ring *ring)
       else
 	v *= 2;
       interval = STABLE_RESTART_INTERVAL * v;
+      if (interval > MAX_STABLE_RESTART_INTERVAL)
+	interval = MAX_STABLE_RESTART_INTERVAL;
       reluctant->u = u, reluctant->v = v;
     }
   else
