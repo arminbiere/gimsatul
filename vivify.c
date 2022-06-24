@@ -1,3 +1,4 @@
+#include "allocate.h"
 #include "analyze.h"
 #include "assign.h"
 #include "backtrack.h"
@@ -13,6 +14,35 @@
 
 #include <inttypes.h>
 
+struct vivifier
+{
+  struct ring * ring;
+  struct unsigneds candidates;
+  struct unsigneds decisions;
+  struct unsigneds sorted;
+  unsigned * counts;
+};
+
+static void
+init_vivifier (struct vivifier * vivifier, struct ring * ring)
+{
+  vivifier->ring = ring;
+  INIT (vivifier->candidates);
+  INIT (vivifier->decisions);
+  INIT (vivifier->sorted);
+  vivifier->counts =
+    allocate_and_clear_array (2 * ring->size, sizeof (unsigned));
+}
+
+static void
+release_vivifier (struct vivifier * vivifier)
+{
+  RELEASE (vivifier->candidates);
+  RELEASE (vivifier->decisions);
+  RELEASE (vivifier->sorted);
+  free (vivifier->counts);
+}
+
 static inline bool
 watched_vivification_candidate (struct watcher *watcher)
 {
@@ -26,9 +56,10 @@ watched_vivification_candidate (struct watcher *watcher)
 }
 
 static size_t
-reschedule_vivification_candidates (struct ring *ring,
-				    struct unsigneds *candidates)
+reschedule_vivification_candidates (struct vivifier * vivifier)
 {
+  struct unsigneds * candidates = &vivifier->candidates;
+  struct ring * ring = vivifier->ring;
   assert (EMPTY (*candidates));
   for (all_redundant_watchers (watcher))
     if (watcher->vivify && !watcher->garbage)
@@ -39,9 +70,10 @@ reschedule_vivification_candidates (struct ring *ring,
 }
 
 static size_t
-schedule_vivification_candidates (struct ring *ring,
-				  struct unsigneds *candidates)
+schedule_vivification_candidates (struct vivifier * vivifier)
 {
+  struct unsigneds * candidates = &vivifier->candidates;
+  struct ring * ring = vivifier->ring;
   size_t before = SIZE (*candidates);
   for (all_redundant_watchers (watcher))
     if (!watcher->vivify && watched_vivification_candidate (watcher))
@@ -410,13 +442,13 @@ vivify_clauses (struct ring *ring)
   uint64_t probing_ticks_before = PROBING_TICKS;
   uint64_t limit = probing_ticks_before + delta_probing_ticks;
 
-  struct unsigneds candidates;
-  INIT (candidates);
+  struct vivifier vivifier;
+  init_vivifier (&vivifier, ring);
 
-  size_t rescheduled = reschedule_vivification_candidates (ring, &candidates);
+  size_t rescheduled = reschedule_vivification_candidates (&vivifier);
   very_verbose (ring, "rescheduling %zu vivification candidates",
 		rescheduled);
-  size_t scheduled = schedule_vivification_candidates (ring, &candidates);
+  size_t scheduled = schedule_vivification_candidates (&vivifier);
   very_verbose (ring, "scheduled %zu vivification candidates in total",
 		scheduled);
 #ifdef QUIET
@@ -434,7 +466,7 @@ vivify_clauses (struct ring *ring)
   INIT (sorted);
 
   size_t i = 0;
-  while (i != SIZE (candidates))
+  while (i != SIZE (vivifier.candidates))
     {
       if (PROBING_TICKS > limit)
 	break;
@@ -454,25 +486,22 @@ vivify_clauses (struct ring *ring)
 	      break;
 	    }
 	}
-      unsigned idx = candidates.begin[i++];
+      unsigned idx = vivifier.candidates.begin[i++];
       unsigned sidx = vivify_watcher (ring, &decisions, &sorted, idx);
       if (sidx)
-	PUSH (candidates, sidx);
+	PUSH (vivifier.candidates, sidx);
       else if (ring->inconsistent)
 	break;
     }
 
-  RELEASE (decisions);
-  RELEASE (sorted);
-
   if (!ring->inconsistent && ring->level)
     backtrack (ring, 0);
 
-  if (i != SIZE (candidates))
-    while (i != SIZE (candidates))
-      index_to_watcher (ring, candidates.begin[i++])->vivify = true;
+  if (i != SIZE (vivifier.candidates))
+    while (i != SIZE (vivifier.candidates))
+      index_to_watcher (ring, vivifier.candidates.begin[i++])->vivify = true;
 
-  RELEASE (candidates);
+  release_vivifier (&vivifier);
 
   implied = ring->statistics.vivify.implied - implied;
   strengthened = ring->statistics.vivify.strengthened - strengthened;
