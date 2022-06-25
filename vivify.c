@@ -55,6 +55,14 @@ watched_vivification_candidate (struct watcher *watcher)
   return true;
 }
 
+static void
+schedule_vivification_candidate (struct ring * ring,
+                                 struct unsigneds * candidates,
+                                 struct watcher * candidate)
+{
+  PUSH (*candidates, watcher_to_index (ring, candidate));
+}
+
 static size_t
 reschedule_vivification_candidates (struct vivifier * vivifier)
 {
@@ -63,7 +71,7 @@ reschedule_vivification_candidates (struct vivifier * vivifier)
   assert (EMPTY (*candidates));
   for (all_redundant_watchers (watcher))
     if (watcher->vivify && !watcher->garbage)
-      PUSH (*candidates, watcher_to_index (ring, watcher));
+      schedule_vivification_candidate (ring, candidates, watcher);
   size_t size = SIZE (*candidates);
   sort_redundant_watcher_indices (ring, size, candidates->begin);
   return size;
