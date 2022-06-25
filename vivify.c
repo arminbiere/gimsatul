@@ -107,9 +107,10 @@ do { \
 } while (0)
 
 struct watch *
-vivify_strengthen (struct ring *ring, struct watch *candidate,
-                   struct unsigneds * decisions)
+vivify_strengthen (struct vivifier * vivifier, struct watch *candidate)
 {
+  struct ring * ring = vivifier->ring;
+  struct unsigneds * decisions = &vivifier->decisions;
   LOGWATCH (candidate, "vivify strengthening");
   assert (!is_binary_pointer (candidate));
   struct unsigneds *analyzed = &ring->analyzed;
@@ -262,10 +263,10 @@ sort_vivification_probes (struct ring *ring, struct unsigneds *sorted)
 }
 
 static unsigned
-vivify_watcher (struct ring *ring,
-		struct unsigneds *decisions, struct unsigneds *sorted,
-		unsigned idx)
+vivify_watcher (struct vivifier * vivifier, unsigned idx)
 {
+  struct ring * ring = vivifier->ring;
+  struct unsigneds * decisions = &vivifier->decisions;
   assert (SIZE (*decisions) == ring->level);
 
   struct watcher *watcher = index_to_watcher (ring, idx);
@@ -326,6 +327,7 @@ vivify_watcher (struct ring *ring,
   if (!EMPTY (*decisions))
     ring->statistics.vivify.reused++;
 
+  struct unsigneds * sorted = &vivifier->sorted;
   CLEAR (*sorted);
   for (all_literals_in_clause (lit, clause))
     {
@@ -398,8 +400,7 @@ vivify_watcher (struct ring *ring,
       ring->statistics.vivify.strengthened++;
 
       struct watch *watch = tag_index (true, idx, INVALID_LIT);
-      struct watch *strengthened =
-        vivify_strengthen (ring, watch, decisions);
+      struct watch *strengthened = vivify_strengthen (vivifier, watch);
       watcher = index_to_watcher (ring, idx);
       mark_garbage_watcher (ring, watcher);
 
@@ -487,7 +488,7 @@ vivify_clauses (struct ring *ring)
 	    }
 	}
       unsigned idx = vivifier.candidates.begin[i++];
-      unsigned sidx = vivify_watcher (ring, &decisions, &sorted, idx);
+      unsigned sidx = vivify_watcher (&vivifier, idx);
       if (sidx)
 	PUSH (vivifier.candidates, sidx);
       else if (ring->inconsistent)
