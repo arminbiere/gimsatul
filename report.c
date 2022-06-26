@@ -8,11 +8,14 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-static
-_Atomic (uint64_t)
-  reported;
+// *INDENT-OFF*
 
-     void verbose_report (struct ring *ring, char type, int level)
+static _Atomic (uint64_t) reported;
+
+// *INDENT-ON*
+
+void
+verbose_report (struct ring *ring, char type, int level)
 {
   if (verbosity < level)
     return;
