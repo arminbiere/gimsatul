@@ -54,7 +54,7 @@ watched_vivification_candidate (struct watcher *watcher)
     return false;
   if (watcher->glue > TIER2_GLUE_LIMIT)
     return false;
-#if 1
+#if 0
   if (!watcher->size && watcher->glue > TIER1_GLUE_LIMIT &&
       watcher->clause->size > VIVIFY_CLAUSE_SIZE_LIMIT)
     return false;
