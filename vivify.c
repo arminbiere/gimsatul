@@ -46,19 +46,24 @@ release_vivifier (struct vivifier * vivifier)
 }
 
 static inline bool
-watched_vivification_candidate (struct watcher *watcher)
+watched_vivification_candidate (struct watcher *watcher, unsigned tier)
 {
   if (watcher->garbage)
     return false;
   if (!watcher->redundant)
     return false;
-  if (watcher->glue > TIER2_GLUE_LIMIT)
-    return false;
-#if 0
-  if (!watcher->size && watcher->glue > TIER1_GLUE_LIMIT &&
-      watcher->clause->size > VIVIFY_CLAUSE_SIZE_LIMIT)
-    return false;
-#endif
+  if (tier == 1)
+    {
+      if (watcher->glue > TIER1_GLUE_LIMIT)
+	return false;
+    }
+  if (tier == 2)
+    {
+      if (watcher->glue <= TIER1_GLUE_LIMIT)
+	return false;
+      if (watcher->glue > TIER2_GLUE_LIMIT)
+	return false;
+    }
   return true;
 }
 
@@ -234,7 +239,7 @@ sort_vivivification_candidates (struct ring * ring, unsigned * counts,
 }
 
 static size_t
-reschedule_vivification_candidates (struct vivifier * vivifier)
+reschedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
 {
   struct unsigneds * candidates = &vivifier->candidates;
   unsigned * counts = vivifier->counts;
@@ -249,7 +254,7 @@ reschedule_vivification_candidates (struct vivifier * vivifier)
 }
 
 static size_t
-schedule_vivification_candidates (struct vivifier * vivifier)
+schedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
 {
   struct unsigneds * candidates = &vivifier->candidates;
   unsigned * counts = vivifier->counts;
@@ -257,7 +262,7 @@ schedule_vivification_candidates (struct vivifier * vivifier)
   memset (counts, 0, sizeof (unsigned) * 2 * ring->size);
   size_t before = SIZE (*candidates);
   for (all_redundant_watchers (watcher))
-    if (!watcher->vivify && watched_vivification_candidate (watcher))
+    if (!watcher->vivify && watched_vivification_candidate (watcher, tier))
       schedule_vivification_candidate (ring, counts, candidates, watcher);
   size_t after = SIZE (*candidates);
   size_t delta = after - before;
@@ -622,90 +627,97 @@ vivify_clauses (struct ring *ring)
 	   " search ticks", delta_probing_ticks, (double) VIVIFY_EFFORT,
 	   delta_search_ticks);
 
-  uint64_t probing_ticks_before = PROBING_TICKS;
-  uint64_t limit = probing_ticks_before + delta_probing_ticks;
+  for (unsigned tier = 2; tier; tier--)
+    {
+      uint64_t probing_ticks_before = PROBING_TICKS;
+      uint64_t limit = probing_ticks_before + delta_probing_ticks;
 
-  struct vivifier vivifier;
-  init_vivifier (&vivifier, ring);
+      struct vivifier vivifier;
+      init_vivifier (&vivifier, ring);
 
-  size_t rescheduled = reschedule_vivification_candidates (&vivifier);
-  very_verbose (ring, "rescheduling %zu vivification candidates",
-		rescheduled);
-  size_t scheduled = schedule_vivification_candidates (&vivifier);
-  very_verbose (ring, "scheduled %zu vivification candidates in total",
-		scheduled);
+      size_t rescheduled =
+        reschedule_vivification_candidates (&vivifier, tier);
+      very_verbose (ring, "rescheduling %zu tier%u vivification candidates",
+		    rescheduled, tier);
+      size_t scheduled =
+        schedule_vivification_candidates (&vivifier, tier);
+      very_verbose (ring, "scheduled %zu tier%u vivification candidates in total",
+		    scheduled, tier);
 #ifdef QUIET
-  (void) rescheduled, (void) scheduled;
+      (void) rescheduled, (void) scheduled, (void) type;
 #endif
 
-  uint64_t implied = ring->statistics.vivify.implied;
-  uint64_t strengthened = ring->statistics.vivify.strengthened;
-  uint64_t vivified = ring->statistics.vivify.succeeded;
-  uint64_t tried = ring->statistics.vivify.tried;
+      uint64_t implied = ring->statistics.vivify.implied;
+      uint64_t strengthened = ring->statistics.vivify.strengthened;
+      uint64_t vivified = ring->statistics.vivify.succeeded;
+      uint64_t tried = ring->statistics.vivify.tried;
 
-  struct unsigneds decisions;
-  struct unsigneds sorted;
-  INIT (decisions);
-  INIT (sorted);
+      struct unsigneds decisions;
+      struct unsigneds sorted;
+      INIT (decisions);
+      INIT (sorted);
 
-  size_t i = 0;
-  while (i != SIZE (vivifier.candidates))
-    {
-      if (PROBING_TICKS > limit)
-	break;
-      if (terminate_ring (ring))
-	break;
-      if (import_shared (ring))
+      size_t i = 0;
+      while (i != SIZE (vivifier.candidates))
 	{
-	  if (ring->inconsistent)
+	  if (PROBING_TICKS > limit)
 	    break;
-	  if (ring->level)
-	    backtrack (ring, ring->level - 1);
-	  RESIZE (decisions, ring->level);
-	  if (ring_propagate (ring, false, 0))
+	  if (terminate_ring (ring))
+	    break;
+	  if (import_shared (ring))
 	    {
-	      set_inconsistent (ring, "propagation of imported clauses "
-				"during vivification fails");
-	      break;
+	      if (ring->inconsistent)
+		break;
+	      if (ring->level)
+		backtrack (ring, ring->level - 1);
+	      RESIZE (decisions, ring->level);
+	      if (ring_propagate (ring, false, 0))
+		{
+		  set_inconsistent (ring, "propagation of imported clauses "
+				    "during vivification fails");
+		  break;
+		}
 	    }
+	  unsigned idx = vivifier.candidates.begin[i++];
+	  unsigned sidx = vivify_watcher (&vivifier, idx);
+	  if (sidx)
+	    PUSH (vivifier.candidates, sidx);
+	  else if (ring->inconsistent)
+	    break;
 	}
-      unsigned idx = vivifier.candidates.begin[i++];
-      unsigned sidx = vivify_watcher (&vivifier, idx);
-      if (sidx)
-	PUSH (vivifier.candidates, sidx);
-      else if (ring->inconsistent)
-	break;
+
+      if (!ring->inconsistent && ring->level)
+	backtrack (ring, 0);
+
+      while (i != SIZE (vivifier.candidates))
+	{
+	  unsigned idx = vivifier.candidates.begin[i++];
+	  struct watcher * watcher = index_to_watcher (ring, idx);
+	  watcher->vivify = true;
+	}
+
+      release_vivifier (&vivifier);
+
+      implied = ring->statistics.vivify.implied - implied;
+      strengthened = ring->statistics.vivify.strengthened - strengthened;
+      vivified = ring->statistics.vivify.succeeded - vivified;
+      tried = ring->statistics.vivify.tried - tried;
+
+      very_verbose (ring,
+		    "vivified %" PRIu64 " tier%u clauses %.0f%% from %"
+		    PRIu64 " tried %.0f%% " "after %" PRIu64 " ticks (%s)",
+		    vivified, tier, percent (vivified, tried), tried,
+		    percent (tried, scheduled),
+		    PROBING_TICKS - probing_ticks_before,
+		    (PROBING_TICKS > limit ? "limit hit" : "completed"));
+
+      very_verbose (ring,
+                    "implied %" PRIu64 " tier%u clauses %.0f%% of vivified "
+		    "and strengthened %" PRIu64 " clauses %.0f%%",
+		    implied, tier, percent (implied, vivified),
+		    strengthened, percent (strengthened, vivified));
+
+      verbose_report (ring, (tier == 1 ? 'v' : 'u'), !(implied || strengthened));
     }
-
-  if (!ring->inconsistent && ring->level)
-    backtrack (ring, 0);
-
-  while (i != SIZE (vivifier.candidates))
-    {
-      unsigned idx = vivifier.candidates.begin[i++];
-      struct watcher * watcher = index_to_watcher (ring, idx);
-      watcher->vivify = true;
-    }
-
-  release_vivifier (&vivifier);
-
-  implied = ring->statistics.vivify.implied - implied;
-  strengthened = ring->statistics.vivify.strengthened - strengthened;
-  vivified = ring->statistics.vivify.succeeded - vivified;
-  tried = ring->statistics.vivify.tried - tried;
-
-  very_verbose (ring,
-		"vivified %" PRIu64 " clauses %.0f%% from %" PRIu64
-		" tried %.0f%% " "after %" PRIu64 " ticks (%s)", vivified,
-		percent (vivified, tried), tried, percent (tried, scheduled),
-		PROBING_TICKS - probing_ticks_before,
-		(PROBING_TICKS > limit ? "limit hit" : "completed"));
-
-  very_verbose (ring, "implied %" PRIu64 " clauses %.0f%% of vivified "
-		"and strengthened %" PRIu64 " clauses %.0f%%",
-		implied, percent (implied, vivified),
-		strengthened, percent (strengthened, vivified));
-
-  verbose_report (ring, 'v', !(implied || strengthened));
   STOP (ring, vivify);
 }
