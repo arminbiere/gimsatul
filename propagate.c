@@ -312,11 +312,7 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
   if (conflict)
     {
       LOGWATCH (conflict, "conflicting");
-#if 0
       context->conflicts++;
-#else
-      statistics->contexts[SEARCH_CONTEXT].conflicts++;
-#endif
     }
 
   context->propagations += propagations;
