@@ -623,14 +623,30 @@ vivify_clauses (struct ring *ring)
 
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   uint64_t delta_probing_ticks = VIVIFY_EFFORT * delta_search_ticks;
-  verbose (ring, "vivification effort of %" PRIu64 " = %g * %" PRIu64
+  verbose (ring, "total vivification effort of %" PRIu64 " = %g * %" PRIu64
 	   " search ticks", delta_probing_ticks, (double) VIVIFY_EFFORT,
 	   delta_search_ticks);
+
+  double sum =
+    RELATIVE_VIVIFY_TIER1_EFFORT + RELATIVE_VIVIFY_TIER2_EFFORT;
 
   for (unsigned tier = 2; tier; tier--)
     {
       uint64_t probing_ticks_before = PROBING_TICKS;
-      uint64_t limit = probing_ticks_before + delta_probing_ticks;
+      double effort;
+      if (tier == 2)
+	effort = RELATIVE_VIVIFY_TIER2_EFFORT;
+      else
+	effort = RELATIVE_VIVIFY_TIER1_EFFORT;
+
+      double scale = effort / sum;
+      uint64_t scaled_ticks = scale * delta_probing_ticks;
+
+      verbose (ring, "tier%u vivification limit of %"
+	       PRIu64 " vivification ticks %.0f%%",
+	       tier, scaled_ticks, 100.0 *scale);
+
+      uint64_t limit = probing_ticks_before + scaled_ticks;
 
       struct vivifier vivifier;
       init_vivifier (&vivifier, ring);
