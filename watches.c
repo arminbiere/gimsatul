@@ -102,11 +102,13 @@ watch_literals_in_large_clause (struct ring *ring,
     size = 0;
 
   unsigned used;
+#if 0
   if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
     used = 2;
   else if (redundant && glue >= TIER2_GLUE_LIMIT)
     used = 1;
   else
+#endif
     used = 0;
 
   assert (size < (1 << (8 * sizeof watcher->size)));
