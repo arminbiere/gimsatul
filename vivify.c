@@ -594,16 +594,11 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
       if (ring->inconsistent)
 	return 0;
 
-      if (strengthened)
+      if (strengthened && !is_binary_pointer (strengthened))
 	{
-	  if (!is_binary_pointer (strengthened))
-	    {
-#ifndef NDEBUG
-	      struct watcher *swatcher = get_watcher (ring, strengthened);
-	      assert (watched_vivification_candidate (swatcher, tier));
-#endif
-	      res = index_pointer (strengthened);
-	    }
+	  struct watcher *swatcher = get_watcher (ring, strengthened);
+	  if (watched_vivification_candidate (swatcher, tier))
+	    res = index_pointer (strengthened);
 	}
     }
 
