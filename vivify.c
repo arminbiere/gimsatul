@@ -454,14 +454,14 @@ sort_vivification_probes (signed char * values, unsigned * counts,
 }
 
 static unsigned
-vivify_watcher (struct vivifier * vivifier, unsigned idx)
+vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 {
   struct ring * ring = vivifier->ring;
   struct unsigneds * decisions = &vivifier->decisions;
   assert (SIZE (*decisions) == ring->level);
 
   struct watcher *watcher = index_to_watcher (ring, idx);
-  assert (watched_vivification_candidate (watcher));
+  assert (watched_vivification_candidate (watcher, tier));
   watcher->vivify = false;
 
   signed char *values = ring->values;
@@ -600,7 +600,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned idx)
 	    {
 #ifndef NDEBUG
 	      struct watcher *swatcher = get_watcher (ring, strengthened);
-	      assert (watched_vivification_candidate (swatcher));
+	      assert (watched_vivification_candidate (swatcher, tier));
 #endif
 	      res = index_pointer (strengthened);
 	    }
@@ -695,7 +695,7 @@ vivify_clauses (struct ring *ring)
 		}
 	    }
 	  unsigned idx = vivifier.candidates.begin[i++];
-	  unsigned sidx = vivify_watcher (&vivifier, idx);
+	  unsigned sidx = vivify_watcher (&vivifier, tier, idx);
 	  if (sidx)
 	    PUSH (vivifier.candidates, sidx);
 	  else if (ring->inconsistent)
