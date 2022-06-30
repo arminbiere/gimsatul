@@ -628,6 +628,10 @@ vivify_clauses (struct ring *ring)
 
   for (unsigned tier = 2; tier >= 1; tier--)
     {
+      if (ring->inconsisten)
+	break;
+      if (terminate_ring (ring))
+	break;
       uint64_t probing_ticks_before = PROBING_TICKS;
       double effort;
       if (tier == 2)
