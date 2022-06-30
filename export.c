@@ -14,6 +14,7 @@ export_units (struct ring *ring)
   bool locked = false;
   while (trail->export != end)
     {
+      assert (trail->export < trail->end);
       unsigned unit = *trail->export++;
 #ifndef NFASTPATH
       if (values[unit])
