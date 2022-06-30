@@ -664,10 +664,7 @@ vivify_clauses (struct ring *ring)
       uint64_t vivified = ring->statistics.vivify.succeeded;
       uint64_t tried = ring->statistics.vivify.tried;
 
-      struct unsigneds decisions;
-      struct unsigneds sorted;
-      INIT (decisions);
-      INIT (sorted);
+      struct unsigneds * decisions = &vivifier.decisions;;
 
       size_t i = 0;
       while (i != SIZE (vivifier.candidates))
@@ -682,7 +679,8 @@ vivify_clauses (struct ring *ring)
 		break;
 	      if (ring->level)
 		backtrack (ring, ring->level - 1);
-	      RESIZE (decisions, ring->level);
+	      RESIZE (*decisions, ring->level);
+	      assert (ring->level == SIZE (*decisions));
 	      if (ring_propagate (ring, false, 0))
 		{
 		  set_inconsistent (ring, "propagation of imported clauses "
