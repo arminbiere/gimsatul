@@ -628,7 +628,7 @@ vivify_clauses (struct ring *ring)
 
   for (unsigned tier = 2; tier >= 1; tier--)
     {
-      if (ring->inconsisten)
+      if (ring->inconsistent)
 	break;
       if (terminate_ring (ring))
 	break;
