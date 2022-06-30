@@ -671,8 +671,7 @@ vivify_clauses (struct ring *ring)
       struct unsigneds * decisions = &vivifier.decisions;;
 
       size_t i = 0;
-      assert (SIZE (vivifier.candidates) == scheduled);
-      while (i != scheduled)
+      while (i != SIZE (vivifier.candidates))
 	{
 	  if (PROBING_TICKS > limit)
 	    break;
@@ -704,17 +703,18 @@ vivify_clauses (struct ring *ring)
       if (!ring->inconsistent && ring->level)
 	backtrack (ring, 0);
 
-      size_t remain = scheduled - i;
+      size_t final_scheduled = SIZE (vivifier.candidates);
+      size_t remain = final_scheduled - i;
       if (remain)
 	very_verbose (ring, "all %zu scheduled tier%u "
 		      "vivification candidates tried",
-	              scheduled, tier);
+	              final_scheduled, tier);
       else
 	very_verbose (ring, "%zu tier%u vivification "
 	              "candidates %.0f%% remain", remain, tier,
-		      percent (remain, scheduled));
+		      percent (remain, final_scheduled));
 
-      while (i != SIZE (vivifier.candidates))
+      while (i != final_scheduled)
 	{
 	  unsigned idx = vivifier.candidates.begin[i++];
 	  struct watcher * watcher = index_to_watcher (ring, idx);
