@@ -48,6 +48,7 @@ release_vivifier (struct vivifier * vivifier)
 static inline bool
 watched_vivification_candidate (struct watcher *watcher, unsigned tier)
 {
+  assert (tier == 1 || tier == 2);
   if (watcher->garbage)
     return false;
   if (!watcher->redundant)
@@ -246,7 +247,7 @@ reschedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
   struct ring * ring = vivifier->ring;
   assert (EMPTY (*candidates));
   for (all_redundant_watchers (watcher))
-    if (watcher->vivify && !watcher->garbage)
+    if (watcher->vivify && watched_vivification_candidate (watcher, tier))
       schedule_vivification_candidate (ring, counts, candidates, watcher);
   size_t size = SIZE (*candidates);
   sort_vivivification_candidates (ring, counts, size, candidates->begin);
@@ -625,7 +626,7 @@ vivify_clauses (struct ring *ring)
   double sum =
     RELATIVE_VIVIFY_TIER1_EFFORT + RELATIVE_VIVIFY_TIER2_EFFORT;
 
-  for (unsigned tier = 2; tier; tier--)
+  for (unsigned tier = 2; tier >= 1; tier--)
     {
       uint64_t probing_ticks_before = PROBING_TICKS;
       double effort;
@@ -663,10 +664,7 @@ vivify_clauses (struct ring *ring)
       uint64_t vivified = ring->statistics.vivify.succeeded;
       uint64_t tried = ring->statistics.vivify.tried;
 
-      struct unsigneds decisions;
-      struct unsigneds sorted;
-      INIT (decisions);
-      INIT (sorted);
+      struct unsigneds * decisions = &vivifier.decisions;;
 
       size_t i = 0;
       while (i != SIZE (vivifier.candidates))
@@ -681,7 +679,8 @@ vivify_clauses (struct ring *ring)
 		break;
 	      if (ring->level)
 		backtrack (ring, ring->level - 1);
-	      RESIZE (decisions, ring->level);
+	      RESIZE (*decisions, ring->level);
+	      assert (ring->level == SIZE (*decisions));
 	      if (ring_propagate (ring, false, 0))
 		{
 		  set_inconsistent (ring, "propagation of imported clauses "
