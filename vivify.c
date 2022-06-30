@@ -48,6 +48,7 @@ release_vivifier (struct vivifier * vivifier)
 static inline bool
 watched_vivification_candidate (struct watcher *watcher, unsigned tier)
 {
+  assert (tier == 1 || tier == 2);
   if (watcher->garbage)
     return false;
   if (!watcher->redundant)
@@ -246,7 +247,7 @@ reschedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
   struct ring * ring = vivifier->ring;
   assert (EMPTY (*candidates));
   for (all_redundant_watchers (watcher))
-    if (watcher->vivify && !watcher->garbage)
+    if (watcher->vivify && watched_vivification_candidate (watcher, tier))
       schedule_vivification_candidate (ring, counts, candidates, watcher);
   size_t size = SIZE (*candidates);
   sort_vivivification_candidates (ring, counts, size, candidates->begin);
@@ -625,7 +626,7 @@ vivify_clauses (struct ring *ring)
   double sum =
     RELATIVE_VIVIFY_TIER1_EFFORT + RELATIVE_VIVIFY_TIER2_EFFORT;
 
-  for (unsigned tier = 2; tier; tier--)
+  for (unsigned tier = 2; tier >= 1; tier--)
     {
       uint64_t probing_ticks_before = PROBING_TICKS;
       double effort;
