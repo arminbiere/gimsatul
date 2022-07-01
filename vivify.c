@@ -628,6 +628,10 @@ vivify_clauses (struct ring *ring)
 
   for (unsigned tier = 2; tier >= 1; tier--)
     {
+      if (ring->inconsistent)
+	break;
+      if (terminate_ring (ring))
+	break;
       uint64_t probing_ticks_before = PROBING_TICKS;
       double effort;
       if (tier == 2)
@@ -649,14 +653,14 @@ vivify_clauses (struct ring *ring)
 
       size_t rescheduled =
         reschedule_vivification_candidates (&vivifier, tier);
-      very_verbose (ring, "rescheduling %zu tier%u vivification candidates",
+      very_verbose (ring, "rescheduled %zu tier%u vivification candidates",
 		    rescheduled, tier);
       size_t scheduled =
         schedule_vivification_candidates (&vivifier, tier);
       very_verbose (ring, "scheduled %zu tier%u vivification candidates in total",
 		    scheduled, tier);
 #ifdef QUIET
-      (void) rescheduled, (void) scheduled, (void) type;
+      (void) rescheduled, (void) type;
 #endif
 
       uint64_t implied = ring->statistics.vivify.implied;
@@ -667,7 +671,8 @@ vivify_clauses (struct ring *ring)
       struct unsigneds * decisions = &vivifier.decisions;;
 
       size_t i = 0;
-      while (i != SIZE (vivifier.candidates))
+      assert (SIZE (vivifier.candidates) == scheduled);
+      while (i != scheduled)
 	{
 	  if (PROBING_TICKS > limit)
 	    break;
@@ -698,6 +703,16 @@ vivify_clauses (struct ring *ring)
 
       if (!ring->inconsistent && ring->level)
 	backtrack (ring, 0);
+
+      size_t remain = scheduled - i;
+      if (remain)
+	very_verbose (ring, "all %zu scheduled tier%u "
+		      "vivification candidates tried",
+	              scheduled, tier);
+      else
+	very_verbose (ring, "%zu tier%u vivification "
+	              "candidates %.0f%% remain", remain, tier,
+		      percent (remain, scheduled));
 
       while (i != SIZE (vivifier.candidates))
 	{
