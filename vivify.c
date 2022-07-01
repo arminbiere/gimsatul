@@ -706,13 +706,14 @@ vivify_clauses (struct ring *ring)
       size_t final_scheduled = SIZE (vivifier.candidates);
       size_t remain = final_scheduled - i;
       if (remain)
+	very_verbose (ring,
+	              "incomplete vivification as %zu tier%u "
+	              "candidates remain %.0f%%", remain, tier,
+		      percent (remain, final_scheduled));
+      else
 	very_verbose (ring, "all %zu scheduled tier%u "
 		      "vivification candidates tried",
 	              final_scheduled, tier);
-      else
-	very_verbose (ring, "%zu tier%u vivification "
-	              "candidates %.0f%% remain", remain, tier,
-		      percent (remain, final_scheduled));
 
       while (i != final_scheduled)
 	{
