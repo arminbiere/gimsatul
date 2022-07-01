@@ -704,15 +704,16 @@ vivify_clauses (struct ring *ring)
       if (!ring->inconsistent && ring->level)
 	backtrack (ring, 0);
 
-      size_t remain = scheduled - i;
+      size_t remain = SIZE (vivifier.candidates) - i;
       if (remain)
+	very_verbose (ring,
+	              "incomplete vivification as %zu tier%u "
+	              "candidates remain %.0f%%", remain, tier,
+		      percent (remain, scheduled));
+      else
 	very_verbose (ring, "all %zu scheduled tier%u "
 		      "vivification candidates tried",
 	              scheduled, tier);
-      else
-	very_verbose (ring, "%zu tier%u vivification "
-	              "candidates %.0f%% remain", remain, tier,
-		      percent (remain, scheduled));
 
       while (i != SIZE (vivifier.candidates))
 	{
