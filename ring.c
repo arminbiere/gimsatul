@@ -165,20 +165,21 @@ new_ring (struct ruler *ruler)
   queue->links = allocate_and_clear_array (size, sizeof *queue->links);
 
   {
-    struct node * begin = heap->nodes;
-    struct node *n = begin + ring->size;
-    while (n != begin)
+    struct node * begin = heap->nodes, * n = begin;
+    struct node *end = begin + ring->size;
+    unsigned activated = 0;
+    while (n != end)
       {
-	struct node *node = --n;
+	struct node *node = n++;
+	node->score = 1.0 - 1.0 / ++activated;
 	push_heap (heap, node);
 	LOG ("activating %s on heap", LOGVAR (node - begin));
       }
-    assert (heap->nodes == n);
   }
 
   {
     struct link * begin = queue->links, * l = begin;
-    struct link * end = l + ring->size;
+    struct link * end = begin + ring->size;
     while (l != end)
       {
 	struct link *link = l++;
