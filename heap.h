@@ -36,7 +36,7 @@ struct heap
 
 /*------------------------------------------------------------------------*/
 
-void pop_heap (struct heap *, struct node *);
+void pop_heap (struct heap *);
 void push_heap (struct heap *, struct node *node);
 void update_heap (struct heap *, struct node *, double new_score);
 

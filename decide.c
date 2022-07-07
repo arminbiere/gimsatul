@@ -85,7 +85,7 @@ best_decision_on_heap (struct ring *ring)
       unsigned lit = LIT (idx);
       if (!values[lit])
 	break;
-      pop_heap (heap, root);
+      pop_heap (heap);
     }
 
   LOG ("best decision %s on heap with score %g",

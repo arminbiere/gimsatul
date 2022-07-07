@@ -2,6 +2,45 @@
 
 #ifdef USE_BINARY_HEAP
 
+#if 0
+
+void
+check_heap (struct heap * heap)
+{
+  size_t size = SIZE (heap->stack);
+  unsigned * stack = heap->stack.begin;
+  struct node * nodes = heap->nodes;
+  for (int idx_pos = 0; idx_pos != size; idx_pos++)
+    {
+      unsigned idx = stack[idx_pos];
+      struct node * node = nodes + idx;
+      assert (node->pos == idx_pos);
+      int child_pos = 2 * idx_pos + 1;
+      int parent_pos = (child_pos - 1) / 2;
+      assert (parent_pos == idx_pos);
+      if (child_pos >= size)
+	continue;
+      unsigned child_idx = stack[child_pos];
+      struct node * child = nodes + child_idx;
+      assert (child->pos == child_pos);
+      assert (node->score >= child->score);
+      if (++child_pos >= size)
+	continue;
+      parent_pos = (child_pos - 1)/2;
+      assert (parent_pos == idx_pos);
+      child_idx = stack[child_pos];
+      child = nodes + child_idx;
+      assert (child->pos == child_pos);
+      assert (node->score >= child->score);
+    }
+}
+
+#else
+
+#define check_heap(...) do { } while (0)
+
+#endif
+
 static void
 bubble_up (struct heap * heap, unsigned idx)
 {
@@ -24,6 +63,7 @@ bubble_up (struct heap * heap, unsigned idx)
     }
   stack[idx_pos] = idx;
   node->pos = idx_pos;
+  check_heap (heap);
 }
 
 static void
@@ -65,6 +105,7 @@ bubble_down (struct heap * heap, unsigned idx)
     }
   stack[idx_pos] = idx;
   node->pos = idx_pos;
+  check_heap (heap);
 }
 
 
@@ -80,19 +121,20 @@ push_heap (struct heap * heap, struct node * node)
 }
 
 void
-pop_heap (struct heap * heap, struct node * node)
+pop_heap (struct heap * heap)
 {
+  check_heap (heap);
   assert (!EMPTY (heap->stack));
-  assert (!node->pos);
   struct node * nodes = heap->nodes;
   unsigned * stack = heap->stack.begin;
-  unsigned idx = node - nodes;
-  assert (idx == stack[0]);
+  unsigned idx = stack[0];
+  struct node * node = nodes + idx;
+  assert (!node->pos);
   node->pos = INVALID_POSITION;
   unsigned last_idx = POP (heap->stack);
-  if (last_idx == idx)
-    return;
   struct node * last = nodes + last_idx;
+  if (!last->pos)
+    return;
   last->pos = 0;
   stack[0] = last_idx;
   bubble_down (heap, last_idx);
