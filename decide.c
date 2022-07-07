@@ -69,19 +69,23 @@ best_decision_on_heap (struct ring *ring)
   struct heap *heap = &ring->heap;
   struct node *nodes = heap->nodes;
 
-  assert (heap->root);
-
   unsigned idx;
   for (;;)
     {
-      struct node *ruler = heap->root;
-      assert (ruler);
-      assert (ruler - nodes < ring->size);
-      idx = ruler - nodes;
+      struct node *root;
+#ifdef USE_BINARY_HEAP
+      assert (!EMPTY (heap->stack));
+      root = heap->nodes + PEEK (heap->stack, 0);
+#else
+      root = heap->root;
+      assert (root);
+#endif
+      assert (root - nodes < ring->size);
+      idx = root - nodes;
       unsigned lit = LIT (idx);
       if (!values[lit])
 	break;
-      pop_heap (heap, ruler);
+      pop_heap (heap, root);
     }
 
   LOG ("best decision %s on heap with score %g",

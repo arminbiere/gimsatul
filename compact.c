@@ -224,7 +224,9 @@ compact_heap (struct ring *ring, struct heap *heap,
   struct node *old_nodes = heap->nodes;
   struct node *new_nodes = heap->nodes =
     allocate_and_clear_array (new_size, sizeof *new_nodes);
+#ifndef USE_BINARY_HEAP
   heap->root = 0;
+#endif
   struct node *new_node = new_nodes, *old_node = old_nodes;
   unsigned *end = map + old_size;
   for (unsigned *mapped = map; mapped != end; mapped++, old_node++)

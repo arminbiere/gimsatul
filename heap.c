@@ -1,5 +1,10 @@
 #include "heap.h"
 
+#ifdef USE_BINARY_HEAP
+
+
+#else
+
 static struct node *
 merge_nodes (struct node *a, struct node *b)
 {
@@ -122,3 +127,5 @@ update_heap (struct heap *heap, struct node *node, double new_score)
   deheap_node (node);
   heap->root = merge_nodes (root, node);
 }
+
+#endif
