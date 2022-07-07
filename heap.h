@@ -1,7 +1,7 @@
 #ifndef _heap_h_INCLUDED
 #define _heap_h_INCLUDED
 
-#define USE_BINARY_HEAP
+// #define USE_BINARY_HEAP
 
 #ifdef USE_BINARY_HEAP
 #include "stack.h"

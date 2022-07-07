@@ -235,18 +235,11 @@ deheap_node (struct node *node)
 }
 
 void
-pop_heap (struct heap *heap, struct node *node)
+pop_heap (struct heap *heap)
 {
   struct node *root = heap->root;
-  struct node *child = node->child;
-  if (root == node)
-    heap->root = collapse_node (child);
-  else
-    {
-      deheap_node (node);
-      struct node *collapsed = collapse_node (child);
-      heap->root = merge_nodes (root, collapsed);
-    }
+  struct node *child = root->child;
+  heap->root = collapse_node (child);
   assert (!heap_contains (heap, node));
 }
 
