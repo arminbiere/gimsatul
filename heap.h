@@ -5,6 +5,9 @@
 
 #ifdef USE_BINARY_HEAP
 #include "stack.h"
+
+#include <limits.h>
+#define INVALID_POSITION -1
 #endif
 
 #include <assert.h>
@@ -14,7 +17,7 @@ struct node
 {
   double score;
 #ifdef USE_BINARY_HEAP 
-  size_t pos;
+  int pos;
 #else
   struct node *child, *prev, *next;
 #endif
@@ -43,7 +46,7 @@ static inline bool
 heap_contains (struct heap *heap, struct node *node)
 {
 #ifdef USE_BINARY_HEAP
-  return node->pos;
+  return node->pos >= 0;
 #else
   return heap->root == node || node->prev;
 #endif

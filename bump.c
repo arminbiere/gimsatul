@@ -106,7 +106,7 @@ rebuild_heap (struct ring *ring)
   CLEAR (heap->stack);
   for (all_active_nodes (node))
     {
-      node->pos = 0;
+      node->pos = INVALID_POSITION;
       push_heap (heap, node);
     }
 #else

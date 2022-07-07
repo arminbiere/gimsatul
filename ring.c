@@ -172,6 +172,9 @@ new_ring (struct ruler *ruler)
       {
 	struct node *node = n++;
 	node->score = 1.0 - 1.0 / ++activated;
+#ifdef USE_BINARY_HEAP
+	node->pos = INVALID_POSITION;
+#endif
 	push_heap (heap, node);
 	LOG ("activating %s on heap", LOGVAR (node - begin));
       }
@@ -290,6 +293,10 @@ delete_ring (struct ring *ring)
   release_ring (ring, false);
 
   free (ring->heap.nodes);
+#ifdef USE_BINARY_HEAP
+  RELEASE (ring->heap.stack);
+#endif
+
   free (ring->phases);
   free (ring->queue.links);
 

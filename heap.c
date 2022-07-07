@@ -2,6 +2,112 @@
 
 #ifdef USE_BINARY_HEAP
 
+static void
+bubble_up (struct heap * heap, unsigned idx)
+{
+  unsigned * stack = heap->stack.begin;
+  struct node * nodes = heap->nodes;
+  struct node * node = nodes + idx;
+  int idx_pos = node->pos;
+  double idx_score = node->score;
+  while (idx_pos)
+    {
+      int parent_pos = (idx_pos - 1) / 2;
+      unsigned parent_idx = stack[parent_pos];
+      struct node * parent = nodes + parent_idx;
+      double parent_score = parent->score;
+      if (parent_score >= idx_score)
+	break;
+      stack[idx_pos] = parent_idx;
+      parent->pos = idx_pos;
+      idx_pos = parent_pos;
+    }
+  stack[idx_pos] = idx;
+  node->pos = idx_pos;
+}
+
+static void
+bubble_down (struct heap * heap, unsigned idx)
+{
+  size_t size = SIZE (heap->stack);
+  unsigned * stack = heap->stack.begin;
+  struct node * nodes = heap->nodes;
+  struct node * node = nodes + idx;
+  int idx_pos = node->pos;
+  double idx_score = node->score;
+  for (;;)
+    {
+      int child_pos = 2 * idx_pos + 1;
+      if (child_pos >= size)
+	break;
+      unsigned child_idx = stack[child_pos];
+      struct node * child = nodes + child_idx;
+      double child_score = child->score;
+      int sibling_pos = child_pos + 1;
+      if (sibling_pos < size)
+	{
+	  unsigned sibling_idx = stack[sibling_pos];
+	  struct node * sibling = nodes + sibling_idx;
+	  double sibling_score = sibling->score;
+	  if (sibling_score > child_score)
+	    {
+	      child = sibling;
+	      child_idx = sibling_idx;
+	      child_pos = sibling_pos;
+	      child_score = sibling_score;
+	    }
+	}
+      if (child_score <= idx_score)
+	break;
+      stack[idx_pos] = child_idx;
+      child->pos = idx_pos;
+      idx_pos = child_pos;
+    }
+  stack[idx_pos] = idx;
+  node->pos = idx_pos;
+}
+
+
+void
+push_heap (struct heap * heap, struct node * node)
+{
+  unsigned size = SIZE (heap->stack);
+  assert (node->pos == INVALID_POSITION);
+  node->pos = size;
+  unsigned idx = node - heap->nodes;
+  PUSH (heap->stack, idx);
+  bubble_up (heap, idx);
+}
+
+void
+pop_heap (struct heap * heap, struct node * node)
+{
+  assert (!EMPTY (heap->stack));
+  assert (!node->pos);
+  struct node * nodes = heap->nodes;
+  unsigned * stack = heap->stack.begin;
+  unsigned idx = node - nodes;
+  assert (idx == stack[0]);
+  node->pos = INVALID_POSITION;
+  unsigned last_idx = POP (heap->stack);
+  if (last_idx == idx)
+    return;
+  struct node * last = nodes + last_idx;
+  last->pos = 0;
+  stack[0] = last_idx;
+  bubble_down (heap, last_idx);
+}
+
+void
+update_heap (struct heap * heap, struct node * node, double new_score)
+{
+  assert (node->score < new_score);
+  node->score = new_score;
+  if (node->pos == INVALID_POSITION)
+    return;
+  unsigned idx = node - heap->nodes;
+  bubble_up (heap, idx);
+}
 
 #else
 
