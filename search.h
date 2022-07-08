@@ -6,6 +6,7 @@
 struct ring;
 
 int search (struct ring *);
+void iterate (struct ring *);
 bool terminate_ring (struct ring *ring);
 
 #endif

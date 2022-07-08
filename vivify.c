@@ -368,7 +368,10 @@ vivify_strengthen (struct vivifier * vivifier, struct watch *candidate)
 	set_inconsistent (ring,
 			  "propagation of strengthened clause unit fails");
       else
-	export_units (ring);
+	{
+	  ring->iterating = -1;
+	  iterate (ring);
+	}
     }
   else if (size == 2)
     {

@@ -52,11 +52,13 @@ import_units (struct ring *ring)
 	}
       assert (!ring->level);
       assign_ring_unit (ring, unit);
-      ring->iterating = 2;
     }
   if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
-  return imported;
+  if (!imported)
+    return false;
+  ring->iterating = -1;
+  return true;
 }
 
 static void
@@ -84,7 +86,7 @@ force_to_repropagate (struct ring *ring, unsigned lit)
   assert (*propagate == NOT (lit));
   ring->trail.propagate = propagate;
   if (!ring->level)
-    ring->iterating = 2;
+    ring->iterating = -1;
 }
 
 static bool

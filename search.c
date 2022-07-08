@@ -18,7 +18,7 @@
 #include <assert.h>
 #include <inttypes.h>
 
-static void
+void
 iterate (struct ring *ring)
 {
   assert (ring->iterating);
@@ -32,7 +32,8 @@ iterate (struct ring *ring)
       size_t new_units = trail->propagate - trail->iterate;
       very_verbose (ring, "iterating %zu units", new_units);
 #endif
-      verbose_report (ring, 'i', ring->iterating - 1);
+      int report_level = (ring->iterating < 0);
+      verbose_report (ring, 'i', report_level);
       export_units (ring);
       trail->iterate = trail->propagate;
     }

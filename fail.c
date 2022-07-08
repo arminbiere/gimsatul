@@ -70,6 +70,8 @@ failed_literal_probing (struct ring *ring)
 				"during failed literal probing");
 	      break;
 	    }
+	  assert (ring->iterating < 0);
+	  iterate (ring);
 	  if (values[probe])
 	    continue;
 	}
@@ -156,6 +158,8 @@ failed_literal_probing (struct ring *ring)
 	      assert (ok);
 	      if (ring->inconsistent)
 		break;
+	      if (lifted)
+		ring->iterating = -1;
 	    }
 	}
       if (ring->level)
@@ -176,12 +180,13 @@ failed_literal_probing (struct ring *ring)
 				"propagation of failed literal yields empty clause");
 	      break;
 	    }
+	  ring->iterating = -1;
 	}
       last = probe;
       if (++probe == max_lit)
 	probe = 0;
-      if (unit != INVALID)
-	export_units (ring);
+      if (ring->iterating)
+	iterate (ring);
     }
   RELEASE (lift);
   free (stamps);

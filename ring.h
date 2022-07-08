@@ -89,8 +89,9 @@ struct ring
   volatile int status;
 
   bool inconsistent;
-  char iterating;
   bool stable;
+
+  signed char iterating;
 
   unsigned best;
   unsigned context;
