@@ -50,7 +50,7 @@ clause_with_too_many_occurrences (struct ruler *ruler,
 }
 
 static size_t
-actual_occurrences (struct clauses *clauses)
+actual_occurrences (struct ruler * ruler, struct clauses *clauses)
 {
   struct clause **begin = clauses->begin, **q = begin;
   struct clause **end = clauses->end, **p = q;
@@ -64,7 +64,7 @@ actual_occurrences (struct clauses *clauses)
       if (clause->garbage)
 	q--;
     }
-
+  ruler->statistics.ticks.elimination += ticks;
   clauses->end = q;
   return q - begin;
 }
@@ -143,7 +143,7 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   unsigned pivot = LIT (idx);
   struct clauses *pos_clauses = &OCCURRENCES (pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
-  size_t pos_size = actual_occurrences (pos_clauses);
+  size_t pos_size = actual_occurrences (ruler, pos_clauses);
   if (pos_size > occurrence_limit)
     {
       ROG ("pivot literal %s occurs %zu times (limit %zu)",
@@ -154,7 +154,7 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   unsigned not_pivot = NOT (pivot);
   struct clauses *neg_clauses = &OCCURRENCES (not_pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (not_pivot));
-  size_t neg_size = actual_occurrences (neg_clauses);
+  size_t neg_size = actual_occurrences (ruler, neg_clauses);
   if (neg_size > occurrence_limit)
     {
       ROG ("negative pivot literal %s occurs %zu times (limit %zu)",
