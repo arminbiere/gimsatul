@@ -73,13 +73,8 @@ best_decision_on_heap (struct ring *ring)
   for (;;)
     {
       struct node *root;
-#ifdef USE_BINARY_HEAP
-      assert (!EMPTY (heap->stack));
-      root = heap->nodes + PEEK (heap->stack, 0);
-#else
       root = heap->root;
       assert (root);
-#endif
       assert (root - nodes < ring->size);
       idx = root - nodes;
       unsigned lit = LIT (idx);

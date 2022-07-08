@@ -222,15 +222,9 @@ compact_heap (struct ring *ring, struct heap *heap,
 	      unsigned old_size, unsigned new_size, unsigned *map)
 {
   struct node *old_nodes = heap->nodes;
-#ifdef USE_BINARY_HEAP
-  struct node *new_nodes = heap->nodes =
-    allocate_array (new_size, sizeof *new_nodes);
-  CLEAR (heap->stack);
-#else
   struct node *new_nodes = heap->nodes =
     allocate_and_clear_array (new_size, sizeof *new_nodes);
   heap->root = 0;
-#endif
   struct node *new_node = new_nodes, *old_node = old_nodes;
   unsigned *end = map + old_size;
   for (unsigned *mapped = map; mapped != end; mapped++, old_node++)
@@ -240,9 +234,6 @@ compact_heap (struct ring *ring, struct heap *heap,
 	continue;
       assert (new_nodes + new_idx == new_node);
       new_node->score = old_node->score;
-#ifdef USE_BINARY_HEAP
-      new_node->pos = INVALID_POSITION;
-#endif
       push_heap (heap, new_node);
       new_node++;
     }

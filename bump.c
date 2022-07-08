@@ -102,21 +102,12 @@ void
 rebuild_heap (struct ring *ring)
 {
   struct heap *heap = &ring->heap;
-#ifdef USE_BINARY_HEAP
-  CLEAR (heap->stack);
-  for (all_active_nodes (node))
-    {
-      node->pos = INVALID_POSITION;
-      push_heap (heap, node);
-    }
-#else
   heap->root = 0;
   for (all_active_nodes (node))
     {
       node->child = node->prev = node->next = 0;
       push_heap (heap, node);
     }
-#endif
 }
 
 void
