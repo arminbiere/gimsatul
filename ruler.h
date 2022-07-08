@@ -58,6 +58,8 @@ struct ruler_last
 
 struct ruler_limits
 {
+  bool initialized;
+
   uint64_t elimination;
   uint64_t subsumption;
 
