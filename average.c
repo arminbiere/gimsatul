@@ -23,18 +23,8 @@ update_average (struct ring * ring, struct average *average,
     }
   else
     new_value = new_biased;
-#if 0
-#ifdef LOGGING
-  double old_value = average->value;
   LOG ("update %s average with %g to %g from %g",
-       name, y, new_value, old_value);
-#else
-  (void) ring, (void) name;
-#endif
-#else
-  extremely_verbose (ring,
-       "update %s average with %g to %g from %g",
        name, y, new_value, average->value);
-#endif
   average->value = new_value;
+  (void) ring, (void) name;
 }

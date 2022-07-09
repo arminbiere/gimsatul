@@ -59,9 +59,6 @@ print_ring_statistics (struct ring *ring)
 	   "  vivify-implied:", s->vivify.implied,
 	   percent (s->vivify.implied, s->vivify.succeeded));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivified clause",
-	   "  vivify-removed:", s->vivify.removed,
-	   percent (s->vivify.removed, s->vivify.succeeded));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivified clause",
 	   "  vivify-strengthened:", s->vivify.strengthened,
 	   percent (s->vivify.strengthened, s->vivify.succeeded));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per learned clause",
