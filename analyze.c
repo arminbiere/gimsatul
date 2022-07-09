@@ -171,15 +171,15 @@ analyze (struct ring *ring, struct watch *reason)
       assert (reason);
     }
   LOG ("back jump level %u", jump);
-  struct averages *averages = ring->averages + ring->stable;
-  update_average (&averages->level, SLOW_ALPHA, jump);
+  struct averages *a = ring->averages + ring->stable;
+  update_average (ring, &a->level, "level", SLOW_ALPHA, jump);
   LOG ("glucose level (LBD) %u", glue);
-  update_average (&averages->glue.slow, SLOW_ALPHA, glue);
-  update_average (&averages->glue.fast, FAST_ALPHA, glue);
+  update_average (ring, &a->glue.slow, "slow glue", SLOW_ALPHA, glue);
+  update_average (ring, &a->glue.fast, "fast glue", FAST_ALPHA, glue);
   unsigned assigned = SIZE (ring->trail);
   double filled = percent (assigned, ring->size);
   LOG ("assigned %u variables %.0f%% filled", assigned, filled);
-  update_average (&averages->trail, SLOW_ALPHA, filled);
+  update_average (ring, &a->trail, "trail", SLOW_ALPHA, filled);
   unsigned *literals = ring_clause->begin;
   const unsigned not_uip = NOT (uip);
   literals[0] = not_uip;

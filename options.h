@@ -86,7 +86,7 @@ OPTION (bool,     simplify_initially,    1, 0, 1,     "initial preprocessing thr
 OPTION (bool,     simplify_regularly,    1, 0, 1,     "regular inprocessing through simplification") \
 OPTION (unsigned, simplify_rounds,       4, 1, INF,   "number of rounds per simplification") \
 OPTION (bool,     switch_mode,           1, 0, 1,     "switch between focused and stable mode") \
-OPTION (unsigned, switch_interval,       3e3, 1, INF, "mode switching base conflict interval") \
+OPTION (unsigned, switch_interval,       1e3, 1, INF, "mode switching base conflict interval") \
 OPTION (bool,     substitute,            1, 0, 1,     "equivalent literal substitution") \
 OPTION (bool,     subsume,               1, 0, 1,     "clause subsumption and strengthening") \
 OPTION (unsigned, subsume_ticks,         20, 0, INF,  "subsumption ticks limit in millions") \

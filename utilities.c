@@ -17,6 +17,13 @@ nlogn (uint64_t count)
   return count * logn (count);
 }
 
+double
+nlog3n (uint64_t count)
+{
+  double f = logn (count);
+  return count * f * f * f;
+}
+
 unsigned
 gcd (unsigned a, unsigned b)
 {

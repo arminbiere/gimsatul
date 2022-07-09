@@ -5,10 +5,10 @@
 #include "report.h"
 #include "search.h"
 #include "ring.h"
+#include "utilities.h"
 #include "walk.h"
 
 #include <inttypes.h>
-#include <math.h>
 
 static char
 rephase_walk (struct ring *ring)
@@ -73,10 +73,11 @@ rephase (struct ring *ring)
       verbose (ring, "resetting number of best assigned %u", ring->best);
       ring->best = 0;
     }
-  limits->rephase = SEARCH_CONFLICTS;
-  uint64_t interval = ring->options.rephase_interval;
-  limits->rephase += interval * rephased * sqrt (rephased);
-  very_verbose (ring, "next rephase limit at %" PRIu64 " conflicts",
-		limits->rephase);
+  uint64_t base = ring->options.rephase_interval;
+  uint64_t interval = base * nlog3n (rephased);
+  limits->rephase = SEARCH_CONFLICTS + interval;
+  very_verbose (ring, "new rephase limit of %" PRIu64
+                " after %" PRIu64 " conflicts",
+		limits->rephase, interval);
   report (ring, type);
 }

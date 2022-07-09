@@ -21,6 +21,7 @@ percent (double a, double b)
 
 double logn (uint64_t count);
 double nlogn (uint64_t count);
+double nlog3n (uint64_t count);
 unsigned gcd (unsigned, unsigned);
 
 static inline void

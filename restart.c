@@ -14,13 +14,20 @@ restarting (struct ring *ring)
   if (!ring->level)
     return false;
   struct ring_limits *l = &ring->limits;
-  if (!ring->stable)
-    {
-      struct averages *a = ring->averages;
-      if (a->glue.fast.value <= RESTART_MARGIN * a->glue.slow.value)
-	return false;
-    }
-  return l->restart < SEARCH_CONFLICTS;
+  if (l->restart >= SEARCH_CONFLICTS)
+    return false;
+  if (ring->stable)
+    return true;
+  struct averages *a = ring->averages;
+  double fast = a->glue.fast.value;
+  double slow = a->glue.slow.value;
+  double margin = slow * RESTART_MARGIN;
+  extremely_verbose (ring, "restart glue limit %g = "
+		     "%g * %g (slow glue) %c %g (fast glue)",
+		     margin, RESTART_MARGIN, slow,
+		     margin == fast ? '=' : margin > fast ? '>' : '<',
+		     fast);
+  return margin <= fast;
 }
 
 void
@@ -50,7 +57,7 @@ restart (struct ring *ring)
   else
     interval = FOCUSED_RESTART_INTERVAL + logn (statistics->restarts) - 1;
   limits->restart = SEARCH_CONFLICTS + interval;
-  very_verbose (ring, "next restart limit at %" PRIu64
+  very_verbose (ring, "new restart limit at %" PRIu64
                 " after %" PRIu64 " conflicts",
 		limits->restart, interval);
   verbose_report (ring, 'r', 1);

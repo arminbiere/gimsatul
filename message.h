@@ -56,6 +56,13 @@ do { \
     message (__VA_ARGS__); \
 } while (0)
 
+#define extremely_verbose(...) \
+do { \
+  if (verbosity > 3) \
+    message (__VA_ARGS__); \
+} while (0)
+
+
 #endif
 
 #endif
