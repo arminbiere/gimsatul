@@ -199,7 +199,7 @@ do { \
 	   average (conflicts, s->simplifications));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
 	   "switched:", s->switched, average (conflicts, s->switched));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f flips per walkinterval",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f flips per walked",
 	   "walked:", s->walked, average (s->flips, s->walked));
   fflush (stdout);
 }
