@@ -14,8 +14,6 @@ bump_reason (struct ring *ring, struct watcher *watcher)
 {
   if (!watcher->redundant)
     return;
-  if (watcher->glue <= TIER1_GLUE_LIMIT)
-    return;
   if (watcher->glue <= TIER2_GLUE_LIMIT)
     watcher->used = 2;
   else

@@ -572,7 +572,11 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	IMPLIED:
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.implied++;
-	  mark_garbage_watcher (ring, watcher);
+	  if (!watcher->used)
+	    {
+	      ring->statistics.vivify.removed++;
+	      mark_garbage_watcher (ring, watcher);
+	    }
 	  clause_implied = true;
 	  break;
 	}

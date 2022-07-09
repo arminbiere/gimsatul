@@ -84,6 +84,25 @@ caught_message (int sig)
 }
 
 static void
+raising_message (int sig)
+{
+  if (verbosity < 0)
+    return;
+  const char *name = "SIGNUNKNOWN";
+#define SIGNAL(SIG) \
+  if (sig == SIG) name = #SIG;
+  SIGNALS
+#undef SIGNAL
+    if (sig == SIGALRM)
+    name = "SIGALRM";
+  char buffer[80];
+  sprintf (buffer, "c\nc raising signal %d (%s)\nc\n", sig, name);
+  size_t bytes = strlen (buffer);
+  if (write (1, buffer, bytes) != bytes)
+    exit (0);
+}
+
+static void
 catch_signal (int sig)
 {
   if (atomic_exchange (&caught_signal, sig))
@@ -97,6 +116,7 @@ catch_signal (int sig)
   if (ruler)
     print_ruler_statistics (ruler);
 #endif
+  raising_message (sig);
   raise (sig);
   exit (1);
 }

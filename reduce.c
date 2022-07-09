@@ -172,13 +172,13 @@ gather_reduce_candidates (struct ring *ring, struct unsigneds *candidates)
 	continue;
       if (!watcher->redundant)
 	continue;
-      if (watcher->glue <= TIER1_GLUE_LIMIT)
-	continue;
       if (watcher->used)
 	{
 	  watcher->used--;
 	  continue;
 	}
+      if (watcher->glue <= TIER1_GLUE_LIMIT)
+	continue;
       unsigned idx = watcher_to_index (ring, watcher);
       PUSH (*candidates, idx);
     }

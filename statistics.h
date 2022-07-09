@@ -68,6 +68,7 @@ struct ring_statistics
     uint64_t strengthened;
     uint64_t succeeded;
     uint64_t implied;
+    uint64_t removed;
   } vivify;
 
 #define SIZE_GLUE_STATISTICS 16
