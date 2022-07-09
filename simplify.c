@@ -891,13 +891,14 @@ finish_ring_simplification (struct ring *ring)
   RELEASE (ruler->clauses);
   struct ring_limits *limits = &ring->limits;
   struct ring_statistics *statistics = &ring->statistics;
-  limits->simplify = SEARCH_CONFLICTS;
-  unsigned interval = ring->options.simplify_interval;
-  assert (interval);
-  limits->simplify += interval * nlogn (statistics->simplifications);
+  uint64_t base = ring->options.simplify_interval;
+  uint64_t interval = base * nlogn (statistics->simplifications);
+  uint64_t scaled = scale_interval (ring, "simplify", interval);
+  limits->simplify = SEARCH_CONFLICTS + scaled;
   ruler->last.search = statistics->contexts[SEARCH_CONTEXT].ticks;
-  very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
-		limits->simplify);
+  very_verbose (ring, "new simplify limit at %" PRIu64
+                " after %" PRIu64 " conflicts",
+		limits->simplify, scaled);
 }
 
 #ifndef NDEBUG

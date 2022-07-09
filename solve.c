@@ -2,6 +2,7 @@
 #include "search.h"
 #include "message.h"
 #include "ruler.h"
+#include "scale.h"
 
 #include <stdio.h>
 #include <inttypes.h>
@@ -96,22 +97,29 @@ set_ring_limits (struct ring *ring, long long conflicts)
   else
     verbose (ring, "no extra bumping of literals in reason clauses");
 
-  limits->probe = ring->options.probe_interval;
   limits->reduce = ring->options.reduce_interval;
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = ring->options.rephase_interval;
-  verbose (ring, "probe interval of %" PRIu64 " conflicts", limits->probe);
+
   verbose (ring, "reduce interval of %" PRIu64 " conflicts", limits->reduce);
   verbose (ring, "restart interval of %" PRIu64 " conflicts",
 	   limits->restart);
   verbose (ring, "rephase interval of %" PRIu64 " conflicts",
 	   limits->rephase);
 
+  {
+    uint64_t interval = ring->options.probe_interval;
+    uint64_t scaled = scale_interval (ring, "probe", interval);
+    verbose (ring, "probe limit of %" PRIu64 " conflicts", scaled);
+    limits->probe = scaled;
+  }
+
   if (!ring->id)
     {
-      limits->simplify = ring->options.simplify_interval;
-      verbose (ring, "simplify interval of %" PRIu64 " conflicts",
-	       limits->simplify);
+      uint64_t interval = ring->options.simplify_interval;
+      uint64_t scaled = scale_interval (ring, "simplify", interval);
+      verbose (ring, "simplify limit of %" PRIu64 " conflicts", scaled);
+      limits->simplify = scaled;
     }
 
   if (conflicts >= 0)

@@ -4,8 +4,9 @@
 #include "message.h"
 #include "probe.h"
 #include "ring.h"
-#include "vivify.h"
+#include "scale.h"
 #include "utilities.h"
+#include "vivify.h"
 
 #include <inttypes.h>
 
@@ -37,12 +38,13 @@ probe (struct ring *ring)
   ring->last.probing = SEARCH_TICKS;
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
-  limits->probe = SEARCH_CONFLICTS;
-  unsigned interval = ring->options.probe_interval;
-  assert (interval);
-  limits->probe += interval * nlogn (statistics->probings);
-  very_verbose (ring, "new probe limit of %" PRIu64 " conflicts",
-		limits->probe);
+  uint64_t base = ring->options.probe_interval;
+  uint64_t interval = base * nlogn (statistics->probings);
+  uint64_t scaled = scale_interval (ring, "probe", interval);
+  limits->probe = SEARCH_CONFLICTS + scaled;
+  very_verbose (ring, "new probe limit at %" PRIu64
+                " after %" PRIu64 " conflicts",
+		limits->probe, scaled);
   STOP_AND_START_SEARCH (probe);
   return ring->inconsistent ? 20 : 0;
 }
