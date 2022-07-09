@@ -8,6 +8,7 @@
 #include "message.h"
 #include "propagate.h"
 #include "report.h"
+#include "scale.h"
 #include "simplify.h"
 #include "substitute.h"
 #include "subsume.h"
