@@ -119,6 +119,12 @@ better_vivification_candidate (unsigned * counts,
       return false;
     else if (smaller_vivification_literal (counts, *q, *p))
       return true;
+  unsigned aglue = a->glue;
+  unsigned bglue = b->glue;
+  if (aglue < bglue)
+    return false;
+  if (aglue > bglue)
+    return true;
   if (asize < bsize)
     return false;
   if (asize > bsize)
