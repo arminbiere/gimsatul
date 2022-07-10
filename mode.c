@@ -1,4 +1,5 @@
-#include "bump.h" #include "message.h"
+#include "bump.h"
+#include "message.h"
 #include "mode.h"
 #include "options.h"
 #include "report.h"
