@@ -18,10 +18,24 @@ nlogn (uint64_t count)
 }
 
 double
+nlog2n (uint64_t count)
+{
+  double f = logn (count);
+  return count * f * f;
+}
+
+double
 nlog3n (uint64_t count)
 {
   double f = logn (count);
   return count * f * f * f;
+}
+
+double
+nlog4n (uint64_t count)
+{
+  double f = logn (count);
+  return count * f * f * f * f;
 }
 
 unsigned

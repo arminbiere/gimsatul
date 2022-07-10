@@ -893,7 +893,7 @@ finish_ring_simplification (struct ring *ring)
   struct ring_limits *limits = &ring->limits;
   struct ring_statistics *statistics = &ring->statistics;
   uint64_t base = ring->options.simplify_interval;
-  uint64_t interval = base * nlogn (statistics->simplifications);
+  uint64_t interval = base * nlog2n (statistics->simplifications);
   uint64_t scaled = scale_interval (ring, "simplify", interval);
   limits->simplify = SEARCH_CONFLICTS + scaled;
   ruler->last.search = statistics->contexts[SEARCH_CONTEXT].ticks;

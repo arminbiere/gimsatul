@@ -1,9 +1,9 @@
-#include "bump.h"
-#include "message.h"
+#include "bump.h" #include "message.h"
 #include "mode.h"
 #include "options.h"
 #include "report.h"
 #include "ring.h"
+#include "utilities.h"
 
 #include <inttypes.h>
 
@@ -76,8 +76,8 @@ switch_mode (struct ring *ring)
       rebuild_heap (ring);
     }
   uint64_t base = i->mode;
-  uint64_t interval = base * square (s->switched / 2 + 1);
-  l->mode = SEARCH_TICKS +  interval;
+  uint64_t interval = base * nlog4n (s->switched / 2 + 1);
+  l->mode = SEARCH_TICKS + interval;
   very_verbose (ring, "new mode switching limit at %" PRIu64
                 " after %" PRIu64 " ticks",
 		l->mode, interval);
