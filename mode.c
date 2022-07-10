@@ -46,13 +46,6 @@ switching_mode (struct ring *ring)
     return SEARCH_CONFLICTS > l->mode;
 }
 
-static uint64_t
-square (uint64_t n)
-{
-  assert (n);
-  return n * n;
-}
-
 void
 switch_mode (struct ring *ring)
 {
