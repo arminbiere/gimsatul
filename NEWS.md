@@ -1,3 +1,39 @@
+# Version 1.0.3
+
+- Scheduling with an 'O(nlog^4n)' conflict interval for mode switching
+  where 'n' is the number of times it was scheduled, 'O(nlog^3n)' for
+  rephasing, 'O(nlog^2n)' for simplification, 'O(nlogn)' for probing,
+  and 'O (logn)' for restarts, following Kissat in this regard.
+
+- Variables get the same order as in Kissat for the pairing heap (EVSIDS)
+  with variables with larger index initially having higher scores.
+
+- Options closer to those used in Kissat (restart intervals, vivify effort,
+  simplify interval, switch interval).
+
+- Scaling conflict intervals of probing and simplification as in Kissat with
+  respect to the number 'n' of irredundant clauses in 'O (log^2 n)'.
+
+- More verbose signal catching failure messages.
+
+- Counting occurrences during variable elimination incurs 'ticks'.
+
+- Fixed iterating logic (thus more precise 'i' report lines) also
+  while importing units.
+
+- Specialized pairing heap slightly.
+
+- More precise importing function needed for importing units
+  and clauses during 'vivification'.
+
+- Fixed logic which allows to disable preprocessing or inprocessing.
+
+- Separated vivification for 'tier1' and 'tier2' clauses.
+
+- Sorting of literals in vivified clauses and vivification candidate clauses
+  as in Kissat and CaDiCaL to simulate trie based vivification which allows
+  allows to reuse some decisions and propagations.
+
 # Version 1.0.2
 
 - Optimized vivification by first waiting for the next reduce to avoid
