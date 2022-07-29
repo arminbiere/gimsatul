@@ -1,5 +1,16 @@
 # Version 1.0.3
 
+As version 1.0.2 in single threaded mode was still lagging behind 'Kissat
+SC2021 Light' even after disabling all features that are not in Gimsatul
+yet, we found and fixed some issues with implementation of heuristics issues
+and made particularly scheduling of regularly running functions similar to
+how they are scheduled in Kissat.
+
+There are still fundamental difference though between this version and
+Kissat (watchers, initial preprocessing) but this version running in single
+threaded is coming close to the performance of 'Kissat SC2022 Light' (if all
+features not in Gimsatul yet are kept disabled).
+
 - Scheduling with an 'O(nlog^4n)' conflict interval for mode switching
   where 'n' is the number of times it was scheduled, 'O(nlog^3n)' for
   rephasing, 'O(nlog^2n)' for simplification, 'O(nlogn)' for probing,
@@ -35,6 +46,9 @@
   allows to reuse some decisions and propagations.
 
 # Version 1.0.2
+
+This is the first version with most optimizations originally planned but
+did not make it into the 'sc2022' version.
 
 - Optimized vivification by first waiting for the next reduce to avoid
   spending time on garbage collected 'tier2' clauses, sorting probed
@@ -98,8 +112,16 @@
 
 # Version 1.0.1
 
+This is in essence the same as the original 'sc2022' version after fixing
+the issues found by MacOS users which were not able to compile it.
+
 - Xcode needs `_Atomic(...) *` instead of `volatile ... *` first arguments in
   `atomic_exchange` etc.
 
 - Added `./configure --pedantic` to test for C11 conformance
   (removes `popen` and thus compressed reading).
+
+# Version sc2022
+
+The version submitted to the SAT Competition 2022 with experiments
+described in our POS'22 paper and the SAT Competition system description.
