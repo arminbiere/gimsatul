@@ -401,22 +401,9 @@ import_shared (struct ring *ring)
   size_t rings = SIZE (ruler->rings);
   assert (rings <= UINT_MAX);
   assert (rings > 1);
-#if 0
   unsigned id = random_modulo (&ring->random, rings - 1) + ring->id + 1;
   if (id >= rings)
     id -= rings;
-#else
-  if (ring->import == ring->id)
-    ring->import++;
-  if (ring->import >= rings)
-    ring->import = 0;
-  if (ring->import == ring->id)
-    {
-      assert (!ring->id);
-      ring->import++;
-    }
-  unsigned id = ring->import++;
-#endif
   assert (id < rings);
   assert (id != ring->id);
   struct ring *src = ruler->rings.begin[id];
