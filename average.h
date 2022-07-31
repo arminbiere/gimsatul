@@ -6,6 +6,9 @@ struct average
   double value, biased, exp;
 };
 
-void update_average (struct average *, double alpha, double y);
+struct ring;
+
+void update_average (struct ring *, struct average *,
+		     const char *, double alpha, double);
 
 #endif

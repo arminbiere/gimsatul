@@ -133,6 +133,9 @@ do { \
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
 	       "imported-clauses:", s->imported.clauses,
 	       percent (s->imported.clauses, s->learned.clauses));
+      PRINTLN ("%-22s %17" PRIu64 " %13.2f %% imported clauses",
+	       "  diverged-imports:", s->diverged,
+	       percent (s->diverged, s->imported.clauses));
       PRINT_CLAUSE_STATISTICS (imported, maximum_shared_glue);
 
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
@@ -196,7 +199,7 @@ do { \
 	   average (conflicts, s->simplifications));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
 	   "switched:", s->switched, average (conflicts, s->switched));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f flips per walkinterval",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f flips per walked",
 	   "walked:", s->walked, average (s->flips, s->walked));
   fflush (stdout);
 }

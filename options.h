@@ -33,13 +33,16 @@
 #define REDUCE_FRACTION 0.75
 
 #define RESTART_MARGIN 1.1
-#define STABLE_RESTART_INTERVAL 500
-#define FOCUSED_RESTART_INTERVAL 5
+#define STABLE_RESTART_INTERVAL (1<<10)
+#define MAX_STABLE_RESTART_INTERVAL (1<<20)
+#define FOCUSED_RESTART_INTERVAL 1
 
 #define ELIMINATE_EFFORT 0.10
 #define FAILED_EFFORT 0.02
 #define SUBSUME_EFFORT 0.10
-#define VIVIFY_EFFORT 0.03
+#define VIVIFY_EFFORT 0.10
+#define RELATIVE_VIVIFY_TIER1_EFFORT 1
+#define RELATIVE_VIVIFY_TIER2_EFFORT 3
 
 #define VIVIFY_CLAUSE_SIZE_LIMIT 16
 
@@ -52,7 +55,7 @@
 #define OPTIONS \
 OPTION (bool,     binary,                1, 0, 1,     "use binary DRAT proof format") \
 OPTION (bool,     bump_reasons,          1, 0, 1,     "bump reason side literals") \
-OPTION (unsigned, clause_size_limit,     100,3,10000, "during simplification") \
+OPTION (unsigned, clause_size_limit,     100,3,10000,"during simplification") \
 OPTION (bool,     deduplicate,           1, 0, 1,     "remove duplicated binary clauses") \
 OPTION (bool,     eliminate,             1, 0, 1,     "bounded variable elimination") \
 OPTION (unsigned, eliminate_bound,       16, 0, 1024, "additionally added clause margin") \
@@ -78,12 +81,12 @@ OPTION (bool,     simplify,              1, 0, 1,     "elimination, subsumption 
 OPTION (unsigned, simplify_boost,        1, 0, 1,     "additional initial boost to simplification") \
 OPTION (unsigned, simplify_boost_rounds, 4, 2, INF,   "initial increase rounds limit") \
 OPTION (unsigned, simplify_boost_ticks,  10, 2, INF,  "initial increase of ticks limits") \
-OPTION (unsigned, simplify_interval,     1e4, 1, INF, "simplification base conflict interval") \
+OPTION (unsigned, simplify_interval,     500, 1, INF, "simplification base conflict interval") \
 OPTION (bool,     simplify_initially,    1, 0, 1,     "initial preprocessing through simplification") \
-OPTION (bool,     simplify_regularly,    1, 0, 1,     "regular preprocessing through simplification") \
+OPTION (bool,     simplify_regularly,    1, 0, 1,     "regular inprocessing through simplification") \
 OPTION (unsigned, simplify_rounds,       4, 1, INF,   "number of rounds per simplification") \
 OPTION (bool,     switch_mode,           1, 0, 1,     "switch between focused and stable mode") \
-OPTION (unsigned, switch_interval,       3e3, 1, INF, "mode switching base conflict interval") \
+OPTION (unsigned, switch_interval,       1e3, 1, INF, "mode switching base conflict interval") \
 OPTION (bool,     substitute,            1, 0, 1,     "equivalent literal substitution") \
 OPTION (bool,     subsume,               1, 0, 1,     "clause subsumption and strengthening") \
 OPTION (unsigned, subsume_ticks,         20, 0, INF,  "subsumption ticks limit in millions") \

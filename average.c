@@ -1,7 +1,10 @@
 #include "average.h"
+#include "logging.h"
+#include "message.h"
 
 void
-update_average (struct average *average, double alpha, double y)
+update_average (struct ring * ring, struct average *average, 
+                const char * name, double alpha, double y)
 {
   double old_biased = average->biased;
   double delta = y - old_biased;
@@ -20,5 +23,8 @@ update_average (struct average *average, double alpha, double y)
     }
   else
     new_value = new_biased;
+  LOG ("update %s average with %g to %g from %g",
+       name, y, new_value, average->value);
   average->value = new_value;
+  (void) ring, (void) name;
 }

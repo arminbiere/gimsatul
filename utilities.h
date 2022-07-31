@@ -19,7 +19,11 @@ percent (double a, double b)
   return average (100 * a, b);
 }
 
+double logn (uint64_t count);
 double nlogn (uint64_t count);
+double nlog2n (uint64_t count);
+double nlog3n (uint64_t count);
+double nlog4n (uint64_t count);
 unsigned gcd (unsigned, unsigned);
 
 static inline void

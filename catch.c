@@ -80,7 +80,36 @@ caught_message (int sig)
   sprintf (buffer, "c\nc caught signal %d (%s)\nc\n", sig, name);
   size_t bytes = strlen (buffer);
   if (write (1, buffer, bytes) != bytes)
-    exit (0);
+    exit (2);
+}
+
+static void
+raising_message (int sig)
+{
+  if (verbosity < 0)
+    return;
+  const char *name = "SIGNUNKNOWN";
+#define SIGNAL(SIG) \
+  if (sig == SIG) name = #SIG;
+  SIGNALS
+#undef SIGNAL
+    if (sig == SIGALRM)
+    name = "SIGALRM";
+  char buffer[80];
+  sprintf (buffer, "c\nc raising signal %d (%s) after reporting statistics\n", sig, name);
+  size_t bytes = strlen (buffer);
+  if (write (1, buffer, bytes) != bytes)
+    exit (2);
+}
+
+static void
+exit_message (void)
+{
+  const char * message =
+    "c calling 'exit (1)' as raising signal returned\n";
+ size_t bytes = strlen (message);
+  if (write (1, message, bytes) != bytes)
+    exit (2);
 }
 
 static void
@@ -97,7 +126,9 @@ catch_signal (int sig)
   if (ruler)
     print_ruler_statistics (ruler);
 #endif
+  raising_message (sig);
   raise (sig);
+  exit_message ();
   exit (1);
 }
 

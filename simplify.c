@@ -8,6 +8,7 @@
 #include "message.h"
 #include "propagate.h"
 #include "report.h"
+#include "scale.h"
 #include "simplify.h"
 #include "substitute.h"
 #include "subsume.h"
@@ -394,8 +395,9 @@ multiply_saturated (uint64_t a, uint64_t b, uint64_t limit)
 }
 
 static void
-set_ruler_limits (struct ruler *ruler, unsigned level)
+set_ruler_limits (struct ruler *ruler)
 {
+  unsigned level = ruler->options.optimize;
   verbose (0, "simplification optimization level %u", level);
 
   uint64_t scale10 = 1, scale4 = 1, scale2 = 1;
@@ -415,9 +417,12 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
   struct ruler_limits *limits = &ruler->limits;
   struct ruler_statistics *statistics = &ruler->statistics;
 
+  bool initial = !limits->initialized;
+  limits->initialized = true;
+
   {
     unsigned boost = 1;
-    if (statistics->simplifications == 1 && ruler->options.simplify_boost)
+    if (initial && ruler->options.simplify_boost)
       {
 	boost = ruler->options.simplify_boost_ticks;
 	verbose (0, "boosting ticks limits initially by%s factor of %u",
@@ -467,7 +472,7 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
 
   {
     unsigned boost = 1;
-    if (statistics->simplifications == 1 && ruler->options.simplify_boost)
+    if (initial && ruler->options.simplify_boost)
       {
 	boost = ruler->options.simplify_boost_rounds;
 	verbose (0, "boosting round limits initially by%s factor of %u",
@@ -488,7 +493,7 @@ set_ruler_limits (struct ruler *ruler, unsigned level)
     limits->max_rounds = max_rounds;
   }
 
-  if (ruler->statistics.simplifications == 1)
+  if (initial)
     {
       {
 	unsigned max_bound = ruler->options.eliminate_bound;
@@ -582,8 +587,7 @@ run_full_blown_simplification (struct simplifier *simplifier)
 #endif
   connect_all_large_clauses (ruler);
 
-  unsigned optimize = ruler->options.optimize;
-  set_ruler_limits (ruler, optimize);
+  set_ruler_limits (ruler);
 
 #ifndef QUIET
   struct
@@ -888,13 +892,14 @@ finish_ring_simplification (struct ring *ring)
   RELEASE (ruler->clauses);
   struct ring_limits *limits = &ring->limits;
   struct ring_statistics *statistics = &ring->statistics;
-  limits->simplify = SEARCH_CONFLICTS;
-  unsigned interval = ring->options.simplify_interval;
-  assert (interval);
-  limits->simplify += interval * nlogn (statistics->simplifications);
+  uint64_t base = ring->options.simplify_interval;
+  uint64_t interval = base * nlog2n (statistics->simplifications);
+  uint64_t scaled = scale_interval (ring, "simplify", interval);
+  limits->simplify = SEARCH_CONFLICTS + scaled;
   ruler->last.search = statistics->contexts[SEARCH_CONTEXT].ticks;
-  very_verbose (ring, "new simplify limit of %" PRIu64 " conflicts",
-		limits->simplify);
+  very_verbose (ring, "new simplify limit at %" PRIu64
+                " after %" PRIu64 " conflicts",
+		limits->simplify, scaled);
 }
 
 #ifndef NDEBUG

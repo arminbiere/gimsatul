@@ -81,6 +81,7 @@ struct ring
 {
   unsigned id;
   unsigned threads;
+  unsigned import;
   struct pool *pool;
   unsigned *units;
   struct ruler *ruler;
@@ -88,8 +89,9 @@ struct ring
   volatile int status;
 
   bool inconsistent;
-  char iterating;
   bool stable;
+
+  signed char iterating;
 
   unsigned best;
   unsigned context;

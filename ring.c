@@ -164,16 +164,30 @@ new_ring (struct ruler *ruler)
   struct queue *queue = &ring->queue;
   queue->links = allocate_and_clear_array (size, sizeof *queue->links);
 
-  struct node *n = heap->nodes;
-  struct link *l = queue->links;
-  for (all_ring_indices (idx))
-    {
-      struct node *node = n++;
-      struct link *link = l++;
-      LOG ("activating %s", LOGVAR (idx));
-      push_heap (heap, node);
-      enqueue (queue, link, true);
-    }
+  {
+    struct node * begin = heap->nodes, * n = begin;
+    struct node *end = begin + ring->size;
+    unsigned activated = 0;
+    while (n != end)
+      {
+	struct node *node = n++;
+	node->score = 1.0 - 1.0 / ++activated;
+	push_heap (heap, node);
+	LOG ("activating %s on heap", LOGVAR (node - begin));
+      }
+  }
+
+  {
+    struct link * begin = queue->links, * l = begin;
+    struct link * end = begin + ring->size;
+    while (l != end)
+      {
+	struct link *link = l++;
+	enqueue (queue, link, true);
+	LOG ("activating %s on queue", LOGVAR (link - begin));
+      }
+  }
+
   ring->statistics.active = ring->unassigned = size;
 
   if ((ring->trace.file = ruler->trace.file))

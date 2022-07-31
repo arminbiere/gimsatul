@@ -34,6 +34,8 @@ minimize_literal (struct ring *ring, unsigned lit, unsigned depth)
     }
   else
     {
+      assert (ring->context == SEARCH_CONTEXT);
+      ring->statistics.contexts[SEARCH_CONTEXT].ticks++;
       struct watcher *watcher = get_watcher (ring, reason);
       for (all_watcher_literals (other, watcher))
 	if (other != not_lit && !minimize_literal (ring, other, depth))

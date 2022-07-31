@@ -61,7 +61,9 @@ update_best_and_target_phases (struct ring *ring)
   unsigned assigned = SIZE (ring->trail);
   if (ring->target < assigned)
     {
-      very_verbose (ring, "updating target assigned to %u", assigned);
+      very_verbose (ring,
+                    "updating target assigned trail height from %u to %u",
+                    ring->target, assigned);
       ring->target = assigned;
       signed char *q = ring->values;
       for (all_phases (p))
@@ -74,7 +76,9 @@ update_best_and_target_phases (struct ring *ring)
     }
   if (ring->best < assigned)
     {
-      very_verbose (ring, "updating best assigned to %u", assigned);
+      very_verbose (ring,
+                    "updating best assigned trail height from %u to %u",
+		    ring->best, assigned);
       ring->best = assigned;
       signed char *q = ring->values;
       for (all_phases (p))

@@ -104,7 +104,7 @@ watch_literals_in_large_clause (struct ring *ring,
   unsigned used;
   if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
     used = 2;
-  else if (redundant && glue >= TIER2_GLUE_LIMIT)
+  else if (redundant && glue > TIER2_GLUE_LIMIT)
     used = 1;
   else
     used = 0;

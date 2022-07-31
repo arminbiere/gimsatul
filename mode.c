@@ -4,6 +4,7 @@
 #include "options.h"
 #include "report.h"
 #include "ring.h"
+#include "utilities.h"
 
 #include <inttypes.h>
 
@@ -46,13 +47,6 @@ switching_mode (struct ring *ring)
     return SEARCH_CONFLICTS > l->mode;
 }
 
-static uint64_t
-square (uint64_t n)
-{
-  assert (n);
-  return n * n;
-}
-
 void
 switch_mode (struct ring *ring)
 {
@@ -75,7 +69,10 @@ switch_mode (struct ring *ring)
       switch_to_stable_mode (ring);
       rebuild_heap (ring);
     }
-  l->mode = SEARCH_TICKS + square (s->switched / 2 + 1) * i->mode;
-  very_verbose (ring, "next mode switching limit at %" PRIu64 " ticks",
-		l->mode);
+  uint64_t base = i->mode;
+  uint64_t interval = base * nlog4n (s->switched / 2 + 1);
+  l->mode = SEARCH_TICKS + interval;
+  very_verbose (ring, "new mode switching limit at %" PRIu64
+                " after %" PRIu64 " ticks",
+		l->mode, interval);
 }

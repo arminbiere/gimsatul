@@ -4,6 +4,7 @@
 #include "restart.h"
 #include "report.h"
 #include "ring.h"
+#include "utilities.h"
 
 #include <inttypes.h>
 
@@ -13,13 +14,20 @@ restarting (struct ring *ring)
   if (!ring->level)
     return false;
   struct ring_limits *l = &ring->limits;
-  if (!ring->stable)
-    {
-      struct averages *a = ring->averages;
-      if (a->glue.fast.value <= RESTART_MARGIN * a->glue.slow.value)
-	return false;
-    }
-  return l->restart < SEARCH_CONFLICTS;
+  if (l->restart >= SEARCH_CONFLICTS)
+    return false;
+  if (ring->stable)
+    return true;
+  struct averages *a = ring->averages;
+  double fast = a->glue.fast.value;
+  double slow = a->glue.slow.value;
+  double margin = slow * RESTART_MARGIN;
+  extremely_verbose (ring, "restart glue limit %g = "
+		     "%g * %g (slow glue) %c %g (fast glue)",
+		     margin, RESTART_MARGIN, slow,
+		     margin == fast ? '=' : margin > fast ? '>' : '<',
+		     fast);
+  return margin <= fast;
 }
 
 void
@@ -32,7 +40,7 @@ restart (struct ring *ring)
   update_best_and_target_phases (ring);
   backtrack (ring, 0);
   struct ring_limits *limits = &ring->limits;
-  limits->restart = SEARCH_CONFLICTS;
+  uint64_t interval;
   if (ring->stable)
     {
       struct reluctant *reluctant = &ring->reluctant;
@@ -41,12 +49,16 @@ restart (struct ring *ring)
 	u++, v = 1;
       else
 	v *= 2;
-      limits->restart += STABLE_RESTART_INTERVAL * v;
+      interval = STABLE_RESTART_INTERVAL * v;
+      if (interval > MAX_STABLE_RESTART_INTERVAL)
+	interval = MAX_STABLE_RESTART_INTERVAL;
       reluctant->u = u, reluctant->v = v;
     }
   else
-    limits->restart += FOCUSED_RESTART_INTERVAL;
-  very_verbose (ring, "next restart limit at %" PRIu64 " conflicts",
-		limits->restart);
+    interval = FOCUSED_RESTART_INTERVAL + logn (statistics->restarts) - 1;
+  limits->restart = SEARCH_CONFLICTS + interval;
+  very_verbose (ring, "new restart limit at %" PRIu64
+                " after %" PRIu64 " conflicts",
+		limits->restart, interval);
   verbose_report (ring, 'r', 1);
 }

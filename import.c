@@ -52,11 +52,13 @@ import_units (struct ring *ring)
 	}
       assert (!ring->level);
       assign_ring_unit (ring, unit);
-      ring->iterating = 2;
     }
   if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
-  return imported;
+  if (!imported)
+    return false;
+  ring->iterating = -1;
+  return true;
 }
 
 static void
@@ -84,7 +86,7 @@ force_to_repropagate (struct ring *ring, unsigned lit)
   assert (*propagate == NOT (lit));
   ring->trail.propagate = propagate;
   if (!ring->level)
-    ring->iterating = 2;
+    ring->iterating = -1;
 }
 
 static bool
@@ -132,14 +134,26 @@ do { \
     } \
 } while (0)
 
-  if ((lit_value >= 0 && other_value >= 0) ||
-      (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
+  if (lit_value >= 0 && other_value >= 0)
+    {
+      SUBSUME_BINARY (lit, other);
+      LOGBINARY (true, lit, other, "importing (no propagation)");
+      really_import_binary_clause (ring, lit, other);
+      return false;
+    }
+
+  if ((lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
       (other_value > 0 && lit_value < 0 && other_level <= lit_level))
     {
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
       really_import_binary_clause (ring, lit, other);
-      return ring->context == PROBING_CONTEXT;
+      if (ring->context == PROBING_CONTEXT)
+	{
+	  ring->statistics.diverged++;
+	  return true;
+	}
+      return false;
     }
 
   unsigned *pos = ring->trail.pos;
@@ -156,6 +170,7 @@ do { \
 		 "importing (repropagate first literal %s)", LOGLIT (lit));
       force_to_repropagate (ring, lit);
       really_import_binary_clause (ring, lit, other);
+      ring->statistics.diverged++;
       return true;
     }
 
@@ -169,6 +184,7 @@ do { \
 	     "importing (repropagate second literal %s))", LOGLIT (other));
   force_to_repropagate (ring, other);
   really_import_binary_clause (ring, lit, other);
+  ring->statistics.diverged++;
   return true;
 }
 
@@ -321,14 +337,26 @@ do { \
     } \
 } while (0)
 
-  if ((lit_value >= 0 && other_value >= 0) ||
-      (lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
+  if (lit_value >= 0 && other_value >= 0)
+    {
+      SUBSUME_LARGE_CLAUSE (clause);
+      LOGCLAUSE (clause, "importing (no propagation)");
+      really_import_large_clause (ring, clause, lit, other);
+      return false;
+    }
+
+  if ((lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
       (other_value > 0 && lit_value < 0 && other_level <= lit_level))
     {
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
       really_import_large_clause (ring, clause, lit, other);
-      return ring->context == PROBING_CONTEXT;
+      if (ring->context == PROBING_CONTEXT)
+	{
+	  ring->statistics.diverged++;
+	  return true;
+	}
+      return false;
     }
 
   unsigned lit_pos = ring->trail.pos[IDX (lit)];
@@ -344,6 +372,7 @@ do { \
 		 LOGLIT (lit));
       force_to_repropagate (ring, lit);
       really_import_large_clause (ring, clause, lit, other);
+      ring->statistics.diverged++;
       return true;
     }
 
@@ -357,6 +386,7 @@ do { \
 	     LOGLIT (other));
   force_to_repropagate (ring, other);
   really_import_large_clause (ring, clause, lit, other);
+  ring->statistics.diverged++;
   return true;
 }
 
