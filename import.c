@@ -178,8 +178,6 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
   signed char *values = ring->values;
   struct variable *variables = ring->variables;
   signed char *marks = ring->marks;
-  uint64_t min_watched = UINT64_MAX;
-  unsigned best = INVALID;
   for (all_literals_in_clause (lit, clause))
     {
       signed char value = values[lit];
@@ -189,16 +187,11 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	continue;
       assert (!value || v->level);
       marks[lit] = 1;
-      size_t watched = SIZE (REFERENCES (lit));
-      if (watched >= min_watched)
-	continue;
-      min_watched = watched;
-      best = lit;
     }
   bool res = false;
-  if (best != INVALID)
+  for (all_literals_in_clause (lit, clause))
     {
-      struct references *watches = &REFERENCES (best);
+      struct references *watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
 	{
 	  if (is_binary_pointer (watch))
@@ -209,7 +202,7 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	  struct clause *other_clause = get_clause (ring, watch);
 	  for (all_literals_in_clause (other, other_clause))
 	    {
-	      if (other == best)
+	      if (other == lit)
 		continue;
 	      signed char value = values[other];
 	      unsigned idx = IDX (other);
@@ -227,6 +220,8 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	  LOGCLAUSE (other_clause, "subsuming");
 	  break;
 	}
+      if (res)
+	break;
     }
   for (all_literals_in_clause (lit, clause))
     marks[lit] = 0;
