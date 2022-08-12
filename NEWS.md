@@ -2,11 +2,11 @@
 
 As version 1.0.2 in single threaded mode was still lagging behind 'Kissat
 SC2021 Light' even after disabling all features that are not in Gimsatul
-yet, we found and fixed some issues with implementation of heuristics issues
+yet, we found and fixed some issues with implementation of heuristics
 and made particularly scheduling of regularly running functions similar to
 how they are scheduled in Kissat.
 
-There are still fundamental difference though between this version and
+There are still fundamental differences though between this version and
 Kissat (watchers, initial preprocessing) but this version running in single
 threaded is coming close to the performance of 'Kissat SC2022 Light' (if all
 features not in Gimsatul yet are kept disabled).
