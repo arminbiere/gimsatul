@@ -166,7 +166,7 @@ new_ring (struct ruler *ruler)
 
   {
     struct node * begin = heap->nodes, * n = begin;
-    struct node *end = begin + ring->size;
+    struct node *end = begin + size;
     unsigned activated = 0;
     while (n != end)
       {
@@ -179,7 +179,7 @@ new_ring (struct ruler *ruler)
 
   {
     struct link * begin = queue->links, * l = begin;
-    struct link * end = begin + ring->size;
+    struct link * end = begin + size;
     while (l != end)
       {
 	struct link *link = l++;
