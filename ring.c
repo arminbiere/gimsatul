@@ -1,3 +1,4 @@
+#include "random.h"
 #include "ring.h"
 #include "ruler.h"
 #include "macros.h"
@@ -138,6 +139,79 @@ release_ring (struct ring *ring, bool keep_values)
   FREE (ring->variables);
 }
 
+static void
+activate_variables (struct ring * ring, unsigned size)
+{
+  if (!size)
+    return;
+
+  unsigned start, delta;
+  if (ring->id && ring->options.portfolio)
+    {
+      start = random_modulo (&ring->random, size);
+      delta = 1 + random_modulo (&ring->random, size - 1);
+      while (gcd (delta, size) != 1)
+	if (++delta == size)
+	  delta = 1;
+    }
+  else
+    start = 0, delta = 1;
+
+  assert (delta);
+  assert (start < size);
+  assert (size == 1 || delta < size);
+  assert (gcd (delta, size) == 1);
+
+  struct heap *heap = &ring->heap;
+  struct queue *queue = &ring->queue;
+  struct node * nodes = heap->nodes;
+  struct link * links = queue->links;
+#if 1
+  unsigned idx = start;
+  unsigned activated = 0;
+  do {
+    assert (idx < size);
+
+    struct node * node = nodes + idx;
+    node->score = 1.0 - 1.0 / ++activated;
+    push_heap (heap, node);
+    LOG ("activating %s on heap", LOGVAR (idx));
+
+    struct link * link = links + idx;
+    enqueue (queue, link, true);
+    LOG ("activating %s on queue", LOGVAR (idx));
+
+    idx += delta;
+    if (idx >= size)
+      idx -= size;
+
+  } while (idx != start);
+#else
+  {
+    struct node *end = begin + size;
+    unsigned activated = 0;
+    while (n != end)
+      {
+	struct node *node = n++;
+	node->score = 1.0 - 1.0 / ++activated;
+	push_heap (heap, node);
+	LOG ("activating %s on heap", LOGVAR (node - begin));
+      }
+  }
+
+  {
+    struct link * begin = queue->links, * l = begin;
+    struct link * end = begin + size;
+    while (l != end)
+      {
+	struct link *link = l++;
+	enqueue (queue, link, true);
+	LOG ("activating %s on queue", LOGVAR (link - begin));
+      }
+  }
+#endif
+}
+
 struct ring *
 new_ring (struct ruler *ruler)
 {
@@ -164,29 +238,7 @@ new_ring (struct ruler *ruler)
   struct queue *queue = &ring->queue;
   queue->links = allocate_and_clear_array (size, sizeof *queue->links);
 
-  {
-    struct node * begin = heap->nodes, * n = begin;
-    struct node *end = begin + size;
-    unsigned activated = 0;
-    while (n != end)
-      {
-	struct node *node = n++;
-	node->score = 1.0 - 1.0 / ++activated;
-	push_heap (heap, node);
-	LOG ("activating %s on heap", LOGVAR (node - begin));
-      }
-  }
-
-  {
-    struct link * begin = queue->links, * l = begin;
-    struct link * end = begin + size;
-    while (l != end)
-      {
-	struct link *link = l++;
-	enqueue (queue, link, true);
-	LOG ("activating %s on queue", LOGVAR (link - begin));
-      }
-  }
+  activate_variables (ring, size);
 
   ring->statistics.active = ring->unassigned = size;
 

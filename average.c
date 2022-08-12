@@ -2,6 +2,10 @@
 #include "logging.h"
 #include "message.h"
 
+#ifdef LOGGING
+#include "ring.h"
+#endif
+
 void
 update_average (struct ring * ring, struct average *average, 
                 const char * name, double alpha, double y)
