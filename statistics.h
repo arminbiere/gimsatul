@@ -84,6 +84,14 @@ struct ring_statistics
     uint64_t glue[SIZE_GLUE_STATISTICS];
 #endif
   } learned, exported, imported, shared;
+
+  struct {
+    struct
+    {
+      uint64_t checked;
+      uint64_t succeeded;
+    } binary, large;
+  } subsumed;
 };
 
 #ifdef METRICS

@@ -119,6 +119,7 @@ best_decision_on_queue (struct ring *ring)
 void
 decide (struct ring *ring)
 {
+  START (ring, decide);
   struct context *context = ring->statistics.contexts;
   context += ring->context;
   uint64_t decisions = context->decisions++;
@@ -138,4 +139,5 @@ decide (struct ring *ring)
 
   ring->level++;
   assign_decision (ring, lit);
+  STOP (ring, decide);
 }

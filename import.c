@@ -92,12 +92,20 @@ force_to_repropagate (struct ring *ring, unsigned lit)
 static bool
 subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 {
+  START (ring, subsume);
+  ring->statistics.subsumed.binary.checked++;
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
     SWAP (unsigned, lit, other);
+  bool res = false;
   for (all_watches (watch, REFERENCES (lit)))
     if (is_binary_pointer (watch) && other_pointer (watch) == other)
-      return true;
-  return false;
+      {
+	res = true;
+	ring->statistics.subsumed.binary.succeeded++;
+	break;
+      }
+  STOP (ring, subsume);
+  return res;
 }
 
 static bool
@@ -191,6 +199,8 @@ do { \
 static bool
 subsumed_large_clause (struct ring *ring, struct clause *clause)
 {
+  START (ring, subsume);
+  ring->statistics.subsumed.binary.checked++;
   signed char *values = ring->values;
   struct variable *variables = ring->variables;
   signed char *marks = ring->marks;
@@ -241,6 +251,9 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
     }
   for (all_literals_in_clause (lit, clause))
     marks[lit] = 0;
+  if (res)
+    ring->statistics.subsumed.binary.succeeded++;
+  STOP (ring, subsume);
   return res;
 }
 
