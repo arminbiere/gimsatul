@@ -200,7 +200,7 @@ static bool
 subsumed_large_clause (struct ring *ring, struct clause *clause)
 {
   START (ring, subsume);
-  ring->statistics.subsumed.binary.checked++;
+  ring->statistics.subsumed.large.checked++;
   signed char *values = ring->values;
   struct variable *variables = ring->variables;
   signed char *marks = ring->marks;
@@ -252,7 +252,7 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
   for (all_literals_in_clause (lit, clause))
     marks[lit] = 0;
   if (res)
-    ring->statistics.subsumed.binary.succeeded++;
+    ring->statistics.subsumed.large.succeeded++;
   STOP (ring, subsume);
   return res;
 }
