@@ -153,9 +153,13 @@ activate_variables (struct ring * ring, unsigned size)
       while (gcd (delta, size) != 1)
 	if (++delta == size)
 	  delta = 1;
+      LOG ("random activation start %u delta %u", start, delta);
     }
   else
-    start = 0, delta = 1;
+    {
+      start = 0, delta = 1;
+      LOG ("linear activation order");
+    }
 
   assert (delta);
   assert (start < size);
@@ -166,7 +170,7 @@ activate_variables (struct ring * ring, unsigned size)
   struct queue *queue = &ring->queue;
   struct node * nodes = heap->nodes;
   struct link * links = queue->links;
-#if 1
+
   unsigned idx = start;
   unsigned activated = 0;
   do {
@@ -186,30 +190,7 @@ activate_variables (struct ring * ring, unsigned size)
       idx -= size;
 
   } while (idx != start);
-#else
-  {
-    struct node *end = begin + size;
-    unsigned activated = 0;
-    while (n != end)
-      {
-	struct node *node = n++;
-	node->score = 1.0 - 1.0 / ++activated;
-	push_heap (heap, node);
-	LOG ("activating %s on heap", LOGVAR (node - begin));
-      }
-  }
-
-  {
-    struct link * begin = queue->links, * l = begin;
-    struct link * end = begin + size;
-    while (l != end)
-      {
-	struct link *link = l++;
-	enqueue (queue, link, true);
-	LOG ("activating %s on queue", LOGVAR (link - begin));
-      }
-  }
-#endif
+  LOG ("activated %u variables", activated);
 }
 
 struct ring *
@@ -219,6 +200,7 @@ new_ring (struct ruler *ruler)
   assert (size < (1u << 30));
 
   struct ring *ring = allocate_and_clear_block (sizeof *ring);
+  ring->options = ruler->options;
 #ifndef QUIET
   init_ring_profiles (ring);
 #endif
@@ -248,7 +230,6 @@ new_ring (struct ruler *ruler)
   for (all_averages (a))
     a->exp = 1.0;
   ring->limits.conflicts = -1;
-  ring->options = ruler->options;
 
   return ring;
 }
