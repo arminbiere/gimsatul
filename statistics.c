@@ -138,6 +138,24 @@ do { \
 	       percent (s->diverged, s->imported.clauses));
       PRINT_CLAUSE_STATISTICS (imported, maximum_shared_glue);
 
+      {
+	uint64_t subsumed = s->subsumed.binary.succeeded
+	                  + s->subsumed.large.succeeded;
+	uint64_t checked = s->subsumed.binary.checked
+	                 + s->subsumed.large.checked;
+	PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
+		 "subsumed-clauses:", subsumed,
+		 percent (subsumed, checked));
+	PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
+		 "  subsumed-binary:", s->subsumed.binary.succeeded,
+		 percent (s->subsumed.binary.succeeded,
+		          s->subsumed.binary.checked));
+	PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
+		 "  subsumed-large:", s->subsumed.large.succeeded,
+		 percent (s->subsumed.large.succeeded,
+		          s->subsumed.large.checked));
+      }
+
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
 	       "exported-clauses:", s->exported.clauses,
 	       percent (s->exported.clauses, s->learned.clauses));
