@@ -71,7 +71,7 @@ OPTION (bool,     phase,                 1, 0, 1,     "initial decision phase") 
 OPTION (bool,     portfolio,             1, 0, 1,     "threads use different strategies") \
 OPTION (bool,     probe,                 1, 0, 1,     "enable probing based inprocessing") \
 OPTION (unsigned, probe_interval,        2e3, 1, INF, "probing base conflict interval") \
-OPTION (unsigned, random_decisions,      0, 0, INF,   "initial random decisions") \
+OPTION (unsigned, random_decisions,      100, 0, INF, "initial random decisions") \
 OPTION (bool,     random_order,          1, 0, 1,     "initial random decision order") \
 OPTION (unsigned, reduce_interval,       1e3, 1, INF, "reduce base conflict interval") \
 OPTION (bool,     rephase,               1, 0, 1,     "reset saved phases regularly") \
