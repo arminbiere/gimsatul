@@ -146,7 +146,7 @@ activate_variables (struct ring * ring, unsigned size)
     return;
 
   unsigned start, delta;
-  if (ring->id && ring->options.random_order)
+  if (size > 1 && ring->id && ring->options.random_order)
     {
       start = random_modulo (&ring->random, size);
       delta = 1 + random_modulo (&ring->random, size - 1);
