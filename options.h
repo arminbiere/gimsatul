@@ -90,6 +90,7 @@ OPTION (bool,     switch_mode,           1, 0, 1,     "switch between focused an
 OPTION (unsigned, switch_interval,       1e3, 1, INF, "mode switching base conflict interval") \
 OPTION (bool,     substitute,            1, 0, 1,     "equivalent literal substitution") \
 OPTION (bool,     subsume,               1, 0, 1,     "clause subsumption and strengthening") \
+OPTION (bool,     subsume_imported,      1, 0, 1,     "subsume imported clauses") \
 OPTION (unsigned, subsume_ticks,         20, 0, INF,  "subsumption ticks limit in millions") \
 OPTION (bool,     vivify,                1, 0, 1,     "vivification of redundant clauses") \
 OPTION (bool,     walk_initially,        0, 0, 1,     "local search initially") \

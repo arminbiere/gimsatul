@@ -92,6 +92,8 @@ force_to_repropagate (struct ring *ring, unsigned lit)
 static bool
 subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 {
+  if (!ring->options.subsume_imported)
+    return false;
   START (ring, subsume);
   ring->statistics.subsumed.binary.checked++;
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
@@ -199,6 +201,8 @@ do { \
 static bool
 subsumed_large_clause (struct ring *ring, struct clause *clause)
 {
+  if (!ring->options.subsume_imported)
+    return false;
   START (ring, subsume);
   ring->statistics.subsumed.large.checked++;
   signed char *values = ring->values;
