@@ -267,8 +267,6 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	  res = true;
 	  for (all_watcher_literals (other, watcher))
 	    {
-	      if (other == lit)
-		continue;
 	      signed char other_value = values[other];
 	      unsigned other_idx = IDX (other);
 	      struct variable * other_variable = variables + other_idx;
@@ -290,8 +288,6 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	  struct clause *other_clause = watcher->clause;
 	  for (all_literals_in_clause (other, other_clause))
 	    {
-	      if (other == lit)
-		continue;
 	      signed char other_value = values[other];
 	      unsigned other_idx = IDX (other);
 	      struct variable * v = variables + other_idx;
