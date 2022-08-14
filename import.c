@@ -94,7 +94,7 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 {
   if (!ring->options.subsume_imported)
     return false;
-  START (ring, subsume);
+  START (ring, subsume2);
   ring->statistics.subsumed.binary.checked++;
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
     SWAP (unsigned, lit, other);
@@ -106,7 +106,7 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 	ring->statistics.subsumed.binary.succeeded++;
 	break;
       }
-  STOP (ring, subsume);
+  STOP (ring, subsume2);
   return res;
 }
 
@@ -208,6 +208,8 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
   signed char *values = ring->values;
   struct variable *variables = ring->variables;
   signed char *marks = ring->marks;
+  unsigned max_occurrences_lit = INVALID;
+  size_t max_occurrences = 0;
   for (all_literals_in_clause (lit, clause))
     {
       signed char value = values[lit];
@@ -217,10 +219,25 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	continue;
       assert (!value || v->level);
       marks[lit] = 1;
+      if (value < 0)
+	continue;
+      struct references *watches = &REFERENCES (lit);
+      size_t tmp_occurrences = SIZE (*watches);
+      if (tmp_occurrences <= max_occurrences)
+	continue;
+      max_occurrences = tmp_occurrences;
+      max_occurrences_lit = lit;
     }
   bool res = false;
+  unsigned size = clause->size;
   for (all_literals_in_clause (lit, clause))
     {
+      if (lit == max_occurrences_lit)
+	continue;
+      signed char lit_value = values[lit];
+      assert (lit_value <= 0);
+      if (lit_value < 0)
+	continue;
       struct references *watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
 	{
@@ -228,16 +245,43 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	    continue;
 	  if (!redundant_pointer (watch))
 	    continue;
+	  struct watcher * watcher = get_watcher (ring, watch);
+	  if (!watcher->size && size <= SIZE_WATCHER_LITERALS)
+	    continue;
+	  if (watcher->size > size)
+	    continue;
 	  res = true;
-	  struct clause *other_clause = get_clause (ring, watch);
+	  for (all_watcher_literals (other, watcher))
+	    {
+	      if (other == lit)
+		continue;
+	      signed char other_value = values[other];
+	      unsigned other_idx = IDX (other);
+	      struct variable * v = variables + other_idx;
+	      if (other_value < 0 && !v->level)
+		continue;
+	      signed char mark = marks[other];
+	      if (mark)
+		continue;
+	      res = false;
+	      break;
+	    }
+	  if (!res)
+	    continue;
+	  if (size <= SIZE_WATCHER_LITERALS)
+	    {
+	      LOGWATCH (watch, "subsuming");
+	      break;
+	    }
+	  struct clause *other_clause = watcher->clause;
 	  for (all_literals_in_clause (other, other_clause))
 	    {
 	      if (other == lit)
 		continue;
-	      signed char value = values[other];
-	      unsigned idx = IDX (other);
-	      struct variable *v = variables + idx;
-	      if (value < 0 && !v->level)
+	      signed char other_value = values[other];
+	      unsigned other_idx = IDX (other);
+	      struct variable * v = variables + other_idx;
+	      if (other_value < 0 && !v->level)
 		continue;
 	      signed char mark = marks[other];
 	      if (mark)

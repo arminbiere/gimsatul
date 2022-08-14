@@ -224,7 +224,6 @@ index_to_watcher (struct ring *ring, unsigned idx)
   return &PEEK (ring->watchers, idx);
 }
 
-
 static inline struct watcher *
 get_watcher (struct ring *ring, struct watch *watch)
 {
