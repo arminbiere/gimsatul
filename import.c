@@ -235,9 +235,9 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
       if (lit == max_occurrences_lit)
 	continue;
       signed char lit_value = values[lit];
-      assert (lit_value <= 0);
       if (lit_value < 0)
 	continue;
+      assert (lit_value >= 0);
       struct references *watches = &REFERENCES (lit);
       for (all_watches (watch, *watches))
 	{
