@@ -66,8 +66,7 @@ struct watch *new_local_binary_clause (struct ring *ring, bool redundant,
 struct watch *watch_literals_in_large_clause (struct ring *,
 					      struct clause *,
 					      unsigned first,
-					      unsigned second,
-					      bool imported);
+					      unsigned second);
 
 struct watch *watch_first_two_literals_in_large_clause (struct ring *,
 							struct clause *);
