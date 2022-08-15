@@ -15,6 +15,7 @@ static const int verbosity = -1;
 #define message(...) do { } while (0)
 #define verbose(...) do { } while (0)
 #define very_verbose(...) do { } while (0)
+#define extremely_verbose(...) do { } while (0)
 
 #else
 
@@ -61,7 +62,6 @@ do { \
   if (verbosity > 3) \
     message (__VA_ARGS__); \
 } while (0)
-
 
 #endif
 

@@ -3,9 +3,12 @@
 #include "ring.h"
 #include "tagging.h"
 #include "trace.h"
+#include "sort.h"
 #include "utilities.h"
 
 #include <string.h>
+
+#define LESS(A,B) ((A) < (B))
 
 struct clause *
 new_large_clause (size_t size, unsigned *literals,
@@ -35,6 +38,13 @@ new_large_clause (size_t size, unsigned *literals,
   clause->size = size;
 
   memcpy (clause->literals, literals, bytes);
+
+#if 0
+  struct unsigneds (SORTER);
+  INIT (SORTER);
+  SORT (unsigned, size, literals, LESS);
+  RELEASE (SORTER);
+#endif
 
   return clause;
 }

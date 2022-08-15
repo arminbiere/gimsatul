@@ -284,7 +284,7 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	    }
 	  if (!res)
 	    continue;
-	  LOGCLAUSE (watch, "subsuming");
+	  LOGWATCH (watch, "subsuming");
 	  break;
 	}
       if (res)

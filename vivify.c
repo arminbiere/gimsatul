@@ -671,7 +671,7 @@ vivify_clauses (struct ring *ring)
       very_verbose (ring, "scheduled %zu tier%u vivification candidates in total",
 		    scheduled, tier);
 #ifdef QUIET
-      (void) rescheduled, (void) type;
+      (void) rescheduled, (void) scheduled;
 #endif
 
       uint64_t implied = ring->statistics.vivify.implied;
