@@ -469,7 +469,10 @@ import_shared (struct ring *ring)
     return false;
   if (is_binary_pointer (clause))
     return import_binary (ring, clause);
-  if (!ring->stable && clause->glue > TIER1_GLUE_LIMIT)
+  uint64_t import = ring->limits.import;
+  if (import)
+    ring->limits.import = import - 1;
+  if (clause->glue > TIER1_GLUE_LIMIT && (!ring->stable || !import))
     {
       dereference_clause (ring, clause);
       return false;

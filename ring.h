@@ -29,6 +29,7 @@ struct reluctant
 
 struct ring_limits
 {
+  uint64_t import;
   uint64_t mode;
   uint64_t probe;
   uint64_t reduce;

@@ -238,6 +238,7 @@ analyze (struct ring *ring, struct watch *reason)
   CLEAR (*ring_clause);
 
   clear_analyzed (ring);
+  ring->limits.import++;
 
   return true;
 }
