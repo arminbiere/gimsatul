@@ -67,7 +67,8 @@ reconnect_watches (struct ring *ring, struct watches *saved)
 struct watch *
 watch_literals_in_large_clause (struct ring *ring,
 				struct clause *clause,
-				unsigned first, unsigned second)
+				unsigned first, unsigned second,
+				bool imported)
 {
   assert (clause->size > 2);
   assert (!clause->garbage);
@@ -102,7 +103,9 @@ watch_literals_in_large_clause (struct ring *ring,
     size = 0;
 
   unsigned used;
-  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
+  if (imported)
+    used = 0;
+  else if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
     used = 2;
   else if (redundant && glue > TIER2_GLUE_LIMIT)
     used = 1;
@@ -145,7 +148,7 @@ watch_first_two_literals_in_large_clause (struct ring *ring,
 					  struct clause *clause)
 {
   unsigned *lits = clause->literals;
-  return watch_literals_in_large_clause (ring, clause, lits[0], lits[1]);
+  return watch_literals_in_large_clause (ring, clause, lits[0], lits[1], 0);
 }
 
 struct watch *

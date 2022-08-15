@@ -302,7 +302,7 @@ static void
 really_import_large_clause (struct ring *ring, struct clause *clause,
 			    unsigned first, unsigned second)
 {
-  watch_literals_in_large_clause (ring, clause, first, second);
+  watch_literals_in_large_clause (ring, clause, first, second, true);
   assert (clause->redundant);
   unsigned glue = clause->glue;
   assert (0 < glue);
