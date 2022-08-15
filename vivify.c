@@ -55,13 +55,15 @@ watched_vivification_candidate (struct watcher *watcher, unsigned tier)
     return false;
   if (tier == 1)
     {
+      if (!watcher->size)
+	return false;
       if (watcher->glue > TIER1_GLUE_LIMIT)
 	return false;
     }
   if (tier == 2)
     {
       if (watcher->glue <= TIER1_GLUE_LIMIT)
-	return false;
+	return !watcher->size;
       if (watcher->glue > TIER2_GLUE_LIMIT)
 	return false;
     }
