@@ -22,6 +22,7 @@ struct clause
   bool dirty:1;
   bool garbage:1;
   bool mapped:1;
+  unsigned padding:2;
   bool redundant:1;
   bool subsume:1;
   unsigned size;

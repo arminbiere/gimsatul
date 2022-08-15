@@ -27,6 +27,7 @@ new_large_clause (size_t size, unsigned *literals,
   clause->dirty = false;
   clause->garbage = false;
   clause->mapped = false;
+  clause->padding = 0;
   clause->redundant = redundant;
   clause->subsume = false;
   clause->shared = 0;

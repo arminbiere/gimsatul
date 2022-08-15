@@ -229,7 +229,6 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
       max_occurrences_lit = lit;
     }
   bool res = false;
-  unsigned size = clause->size;
   for (all_literals_in_clause (lit, clause))
     {
       if (lit == max_occurrences_lit)
@@ -244,13 +243,15 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	    continue;
 	  unsigned blocking = other_pointer (watch);
 	  assert (lit != blocking);
-	  signed char blocking_value = values[blocking];
-	  unsigned blocking_idx = IDX (blocking);
-	  struct variable * blocking_variable = variables + blocking_idx;
-	  if (blocking_value >= 0 || blocking_variable->level)
+	  signed char blocking_mark = marks[blocking];
+	  if (!blocking_mark)
 	    {
-	      signed char blocking_mark = marks[blocking];
-	      if (!blocking_mark)
+	      signed char blocking_value = values[blocking];
+	      if (blocking_value >= 0)
+		continue;
+	      unsigned blocking_idx = IDX (blocking);
+	      struct variable * v = variables + blocking_idx;
+	      if (v->level)
 		continue;
 	    }
 	  if (is_binary_pointer (watch))
@@ -260,48 +261,30 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	      break;
 	    }
 	  struct watcher * watcher = get_watcher (ring, watch);
-	  if (watcher->size > size)
-	    continue;
-	  if (!watcher->size && size <= SIZE_WATCHER_LITERALS)
-	    continue;
 	  res = true;
 	  for (all_watcher_literals (other, watcher))
 	    {
-	      signed char other_value = values[other];
-	      unsigned other_idx = IDX (other);
-	      struct variable * other_variable = variables + other_idx;
-	      if (other_value < 0 && !other_variable->level)
+	      if (other == lit)
+		continue;
+	      if (other == blocking)
 		continue;
 	      signed char other_mark = marks[other];
 	      if (other_mark)
 		continue;
-	      res = false;
-	      break;
-	    }
-	  if (!res)
-	    continue;
-	  if (size <= SIZE_WATCHER_LITERALS)
-	    {
-	      LOGWATCH (watch, "subsuming");
-	      break;
-	    }
-	  struct clause *other_clause = watcher->clause;
-	  for (all_literals_in_clause (other, other_clause))
-	    {
 	      signed char other_value = values[other];
-	      unsigned other_idx = IDX (other);
-	      struct variable * v = variables + other_idx;
-	      if (other_value < 0 && !v->level)
-		continue;
-	      signed char mark = marks[other];
-	      if (mark)
-		continue;
+	      if (other_value < 0)
+		{
+		  unsigned other_idx = IDX (other);
+		  struct variable * other_variable = variables + other_idx;
+		  if (!other_variable->level)
+		    continue;
+		}
 	      res = false;
 	      break;
 	    }
 	  if (!res)
 	    continue;
-	  LOGCLAUSE (other_clause, "subsuming");
+	  LOGCLAUSE (watch, "subsuming");
 	  break;
 	}
       if (res)
