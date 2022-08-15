@@ -94,7 +94,7 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 {
   if (!ring->options.subsume_imported)
     return false;
-  START (ring, subsume2);
+  START (ring, subsume);
   ring->statistics.subsumed.binary.checked++;
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
     SWAP (unsigned, lit, other);
@@ -106,7 +106,7 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 	ring->statistics.subsumed.binary.succeeded++;
 	break;
       }
-  STOP (ring, subsume2);
+  STOP (ring, subsume);
   return res;
 }
 

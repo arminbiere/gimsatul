@@ -14,7 +14,6 @@ struct profile
 };
 
 #define RING_PROFILES \
-  RING_PROFILE (decide) \
   RING_PROFILE (fail) \
   RING_PROFILE (focus) \
   RING_PROFILE (probe) \
@@ -22,7 +21,6 @@ struct profile
   RING_PROFILE (search) \
   RING_PROFILE (stable) \
   RING_PROFILE (subsume) \
-  RING_PROFILE (subsume2) \
   RING_PROFILE (vivify) \
   RING_PROFILE (walk) \
 \
