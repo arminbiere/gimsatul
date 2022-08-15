@@ -39,7 +39,7 @@ new_large_clause (size_t size, unsigned *literals,
 
   memcpy (clause->literals, literals, bytes);
 
-#if 0
+#if 1
   struct unsigneds (SORTER);
   INIT (SORTER);
   SORT (unsigned, size, literals, LESS);
