@@ -78,7 +78,7 @@ set_ring_limits (struct ring *ring, long long conflicts)
   else
     {
       if (ring->options.focus_initially)
-	verbose (ring, "only running in focussed mode");
+	verbose (ring, "only running in focused mode");
       else
 	verbose (ring, "only running in stable mode");
     }

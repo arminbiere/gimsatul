@@ -469,5 +469,10 @@ import_shared (struct ring *ring)
     return false;
   if (is_binary_pointer (clause))
     return import_binary (ring, clause);
+  if (!ring->stable && clause->glue > TIER1_GLUE_LIMIT)
+    {
+      dereference_clause (ring, clause);
+      return false;
+    }
   return import_large_clause (ring, clause);
 }
