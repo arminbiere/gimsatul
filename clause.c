@@ -42,7 +42,7 @@ new_large_clause (size_t size, unsigned *literals,
 #if 1
   struct unsigneds (SORTER);
   INIT (SORTER);
-  SORT (unsigned, size, literals, LESS);
+  SORT (unsigned, size, clause->literals, LESS);
   RELEASE (SORTER);
 #endif
 

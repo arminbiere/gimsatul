@@ -82,6 +82,13 @@ watch_literals_in_large_clause (struct ring *ring,
   for (all_literals_in_clause (lit, clause))
     found_second |= (lit == second);
   assert (found_second);
+  unsigned prev = INVALID;
+  for (all_literals_in_clause (lit, clause))
+    {
+      if (prev != INVALID)
+	assert (prev < lit);
+      prev = lit;
+    }
 #endif
   size_t size_watchers = SIZE (ring->watchers);
   if (size_watchers >= MAX_WATCHER_INDEX)
