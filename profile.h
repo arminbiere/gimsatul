@@ -20,7 +20,7 @@ struct profile
   RING_PROFILE (reduce) \
   RING_PROFILE (search) \
   RING_PROFILE (stable) \
-  RING_PROFILE (subsume) \
+  /* RING_PROFILE (subsume) */ \
   RING_PROFILE (vivify) \
   RING_PROFILE (walk) \
 \
