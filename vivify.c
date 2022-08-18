@@ -55,21 +55,13 @@ watched_vivification_candidate (struct watcher *watcher, unsigned tier)
     return false;
   if (tier == 1)
     {
-#if 0
-      if (!watcher->size)
-	return false;
-#endif
       if (watcher->glue > TIER1_GLUE_LIMIT)
 	return false;
     }
   if (tier == 2)
     {
       if (watcher->glue <= TIER1_GLUE_LIMIT)
-#if 0
-	return !watcher->size;
-#else
 	return false;
-#endif
       if (watcher->glue > TIER2_GLUE_LIMIT)
 	return false;
     }
@@ -405,48 +397,6 @@ vivify_strengthen (struct vivifier * vivifier, struct watch *candidate)
   CLEAR (*ring_clause);
   return res;
 }
-
-#if 0
-
-static bool
-less_vivification_probe (struct ring *ring, unsigned a, unsigned b)
-{
-  signed char *values = ring->values;
-  signed char a_value = values[a];
-  signed char b_value = values[b];
-  if (a_value && !b_value)
-    return true;
-  if (!a_value && b_value)
-    return false;
-  if (a_value && b_value)
-    return a < b;
-  assert (!a_value);
-  assert (!b_value);
-  unsigned a_idx = IDX (a);
-  unsigned b_idx = IDX (b);
-  assert (a_idx != b_idx);
-  if (ring->stable)
-    {
-      double a_score = ring->heap.nodes[a_idx].score;
-      double b_score = ring->heap.nodes[b_idx].score;
-      if (a_score > b_score)
-	return true;
-      if (a_score < b_score)
-	return false;
-    }
-  else
-    {
-      uint64_t a_stamp = ring->queue.links[a_idx].stamp;
-      uint64_t b_stamp = ring->queue.links[b_idx].stamp;
-      if (a_stamp > b_stamp)
-	return true;
-      if (a_stamp < b_stamp)
-	return false;
-    }
-  return a < b;
-}
-
-#endif
 
 static void
 sort_vivification_probes (signed char * values, unsigned * counts,

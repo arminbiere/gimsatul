@@ -94,9 +94,6 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 {
   if (!ring->options.subsume_imported)
     return false;
-#if 0
-  START (ring, subsume);
-#endif
   ring->statistics.subsumed.binary.checked++;
   if (SIZE (REFERENCES (lit)) > SIZE (REFERENCES (other)))
     SWAP (unsigned, lit, other);
@@ -108,9 +105,6 @@ subsumed_binary (struct ring *ring, unsigned lit, unsigned other)
 	ring->statistics.subsumed.binary.succeeded++;
 	break;
       }
-#if 0
-  STOP (ring, subsume);
-#endif
   return res;
 }
 
@@ -207,9 +201,6 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 {
   if (!ring->options.subsume_imported)
     return false;
-#if 0
-  START (ring, subsume);
-#endif
   ring->statistics.subsumed.large.checked++;
   signed char *values = ring->values;
   struct variable *variables = ring->variables;
@@ -300,9 +291,6 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
     marks[lit] = 0;
   if (res)
     ring->statistics.subsumed.large.succeeded++;
-#if 0
-  STOP (ring, subsume);
-#endif
   return res;
 }
 
