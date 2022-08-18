@@ -70,75 +70,22 @@ bump_reason_side_literals (struct ring *ring)
     }
 }
 
-static void
-clear_used (struct ring * ring)
+static bool
+larger_trail_position (unsigned * pos, unsigned a, unsigned b)
 {
-  struct unsigneds *levels = &ring->levels;
-  unsigned *used = ring->used;
-  for (all_elements_on_stack (unsigned, used_level, *levels))
-      used[used_level] = 0;
+  unsigned i = IDX (a);
+  unsigned j = IDX (b);
+  return pos[i] > pos[j];
 }
 
-#define LARGER(A,B) ((A) > (B))
+#define LARGER_TRAIL_POS(A,B) larger_trail_position (pos, (A), (B))
 
 static void
 sort_deduced_clause (struct ring * ring)
 {
   LOGTMP ("clause before sorting");
-
-  clear_used (ring);
-
-  struct variable *variables = ring->variables;
-  unsigned *used = ring->used;
-
-  unsigned * clause = ring->clause.begin + 1;
-  unsigned * end_of_clause = ring->clause.end;
-  for (unsigned * p = clause; p != end_of_clause; p++)
-    {
-      unsigned lit = *p;
-      unsigned idx = IDX (lit);
-      struct variable * v = variables + idx;
-      unsigned lit_level = v->level;
-      used[lit_level]++;
-    }
-
-  struct unsigneds sorter;
-  INIT (sorter);
-  SORT_STACK (unsigned, ring->levels, LARGER);
-  RELEASE (sorter);
-
-  assert (PEEK (ring->levels, 0) == ring->level);
-  unsigned * levels = ring->levels.begin;
-  unsigned * end_of_levels = ring->levels.end;
-  assert (levels <= end_of_levels);
-
-  unsigned pos = 0;
-  for (unsigned * p = levels; p != end_of_levels; p++)
-    {
-      unsigned level = *p;
-      unsigned delta = used[level];
-      used[level] = pos;
-      pos += delta;
-    }
-
-  unsigned size = end_of_clause - clause;
-  assert (pos == size);
-
-  unsigned * tmp = allocate_array (size, sizeof *tmp);
-  memcpy (tmp, clause, size * sizeof *tmp);
-  unsigned * end_of_tmp = tmp + size;
-  for (unsigned *p = tmp; p != end_of_tmp; p++)
-    {
-      unsigned lit = *p;
-      unsigned idx = IDX (lit);
-      struct variable * v = variables + idx;
-      unsigned lit_level = v->level;
-      pos = used[lit_level];
-      clause[pos++] = lit;
-      used[lit_level] = pos;
-    }
-  FREE (tmp);
-
+  unsigned *pos = ring->trail.pos;
+  SORT_STACK (unsigned, ring->clause, LARGER_TRAIL_POS);
   LOGTMP ("clause after sorting");
 }
 
@@ -155,8 +102,11 @@ clear_analyzed (struct ring *ring)
     }
   CLEAR (*analyzed);
 
-  clear_used (ring);
-  CLEAR (ring->levels);
+  struct unsigneds *levels = &ring->levels;
+  unsigned *used = ring->used;
+  for (all_elements_on_stack (unsigned, used_level, *levels))
+      used[used_level] = 0;
+  CLEAR (*levels);
 }
 
 #define ANALYZE_LITERAL(OTHER) \

@@ -130,6 +130,7 @@ release_ring (struct ring *ring, bool keep_values)
   RELEASE (ring->clause);
   RELEASE (ring->levels);
   RELEASE (ring->minimize);
+  RELEASE (ring->sorter);
 
   FREE (ring->references);
   struct ring_trail *trail = &ring->trail;
@@ -411,4 +412,14 @@ mark_satisfied_watchers_as_garbage (struct ring *ring)
   ring->last.fixed = ring->statistics.fixed;
   verbose (ring, "marked %zu satisfied clauses as garbage %.0f%%",
 	   marked, percent (marked, size));
+}
+
+unsigned *
+sorter_block (struct ring * ring, size_t size)
+{
+  assert (size <= 1u<<31);
+  assert (EMPTY (ring->sorter));
+  while (CAPACITY (ring->sorter) < size)
+    ENLARGE (ring->sorter);
+  return ring->sorter.begin;
 }

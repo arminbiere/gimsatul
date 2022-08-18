@@ -132,7 +132,6 @@ sort_analyzed_variable_according_to_stamp (struct ring *ring)
   struct unsigneds *analyzed = &ring->analyzed;
   size_t size = SIZE (*analyzed), count[256];
   unsigned *begin = analyzed->begin;
-  size_t bytes = size * sizeof *begin;
   unsigned *tmp = 0, *a = begin, *b = 0, *c = a;
   uint64_t masked_lower = 0, masked_upper = 255;
   uint64_t upper = 0, lower = ~upper, shifted_mask = 255;
@@ -180,7 +179,7 @@ sort_analyzed_variable_according_to_stamp (struct ring *ring)
       if (!tmp)
 	{
 	  assert (c == a);
-	  b = tmp = allocate_block (bytes);
+	  b = tmp = sorter_block (ring, size);
 	}
       assert (b == tmp);
       unsigned *d = (c == a) ? b : a;
@@ -196,9 +195,10 @@ sort_analyzed_variable_according_to_stamp (struct ring *ring)
       c = d;
     }
   if (c == b)
-    memcpy (a, b, bytes);
-  if (tmp)
-    free (tmp);
+    {
+      size_t bytes = size * sizeof *begin;
+      memcpy (a, b, bytes);
+    }
 #ifndef NDEBUG
   for (size_t i = 0; i + 1 < size; i++)
     assert (links[begin[i]].stamp < links[begin[i + 1]].stamp);

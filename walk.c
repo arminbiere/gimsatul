@@ -275,7 +275,7 @@ import_decisions (struct walker *walker)
 	{
 	  pos += (phase > 0);
 	  neg += (phase < 0);
-	  v->level = INVALID;
+	  v->level = INVALID_VAR;
 	}
       *q++ = phase;
       *q++ = -phase;

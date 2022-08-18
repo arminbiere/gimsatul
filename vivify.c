@@ -191,10 +191,7 @@ sort_vivivification_candidates (struct ring * ring, unsigned * counts,
 	}
     }
 
-  struct unsigneds (SORTER);
-  INIT (SORTER);
   SORT (unsigned, size, candidates, LESS_VIVIFICATION_CANDIDATE);
-  RELEASE (SORTER);
 
   for (unsigned * c = candidates; c != end; c++)
     {

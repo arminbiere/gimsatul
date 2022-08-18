@@ -9,7 +9,7 @@ do { \
     SWAP (TYPE, P, Q); \
 } while(0)
 
-#define SORTER sorter
+#define SORTER (ring->sorter)
 
 #define PARTITION(TYPE,L,R,A,LESS) \
 do { \

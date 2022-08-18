@@ -288,14 +288,13 @@ sort_redundant_watcher_indices (struct ring *ring,
   size_t pos = 0, *c = count + size_count, size;
   while (c-- != count)
     size = *c, *c = pos, pos += size;
-  size_t bytes = size_indices * sizeof *indices;
-  unsigned *tmp = allocate_block (bytes);
+  unsigned *tmp = sorter_block (ring, size_indices);
   for (unsigned *p = indices; p != end; p++)
     {
       unsigned idx = *p;
       struct watcher *watcher = index_to_watcher (ring, idx);
       tmp[count[watcher->glue]++] = idx;
     }
+  size_t bytes = size_indices * sizeof *indices;
   memcpy (indices, tmp, bytes);
-  free (tmp);
 }

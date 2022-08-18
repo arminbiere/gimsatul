@@ -112,6 +112,7 @@ struct ring
   struct unsigneds clause;
   struct unsigneds levels;
   struct unsigneds minimize;
+  struct unsigneds sorter;
 
   struct references *references;
   struct ring_trail trail;
@@ -205,6 +206,8 @@ void set_inconsistent (struct ring *, const char *msg);
 void set_satisfied (struct ring *);
 
 void print_ring_profiles (struct ring *);
+
+unsigned * sorter_block (struct ring *, size_t size);
 
 /*------------------------------------------------------------------------*/
 

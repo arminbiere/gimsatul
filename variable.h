@@ -16,10 +16,10 @@ struct phases
 struct variable
 {
   unsigned level;
-  bool minimize:1;
-  bool poison:1;
-  bool seen:1;
-  bool shrinkable:1;
+  bool minimize;
+  bool poison;
+  bool seen;
+  bool shrinkable;
   struct watch *reason;
 };
 
