@@ -237,8 +237,9 @@ analyze (struct ring *ring, struct watch *reason)
 	}
       else
 	{
-#if 0
-	  if (VAR (other)->level != jump)
+	  if (ring->options.sort_deduced)
+	    sort_deduced_clause (ring);
+	  else if (VAR (other)->level != jump)
 	    {
 	      unsigned *p = literals + 2, replacement;
 	      while (assert (p != ring_clause->end),
@@ -247,9 +248,6 @@ analyze (struct ring *ring, struct watch *reason)
 	      literals[1] = replacement;
 	      *p = other;
 	    }
-#else
-	  sort_deduced_clause (ring);
-#endif
 	  struct clause *learned_clause =
 	    new_large_clause (size, literals, true, glue);
 	  LOGCLAUSE (learned_clause, "new");

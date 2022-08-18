@@ -86,6 +86,7 @@ OPTION (unsigned, simplify_interval,     500, 1, INF, "simplification base confl
 OPTION (bool,     simplify_initially,    1, 0, 1,     "initial preprocessing through simplification") \
 OPTION (bool,     simplify_regularly,    1, 0, 1,     "regular inprocessing through simplification") \
 OPTION (unsigned, simplify_rounds,       4, 1, INF,   "number of rounds per simplification") \
+OPTION (bool,     sort_deduced,          0, 0, 1,     "sort deduced clause") \
 OPTION (bool,     switch_mode,           1, 0, 1,     "switch between focused and stable mode") \
 OPTION (unsigned, switch_interval,       1e3, 1, INF, "mode switching base conflict interval") \
 OPTION (bool,     substitute,            1, 0, 1,     "equivalent literal substitution") \
