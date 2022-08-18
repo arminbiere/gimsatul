@@ -9,11 +9,26 @@
 #include <inttypes.h>
 
 static void
+report_mode_duration (struct ring * ring, double t, const char * type)
+{
+  struct ring_last * l = &ring->last;
+  verbose (ring, "%s mode took %.2f seconds "
+                 "(%" PRIu64 " conflicts, %" PRIu64 " ticks)",
+		 type, t - l->mode.time,
+		 SEARCH_CONFLICTS - l->mode.conflicts,
+		 SEARCH_TICKS - l->mode.ticks);
+  l->mode.time = t;
+  l->mode.conflicts = SEARCH_CONFLICTS ;
+  l->mode.ticks = SEARCH_TICKS;
+}
+
+static void
 switch_to_focused_mode (struct ring *ring)
 {
   assert (ring->stable);
   report (ring, ']');
-  STOP (ring, stable);
+  double t = STOP (ring, stable);
+  report_mode_duration (ring, t, "stable");
   ring->stable = false;
   START (ring, focus);
   report (ring, '{');
@@ -26,7 +41,8 @@ switch_to_stable_mode (struct ring *ring)
 {
   assert (!ring->stable);
   report (ring, '}');
-  STOP (ring, focus);
+  double t = STOP (ring, focus);
+  report_mode_duration (ring, t, "focused");
   ring->stable = true;
   START (ring, stable);
   report (ring, '[');

@@ -61,6 +61,12 @@ struct ring_last
   uint64_t probing;
   uint64_t reduce;
   uint64_t walk;
+  struct mode
+  {
+    uint64_t conflicts;
+    uint64_t ticks;
+    double time;
+  } mode;
 };
 
 struct ring_trail

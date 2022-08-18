@@ -63,6 +63,7 @@ bump_reason_side_literals (struct ring *ring)
 	{
 	  const unsigned not_lit = NOT (lit);
 	  struct watcher *watcher = get_watcher (ring, reason);
+	  ring->statistics.contexts[ring->context].ticks++;
 	  for (all_watcher_literals (other, watcher))
 	    if (other != not_lit)
 	      bump_reason_side_literal (ring, other);
