@@ -293,7 +293,7 @@ do { \
   PUSH (*analyzed, idx); \
   if (level != ring->level && !used[level]) \
     { \
-      used[level] = true; \
+      used[level] = 1; \
       PUSH (*levels, level); \
     } \
   open++; \
@@ -312,7 +312,7 @@ vivify_strengthen (struct vivifier * vivifier, struct watch *candidate)
   struct variable *variables = ring->variables;
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *levels = &ring->levels;
-  bool *used = ring->used;
+  unsigned *used = ring->used;
   struct ring_trail *trail = &ring->trail;
   assert (EMPTY (*analyzed));
   assert (EMPTY (*ring_clause));

@@ -88,7 +88,7 @@ init_ring (struct ring *ring)
   ring->marks = allocate_and_clear_block (2 * size);
   ring->values = allocate_and_clear_block (2 * size);
   ring->inactive = allocate_and_clear_block (size);
-  ring->used = allocate_and_clear_block (size);
+  ring->used = allocate_and_clear_array (size, sizeof *ring->used);
 
   assert (!ring->references);
   ring->references =

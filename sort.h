@@ -151,10 +151,10 @@ do { \
 
 #define SORT_STACK(TYPE,S,LESS) \
 do { \
-  const size_t N_SORT_STACK = SIZE_STACK (S); \
+  const size_t N_SORT_STACK = SIZE (S); \
   if (N_SORT_STACK <= 1) \
     break; \
-  TYPE * A_SORT_STACK = BEGIN_STACK (S); \
+  TYPE * A_SORT_STACK = (S).begin; \
   SORT (TYPE, N_SORT_STACK, A_SORT_STACK, LESS); \
 } while (0)
 

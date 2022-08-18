@@ -6,8 +6,11 @@
 #include "macros.h"
 #include "minimize.h"
 #include "ring.h"
+#include "sort.h"
 #include "trace.h"
 #include "utilities.h"
+
+#include <string.h>
 
 static void
 bump_reason (struct ring *ring, struct watcher *watcher)
@@ -68,9 +71,75 @@ bump_reason_side_literals (struct ring *ring)
 }
 
 static void
+clear_used (struct ring * ring)
+{
+  struct unsigneds *levels = &ring->levels;
+  unsigned *used = ring->used;
+  for (all_elements_on_stack (unsigned, used_level, *levels))
+      used[used_level] = 0;
+}
+
+#define LARGER(A,B) ((A) > (B))
+
+static void
 sort_deduced_clause (struct ring * ring)
 {
-  LOGTMP ("minimized clause before sorting");
+  LOGTMP ("clause before sorting");
+
+  clear_used (ring);
+
+  struct variable *variables = ring->variables;
+  unsigned *used = ring->used;
+
+  unsigned * clause = ring->clause.begin + 1;
+  unsigned * end_of_clause = ring->clause.end;
+  for (unsigned * p = clause; p != end_of_clause; p++)
+    {
+      unsigned lit = *p;
+      unsigned idx = IDX (lit);
+      struct variable * v = variables + idx;
+      unsigned lit_level = v->level;
+      used[lit_level]++;
+    }
+
+  struct unsigneds sorter;
+  INIT (sorter);
+  SORT_STACK (unsigned, ring->levels, LARGER);
+  RELEASE (sorter);
+
+  assert (PEEK (ring->levels, 0) == ring->level);
+  unsigned * levels = ring->levels.begin;
+  unsigned * end_of_levels = ring->levels.end;
+  assert (levels <= end_of_levels);
+
+  unsigned pos = 0;
+  for (unsigned * p = levels; p != end_of_levels; p++)
+    {
+      unsigned level = *p;
+      unsigned delta = used[level];
+      used[level] = pos;
+      pos += delta;
+    }
+
+  unsigned size = end_of_clause - clause;
+  assert (pos == size);
+
+  unsigned * tmp = allocate_array (size, sizeof *tmp);
+  memcpy (tmp, clause, size * sizeof *tmp);
+  unsigned * end_of_tmp = tmp + size;
+  for (unsigned *p = tmp; p != end_of_tmp; p++)
+    {
+      unsigned lit = *p;
+      unsigned idx = IDX (lit);
+      struct variable * v = variables + idx;
+      unsigned lit_level = v->level;
+      pos = used[lit_level];
+      clause[pos++] = lit;
+      used[lit_level] = pos;
+    }
+  FREE (tmp);
+
+  LOGTMP ("clause after sorting");
 }
 
 void
@@ -86,11 +155,8 @@ clear_analyzed (struct ring *ring)
     }
   CLEAR (*analyzed);
 
-  struct unsigneds *levels = &ring->levels;
-  bool *used = ring->used;
-  for (all_elements_on_stack (unsigned, used_level, *levels))
-      used[used_level] = false;
-  CLEAR (*levels);
+  clear_used (ring);
+  CLEAR (ring->levels);
 }
 
 #define ANALYZE_LITERAL(OTHER) \
@@ -118,7 +184,7 @@ do { \
   if (!used[OTHER_LEVEL]) \
     { \
       glue++; \
-      used[OTHER_LEVEL] = true; \
+      used[OTHER_LEVEL] = 1; \
       PUSH (*levels, OTHER_LEVEL); \
       if (OTHER_LEVEL > jump) \
 	jump = OTHER_LEVEL; \
@@ -140,7 +206,7 @@ analyze (struct ring *ring, struct watch *reason)
   assert (EMPTY (*ring_clause));
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
-  bool *used = ring->used;
+  unsigned *used = ring->used;
   struct variable *variables = ring->variables;
   struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;

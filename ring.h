@@ -106,7 +106,7 @@ struct ring
   signed char *values;
 
   bool *inactive;
-  bool *used;
+  unsigned *used;
 
   struct unsigneds analyzed;
   struct unsigneds clause;
