@@ -67,6 +67,12 @@ bump_reason_side_literals (struct ring *ring)
     }
 }
 
+static void
+sort_deduced_clause (struct ring * ring)
+{
+  LOGTMP ("minimized clause before sorting");
+}
+
 void
 clear_analyzed (struct ring *ring)
 {
@@ -215,6 +221,7 @@ analyze (struct ring *ring, struct watch *reason)
 	}
       else
 	{
+#if 0
 	  if (VAR (other)->level != jump)
 	    {
 	      unsigned *p = literals + 2, replacement;
@@ -224,6 +231,9 @@ analyze (struct ring *ring, struct watch *reason)
 	      literals[1] = replacement;
 	      *p = other;
 	    }
+#else
+	  sort_deduced_clause (ring);
+#endif
 	  struct clause *learned_clause =
 	    new_large_clause (size, literals, true, glue);
 	  LOGCLAUSE (learned_clause, "new");
