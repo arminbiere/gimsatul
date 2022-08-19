@@ -26,8 +26,8 @@ print_ring_statistics (struct ring *ring)
   unsigned variables = ring->ruler->size;
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per second", "conflicts:",
 	   conflicts, average (conflicts, search));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f per second", "decisions:",
-	   decisions, average (decisions, search));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f per conflict", "decisions:",
+	   decisions, average (decisions, conflicts));
   PRINTLN ("%-22s %17u %13.2f %% variables", "solving-fixed:",
 	   s->fixed, percent (s->fixed, variables));
   PRINTLN ("%-22s %17u %13.2f %% variables", "failed-literals:",
