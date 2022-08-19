@@ -226,7 +226,6 @@ bump_analyzed_variables_on_heap (struct ring * ring)
   assert (ring->stable);
   for (all_elements_on_stack (unsigned, idx, ring->analyzed))
     bump_variable_on_heap (ring, idx);
-  sort_and_bump_analyzed_variables_on_queue (ring);
   bump_score_increment (ring);
 }
 
