@@ -26,7 +26,7 @@ bump_reason (struct ring *ring, struct watcher *watcher)
 }
 
 static void
-bump_reason_side_literal (struct ring *ring, unsigned lit)
+analyze_reason_side_literal (struct ring *ring, unsigned lit)
 {
   unsigned idx = IDX (lit);
   struct variable *v = ring->variables + idx;
@@ -39,7 +39,7 @@ bump_reason_side_literal (struct ring *ring, unsigned lit)
 }
 
 static void
-bump_reason_side_literals (struct ring *ring)
+analyze_reason_side_literals (struct ring *ring)
 {
   if (!ring->options.bump_reasons)
     return;
@@ -56,7 +56,7 @@ bump_reason_side_literals (struct ring *ring)
       if (is_binary_pointer (reason))
 	{
 	  assert (NOT (lit) == lit_pointer (reason));
-	  bump_reason_side_literal (ring, other_pointer (reason));
+	  analyze_reason_side_literal (ring, other_pointer (reason));
 	}
       else
 	{
@@ -65,7 +65,7 @@ bump_reason_side_literals (struct ring *ring)
 	  ticks++;
 	  for (all_watcher_literals (other, watcher))
 	    if (other != not_lit)
-	      bump_reason_side_literal (ring, other);
+	      analyze_reason_side_literal (ring, other);
 	}
     }
   ring->statistics.contexts[ring->context].ticks += ticks;
@@ -206,7 +206,7 @@ analyze (struct ring *ring, struct watch *reason)
   literals[0] = not_uip;
   LOGTMP ("first UIP %s", LOGLIT (uip));
   shrink_or_minimize_clause (ring, glue);
-  bump_reason_side_literals (ring);
+  analyze_reason_side_literals (ring);
   bump_variables (ring);
   backtrack (ring, level - 1);
   update_best_and_target_phases (ring);
