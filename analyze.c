@@ -25,17 +25,18 @@ bump_reason (struct ring *ring, struct watcher *watcher)
     watcher->used = 1;
 }
 
-static void
+static bool
 analyze_reason_side_literal (struct ring *ring, unsigned lit)
 {
   unsigned idx = IDX (lit);
   struct variable *v = ring->variables + idx;
   if (!v->level)
-    return;
+    return false;
   if (v->seen)
-    return;
+    return false;
   v->seen = true;
   PUSH (ring->analyzed, idx);
+  return true;
 }
 
 static void
@@ -46,8 +47,12 @@ analyze_reason_side_literals (struct ring *ring)
   if (ring->averages[ring->stable].decisions.value > 10)
     return;
   uint64_t ticks = 0;
+  size_t limit = 10 * SIZE (ring->clause);
+  size_t pushed = 0;
   for (all_elements_on_stack (unsigned, lit, ring->clause))
     {
+      if (pushed > limit)
+	break;
       struct variable *v = VAR (lit);
       if (!v->level)
 	continue;
@@ -58,7 +63,8 @@ analyze_reason_side_literals (struct ring *ring)
       if (is_binary_pointer (reason))
 	{
 	  assert (NOT (lit) == lit_pointer (reason));
-	  analyze_reason_side_literal (ring, other_pointer (reason));
+	  if (analyze_reason_side_literal (ring, other_pointer (reason)))
+	    pushed++;
 	}
       else
 	{
@@ -66,8 +72,10 @@ analyze_reason_side_literals (struct ring *ring)
 	  struct watcher *watcher = get_watcher (ring, reason);
 	  ticks++;
 	  for (all_watcher_literals (other, watcher))
-	    if (other != not_lit)
-	      analyze_reason_side_literal (ring, other);
+	    if (other != not_lit &&
+	        analyze_reason_side_literal (ring, other) &&
+		++pushed > limit)
+	      break;
 	}
     }
   ring->statistics.contexts[ring->context].ticks += ticks;
