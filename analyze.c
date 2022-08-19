@@ -36,8 +36,6 @@ bump_reason_side_literal (struct ring *ring, unsigned lit)
     return;
   v->seen = true;
   PUSH (ring->analyzed, idx);
-  if (ring->stable)
-    bump_variable_on_heap (ring, idx);
 }
 
 static void
@@ -45,6 +43,7 @@ bump_reason_side_literals (struct ring *ring)
 {
   if (!ring->options.bump_reasons)
     return;
+  uint64_t ticks = 0;
   for (all_elements_on_stack (unsigned, lit, ring->clause))
     {
       struct variable *v = VAR (lit);
@@ -63,12 +62,13 @@ bump_reason_side_literals (struct ring *ring)
 	{
 	  const unsigned not_lit = NOT (lit);
 	  struct watcher *watcher = get_watcher (ring, reason);
-	  ring->statistics.contexts[ring->context].ticks++;
+	  ticks++;
 	  for (all_watcher_literals (other, watcher))
 	    if (other != not_lit)
 	      bump_reason_side_literal (ring, other);
 	}
     }
+  ring->statistics.contexts[ring->context].ticks += ticks;
 }
 
 static bool
@@ -124,8 +124,6 @@ do { \
     break; \
   V->seen = true; \
   PUSH (*analyzed, OTHER_IDX); \
-  if (ring->stable) \
-    bump_variable_on_heap (ring, OTHER_IDX); \
   if (OTHER_LEVEL == level) \
     { \
       open++; \
@@ -209,10 +207,7 @@ analyze (struct ring *ring, struct watch *reason)
   LOGTMP ("first UIP %s", LOGLIT (uip));
   shrink_or_minimize_clause (ring, glue);
   bump_reason_side_literals (ring);
-  if (ring->stable)
-    bump_score_increment (ring);
-  else
-    sort_and_bump_analyzed_variables_on_queue (ring);
+  bump_variables (ring);
   backtrack (ring, level - 1);
   update_best_and_target_phases (ring);
   if (jump < level - 1)

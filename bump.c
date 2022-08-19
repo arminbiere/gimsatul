@@ -21,7 +21,7 @@ rescale_variable_scores (struct ring *ring)
   heap->increment /= max_score;
 }
 
-void
+static void
 bump_variable_on_heap (struct ring *ring, unsigned idx)
 {
   struct heap *heap = &ring->heap;
@@ -110,7 +110,7 @@ rebuild_heap (struct ring *ring)
     }
 }
 
-void
+static void
 bump_score_increment (struct ring *ring)
 {
   if (!ring->stable)
@@ -212,9 +212,29 @@ bump_analyze_variables_on_queue (struct ring *ring)
       bump_variable_on_queue (ring, idx);
 }
 
-void
+static void
 sort_and_bump_analyzed_variables_on_queue (struct ring *ring)
 {
+  assert (!ring->stable);
   sort_analyzed_variable_according_to_stamp (ring);
   bump_analyze_variables_on_queue (ring);
+}
+
+static void
+bump_analyzed_variables_on_heap (struct ring * ring)
+{
+  assert (ring->stable);
+  for (all_elements_on_stack (unsigned, idx, ring->analyzed))
+    bump_variable_on_heap (ring, idx);
+  sort_and_bump_analyzed_variables_on_queue (ring);
+  bump_score_increment (ring);
+}
+
+void
+bump_variables (struct ring * ring)
+{
+  if (ring->stable)
+    bump_analyzed_variables_on_heap (ring);
+  else
+    sort_and_bump_analyzed_variables_on_queue (ring);
 }
