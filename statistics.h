@@ -162,6 +162,9 @@ do { \
 #define SEARCH_CONFLICTS \
   ring->statistics.contexts[SEARCH_CONTEXT].conflicts
 
+#define SEARCH_DECISIONS \
+  ring->statistics.contexts[SEARCH_CONTEXT].decisions
+
 #define SEARCH_TICKS \
   ring->statistics.contexts[SEARCH_CONTEXT].ticks
 

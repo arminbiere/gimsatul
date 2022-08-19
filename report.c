@@ -33,14 +33,14 @@ verbose_report (struct ring *ring, char type, int level)
   bool header = !(atomic_fetch_add (&reported, 1) % 20);
 
   if (header)
-    printf ("c\nc       seconds MB level reductions restarts "
+    printf ("c\nc      seconds MB level reductions restarts rate "
 	    "conflicts redundant trail glue irredundant variables\nc\n");
 
-  PRINTLN ("%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
-	   " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
-	   a->level.value, s->reductions, s->restarts, conflicts,
-	   s->redundant, a->trail.value, a->glue.slow.value, s->irredundant,
-	   active, percent (active, ring->ruler->size));
+  PRINTLN ("%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %4.0f"
+           " %11" PRIu64 " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%", type, t, m,
+	   a->level.value, s->reductions, s->restarts, a->decisions.value,
+	   conflicts, s->redundant, a->trail.value, a->glue.slow.value,
+	   s->irredundant, active, percent (active, ring->ruler->size));
 
   fflush (stdout);
 

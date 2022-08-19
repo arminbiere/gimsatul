@@ -92,4 +92,5 @@ switch_mode (struct ring *ring)
                 " after %" PRIu64 " ticks",
 		l->mode, interval);
   l->import = 0;
+  ring->last.decisions = SEARCH_DECISIONS;
 }

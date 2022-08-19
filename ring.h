@@ -53,10 +53,12 @@ struct averages
   } glue;
   struct average level;
   struct average trail;
+  struct average decisions;
 };
 
 struct ring_last
 {
+  uint64_t decisions;
   unsigned fixed;
   uint64_t probing;
   uint64_t reduce;

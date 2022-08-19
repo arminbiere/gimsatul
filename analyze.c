@@ -43,6 +43,8 @@ analyze_reason_side_literals (struct ring *ring)
 {
   if (!ring->options.bump_reasons)
     return;
+  if (ring->averages[ring->stable].decisions.value > 10)
+    return;
   uint64_t ticks = 0;
   for (all_elements_on_stack (unsigned, lit, ring->clause))
     {
@@ -108,6 +110,18 @@ clear_analyzed (struct ring *ring)
   for (all_elements_on_stack (unsigned, used_level, *levels))
       used[used_level] = 0;
   CLEAR (*levels);
+}
+
+static void
+update_decision_rate (struct ring * ring)
+{
+  uint64_t current = SEARCH_DECISIONS;
+  uint64_t previous = ring->last.decisions;
+  assert (current >= previous);
+  uint64_t delta = current - previous;
+  struct averages *a = ring->averages + ring->stable;
+  update_average (ring, &a->decisions, "decision rate", SLOW_ALPHA, delta);
+  ring->last.decisions = current;
 }
 
 #define ANALYZE_LITERAL(OTHER) \
@@ -201,6 +215,7 @@ analyze (struct ring *ring, struct watch *reason)
   double filled = percent (assigned, ring->size);
   LOG ("assigned %u variables %.0f%% filled", assigned, filled);
   update_average (ring, &a->trail, "trail", SLOW_ALPHA, filled);
+  update_decision_rate (ring);
   unsigned *literals = ring_clause->begin;
   const unsigned not_uip = NOT (uip);
   literals[0] = not_uip;
