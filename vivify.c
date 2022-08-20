@@ -572,6 +572,8 @@ vivify_clauses (struct ring *ring)
 {
   if (ring->inconsistent)
     return;
+  if (!ring->options.vivify)
+    return;
   START (ring, vivify);
   assert (SEARCH_TICKS >= ring->last.probing);
 
