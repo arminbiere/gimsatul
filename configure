@@ -13,26 +13,34 @@ where '<option>' is one of the following:
 -p | --pedantic   pedantic compilation for C11
 -q | --quiet      disable messages and profiling
 -s | --symbols    add symbol table even without '-g'
+
+--coverage        include line coverage code (to be used with 'gcov')
+--profile         include profiling code (to be used with 'gprof')
                  
 -f...             passed to compiler, e.g., '-fsanitize=address,undefined'
 --no-fast-path    no lock-less fast path for synchronization
 EOF
 exit 1
 }
+
 check=no
 compact=yes
+coverage=no
 debug=no
 fastpath=yes
 logging=no
 metrics=no
 options=""
 pedantic=no
+profile=no
 quiet=no
 symbols=no
+
 die () {
   echo "configure: error: $*" 1>&2
   exit 1
 }
+
 while [ $# -gt 0 ]
 do
   case "$1" in
@@ -44,6 +52,8 @@ do
     -p|--pedantic) pedantic=yes;;
     -q|--quiet) quiet=yes;;
     -s|--symbols) symbols=yes;;
+    --coverage) coverage=yes;;
+    --profile) profile=yes;;
     -fsanitize=*thread*) options="$options $1"; fastpath=no;;
     -f*) options="$options $1";;
     --no-fast-path) fastpath=no;;
@@ -51,6 +61,7 @@ do
   esac
   shift
 done
+
 [ $quiet = yes ] && metrics=no
 [ "$CC" = "" ] && CC=gcc
 CFLAGS="-Wall$options"
@@ -61,12 +72,16 @@ CFLAGS="-Wall$options"
 [ $quiet = yes ] && logging=no
 [ $debug = no ] && CFLAGS="$CFLAGS -O3"
 [ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
+[ $coverage = yes ] && CFLAGS="$CFLAGS -ftest-coverage -fprofile-arcs"
+[ $profile = yes ] && CFLAGS="$CFLAGS -pg"
 [ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $fastpath = no ] && CFLAGS="$CFLAGS -DNFASTPATH"
 [ $metrics = yes ] && CFLAGS="$CFLAGS -DMETRICS"
 [ $quiet = yes ] && CFLAGS="$CFLAGS -DQUIET"
+
 echo "configure: $CC $CFLAGS"
+
 rm -f makefile
 sed -e "s#@CC@#$CC#;s#@CFLAGS@#$CFLAGS#" makefile.in > makefile
 echo "configure: generated 'makefile'"
