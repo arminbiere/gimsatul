@@ -211,6 +211,8 @@ forward_subsume_large_clause (struct simplifier *simplifier,
   assert (!clause->garbage);
   assert (clause->size <= ruler->limits.clause_size_limit);
   mark_clause (simplifier->marks, clause, INVALID);
+  unsigned reentered = 0;
+REENTER:
   unsigned remove = INVALID, other = INVALID;
   struct clause *subsuming = 0;
   for (all_literals_in_clause (lit, clause))
@@ -275,6 +277,12 @@ forward_subsume_large_clause (struct simplifier *simplifier,
 	      trace_delete_clause (&ruler->trace, subsuming);
 	      ruler->statistics.garbage++;
 	      subsuming->garbage = true;
+	    }
+	  else if (!is_binary_pointer (clause))
+	    {
+	      reentered++;
+	      ROGCLAUSE (clause, "updated subsumption candidate");
+	      goto REENTER;
 	    }
 	}
       if (!is_binary_pointer (clause))
@@ -376,7 +384,16 @@ subsume_clauses (struct simplifier *simplifier, unsigned round)
 	break;
       forward_subsume_large_clause (simplifier, *p);
       if (subsumption_ticks_limit_hit (simplifier))
-	break;
+	{
+#ifndef QUIET
+	  size_t scheduled = end_candidates - candidates;
+	  size_t checked = p + 1 - candidates;
+	  very_verbose (0, "subsumption ticks limit hit "
+	                   "after checking %zu candidates %.0f%%",
+			checked, percent (checked, scheduled));
+#endif
+	  break;
+	}
     }
   free (candidates);
   flush_large_clause_occurrences (ruler);
