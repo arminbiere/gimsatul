@@ -67,64 +67,71 @@ find_subsuming_clause (struct simplifier *simplifier, unsigned lit,
   assert (strengthen_only || marked_literal (simplifier->marks, lit) > 0);
   struct ruler *ruler = simplifier->ruler;
   struct clauses *clauses = &OCCURRENCES (lit);
-  unsigned resolved;
   size_t size_clauses = SIZE (*clauses);
-  struct clause *res = 0;
-  uint64_t ticks = 1;
+  ruler->statistics.ticks.subsumption++;
   size_t occurrence_limit = ruler->limits.occurrence_limit;
-  if (size_clauses <= occurrence_limit)
+  if (size_clauses > occurrence_limit)
+    return 0;
+  struct clause *res = 0;
+  unsigned resolved = INVALID;
+  signed char *marks = simplifier->marks;
+  struct clause ** begin = clauses->begin;
+  struct clause ** end = clauses->end;
+  struct clause ** p = begin;
+  uint64_t ticks = 0;
+  while (p != end)
     {
-      signed char *marks = simplifier->marks;
-      ticks += cache_lines (clauses->end, clauses->begin);
-      for (all_clauses (clause, *clauses))
+      assert (!res);
+      struct clause * clause = *p++;
+      resolved = strengthen_only ? lit : INVALID;
+      if (is_binary_pointer (clause))
 	{
-	  resolved = strengthen_only ? lit : INVALID;
-	  if (is_binary_pointer (clause))
+	  unsigned other = other_pointer (clause);
+	  signed char mark = marked_literal (marks, other);
+	  if (mark > 0)
 	    {
-	      unsigned other = other_pointer (clause);
-	      signed char mark = marked_literal (marks, other);
-	      if (mark > 0)
-		{
-		  res = clause;
-		  break;
-		}
-	      if (mark < 0 && !strengthen_only)
-		{
-		  res = clause;
-		  assert (resolved == INVALID);
-		  resolved = other;
-		  break;
-		}
-	    }
-	  else
-	    {
-	      ticks++;
 	      res = clause;
-	      assert (!clause->garbage);
-	      for (all_literals_in_clause (other, clause))
+	      break;
+	    }
+	  if (mark < 0 && !strengthen_only)
+	    {
+	      res = clause;
+	      assert (resolved == INVALID);
+	      resolved = other;
+	      break;
+	    }
+	}
+      else
+	{
+	  ticks++;
+	  res = clause;
+	  assert (!clause->garbage);
+	  for (all_literals_in_clause (other, clause))
+	    {
+	      if (other == lit)
+		continue;
+	      signed char mark = marked_literal (marks, other);
+	      if (!mark)
 		{
-		  signed char mark = marked_literal (marks, other);
-		  if (!mark)
+		  res = 0;
+		  break;
+		}
+	      if (mark < 0)
+		{
+		  if (resolved == INVALID)
+		    resolved = other;
+		  else
 		    {
 		      res = 0;
 		      break;
 		    }
-		  if (mark < 0)
-		    {
-		      if (resolved == INVALID)
-			resolved = other;
-		      else
-			{
-			  res = 0;
-			  break;
-			}
-		    }
 		}
-	      if (res)
-		break;
 	    }
+	  if (res)
+	    break;
 	}
     }
+  ticks += cache_lines (p, begin);
   ruler->statistics.ticks.subsumption += ticks;
   if (res && resolved != INVALID)
     *remove_ptr = NOT (resolved);
@@ -272,6 +279,7 @@ forward_subsume_large_clause (struct simplifier *simplifier,
 	}
       if (!is_binary_pointer (clause))
 	{
+	  assert (!clause->garbage);
 	  unsigned min_lit = INVALID;
 	  unsigned min_size = UINT_MAX;
 	  for (all_literals_in_clause (lit, clause))
@@ -284,9 +292,15 @@ forward_subsume_large_clause (struct simplifier *simplifier,
 	    }
 	  assert (min_lit != INVALID);
 	  assert (min_size != INVALID);
-	  ROGCLAUSE (clause, "connecting least occurring literal %s "
-		     "with %u occurrences in", ROGLIT (min_lit), min_size);
-	  connect_literal (ruler, min_lit, clause);
+          if (min_size <= ruler->limits.occurrence_limit)
+	    {
+	      ROGCLAUSE (clause, "connecting least occurring literal %s "
+			 "with %u occurrences in", ROGLIT (min_lit), min_size);
+	      connect_literal (ruler, min_lit, clause);
+	    }
+	  else
+	    ROGCLAUSE (clause, "not connecting least occurring literal %s "
+		       "with %u occurrences in", ROGLIT (min_lit), min_size);
 	}
     }
   if (is_binary_pointer (clause))
