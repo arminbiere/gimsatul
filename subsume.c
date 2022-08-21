@@ -213,6 +213,7 @@ forward_subsume_large_clause (struct simplifier *simplifier,
   mark_clause (simplifier->marks, clause, INVALID);
   unsigned reentered = 0;
 REENTER:
+  ;
   unsigned remove = INVALID, other = INVALID;
   struct clause *subsuming = 0;
   for (all_literals_in_clause (lit, clause))
