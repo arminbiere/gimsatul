@@ -256,7 +256,6 @@ print_ruler_statistics (struct ruler *ruler)
   printf ("c %-22s %17" PRIu64 " %13.2f %% subsumed clauses\n",
 	  "self-subsumed:", s->selfsubsumed, percent (s->selfsubsumed,
 						       s->subsumed));
-  printf ("c %-22s %17" PRIu64, "simplifications:", s->simplifications);
   printf ("c %-22s %17" PRIu64 " %13.2f %% original clauses\n",
 	  "strengthened:", s->strengthened, percent (s->strengthened,
 						     s->original));
