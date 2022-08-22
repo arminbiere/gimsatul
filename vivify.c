@@ -518,6 +518,9 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	    continue;
 
 	  LOGCLAUSE (clause, "vivify implied after conflict");
+	  clause_implied = true;
+	  break;
+
 	IMPLIED:
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.implied++;
@@ -562,7 +565,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
     }
 
   if (!clause_implied && !non_root_level_falsified)
-    LOGCLAUSE (clause, "vivification failed of");
+    LOGCLAUSE (clause, "vivification failed on");
 
   return res;
 }

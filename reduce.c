@@ -308,7 +308,7 @@ reduce (struct ring *ring)
   free (map);
   check_clause_statistics (ring);
   check_redundant_and_tier2_offsets (ring);
-  ring->last.reduce = limits->reduce = SEARCH_CONFLICTS;
+  limits->reduce = SEARCH_CONFLICTS;
   unsigned interval = ring->options.reduce_interval;
   assert (interval);
   limits->reduce += interval * sqrt (statistics->reductions);

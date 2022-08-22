@@ -31,12 +31,15 @@ struct ring_limits
 {
   uint64_t import;
   uint64_t mode;
-  uint64_t probe;
   uint64_t reduce;
   uint64_t rephase;
   uint64_t restart;
   uint64_t simplify;
   long long conflicts;
+  struct {
+    uint64_t conflicts;
+    uint64_t reductions;
+  } probe;
 };
 
 struct intervals
@@ -61,7 +64,6 @@ struct ring_last
   uint64_t decisions;
   unsigned fixed;
   uint64_t probing;
-  uint64_t reduce;
   uint64_t walk;
   struct mode
   {

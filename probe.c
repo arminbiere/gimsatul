@@ -15,10 +15,9 @@ probing (struct ring *ring)
 {
   if (!ring->options.probe)
     return false;
-  uint64_t conflicts = SEARCH_CONFLICTS;
-  if (conflicts != ring->last.reduce)
+  if (ring->statistics.reductions < ring->limits.probe.reductions)
     return false;
-  return conflicts > ring->limits.probe;
+  return SEARCH_CONFLICTS > ring->limits.probe.conflicts;
 }
 
 int
@@ -41,10 +40,11 @@ probe (struct ring *ring)
   uint64_t base = ring->options.probe_interval;
   uint64_t interval = base * nlogn (statistics->probings);
   uint64_t scaled = scale_interval (ring, "probe", interval);
-  limits->probe = SEARCH_CONFLICTS + scaled;
+  limits->probe.conflicts = SEARCH_CONFLICTS + scaled;
+  limits->probe.reductions = statistics->reductions + 1;
   very_verbose (ring, "new probe limit at %" PRIu64
                 " after %" PRIu64 " conflicts",
-		limits->probe, scaled);
+		limits->probe.conflicts, scaled);
   STOP_AND_START_SEARCH (probe);
   return ring->inconsistent ? 20 : 0;
 }

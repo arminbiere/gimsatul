@@ -111,7 +111,7 @@ set_ring_limits (struct ring *ring, long long conflicts)
     uint64_t interval = ring->options.probe_interval;
     uint64_t scaled = scale_interval (ring, "probe", interval);
     verbose (ring, "probe limit of %" PRIu64 " conflicts", scaled);
-    limits->probe = scaled;
+    limits->probe.conflicts = scaled;
   }
 
   if (!ring->id)
