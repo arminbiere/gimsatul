@@ -518,10 +518,6 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	    continue;
 
 	  LOGCLAUSE (clause, "vivify implied after conflict");
-	  clause_implied = true;
-	  break;
-
-	IMPLIED:
 	  ring->statistics.vivify.succeeded++;
 	  ring->statistics.vivify.implied++;
 	  mark_garbage_watcher (ring, watcher);
@@ -533,7 +529,8 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	{
 	  LOGCLAUSE (clause,
 		     "vivify implied (through literal %s)", LOGLIT (lit));
-	  goto IMPLIED;
+	  clause_implied = true;
+	  break;
 	}
 
       assert (value < 0);
