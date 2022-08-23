@@ -290,7 +290,8 @@ do { \
 } while (0)
 
 static void
-vivify_deduce (struct vivifier * vivifier, struct watch *conflict)
+vivify_deduce (struct vivifier * vivifier,
+               struct watch *conflict, unsigned implied)
 {
   struct ring * ring = vivifier->ring;
   struct unsigneds *analyzed = &ring->analyzed;
@@ -301,6 +302,22 @@ vivify_deduce (struct vivifier * vivifier, struct watch *conflict)
   struct ring_trail *trail = &ring->trail;
   assert (EMPTY (*analyzed));
   assert (EMPTY (*ring_clause));
+  if (implied != INVALID)
+    {
+      unsigned idx = IDX (implied);
+      struct variable * v = variables + idx;
+      unsigned level = v->level;
+      assert (!v->seen);
+      assert (level);
+      v->seen = true;
+      PUSH (*analyzed, idx);
+      if (v->level != ring->level)
+	{
+	  used[level] = 1;
+	  PUSH (*levels, level);
+	}
+      PUSH (*ring_clause, implied);
+    }
   struct watch *reason = conflict;
   unsigned * begin = trail->begin;
   unsigned *t = trail->end;
@@ -511,6 +528,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 
   sort_vivification_probes (values, vivifier->counts, sorted);
 
+  unsigned implied = INVALID;
   struct watch * conflict;
 
   for (all_elements_on_stack (unsigned, lit, *sorted))
@@ -523,6 +541,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	  struct variable * v = VAR (lit);
 	  conflict = v->reason;
 	  assert (conflict);
+	  implied = lit;
 	  break;
 	}
 
@@ -548,7 +567,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
     }
 
   struct watch *candidate = tag_index (true, idx, INVALID_LIT);
-  vivify_deduce (vivifier, conflict ? conflict : candidate);
+  vivify_deduce (vivifier, conflict ? conflict : candidate, implied);
 
   unsigned res = 0;
 
