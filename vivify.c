@@ -270,11 +270,8 @@ schedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
 
 #define ANALYZE(OTHER) \
 do { \
-  signed char value = values[other]; \
-  if (value > 0) \
-    continue; \
-  assert (value < 0); \
-  unsigned idx = IDX (other); \
+  assert (ring->values[OTHER]); \
+  unsigned idx = IDX (OTHER); \
   struct variable * v = variables + idx; \
   if (v->seen) \
     break; \
@@ -288,33 +285,33 @@ do { \
       used[level] = 1; \
       PUSH (*levels, level); \
     } \
-  open++; \
   if (!v->reason) \
-    PUSH (*ring_clause, other); \
+    PUSH (*ring_clause, OTHER); \
 } while (0)
 
 static void
-vivify_analyze (struct vivifier * vivifier, struct watch *conflict)
+vivify_deduce (struct vivifier * vivifier, struct watch *conflict)
 {
   struct ring * ring = vivifier->ring;
   struct unsigneds *analyzed = &ring->analyzed;
   struct variable *variables = ring->variables;
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *levels = &ring->levels;
-  signed char * values = ring->values;
   unsigned *used = ring->used;
   struct ring_trail *trail = &ring->trail;
   assert (EMPTY (*analyzed));
   assert (EMPTY (*ring_clause));
   struct watch *reason = conflict;
+  unsigned * begin = trail->begin;
   unsigned *t = trail->end;
-  unsigned open = 0;
-  do
+  while (t != begin)
     {
       assert (reason);
       LOGWATCH (reason, "vivify analyzing");
       if (is_binary_pointer (reason))
 	{
+	  unsigned lit = lit_pointer (reason);
+	  ANALYZE (lit);
 	  unsigned other = other_pointer (reason);
 	  ANALYZE (other);
 	}
@@ -324,31 +321,26 @@ vivify_analyze (struct vivifier * vivifier, struct watch *conflict)
 	  for (all_watcher_literals (other, watcher))
 	    ANALYZE (other);
 	}
-      assert (open);
-      if (!--open)
-	break;
-      assert (t != trail->begin);
-      while (open)
+      while (t != begin)
 	{
-	  unsigned lit;
-	  for (;;)
+	  unsigned lit = *--t;
+	  unsigned idx = IDX (lit);
+	  struct variable *v = variables + idx;
+	  if (!v->level)
 	    {
-	      assert (t != trail->begin);
-	      lit = *--t;
-	      unsigned idx = IDX (lit);
-	      struct variable *v = variables + idx;
-	      if (v->seen)
-		{
-		  reason = v->reason;
-		  break;
-		}
+	      t = begin;
+	      break;
 	    }
+	  if (!v->seen)
+	    continue;
+	  reason = v->reason;
+	  if (reason == conflict)
+	    continue;
 	  if (reason)
 	    break;
-	  open--;
 	}
     }
-  while (open);
+  LOGTMP ("vivification deduced");
 }
 
 static bool
@@ -415,7 +407,8 @@ vivify_learn (struct vivifier * vivifier, struct watch * candidate)
 	  glue = watcher->glue;
 	  LOG ("but candidate glue %u smaller", glue);
 	}
-      assert (glue < size);
+      if (glue == size)
+	glue = size - 1;
       struct clause *clause = new_large_clause (size, literals, true, glue);
       res = watch_first_two_literals_in_large_clause (ring, clause);
       trace_add_clause (&ring->trace, clause);
@@ -526,8 +519,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 
       if (value > 0)
 	{
-	  LOGCLAUSE (clause,
-		     "vivify implied (through literal %s)", LOGLIT (lit));
+	  LOG ("vivify implied literal %s", LOGLIT (lit));
 	  struct variable * v = VAR (lit);
 	  conflict = v->reason;
 	  assert (conflict);
@@ -551,15 +543,12 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	  PUSH (*decisions, not_lit);
 	  conflict = ring_propagate (ring, false, clause);
 	  if (conflict)
-	    {
-	      LOGCLAUSE (clause, "vivify implied after conflict");
-	      break;
-	    }
+	    break;
 	}
     }
 
   struct watch *candidate = tag_index (true, idx, INVALID_LIT);
-  vivify_analyze (vivifier, conflict ? conflict : candidate);
+  vivify_deduce (vivifier, conflict ? conflict : candidate);
 
   unsigned res = 0;
 
