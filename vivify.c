@@ -365,13 +365,22 @@ vivify_shrink (struct ring * ring, struct watcher * candidate)
 {
   assert (!is_binary_pointer (candidate));
   struct variable *variables = ring->variables;
+  signed char * values = ring->values;
   for (all_watcher_literals (lit, candidate))
     {
       unsigned idx = IDX (lit);
+      signed char value = values[lit];
+      if (!value)
+	{
+	  LOG ("vivification removes at least unassigned %s", LOGLIT (lit));
+	  return true;
+	}
+      if (value > 0)
+	continue;
       struct variable *v = variables + idx;
       if (v->level && !v->seen)
 	{
-	  LOG ("vivification removes at least %s", LOGLIT (lit));
+	  LOG ("vivification removes at least unseen %s", LOGLIT (lit));
 	  return true;
 	}
     }
