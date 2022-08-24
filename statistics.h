@@ -66,8 +66,8 @@ struct ring_statistics
     uint64_t tried;
     uint64_t reused;
     uint64_t strengthened;
+    uint64_t subsumed;
     uint64_t succeeded;
-    uint64_t implied;
   } vivify;
 
 #define SIZE_GLUE_STATISTICS 16

@@ -273,10 +273,12 @@ do { \
   assert (ring->values[OTHER]); \
   unsigned idx = IDX (OTHER); \
   struct variable * v = variables + idx; \
-  if (v->seen) \
-    break; \
   unsigned level = v->level; \
   if (!level) \
+    break; \
+  if (marked && !marks[OTHER]) \
+    marked = false; \
+  if (v->seen) \
     break; \
   v->seen = true; \
   PUSH (*analyzed, idx); \
@@ -289,7 +291,7 @@ do { \
     PUSH (*ring_clause, OTHER); \
 } while (0)
 
-static void
+static struct watch *
 vivify_deduce (struct vivifier * vivifier,
                struct watch *conflict, unsigned implied)
 {
@@ -298,6 +300,7 @@ vivify_deduce (struct vivifier * vivifier,
   struct variable *variables = ring->variables;
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *levels = &ring->levels;
+  signed char *marks = ring->marks;
   unsigned *used = ring->used;
   struct ring_trail *trail = &ring->trail;
   assert (EMPTY (*analyzed));
@@ -325,6 +328,7 @@ vivify_deduce (struct vivifier * vivifier,
     {
       assert (reason);
       LOGWATCH (reason, "vivify analyzing");
+      bool marked = true;
       if (is_binary_pointer (reason))
 	{
 	  unsigned lit = lit_pointer (reason);
@@ -338,6 +342,8 @@ vivify_deduce (struct vivifier * vivifier,
 	  for (all_watcher_literals (other, watcher))
 	    ANALYZE (other);
 	}
+      if (marked)
+	return reason;
       while (t != begin)
 	{
 	  unsigned lit = *--t;
@@ -358,6 +364,7 @@ vivify_deduce (struct vivifier * vivifier,
 	}
     }
   LOGTMP ("vivification deduced");
+  return 0;
 }
 
 static bool
@@ -575,12 +582,28 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	}
     }
 
+  signed char * marks = ring->marks;
+  for (all_watcher_literals (other, watcher))
+    marks[other] = 1;
+
   struct watch *candidate = tag_index (true, idx, INVALID_LIT);
-  vivify_deduce (vivifier, conflict ? conflict : candidate, implied);
+  struct watch * subsuming = 
+    vivify_deduce (vivifier, conflict ? conflict : candidate, implied);
+
+  for (all_watcher_literals (other, watcher))
+    marks[other] = 0;
 
   unsigned res = 0;
 
-  if (vivify_shrink (ring, watcher))
+  if (subsuming)
+    {
+      ring->statistics.vivify.succeeded++;
+      ring->statistics.vivify.subsumed++;
+      LOGWATCH (subsuming, "vivify subsuming");
+      LOGWATCH (candidate, "vivify subsumed");
+      mark_garbage_watcher (ring, watcher);
+    }
+  else if (vivify_shrink (ring, watcher))
     {
       ring->statistics.vivify.succeeded++;
       ring->statistics.vivify.strengthened++;
@@ -661,7 +684,7 @@ vivify_clauses (struct ring *ring)
       (void) rescheduled, (void) scheduled;
 #endif
 
-      uint64_t implied = ring->statistics.vivify.implied;
+      uint64_t subsumed = ring->statistics.vivify.subsumed;
       uint64_t strengthened = ring->statistics.vivify.strengthened;
       uint64_t vivified = ring->statistics.vivify.succeeded;
       uint64_t tried = ring->statistics.vivify.tried;
@@ -722,7 +745,7 @@ vivify_clauses (struct ring *ring)
 
       release_vivifier (&vivifier);
 
-      implied = ring->statistics.vivify.implied - implied;
+      subsumed = ring->statistics.vivify.subsumed - subsumed;
       strengthened = ring->statistics.vivify.strengthened - strengthened;
       vivified = ring->statistics.vivify.succeeded - vivified;
       tried = ring->statistics.vivify.tried - tried;
@@ -736,12 +759,12 @@ vivify_clauses (struct ring *ring)
 		    (PROBING_TICKS > limit ? "limit hit" : "completed"));
 
       very_verbose (ring,
-                    "implied %" PRIu64 " tier%u clauses %.0f%% of vivified "
+                    "subsumed %" PRIu64 " tier%u clauses %.0f%% of vivified "
 		    "and strengthened %" PRIu64 " clauses %.0f%%",
-		    implied, tier, percent (implied, vivified),
+		    subsumed, tier, percent (subsumed, vivified),
 		    strengthened, percent (strengthened, vivified));
 
-      verbose_report (ring, (tier == 1 ? 'v' : 'u'), !(implied || strengthened));
+      verbose_report (ring, (tier == 1 ? 'v' : 'u'), !(subsumed || strengthened));
     }
   STOP (ring, vivify);
 }
