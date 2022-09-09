@@ -25,6 +25,7 @@ struct clause
   unsigned padding:2;
   bool redundant:1;
   bool subsume:1;
+  atomic_uintptr_t vivified;
   unsigned size;
   unsigned literals[];
 };

@@ -65,6 +65,8 @@ watched_vivification_candidate (struct watcher *watcher, unsigned tier)
       if (watcher->glue > TIER2_GLUE_LIMIT)
 	return false;
     }
+  if (watcher->clause->vivified)
+    return false;
   return true;
 }
 
@@ -472,6 +474,8 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
   assert (SIZE (*decisions) == ring->level);
 
   struct watcher *watcher = index_to_watcher (ring, idx);
+  if (watcher->clause->vivified)
+    return 0;
   assert (watched_vivification_candidate (watcher, tier));
   watcher->vivify = false;
 
@@ -618,6 +622,9 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	  if (watched_vivification_candidate (swatcher, tier))
 	    res = index_pointer (strengthened);
 	}
+
+      if (!ring->inconsistent && strengthened)
+	watcher->clause->vivified = ~0;
     }
   else
     LOGCLAUSE (clause, "vivification failed on");

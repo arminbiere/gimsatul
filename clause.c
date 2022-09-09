@@ -31,6 +31,7 @@ new_large_clause (size_t size, unsigned *literals,
   clause->redundant = redundant;
   clause->subsume = false;
   clause->shared = 0;
+  clause->vivified = 0;
 
   clause->size = size;
 
