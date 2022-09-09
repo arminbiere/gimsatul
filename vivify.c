@@ -615,6 +615,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
       LOGWATCH (subsuming, "vivify subsuming");
       LOGWATCH (candidate, "vivify subsumed");
       mark_garbage_watcher (ring, watcher);
+      watcher->clause->vivified = true;
     }
   else if (vivify_shrink (ring, watcher))
     {
@@ -624,6 +625,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
       struct watch *strengthened = vivify_learn (vivifier, candidate);
       watcher = index_to_watcher (ring, idx);
       mark_garbage_watcher (ring, watcher);
+      watcher->clause->vivified = true;
 
       if (!ring->inconsistent && strengthened && !is_binary_pointer (strengthened))
 	{
@@ -631,9 +633,6 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	  if (watched_vivification_candidate (ring, swatcher, tier))
 	    res = index_pointer (strengthened);
 	}
-
-      if (!ring->inconsistent && strengthened)
-	watcher->clause->vivified = ~0;
     }
   else
     LOGCLAUSE (clause, "vivification failed on");
