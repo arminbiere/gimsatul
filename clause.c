@@ -18,6 +18,7 @@ new_large_clause (size_t size, unsigned *literals,
 #ifdef LOGGING
   clause->id = atomic_fetch_add (&clause_ids, 1);
 #endif
+  clause->shared = 0;
 
   if (glue > MAX_GLUE)
     glue = MAX_GLUE;
@@ -30,8 +31,7 @@ new_large_clause (size_t size, unsigned *literals,
   clause->padding = 0;
   clause->redundant = redundant;
   clause->subsume = false;
-  clause->shared = 0;
-  clause->vivified = 0;
+  clause->vivified = false;
 
   clause->size = size;
 

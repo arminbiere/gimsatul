@@ -46,7 +46,8 @@ release_vivifier (struct vivifier * vivifier)
 }
 
 static inline bool
-watched_vivification_candidate (struct watcher *watcher, unsigned tier)
+watched_vivification_candidate (struct ring * ring,
+                                struct watcher *watcher, unsigned tier)
 {
   assert (tier == 1 || tier == 2);
   if (watcher->garbage)
@@ -66,7 +67,11 @@ watched_vivification_candidate (struct watcher *watcher, unsigned tier)
 	return false;
     }
   if (watcher->clause->vivified)
-    return false;
+    {
+      LOGCLAUSE (candidate->clause, "already vivified");
+      mark_garbage_watcher (ring, watcher);
+      return false;
+    }
   return true;
 }
 
@@ -246,7 +251,7 @@ reschedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
   struct ring * ring = vivifier->ring;
   assert (EMPTY (*candidates));
   for (all_redundant_watchers (watcher))
-    if (watcher->vivify && watched_vivification_candidate (watcher, tier))
+    if (watcher->vivify && watched_vivification_candidate (ring, watcher, tier))
       schedule_vivification_candidate (ring, counts, candidates, watcher);
   size_t size = SIZE (*candidates);
   sort_vivivification_candidates (ring, counts, size, candidates->begin);
@@ -262,7 +267,7 @@ schedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
   memset (counts, 0, sizeof (unsigned) * 2 * ring->size);
   size_t before = SIZE (*candidates);
   for (all_redundant_watchers (watcher))
-    if (!watcher->vivify && watched_vivification_candidate (watcher, tier))
+    if (!watcher->vivify && watched_vivification_candidate (ring, watcher, tier))
       schedule_vivification_candidate (ring, counts, candidates, watcher);
   size_t after = SIZE (*candidates);
   size_t delta = after - before;
@@ -475,8 +480,12 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 
   struct watcher *watcher = index_to_watcher (ring, idx);
   if (watcher->clause->vivified)
-    return 0;
-  assert (watched_vivification_candidate (watcher, tier));
+    {
+      LOGCLAUSE (candidate->clause, "already vivified");
+      mark_garbage_watcher (ring, watcher);
+      return 0;
+    }
+  assert (watched_vivification_candidate (ring, watcher, tier));
   watcher->vivify = false;
 
   signed char *values = ring->values;
@@ -619,7 +628,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
       if (!ring->inconsistent && strengthened && !is_binary_pointer (strengthened))
 	{
 	  struct watcher *swatcher = get_watcher (ring, strengthened);
-	  if (watched_vivification_candidate (swatcher, tier))
+	  if (watched_vivification_candidate (ring, swatcher, tier))
 	    res = index_pointer (strengthened);
 	}
 
