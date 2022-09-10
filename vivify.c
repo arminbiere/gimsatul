@@ -68,7 +68,7 @@ watched_vivification_candidate (struct ring * ring,
     }
   if (watcher->clause->vivified)
     {
-      LOGCLAUSE (candidate->clause, "already vivified");
+      LOGCLAUSE (watcher->clause, "already vivified");
       mark_garbage_watcher (ring, watcher);
       return false;
     }
@@ -314,6 +314,45 @@ vivify_deduce (struct vivifier * vivifier,
   assert (EMPTY (*ring_clause));
   if (implied != INVALID)
     {
+      struct watch * reason = VAR (implied)->reason;
+      if (is_binary_pointer (reason))
+	assert (lit_pointer (reason) == implied);
+      for (all_watches (watch, REFERENCES (implied)))
+	{
+	  if (watch == reason)
+	    {
+	      reason = 0;
+	      continue;
+	    }
+	  if (is_binary_pointer (watch))
+	    {
+	      assert (lit_pointer (watch) == implied);
+	      unsigned other = other_pointer (watch);
+	      if (marks[other])
+		return watch;
+	    }
+	  else
+	    {
+	      bool subsuming = true;
+	      struct watcher *watcher = get_watcher (ring, watch);
+	      for (all_watcher_literals (other, watcher))
+		if (!marks[other])
+		  {
+		    signed char value = ring->values[other];
+		    if (value < 0)
+		      {
+			unsigned other_idx = IDX (other);
+			struct variable * v = variables + other_idx;
+			if (!v->level)
+			  continue;
+		      }
+		    subsuming = false;
+		    break;
+		  }
+	      if (subsuming)
+		return watch;
+	    }
+	}
       unsigned idx = IDX (implied);
       struct variable * v = variables + idx;
       unsigned level = v->level;
@@ -481,7 +520,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
   struct watcher *watcher = index_to_watcher (ring, idx);
   if (watcher->clause->vivified)
     {
-      LOGCLAUSE (candidate->clause, "already vivified");
+      LOGCLAUSE (watcher->clause, "already vivified");
       mark_garbage_watcher (ring, watcher);
       return 0;
     }
