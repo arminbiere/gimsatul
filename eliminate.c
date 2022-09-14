@@ -355,13 +355,11 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
   struct clauses *gate = simplifier->gate;
   if (EMPTY (*gate))
     {
-#if 1
-  if (SIZE (*pos_clauses) > SIZE (*neg_clauses))
-    {
-      SWAP (unsigned, pivot, not_pivot);
-      SWAP (struct clauses *, pos_clauses, neg_clauses);
-    }
-#endif
+      if (SIZE (*pos_clauses) > SIZE (*neg_clauses))
+	{
+	  SWAP (unsigned, pivot, not_pivot);
+	  SWAP (struct clauses *, pos_clauses, neg_clauses);
+	}
       for (all_clauses (pos_clause, *pos_clauses))
 	{
 	  mark_clause (marks, pos_clause, pivot);
