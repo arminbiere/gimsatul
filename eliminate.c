@@ -10,51 +10,15 @@
 #include <string.h>
 #include <inttypes.h>
 
-static bool
-literal_with_too_many_occurrences (struct ruler *ruler, unsigned lit)
-{
-  ruler->statistics.ticks.elimination++;
-  struct clauses *clauses = &OCCURRENCES (lit);
-  size_t size = SIZE (*clauses);
-  size_t occurrence_limit = ruler->limits.occurrence_limit;
-  bool res = size > occurrence_limit;
-  if (res)
-    ROG ("literal %s occurs %zu times (limit %zu)",
-	 ROGLIT (lit), size, occurrence_limit);
-  return res;
-}
-
-static bool
-clause_with_too_many_occurrences (struct ruler *ruler,
-				  struct clause *clause, unsigned except)
-{
-  if (is_binary_pointer (clause))
-    {
-      unsigned other = other_pointer (clause);
-      return literal_with_too_many_occurrences (ruler, other);
-    }
-
-  size_t clause_size_limit = ruler->limits.clause_size_limit;
-  if (clause->size > clause_size_limit)
-    {
-      ROGCLAUSE (clause, "antecedent size %zu exceeded by",
-		 clause_size_limit);
-      return true;
-    }
-
-  for (all_literals_in_clause (other, clause))
-    if (other != except && literal_with_too_many_occurrences (ruler, other))
-      return true;
-
-  return false;
-}
-
 static size_t
 actual_occurrences (struct ruler * ruler, struct clauses *clauses)
 {
+  size_t clause_size_limit = ruler->limits.clause_size_limit;
   struct clause **begin = clauses->begin, **q = begin;
   struct clause **end = clauses->end, **p = q;
   uint64_t ticks = 1 + cache_lines (end, begin);
+  bool failed = false;
+
   while (p != end)
     {
       struct clause *clause = *q++ = *p++;
@@ -63,10 +27,12 @@ actual_occurrences (struct ruler * ruler, struct clauses *clauses)
       ticks++;
       if (clause->garbage)
 	q--;
+      else if (!failed && clause->size > clause_size_limit)
+	failed = true;
     }
   ruler->statistics.ticks.elimination += ticks;
   clauses->end = q;
-  return q - begin;
+  return failed ? UINT_MAX : q - begin;
 }
 
 static bool
@@ -165,14 +131,6 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   size_t occurrences = pos_size + neg_size;
   ROG ("candidate %s has %zu = %zu + %zu occurrences",
        ROGVAR (idx), occurrences, pos_size, neg_size);
-
-  for (all_clauses (clause, *pos_clauses))
-    if (clause_with_too_many_occurrences (ruler, clause, pivot))
-      return false;
-
-  for (all_clauses (clause, *neg_clauses))
-    if (clause_with_too_many_occurrences (ruler, clause, not_pivot))
-      return false;
 
   size_t resolvents = 0;
   size_t resolutions = 0;
