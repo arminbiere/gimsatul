@@ -110,16 +110,18 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   struct clauses *pos_clauses = &OCCURRENCES (pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
   size_t pos_size = actual_occurrences (ruler, pos_clauses);
+
+  unsigned not_pivot = NOT (pivot);
+  struct clauses *neg_clauses = &OCCURRENCES (not_pivot);
+  ROG ("flushing garbage clauses of %s", ROGLIT (not_pivot));
+  size_t neg_size = actual_occurrences (ruler, neg_clauses);
+
   if (!pos_size)
     {
       ROG ("pure pivot literal %s", ROGLIT (pivot));
       return true;
     }
 
-  unsigned not_pivot = NOT (pivot);
-  struct clauses *neg_clauses = &OCCURRENCES (not_pivot);
-  ROG ("flushing garbage clauses of %s", ROGLIT (not_pivot));
-  size_t neg_size = actual_occurrences (ruler, neg_clauses);
   if (!neg_size)
     {
       ROG ("pure negated pivot literal %s", ROGLIT (not_pivot));
