@@ -27,8 +27,10 @@ actual_occurrences (struct ruler * ruler, struct clauses *clauses)
       ticks++;
       if (clause->garbage)
 	q--;
+#if 0
       else if (!failed && clause->size > clause_size_limit)
 	failed = true;
+#endif
     }
   ruler->statistics.ticks.elimination += ticks;
   clauses->end = q;
