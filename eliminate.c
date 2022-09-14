@@ -27,10 +27,8 @@ actual_occurrences (struct ruler * ruler, struct clauses *clauses)
       ticks++;
       if (clause->garbage)
 	q--;
-#if 0
       else if (!failed && clause->size > clause_size_limit)
 	failed = true;
-#endif
     }
   ruler->statistics.ticks.elimination += ticks;
   clauses->end = q;
@@ -112,27 +110,32 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   struct clauses *pos_clauses = &OCCURRENCES (pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (pivot));
   size_t pos_size = actual_occurrences (ruler, pos_clauses);
-  if (pos_size > occurrence_limit)
+  if (!pos_size)
     {
-      ROG ("pivot literal %s occurs %zu times (limit %zu)",
-	   ROGLIT (pivot), pos_size, occurrence_limit);
-      return false;
+      ROG ("pure pivot literal %s", ROGLIT (pivot));
+      return true;
     }
 
   unsigned not_pivot = NOT (pivot);
   struct clauses *neg_clauses = &OCCURRENCES (not_pivot);
   ROG ("flushing garbage clauses of %s", ROGLIT (not_pivot));
   size_t neg_size = actual_occurrences (ruler, neg_clauses);
-  if (neg_size > occurrence_limit)
+  if (!neg_size)
     {
-      ROG ("negative pivot literal %s occurs %zu times (limit %zu)",
-	   ROGLIT (not_pivot), neg_size, occurrence_limit);
-      return false;
+      ROG ("pure negated pivot literal %s", ROGLIT (not_pivot));
+      return true;
     }
 
   size_t occurrences = pos_size + neg_size;
   ROG ("candidate %s has %zu = %zu + %zu occurrences",
        ROGVAR (idx), occurrences, pos_size, neg_size);
+
+  if (pos_size && neg_size && occurrences > occurrence_limit)
+    {
+      ROG ("negative pivot literal %s occurs %zu times (limit %zu)",
+	   ROGLIT (not_pivot), neg_size, occurrence_limit);
+      return false;
+    }
 
   size_t resolvents = 0;
   size_t resolutions = 0;
@@ -347,6 +350,11 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
   unsigned not_pivot = NOT (pivot);
   struct clauses *pos_clauses = &OCCURRENCES (pivot);
   struct clauses *neg_clauses = &OCCURRENCES (not_pivot);
+  if (SIZE (*pos_clauses) > SIZE (*neg_clauses))
+    {
+      SWAP (unsigned, pivot, not_pivot);
+      SWAP (struct clauses *, pos_clauses, neg_clauses);
+    }
   size_t resolvents = 0;
   signed char *marks = simplifier->marks;
   struct clauses *gate = simplifier->gate;
