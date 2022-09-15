@@ -119,12 +119,14 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
   if (!pos_size)
     {
       ROG ("pure pivot literal %s", ROGLIT (pivot));
+      CLEAR (*simplifier->gate);
       return true;
     }
 
   if (!neg_size)
     {
       ROG ("pure negated pivot literal %s", ROGLIT (not_pivot));
+      CLEAR (*simplifier->gate);
       return true;
     }
 
