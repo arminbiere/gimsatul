@@ -87,8 +87,6 @@ switch_mode (struct ring *ring)
     }
   uint64_t base = i->mode;
   uint64_t interval = base * nlog4n (s->switched / 2 + 1);
-  if (ring->stable)
-    interval *= 1.2;
   l->mode = SEARCH_TICKS + interval;
   very_verbose (ring, "new mode switching limit at %" PRIu64
                 " after %" PRIu64 " ticks",
