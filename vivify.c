@@ -314,20 +314,8 @@ vivify_deduce (struct vivifier * vivifier,
   assert (EMPTY (*ring_clause));
   if (implied != INVALID)
     {
-#if 0
-      struct watch * reason = VAR (implied)->reason;
-      if (is_binary_pointer (reason))
-	assert (lit_pointer (reason) == implied);
-#endif
       for (all_watches (watch, REFERENCES (implied)))
 	{
-#if 0
-	  if (watch == reason)
-	    {
-	      reason = 0;
-	      continue;
-	    }
-#endif
 	  if (is_binary_pointer (watch))
 	    {
 	      assert (lit_pointer (watch) == implied);

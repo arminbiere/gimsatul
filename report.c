@@ -20,6 +20,9 @@ verbose_report (struct ring *ring, char type, int level)
   if (verbosity < level)
     return;
 
+  if (ring->options.report < ring->id)
+    return;
+
   struct ring_statistics *s = &ring->statistics;
   struct averages *a = ring->averages + ring->stable;
 

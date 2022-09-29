@@ -76,6 +76,7 @@ OPTION (bool,     random_order,          0, 0, 1,     "initial random decision o
 OPTION (unsigned, reduce_interval,       1e3, 1, INF, "reduce base conflict interval") \
 OPTION (bool,     rephase,               1, 0, 1,     "reset saved phases regularly") \
 OPTION (unsigned, rephase_interval,      1e3, 1, INF, "base rephase conflict interval") \
+OPTION (unsigned, report,                1, 0, INF,   "report details for many threads") \
 OPTION (bool,     share_learned,         1, 0, 1,     "export and import learned clauses") \
 OPTION (bool,     shrink,                1, 0, 1,     "shrink (glue 1) learned clauses") \
 OPTION (bool,     simplify,              1, 0, 1,     "elimination, subsumption and substitution") \
