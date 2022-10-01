@@ -9,14 +9,14 @@
 #include <inttypes.h>
 
 static void
-report_mode_duration (struct ring * ring, double t, const char * type)
+report_mode_duration (struct ring *ring, double t, const char *type)
 {
-  struct ring_last * l = &ring->last;
+  struct ring_last *l = &ring->last;
   verbose (ring, "%s mode took %.2f seconds "
-                 "(%" PRIu64 " conflicts, %" PRIu64 " ticks)",
-		 type, t - l->mode.time,
-		 SEARCH_CONFLICTS - l->mode.conflicts,
-		 SEARCH_TICKS - l->mode.ticks);
+	   "(%" PRIu64 " conflicts, %" PRIu64 " ticks)",
+	   type, t - l->mode.time,
+	   SEARCH_CONFLICTS - l->mode.conflicts,
+	   SEARCH_TICKS - l->mode.ticks);
   l->mode.time = t;
   l->mode.conflicts = SEARCH_CONFLICTS;
   l->mode.ticks = SEARCH_TICKS;
@@ -89,8 +89,7 @@ switch_mode (struct ring *ring)
   uint64_t interval = base * nlog4n (s->switched / 2 + 1);
   l->mode = SEARCH_TICKS + interval;
   very_verbose (ring, "new mode switching limit at %" PRIu64
-                " after %" PRIu64 " ticks",
-		l->mode, interval);
+		" after %" PRIu64 " ticks", l->mode, interval);
   l->import = 0;
   ring->last.decisions = SEARCH_DECISIONS;
 }

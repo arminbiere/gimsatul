@@ -75,14 +75,14 @@ find_subsuming_clause (struct simplifier *simplifier, unsigned lit,
   struct clause *res = 0;
   unsigned resolved = INVALID;
   signed char *marks = simplifier->marks;
-  struct clause ** begin = clauses->begin;
-  struct clause ** end = clauses->end;
-  struct clause ** p = begin;
+  struct clause **begin = clauses->begin;
+  struct clause **end = clauses->end;
+  struct clause **p = begin;
   uint64_t ticks = 0;
   while (p != end)
     {
       assert (!res);
-      struct clause * clause = *p++;
+      struct clause *clause = *p++;
       resolved = strengthen_only ? lit : INVALID;
       if (is_binary_pointer (clause))
 	{
@@ -301,10 +301,11 @@ REENTER:
 	    }
 	  assert (min_lit != INVALID);
 	  assert (min_size != INVALID);
-          if (min_size <= ruler->limits.occurrence_limit)
+	  if (min_size <= ruler->limits.occurrence_limit)
 	    {
 	      ROGCLAUSE (clause, "connecting least occurring literal %s "
-			 "with %u occurrences in", ROGLIT (min_lit), min_size);
+			 "with %u occurrences in", ROGLIT (min_lit),
+			 min_size);
 	      connect_literal (ruler, min_lit, clause);
 	    }
 	  else
@@ -390,7 +391,7 @@ subsume_clauses (struct simplifier *simplifier, unsigned round)
 	  size_t scheduled = end_candidates - candidates;
 	  size_t checked = p + 1 - candidates;
 	  very_verbose (0, "subsumption ticks limit hit "
-	                   "after checking %zu candidates %.0f%%",
+			"after checking %zu candidates %.0f%%",
 			checked, percent (checked, scheduled));
 #endif
 	  break;

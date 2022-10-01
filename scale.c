@@ -7,7 +7,7 @@
 #include <inttypes.h>
 
 uint64_t
-scale_interval (struct ring * ring, const char * name, uint64_t interval)
+scale_interval (struct ring *ring, const char *name, uint64_t interval)
 {
   uint64_t reference = ring->statistics.irredundant + 1;
   double f = logn (reference);

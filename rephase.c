@@ -77,7 +77,6 @@ rephase (struct ring *ring)
   uint64_t interval = base * nlog3n (rephased);
   limits->rephase = SEARCH_CONFLICTS + interval;
   very_verbose (ring, "new rephase limit of %" PRIu64
-                " after %" PRIu64 " conflicts",
-		limits->rephase, interval);
+		" after %" PRIu64 " conflicts", limits->rephase, interval);
   report (ring, type);
 }

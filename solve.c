@@ -25,6 +25,9 @@ start_running_ring (struct ring *ring)
   pthread_t *thread = ruler->threads + ring->id;
   if (pthread_create (thread, 0, solve_routine, ring))
     fatal_error ("failed to create solving thread %u", ring->id);
+  unsigned cpu, node;
+  if (!getcpu (&cpu, &node, 0))
+    message (ring, "getcpu: cpu=%08x node=%08x", cpu, node);
 }
 
 static void
@@ -162,11 +165,15 @@ solve_rings (struct ruler *ruler)
       init_barrier (&ruler->barriers.NAME, #NAME, threads);
       BARRIERS
 #undef BARRIER
-	for (all_rings (ring))
+// *INDENT-OFF*
+
+      for (all_rings (ring))
 	start_running_ring (ring);
 
       for (all_rings (ring))
 	stop_running_ring (ring);
+
+// *INDENT-ON*
     }
   else
     {

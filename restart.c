@@ -25,8 +25,7 @@ restarting (struct ring *ring)
   extremely_verbose (ring, "restart glue limit %g = "
 		     "%g * %g (slow glue) %c %g (fast glue)",
 		     margin, RESTART_MARGIN, slow,
-		     margin == fast ? '=' : margin > fast ? '>' : '<',
-		     fast);
+		     margin == fast ? '=' : margin > fast ? '>' : '<', fast);
   return margin <= fast;
 }
 
@@ -58,7 +57,6 @@ restart (struct ring *ring)
     interval = FOCUSED_RESTART_INTERVAL + logn (statistics->restarts) - 1;
   limits->restart = SEARCH_CONFLICTS + interval;
   very_verbose (ring, "new restart limit at %" PRIu64
-                " after %" PRIu64 " conflicts",
-		limits->restart, interval);
+		" after %" PRIu64 " conflicts", limits->restart, interval);
   verbose_report (ring, 'r', 1);
 }

@@ -140,20 +140,19 @@ do { \
 
       {
 	uint64_t subsumed = s->subsumed.binary.succeeded
-	                  + s->subsumed.large.succeeded;
+	  + s->subsumed.large.succeeded;
 	uint64_t checked = s->subsumed.binary.checked
-	                 + s->subsumed.large.checked;
+	  + s->subsumed.large.checked;
 	PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
-		 "subsumed-clauses:", subsumed,
-		 percent (subsumed, checked));
+		 "subsumed-clauses:", subsumed, percent (subsumed, checked));
 	PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
 		 "  subsumed-binary:", s->subsumed.binary.succeeded,
 		 percent (s->subsumed.binary.succeeded,
-		          s->subsumed.binary.checked));
+			  s->subsumed.binary.checked));
 	PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
 		 "  subsumed-large:", s->subsumed.large.succeeded,
 		 percent (s->subsumed.large.succeeded,
-		          s->subsumed.large.checked));
+			  s->subsumed.large.checked));
       }
 
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
@@ -255,12 +254,11 @@ print_ruler_statistics (struct ruler *ruler)
 						     s->subsumed));
   printf ("c %-22s %17" PRIu64 " %13.2f %% subsumed clauses\n",
 	  "self-subsumed:", s->selfsubsumed, percent (s->selfsubsumed,
-						       s->subsumed));
+						      s->subsumed));
   printf ("c %-22s %17" PRIu64 " %13.2f %% original clauses\n",
 	  "strengthened:", s->strengthened, percent (s->strengthened,
 						     s->original));
-  printf ("c %-22s %17" PRIu64 "\n",
-	  "simplifications:", s->simplifications);
+  printf ("c %-22s %17" PRIu64 "\n", "simplifications:", s->simplifications);
   printf ("c %-22s %17" PRIu64 " %13.2f %% original clauses\n", "subsumed:",
 	  s->subsumed, percent (s->subsumed, s->original));
   printf ("c %-22s %17zu %13.2f %% original clauses\n", "weakened:",

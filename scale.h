@@ -5,6 +5,6 @@
 
 struct ring;
 
-uint64_t scale_interval (struct ring*, const char *, uint64_t);
+uint64_t scale_interval (struct ring *, const char *, uint64_t);
 
 #endif

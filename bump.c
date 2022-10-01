@@ -221,16 +221,16 @@ sort_and_bump_analyzed_variables_on_queue (struct ring *ring)
 }
 
 static void
-bump_analyzed_variables_on_heap (struct ring * ring)
+bump_analyzed_variables_on_heap (struct ring *ring)
 {
   assert (ring->stable);
   for (all_elements_on_stack (unsigned, idx, ring->analyzed))
-    bump_variable_on_heap (ring, idx);
+      bump_variable_on_heap (ring, idx);
   bump_score_increment (ring);
 }
 
 void
-bump_variables (struct ring * ring)
+bump_variables (struct ring *ring)
 {
   if (ring->stable)
     bump_analyzed_variables_on_heap (ring);

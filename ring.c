@@ -141,7 +141,7 @@ release_ring (struct ring *ring, bool keep_values)
 }
 
 static void
-activate_variables (struct ring * ring, unsigned size)
+activate_variables (struct ring *ring, unsigned size)
 {
   if (!size)
     return;
@@ -169,28 +169,30 @@ activate_variables (struct ring * ring, unsigned size)
 
   struct heap *heap = &ring->heap;
   struct queue *queue = &ring->queue;
-  struct node * nodes = heap->nodes;
-  struct link * links = queue->links;
+  struct node *nodes = heap->nodes;
+  struct link *links = queue->links;
 
   unsigned idx = start;
   unsigned activated = 0;
-  do {
-    assert (idx < size);
+  do
+    {
+      assert (idx < size);
 
-    struct node * node = nodes + idx;
-    node->score = 1.0 - 1.0 / ++activated;
-    push_heap (heap, node);
-    LOG ("activating %s on heap", LOGVAR (idx));
+      struct node *node = nodes + idx;
+      node->score = 1.0 - 1.0 / ++activated;
+      push_heap (heap, node);
+      LOG ("activating %s on heap", LOGVAR (idx));
 
-    struct link * link = links + idx;
-    enqueue (queue, link, true);
-    LOG ("activating %s on queue", LOGVAR (idx));
+      struct link *link = links + idx;
+      enqueue (queue, link, true);
+      LOG ("activating %s on queue", LOGVAR (idx));
 
-    idx += delta;
-    if (idx >= size)
-      idx -= size;
+      idx += delta;
+      if (idx >= size)
+	idx -= size;
 
-  } while (idx != start);
+    }
+  while (idx != start);
   LOG ("activated %u variables", activated);
 }
 
@@ -415,9 +417,9 @@ mark_satisfied_watchers_as_garbage (struct ring *ring)
 }
 
 unsigned *
-sorter_block (struct ring * ring, size_t size)
+sorter_block (struct ring *ring, size_t size)
 {
-  assert (size <= 1u<<31);
+  assert (size <= 1u << 31);
   assert (EMPTY (ring->sorter));
   while (CAPACITY (ring->sorter) < size)
     ENLARGE (ring->sorter);

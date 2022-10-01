@@ -43,7 +43,7 @@ probe (struct ring *ring)
   limits->probe.conflicts = SEARCH_CONFLICTS + scaled;
   limits->probe.reductions = statistics->reductions + 1;
   very_verbose (ring, "new probe limit at %" PRIu64
-                " after %" PRIu64 " conflicts",
+		" after %" PRIu64 " conflicts",
 		limits->probe.conflicts, scaled);
   STOP_AND_START_SEARCH (probe);
   return ring->inconsistent ? 20 : 0;

@@ -7,8 +7,8 @@
 #endif
 
 void
-update_average (struct ring * ring, struct average *average, 
-                const char * name, double alpha, double y)
+update_average (struct ring *ring, struct average *average,
+		const char *name, double alpha, double y)
 {
   double old_biased = average->biased;
   double delta = y - old_biased;

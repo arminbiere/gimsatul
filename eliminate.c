@@ -11,7 +11,7 @@
 #include <inttypes.h>
 
 static size_t
-actual_occurrences (struct ruler * ruler, struct clauses *clauses)
+actual_occurrences (struct ruler *ruler, struct clauses *clauses)
 {
   size_t clause_size_limit = ruler->limits.clause_size_limit;
   struct clause **begin = clauses->begin, **q = begin;

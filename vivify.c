@@ -18,15 +18,15 @@
 
 struct vivifier
 {
-  struct ring * ring;
+  struct ring *ring;
   struct unsigneds candidates;
   struct unsigneds decisions;
   struct unsigneds sorted;
-  unsigned * counts;
+  unsigned *counts;
 };
 
 static void
-init_vivifier (struct vivifier * vivifier, struct ring * ring)
+init_vivifier (struct vivifier *vivifier, struct ring *ring)
 {
   vivifier->ring = ring;
   INIT (vivifier->candidates);
@@ -37,7 +37,7 @@ init_vivifier (struct vivifier * vivifier, struct ring * ring)
 }
 
 static void
-release_vivifier (struct vivifier * vivifier)
+release_vivifier (struct vivifier *vivifier)
 {
   RELEASE (vivifier->candidates);
   RELEASE (vivifier->decisions);
@@ -46,8 +46,8 @@ release_vivifier (struct vivifier * vivifier)
 }
 
 static inline bool
-watched_vivification_candidate (struct ring * ring,
-                                struct watcher *watcher, unsigned tier)
+watched_vivification_candidate (struct ring *ring,
+				struct watcher *watcher, unsigned tier)
 {
   assert (tier == 1 || tier == 2);
   if (watcher->garbage)
@@ -76,12 +76,12 @@ watched_vivification_candidate (struct ring * ring,
 }
 
 static void
-schedule_vivification_candidate (struct ring * ring, unsigned * counts,
-                                 struct unsigneds * candidates,
-                                 struct watcher * candidate)
+schedule_vivification_candidate (struct ring *ring, unsigned *counts,
+				 struct unsigneds *candidates,
+				 struct watcher *candidate)
 {
   assert (!ring->level);
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   for (all_watcher_literals (lit, candidate))
     if (values[lit] > 0)
       {
@@ -96,7 +96,7 @@ schedule_vivification_candidate (struct ring * ring, unsigned * counts,
 }
 
 static bool
-smaller_vivification_literal (unsigned * counts, unsigned a, unsigned b)
+smaller_vivification_literal (unsigned *counts, unsigned a, unsigned b)
 {
   if (a == b)
     return false;
@@ -110,17 +110,17 @@ smaller_vivification_literal (unsigned * counts, unsigned a, unsigned b)
 }
 
 static bool
-better_vivification_candidate (unsigned * counts,
-                               struct watcher * a, struct watcher * b)
+better_vivification_candidate (unsigned *counts,
+			       struct watcher *a, struct watcher *b)
 {
   unsigned asize = a->size ? a->size : SIZE_WATCHER_LITERALS;
   unsigned bsize = b->size ? b->size : SIZE_WATCHER_LITERALS;
-  struct clause * aclause = a->size ? 0 : a->clause;
-  struct clause * bclause = b->size ? 0 : b->clause;
-  unsigned * alits = a->aux, * blits = b->aux;
-  unsigned * end_alits = alits + asize;
-  unsigned * end_blits = blits + bsize;
-  for (unsigned * p = alits, * q = blits;
+  struct clause *aclause = a->size ? 0 : a->clause;
+  struct clause *bclause = b->size ? 0 : b->clause;
+  unsigned *alits = a->aux, *blits = b->aux;
+  unsigned *end_alits = alits + asize;
+  unsigned *end_blits = blits + bsize;
+  for (unsigned *p = alits, *q = blits;
        p != end_alits && q != end_blits; p++, q++)
     if (smaller_vivification_literal (counts, *p, *q))
       return false;
@@ -147,17 +147,17 @@ better_vivification_candidate (unsigned * counts,
                                 index_to_watcher (ring, (B)))
 
 static void
-sort_vivivification_candidates (struct ring * ring, unsigned * counts,
-                                size_t size, unsigned * candidates)
+sort_vivivification_candidates (struct ring *ring, unsigned *counts,
+				size_t size, unsigned *candidates)
 {
-  unsigned * end = candidates + size;
-  for (unsigned * c = candidates; c != end; c++)
+  unsigned *end = candidates + size;
+  for (unsigned *c = candidates; c != end; c++)
     {
       unsigned idx = *c;
-      struct watcher * watcher = index_to_watcher (ring, idx);
+      struct watcher *watcher = index_to_watcher (ring, idx);
       if (watcher->size)
 	{
-	  unsigned * lits = watcher->aux;
+	  unsigned *lits = watcher->aux;
 	  for (unsigned i = 0; i + 1 != watcher->size; i++)
 	    for (unsigned j = i + 1; j != watcher->size; j++)
 	      if (smaller_vivification_literal (counts, lits[i], lits[j]))
@@ -165,23 +165,23 @@ sort_vivivification_candidates (struct ring * ring, unsigned * counts,
 	}
       else
 	{
-	  struct clause * clause = watcher->clause;
+	  struct clause *clause = watcher->clause;
 	  assert (clause->size > SIZE_WATCHER_LITERALS);
-	  unsigned * src = clause->literals;
-	  unsigned * end_src = src + clause->size;
-	  unsigned * dst = watcher->aux;
-	  unsigned * end_dst = dst + SIZE_WATCHER_LITERALS;
+	  unsigned *src = clause->literals;
+	  unsigned *end_src = src + clause->size;
+	  unsigned *dst = watcher->aux;
+	  unsigned *end_dst = dst + SIZE_WATCHER_LITERALS;
 	  unsigned last = INVALID;
-	  for (unsigned * q = dst; q != end_dst; q++)
+	  for (unsigned *q = dst; q != end_dst; q++)
 	    {
 	      unsigned next = INVALID;
-	      for (unsigned * p = src; p != end_src; p++)
+	      for (unsigned *p = src; p != end_src; p++)
 		{
 		  unsigned other = *p;
 		  if (last == INVALID ||
 		      smaller_vivification_literal (counts, other, last))
 		    if (next == INVALID ||
-		        smaller_vivification_literal (counts, next, other))
+			smaller_vivification_literal (counts, next, other))
 		      next = other;
 		}
 	      assert (next != INVALID);
@@ -192,10 +192,10 @@ sort_vivivification_candidates (struct ring * ring, unsigned * counts,
 
   SORT (unsigned, size, candidates, LESS_VIVIFICATION_CANDIDATE);
 
-  for (unsigned * c = candidates; c != end; c++)
+  for (unsigned *c = candidates; c != end; c++)
     {
       unsigned idx = *c;
-      struct watcher * watcher = index_to_watcher (ring, idx);
+      struct watcher *watcher = index_to_watcher (ring, idx);
       if (watcher->size)
 	{
 #ifdef LOGGING
@@ -203,11 +203,10 @@ sort_vivivification_candidates (struct ring * ring, unsigned * counts,
 	    {
 	      unsigned size = watcher->size;
 	      LOGPREFIX ("sorted glue %u size %u watcher[%u] "
-			 "vivification candidate",
-			 watcher->glue, size, idx);
-	      unsigned * lits = watcher->aux;
-	      unsigned * end_lits = lits + size;;
-	      for (unsigned * p = lits; p != end_lits; p++)
+			 "vivification candidate", watcher->glue, size, idx);
+	      unsigned *lits = watcher->aux;
+	      unsigned *end_lits = lits + size;;
+	      for (unsigned *p = lits; p != end_lits; p++)
 		{
 		  unsigned lit = *p;
 		  printf (" %s#%u", LOGLIT (lit), counts[lit]);
@@ -222,13 +221,13 @@ sort_vivivification_candidates (struct ring * ring, unsigned * counts,
 #ifdef LOGGING
 	  do
 	    {
-	      struct clause * clause = watcher->clause;
+	      struct clause *clause = watcher->clause;
 	      LOGPREFIX ("sorted glue %u size %u watcher[%u] "
 			 "vivification candidate",
 			 watcher->glue, clause->size, idx);
-	      unsigned * lits = watcher->aux;
-	      unsigned * end_lits = lits + SIZE_WATCHER_LITERALS;
-	      for (unsigned * p = lits; p != end_lits; p++)
+	      unsigned *lits = watcher->aux;
+	      unsigned *end_lits = lits + SIZE_WATCHER_LITERALS;
+	      for (unsigned *p = lits; p != end_lits; p++)
 		{
 		  unsigned lit = *p;
 		  printf (" %s#%u", LOGLIT (lit), counts[lit]);
@@ -244,14 +243,15 @@ sort_vivivification_candidates (struct ring * ring, unsigned * counts,
 }
 
 static size_t
-reschedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
+reschedule_vivification_candidates (struct vivifier *vivifier, unsigned tier)
 {
-  struct unsigneds * candidates = &vivifier->candidates;
-  unsigned * counts = vivifier->counts;
-  struct ring * ring = vivifier->ring;
+  struct unsigneds *candidates = &vivifier->candidates;
+  unsigned *counts = vivifier->counts;
+  struct ring *ring = vivifier->ring;
   assert (EMPTY (*candidates));
   for (all_redundant_watchers (watcher))
-    if (watcher->vivify && watched_vivification_candidate (ring, watcher, tier))
+    if (watcher->vivify
+	&& watched_vivification_candidate (ring, watcher, tier))
       schedule_vivification_candidate (ring, counts, candidates, watcher);
   size_t size = SIZE (*candidates);
   sort_vivivification_candidates (ring, counts, size, candidates->begin);
@@ -259,19 +259,21 @@ reschedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
 }
 
 static size_t
-schedule_vivification_candidates (struct vivifier * vivifier, unsigned tier)
+schedule_vivification_candidates (struct vivifier *vivifier, unsigned tier)
 {
-  struct unsigneds * candidates = &vivifier->candidates;
-  unsigned * counts = vivifier->counts;
-  struct ring * ring = vivifier->ring;
+  struct unsigneds *candidates = &vivifier->candidates;
+  unsigned *counts = vivifier->counts;
+  struct ring *ring = vivifier->ring;
   memset (counts, 0, sizeof (unsigned) * 2 * ring->size);
   size_t before = SIZE (*candidates);
   for (all_redundant_watchers (watcher))
-    if (!watcher->vivify && watched_vivification_candidate (ring, watcher, tier))
+    if (!watcher->vivify
+	&& watched_vivification_candidate (ring, watcher, tier))
       schedule_vivification_candidate (ring, counts, candidates, watcher);
   size_t after = SIZE (*candidates);
   size_t delta = after - before;
-  sort_vivivification_candidates (ring, counts, delta, candidates->begin + before);
+  sort_vivivification_candidates (ring, counts, delta,
+				  candidates->begin + before);
   return after;
 }
 
@@ -299,10 +301,10 @@ do { \
 } while (0)
 
 static struct watch *
-vivify_deduce (struct vivifier * vivifier,
-               struct watch *conflict, unsigned implied)
+vivify_deduce (struct vivifier *vivifier,
+	       struct watch *conflict, unsigned implied)
 {
-  struct ring * ring = vivifier->ring;
+  struct ring *ring = vivifier->ring;
   struct unsigneds *analyzed = &ring->analyzed;
   struct variable *variables = ring->variables;
   struct unsigneds *ring_clause = &ring->clause;
@@ -334,7 +336,7 @@ vivify_deduce (struct vivifier * vivifier,
 		    if (value < 0)
 		      {
 			unsigned other_idx = IDX (other);
-			struct variable * v = variables + other_idx;
+			struct variable *v = variables + other_idx;
 			if (!v->level)
 			  continue;
 		      }
@@ -346,7 +348,7 @@ vivify_deduce (struct vivifier * vivifier,
 	    }
 	}
       unsigned idx = IDX (implied);
-      struct variable * v = variables + idx;
+      struct variable *v = variables + idx;
       unsigned level = v->level;
       assert (!v->seen);
       assert (level);
@@ -360,7 +362,7 @@ vivify_deduce (struct vivifier * vivifier,
       PUSH (*ring_clause, implied);
     }
   struct watch *reason = conflict;
-  unsigned * begin = trail->begin;
+  unsigned *begin = trail->begin;
   unsigned *t = trail->end;
   while (t != begin)
     {
@@ -406,11 +408,11 @@ vivify_deduce (struct vivifier * vivifier,
 }
 
 static bool
-vivify_shrink (struct ring * ring, struct watcher * candidate)
+vivify_shrink (struct ring *ring, struct watcher *candidate)
 {
   assert (!is_binary_pointer (candidate));
   struct variable *variables = ring->variables;
-  signed char * values = ring->values;
+  signed char *values = ring->values;
   for (all_watcher_literals (lit, candidate))
     {
       unsigned idx = IDX (lit);
@@ -433,10 +435,10 @@ vivify_shrink (struct ring * ring, struct watcher * candidate)
 }
 
 static struct watch *
-vivify_learn (struct vivifier * vivifier, struct watch * candidate)
+vivify_learn (struct vivifier *vivifier, struct watch *candidate)
 {
-  struct ring * ring = vivifier->ring;
-  struct unsigneds * decisions = &vivifier->decisions;
+  struct ring *ring = vivifier->ring;
+  struct unsigneds *decisions = &vivifier->decisions;
   LOGTMP ("vivify strengthened");
   struct unsigneds *ring_clause = &ring->clause;
   unsigned size = SIZE (*ring_clause);
@@ -489,8 +491,8 @@ vivify_learn (struct vivifier * vivifier, struct watch * candidate)
 }
 
 static void
-sort_vivification_probes (signed char * values, unsigned * counts,
-                          struct unsigneds *sorted)
+sort_vivification_probes (signed char *values, unsigned *counts,
+			  struct unsigneds *sorted)
 {
   if (SIZE (*sorted) < 2)
     return;
@@ -503,10 +505,10 @@ sort_vivification_probes (signed char * values, unsigned * counts,
 }
 
 static unsigned
-vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
+vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
 {
-  struct ring * ring = vivifier->ring;
-  struct unsigneds * decisions = &vivifier->decisions;
+  struct ring *ring = vivifier->ring;
+  struct unsigneds *decisions = &vivifier->decisions;
   assert (SIZE (*decisions) == ring->level);
 
   struct watcher *watcher = index_to_watcher (ring, idx);
@@ -569,7 +571,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
   if (!EMPTY (*decisions))
     ring->statistics.vivify.reused++;
 
-  struct unsigneds * sorted = &vivifier->sorted;
+  struct unsigneds *sorted = &vivifier->sorted;
   CLEAR (*sorted);
   for (all_literals_in_clause (lit, clause))
     {
@@ -589,7 +591,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
   sort_vivification_probes (values, vivifier->counts, sorted);
 
   unsigned implied = INVALID;
-  struct watch * conflict;
+  struct watch *conflict;
 
   for (all_elements_on_stack (unsigned, lit, *sorted))
     {
@@ -598,7 +600,7 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
       if (value > 0)
 	{
 	  LOG ("vivify implied literal %s", LOGLIT (lit));
-	  struct variable * v = VAR (lit);
+	  struct variable *v = VAR (lit);
 	  conflict = v->reason;
 	  assert (conflict);
 	  implied = lit;
@@ -626,12 +628,12 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
 	}
     }
 
-  signed char * marks = ring->marks;
+  signed char *marks = ring->marks;
   for (all_watcher_literals (other, watcher))
     marks[other] = 1;
 
   struct watch *candidate = tag_index (true, idx, INVALID_LIT);
-  struct watch * subsuming = 
+  struct watch *subsuming =
     vivify_deduce (vivifier, conflict ? conflict : candidate, implied);
 
   for (all_watcher_literals (other, watcher))
@@ -658,7 +660,8 @@ vivify_watcher (struct vivifier * vivifier, unsigned tier, unsigned idx)
       mark_garbage_watcher (ring, watcher);
       watcher->clause->vivified = true;
 
-      if (!ring->inconsistent && strengthened && !is_binary_pointer (strengthened))
+      if (!ring->inconsistent && strengthened
+	  && !is_binary_pointer (strengthened))
 	{
 	  struct watcher *swatcher = get_watcher (ring, strengthened);
 	  if (watched_vivification_candidate (ring, swatcher, tier))
@@ -690,8 +693,7 @@ vivify_clauses (struct ring *ring)
 	   " search ticks", delta_probing_ticks, (double) VIVIFY_EFFORT,
 	   delta_search_ticks);
 
-  double sum =
-    RELATIVE_VIVIFY_TIER1_EFFORT + RELATIVE_VIVIFY_TIER2_EFFORT;
+  double sum = RELATIVE_VIVIFY_TIER1_EFFORT + RELATIVE_VIVIFY_TIER2_EFFORT;
 
   for (unsigned tier = 2; tier >= 1; tier--)
     {
@@ -711,7 +713,7 @@ vivify_clauses (struct ring *ring)
 
       verbose (ring, "tier%u vivification limit of %"
 	       PRIu64 " vivification ticks %.0f%%",
-	       tier, scaled_ticks, 100.0 *scale);
+	       tier, scaled_ticks, 100.0 * scale);
 
       uint64_t limit = probing_ticks_before + scaled_ticks;
 
@@ -719,12 +721,12 @@ vivify_clauses (struct ring *ring)
       init_vivifier (&vivifier, ring);
 
       size_t rescheduled =
-        reschedule_vivification_candidates (&vivifier, tier);
+	reschedule_vivification_candidates (&vivifier, tier);
       very_verbose (ring, "rescheduled %zu tier%u vivification candidates",
 		    rescheduled, tier);
-      size_t scheduled =
-        schedule_vivification_candidates (&vivifier, tier);
-      very_verbose (ring, "scheduled %zu tier%u vivification candidates in total",
+      size_t scheduled = schedule_vivification_candidates (&vivifier, tier);
+      very_verbose (ring,
+		    "scheduled %zu tier%u vivification candidates in total",
 		    scheduled, tier);
 #ifdef QUIET
       (void) rescheduled, (void) scheduled;
@@ -735,7 +737,7 @@ vivify_clauses (struct ring *ring)
       uint64_t vivified = ring->statistics.vivify.succeeded;
       uint64_t tried = ring->statistics.vivify.tried;
 
-      struct unsigneds * decisions = &vivifier.decisions;;
+      struct unsigneds *decisions = &vivifier.decisions;;
 
       size_t i = 0;
       while (i != SIZE (vivifier.candidates))
@@ -774,18 +776,17 @@ vivify_clauses (struct ring *ring)
       size_t remain = final_scheduled - i;
       if (remain)
 	very_verbose (ring,
-	              "incomplete vivification as %zu tier%u "
-	              "candidates remain %.0f%%", remain, tier,
+		      "incomplete vivification as %zu tier%u "
+		      "candidates remain %.0f%%", remain, tier,
 		      percent (remain, final_scheduled));
       else
 	very_verbose (ring, "all %zu scheduled tier%u "
-		      "vivification candidates tried",
-	              final_scheduled, tier);
+		      "vivification candidates tried", final_scheduled, tier);
 
       while (i != final_scheduled)
 	{
 	  unsigned idx = vivifier.candidates.begin[i++];
-	  struct watcher * watcher = index_to_watcher (ring, idx);
+	  struct watcher *watcher = index_to_watcher (ring, idx);
 	  watcher->vivify = true;
 	}
 
@@ -805,12 +806,13 @@ vivify_clauses (struct ring *ring)
 		    (PROBING_TICKS > limit ? "limit hit" : "completed"));
 
       very_verbose (ring,
-                    "subsumed %" PRIu64 " tier%u clauses %.0f%% of vivified "
+		    "subsumed %" PRIu64 " tier%u clauses %.0f%% of vivified "
 		    "and strengthened %" PRIu64 " clauses %.0f%%",
 		    subsumed, tier, percent (subsumed, vivified),
 		    strengthened, percent (strengthened, vivified));
 
-      verbose_report (ring, (tier == 1 ? 'v' : 'u'), !(subsumed || strengthened));
+      verbose_report (ring, (tier == 1 ? 'v' : 'u'),
+		      !(subsumed || strengthened));
     }
   STOP (ring, vivify);
 }

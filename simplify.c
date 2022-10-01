@@ -898,8 +898,7 @@ finish_ring_simplification (struct ring *ring)
   limits->simplify = SEARCH_CONFLICTS + scaled;
   ruler->last.search = statistics->contexts[SEARCH_CONTEXT].ticks;
   very_verbose (ring, "new simplify limit at %" PRIu64
-                " after %" PRIu64 " conflicts",
-		limits->simplify, scaled);
+		" after %" PRIu64 " conflicts", limits->simplify, scaled);
 }
 
 #ifndef NDEBUG

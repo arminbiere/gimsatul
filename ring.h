@@ -36,7 +36,8 @@ struct ring_limits
   uint64_t restart;
   uint64_t simplify;
   long long conflicts;
-  struct {
+  struct
+  {
     uint64_t conflicts;
     uint64_t reductions;
   } probe;
@@ -217,7 +218,7 @@ void set_satisfied (struct ring *);
 
 void print_ring_profiles (struct ring *);
 
-unsigned * sorter_block (struct ring *, size_t size);
+unsigned *sorter_block (struct ring *, size_t size);
 
 /*------------------------------------------------------------------------*/
 

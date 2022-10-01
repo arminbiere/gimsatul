@@ -85,7 +85,8 @@ struct ring_statistics
 #endif
   } learned, exported, imported, shared;
 
-  struct {
+  struct
+  {
     struct
     {
       uint64_t checked;

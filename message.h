@@ -22,24 +22,23 @@ static const int verbosity = -1;
 extern int verbosity;
 extern const char *prefix_format;
 
+
 #ifdef LOGGING
 #include <stdatomic.h>
-// *INDENT-OFF
-extern
-_Atomic (uint64_t)
-  clause_ids;
-// *INDENT-ON
+// *INDENT-OFF*
+extern _Atomic (uint64_t) clause_ids;
+// *INDENT-ON*
 #endif
 
-     void acquire_message_lock (void);
-     void release_message_lock (void);
+void acquire_message_lock (void);
+void release_message_lock (void);
 
-     struct ring;
+struct ring;
 
-     void print_line_without_acquiring_lock (struct ring *, const char *, ...)
+void print_line_without_acquiring_lock (struct ring *, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
-     void message (struct ring *ring, const char *, ...)
+void message (struct ring *ring, const char *, ...)
   __attribute__((format (printf, 2, 3)));
 
 #define PRINTLN(...) \

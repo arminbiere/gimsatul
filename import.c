@@ -247,7 +247,7 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	      if (blocking_value >= 0)
 		continue;
 	      unsigned blocking_idx = IDX (blocking);
-	      struct variable * v = variables + blocking_idx;
+	      struct variable *v = variables + blocking_idx;
 	      if (v->level)
 		continue;
 	    }
@@ -257,7 +257,7 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	      LOGWATCH (watch, "subsuming");
 	      break;
 	    }
-	  struct watcher * watcher = get_watcher (ring, watch);
+	  struct watcher *watcher = get_watcher (ring, watch);
 	  res = true;
 	  for (all_watcher_literals (other, watcher))
 	    {
@@ -272,7 +272,7 @@ subsumed_large_clause (struct ring *ring, struct clause *clause)
 	      if (other_value < 0)
 		{
 		  unsigned other_idx = IDX (other);
-		  struct variable * other_variable = variables + other_idx;
+		  struct variable *other_variable = variables + other_idx;
 		  if (!other_variable->level)
 		    continue;
 		}

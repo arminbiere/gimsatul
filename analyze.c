@@ -73,8 +73,7 @@ analyze_reason_side_literals (struct ring *ring)
 	  ticks++;
 	  for (all_watcher_literals (other, watcher))
 	    if (other != not_lit &&
-	        analyze_reason_side_literal (ring, other) &&
-		++pushed > limit)
+		analyze_reason_side_literal (ring, other) && ++pushed > limit)
 	      break;
 	}
     }
@@ -82,7 +81,7 @@ analyze_reason_side_literals (struct ring *ring)
 }
 
 static bool
-larger_trail_position (unsigned * pos, unsigned a, unsigned b)
+larger_trail_position (unsigned *pos, unsigned a, unsigned b)
 {
   unsigned i = IDX (a);
   unsigned j = IDX (b);
@@ -92,7 +91,7 @@ larger_trail_position (unsigned * pos, unsigned a, unsigned b)
 #define LARGER_TRAIL_POS(A,B) larger_trail_position (pos, (A), (B))
 
 static void
-sort_deduced_clause (struct ring * ring)
+sort_deduced_clause (struct ring *ring)
 {
   LOGTMP ("clause before sorting");
   unsigned *pos = ring->trail.pos;
@@ -121,7 +120,7 @@ clear_analyzed (struct ring *ring)
 }
 
 static void
-update_decision_rate (struct ring * ring)
+update_decision_rate (struct ring *ring)
 {
   uint64_t current = SEARCH_DECISIONS;
   uint64_t previous = ring->last.decisions;
