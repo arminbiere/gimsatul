@@ -124,7 +124,7 @@ decide (struct ring *ring)
   uint64_t decisions = context->decisions++;
 
   unsigned lit;
-  if (ring->id && ring->options.diversify && !ring->level)
+  if (ring->id && ring->options.diversify && ring->stable && !ring->level)
     {
       lit = ring->diversify;
       if (lit == INVALID)
