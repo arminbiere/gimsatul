@@ -129,8 +129,9 @@ decide (struct ring *ring)
       lit = ring->diversify;
       if (lit == INVALID)
 	{
+          unsigned idx;
 	NEW_DIVERSIFICATION_LITERAL:
-	  unsigned idx = random_decision (ring);
+	  idx = random_decision (ring);
 	  lit = LIT (idx);
 	  if (random_bit (&ring->random))
 	    lit = NOT (lit);
