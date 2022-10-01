@@ -93,12 +93,13 @@ struct ring
 {
   unsigned id;
   unsigned threads;
-  unsigned import;
   struct pool *pool;
   unsigned *units;
   struct ruler *ruler;
 
   volatile int status;
+
+  unsigned diversify;
 
   bool inconsistent;
   bool stable;

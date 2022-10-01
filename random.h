@@ -2,6 +2,7 @@
 #define _random_h_INCLUDED
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -19,6 +20,12 @@ static inline unsigned
 random32 (uint64_t * random)
 {
   return random64 (random) >> 32;
+}
+
+static inline bool
+random_bit (uint64_t * random)
+{
+  return random32 (random) & 1;
 }
 
 static inline size_t

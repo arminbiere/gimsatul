@@ -7,8 +7,6 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include <sched.h>
-
 static void *
 solve_routine (void *ptr)
 {
@@ -27,11 +25,8 @@ start_running_ring (struct ring *ring)
   pthread_t *thread = ruler->threads + ring->id;
   if (pthread_create (thread, 0, solve_routine, ring))
     fatal_error ("failed to create solving thread %u", ring->id);
-#if 0
-  unsigned cpu, node;
-  if (!getcpu (&cpu, &node, 0))
-    message (ring, "getcpu: cpu=%08x node=%08x", cpu, node);
-#else
+#if 1
+  int sched_getcpu (void);
   message (ring, "sched_getcpu: cpu=%08x", sched_getcpu ());
 #endif
 }

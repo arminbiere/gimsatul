@@ -57,6 +57,7 @@ OPTION (bool,     binary,                1, 0, 1,     "use binary DRAT proof for
 OPTION (bool,     bump_reasons,          1, 0, 1,     "bump reason side literals") \
 OPTION (unsigned, clause_size_limit,     100,3,10000,"during simplification") \
 OPTION (bool,     deduplicate,           1, 0, 1,     "remove duplicated binary clauses") \
+OPTION (bool,     diversify,             1, 0, 1,     "diversify computation") \
 OPTION (bool,     eliminate,             1, 0, 1,     "bounded variable elimination") \
 OPTION (unsigned, eliminate_bound,       16, 0, 1024, "additionally added clause margin") \
 OPTION (unsigned, eliminate_ticks,       20, 0, INF,  "elimination ticks limit in millions") \

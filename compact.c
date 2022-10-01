@@ -420,6 +420,24 @@ compact_ring (struct ring *ring, unsigned *map, struct clauses *mapped)
   ring->statistics.active = new_size;
 
   ring->units = ruler->units.end;
+
+  unsigned old_diversify = ring->diversify;
+  if (old_diversify != INVALID)
+    {
+      unsigned new_diversivy = map_literal (map, old_diversify);
+      if (new_diversivy == INVALID)
+	{
+	  ROG ("old diversification literal %u becomes invalid",
+	       old_diversify);
+	  ring->diversify = INVALID;
+	}
+      else
+	{
+	  ROG ("mapping old diversification literal %u to %u",
+	       old_diversify, new_diversivy);
+	  ring->diversify = new_diversivy;
+	}
+    }
 }
 
 static void
