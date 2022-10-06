@@ -96,8 +96,6 @@ export_large_clause (struct ring *ring, struct clause *clause)
       atomic_uintptr_t * share = end;
       while (share != start && *--share)
 	;
-      if (share == start)
-	share = end - 1;
       assert (start <= share && share < end);
       uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
       if (!previous)
