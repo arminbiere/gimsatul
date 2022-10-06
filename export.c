@@ -93,16 +93,17 @@ export_large_clause (struct ring *ring, struct clause *clause)
 	continue;
       atomic_uintptr_t *start = pool->share;
       atomic_uintptr_t *end = start + SIZE_SHARED;
-      atomic_uintptr_t * share = start;
-      while (share != end && *share)
-	share++;
-      if (share == end)
-	share = start + glue;
+      atomic_uintptr_t * share = end;
+      while (share != start && *--share)
+	;
+      if (share == start)
+	share = end - 1;
+      assert (start <= share && share < end);
       uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
-      if (previous)
-	dereference_clause (ring, (struct clause *) previous);
-      else
+      if (!previous)
 	exported++;
+      else if (!is_binary_pointer ((void*) previous))
+	dereference_clause (ring, (struct clause *) previous);
     }
   ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue);
   INC_LARGE_CLAUSE_STATISTICS (shared, glue);
