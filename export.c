@@ -91,7 +91,13 @@ export_large_clause (struct ring *ring, struct clause *clause)
     {
       if (i == ring->id)
 	continue;
-      atomic_uintptr_t *share = &pool->share[glue];
+      atomic_uintptr_t *start = pool->share;
+      atomic_uintptr_t *end = start + SIZE_SHARED;
+      atomic_uintptr_t * share = start;
+      while (share != end && *share)
+	share++;
+      if (share == end)
+	share = start + glue;
       uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
       if (previous)
 	dereference_clause (ring, (struct clause *) previous);
