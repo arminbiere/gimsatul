@@ -457,7 +457,9 @@ import_shared (struct ring *ring)
   struct ring *src = ruler->rings.begin[id];
   assert (src->pool);
   struct pool *pool = src->pool + ring->id;
-  atomic_uintptr_t *end = pool->share + ring->options->maximum_shared_glue + 1;
+  unsigned maximum_shared_glue = ring->options.maximum_shared_glue + 1;
+  assert (maximum_shared_glue <= SIZE_SHARED);
+  atomic_uintptr_t *end = pool->share + maximum_shared_glue;
   struct clause *clause = 0;
   for (atomic_uintptr_t * p = pool->share; !clause && p != end; p++)
 #ifndef NFASTPATH
