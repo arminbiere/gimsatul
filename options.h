@@ -68,7 +68,7 @@ OPTION (bool,     minimize,              1, 0, 1,     "minimize learned clauses"
 OPTION (unsigned, minimize_depth,        1000,1,INF,  "recursive clause minimization depth") \
 OPTION (unsigned, occurrence_limit,      1000,0,INF,  "literal occurrence limit in simplification") \
 OPTION (bool,     phase,                 1, 0, 1,     "initial decision phase") \
-OPTION (bool,     portfolio,             1, 0, 1,     "threads use different strategies") \
+OPTION (bool,     portfolio,             0, 0, 1,     "threads use different strategies") \
 OPTION (bool,     probe,                 1, 0, 1,     "enable probing based inprocessing") \
 OPTION (unsigned, probe_interval,        100, 1, INF, "probing base conflict interval") \
 OPTION (unsigned, random_decisions,      100, 0, INF, "initial random decisions") \
@@ -94,7 +94,7 @@ OPTION (bool,     substitute,            1, 0, 1,     "equivalent literal substi
 OPTION (bool,     subsume,               1, 0, 1,     "clause subsumption and strengthening") \
 OPTION (bool,     subsume_imported,      1, 0, 1,     "subsume imported clauses") \
 OPTION (unsigned, subsume_ticks,         20, 0, INF,  "subsumption ticks limit in millions") \
-OPTION (unsigned, target_phases,         1, 0, 2,     "target phases (2 = in focused mode too)") \
+OPTION (unsigned, target_phases,         2, 0, 2,     "target phases (2 = in focused mode too)") \
 OPTION (bool,     vivify,                1, 0, 1,     "vivification of redundant clauses") \
 OPTION (bool,     walk_initially,        0, 0, 1,     "local search initially") \
 OPTION (bool,     warm_up_walking,       1, 0, 1,     "unit propagation warm-up of local search") \
