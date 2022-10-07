@@ -29,9 +29,6 @@ struct reluctant
 
 struct ring_limits
 {
-#if 0
-  uint64_t import;
-#endif
   uint64_t mode;
   uint64_t reduce;
   uint64_t rephase;
@@ -40,7 +37,7 @@ struct ring_limits
   long long conflicts;
   struct
   {
-    uint64_t progress;
+    uint64_t conflicts;
     uint64_t reductions;
   } probe;
 };

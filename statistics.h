@@ -20,7 +20,6 @@ struct context
   uint64_t propagations;
   uint64_t conflicts;
   uint64_t decisions;
-  uint64_t progress;
 #ifdef METRICS
   uint64_t visits[SIZE_VISITS];
 #endif
@@ -163,9 +162,6 @@ do { \
 
 #define SEARCH_CONFLICTS \
   ring->statistics.contexts[SEARCH_CONTEXT].conflicts
-
-#define SEARCH_PROGRESS \
-  ring->statistics.contexts[SEARCH_CONTEXT].progress
 
 #define SEARCH_DECISIONS \
   ring->statistics.contexts[SEARCH_CONTEXT].decisions

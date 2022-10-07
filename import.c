@@ -67,7 +67,6 @@ really_import_binary_clause (struct ring *ring, unsigned lit, unsigned other)
   (void) new_local_binary_clause (ring, true, lit, other);
   trace_add_binary (&ring->trace, lit, other);
   INC_BINARY_CLAUSE_STATISTICS (imported);
-  ring->statistics.contexts[ring->context].progress++;
 }
 
 static void
@@ -305,7 +304,6 @@ really_import_large_clause (struct ring *ring, struct clause *clause,
   assert (0 < glue);
   assert (glue <= ring->options.maximum_shared_glue);
   INC_LARGE_CLAUSE_STATISTICS (imported, glue);
-  ring->statistics.contexts[ring->context].progress++;
 }
 
 static unsigned
@@ -459,9 +457,7 @@ import_shared (struct ring *ring)
   struct ring *src = ruler->rings.begin[id];
   assert (src->pool);
   struct pool *pool = src->pool + ring->id;
-  unsigned maximum_shared_glue = ring->options.maximum_shared_glue + 1;
-  assert (maximum_shared_glue <= SIZE_SHARED);
-  atomic_uintptr_t *end = pool->share + maximum_shared_glue;
+  atomic_uintptr_t *end = pool->share + SIZE_SHARED;
   struct clause *clause = 0;
   for (atomic_uintptr_t * p = pool->share; !clause && p != end; p++)
 #ifndef NFASTPATH
@@ -472,12 +468,7 @@ import_shared (struct ring *ring)
     return false;
   if (is_binary_pointer (clause))
     return import_binary (ring, clause);
-#if 0
-  uint64_t import = ring->limits.import;
-  if (import)
-    ring->limits.import = import - 1;
-#endif
-  if (clause->glue > TIER1_GLUE_LIMIT && !ring->stable) // TODO remove: (!ring->stable || !import))
+  if (clause->glue > TIER1_GLUE_LIMIT && !ring->stable)
     {
       dereference_clause (ring, clause);
       return false;

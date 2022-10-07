@@ -48,7 +48,7 @@ rephasing (struct ring *ring)
 {
   if (!ring->options.rephase)
     return false;
-  return ring->stable && SEARCH_PROGRESS > ring->limits.rephase;
+  return ring->stable && SEARCH_CONFLICTS > ring->limits.rephase;
 }
 
 static char (*schedule[]) (struct ring *) = {
@@ -75,7 +75,7 @@ rephase (struct ring *ring)
     }
   uint64_t base = ring->options.rephase_interval;
   uint64_t interval = base * nlog3n (rephased);
-  limits->rephase = SEARCH_PROGRESS + interval;
+  limits->rephase = SEARCH_CONFLICTS + interval;
   very_verbose (ring, "new rephase limit of %" PRIu64
 		" after %" PRIu64 " conflicts", limits->rephase, interval);
   report (ring, type);

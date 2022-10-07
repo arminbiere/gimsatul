@@ -278,11 +278,7 @@ analyze (struct ring *ring, struct watch *reason)
       assign_with_reason (ring, not_uip, learned);
     }
   CLEAR (*ring_clause);
-
   clear_analyzed (ring);
-#if 0
-  ring->limits.import++;
-#endif
 
   return true;
 }

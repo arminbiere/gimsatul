@@ -895,10 +895,10 @@ finish_ring_simplification (struct ring *ring)
   uint64_t base = ring->options.simplify_interval;
   uint64_t interval = base * nlog2n (statistics->simplifications);
   uint64_t scaled = scale_interval (ring, "simplify", interval);
-  limits->simplify = SEARCH_PROGRESS + scaled;
+  limits->simplify = SEARCH_CONFLICTS + scaled;
   ruler->last.search = statistics->contexts[SEARCH_CONTEXT].ticks;
   very_verbose (ring, "new simplify limit at %" PRIu64
-		" after %" PRIu64, limits->simplify, scaled);
+		" after %" PRIu64 " conflicts", limits->simplify, scaled);
 }
 
 #ifndef NDEBUG
@@ -942,7 +942,7 @@ simplifying (struct ring *ring)
   if (!ring->options.simplify_regularly)
     return false;
   if (!ring->id)
-    return ring->limits.simplify <= SEARCH_PROGRESS;
+    return ring->limits.simplify <= SEARCH_CONFLICTS;
   struct ruler *ruler = ring->ruler;
 #ifndef NFASTPATH
   if (!ruler->simplify)
