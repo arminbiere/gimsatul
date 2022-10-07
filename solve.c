@@ -4,8 +4,9 @@
 #include "ruler.h"
 #include "scale.h"
 
-#include <stdio.h>
 #include <inttypes.h>
+#include <math.h>
+#include <stdio.h>
 
 static void *
 solve_routine (void *ptr)
@@ -51,55 +52,74 @@ set_ring_limits (struct ring *ring, long long conflicts)
   struct ring_limits *limits = &ring->limits;
   if (ring->options.portfolio)
     {
-      switch (ring->id % 3)
+      very_verbose (ring, "determining portfolio options");
+
+      unsigned rootid = sqrt (ring->id);
+      if (!ring->id || rootid * rootid != ring->id)
 	{
-	case 1:
-	  ring->options.switch_mode = false;
-	  ring->options.focus_initially = false;
-	  break;
-	case 2:
-	  ring->options.switch_mode = false;
 	  ring->options.focus_initially = true;
-	  break;
+	  ring->options.switch_mode = true;
+	}
+      else if (ring->id & 1)
+	{
+	  ring->options.focus_initially = false;
+	  ring->options.switch_mode = false;
+	}
+      else
+	{
+	  ring->options.focus_initially = true;
+	  ring->options.switch_mode = false;
 	}
 
-      if (ring->id & 1)
-	ring->options.phase ^= 1;
+      if (ring->id % 4)
+	ring->options.target_phases = 2;
+      else
+	ring->options.target_phases = 1;
 
-      if (ring->id & 2)
-	ring->options.bump_reasons ^= 1;
+      if ((ring->id % 6) < 4)
+	ring->options.phase = 1;
+      else
+	ring->options.phase = 0;
+
+      if (ring->options.switch_mode)
+	{
+	  if (ring->options.focus_initially)
+	    verbose (ring, "portfolio: starting in focused mode");
+	  else
+	    verbose (ring, "portfolio: starting in stable mode");
+	}
+      else
+	{
+	  if (ring->options.focus_initially)
+	    verbose (ring, "portfolio: only running in focused mode");
+	  else
+	    verbose (ring, "portfolio: only running in stable mode");
+	}
+
+      if (ring->options.phase)
+	verbose (ring, "portfolio: initial 'true' decision phase");
+      else
+	verbose (ring, "portfolio: initial 'false' decision phase");
+
+      if (ring->options.target_phases == 0)
+	verbose (ring, "portfolio: chasing target phases disabled");
+      else if (ring->options.target_phases == 1)
+	verbose (ring, "portfolio: "
+	               "chasing target phases in stable mode only");
+      else
+	{
+	  assert (ring->options.target_phases == 2);
+	  verbose (ring, "portfolio: "
+	           "chasing target phases both in stable and focused mode");
+	}
     }
   else
     very_verbose (ring, "keeping global options");
 
-  if (ring->options.switch_mode)
-    {
-      if (ring->options.focus_initially)
-	verbose (ring, "starting in focused mode");
-      else
-	verbose (ring, "starting in stable mode");
-    }
-  else
-    {
-      if (ring->options.focus_initially)
-	verbose (ring, "only running in focused mode");
-      else
-	verbose (ring, "only running in stable mode");
-    }
   limits->mode = ring->options.switch_interval;
   if (ring->options.switch_mode)
     verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
 	     limits->mode);
-
-  if (ring->options.phase)
-    verbose (ring, "initial 'true' decision phase");
-  else
-    verbose (ring, "initial 'false' decision phase");
-
-  if (ring->options.bump_reasons)
-    verbose (ring, "bumping reasons clauses literals additionally");
-  else
-    verbose (ring, "no extra bumping of literals in reason clauses");
 
   limits->reduce = ring->options.reduce_interval;
   limits->restart = FOCUSED_RESTART_INTERVAL;

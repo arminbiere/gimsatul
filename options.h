@@ -94,6 +94,7 @@ OPTION (bool,     substitute,            1, 0, 1,     "equivalent literal substi
 OPTION (bool,     subsume,               1, 0, 1,     "clause subsumption and strengthening") \
 OPTION (bool,     subsume_imported,      1, 0, 1,     "subsume imported clauses") \
 OPTION (unsigned, subsume_ticks,         20, 0, INF,  "subsumption ticks limit in millions") \
+OPTION (unsigned, target_phases,         1, 0, 2,     "target phases (2 = in focused mode too)") \
 OPTION (bool,     vivify,                1, 0, 1,     "vivification of redundant clauses") \
 OPTION (bool,     walk_initially,        0, 0, 1,     "local search initially") \
 OPTION (bool,     warm_up_walking,       1, 0, 1,     "unit propagation warm-up of local search") \

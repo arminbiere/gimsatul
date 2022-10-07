@@ -16,8 +16,9 @@ signed char
 decide_phase (struct ring *ring, unsigned idx)
 {
   struct phases *p = ring->phases + idx;
+  unsigned target = ring->options.target_phases;
   signed char res = 0;
-  if (ring->stable)
+  if ((target && ring->stable) || (target > 1 && !ring->stable))
     res = p->target;
   if (!res)
     res = p->saved;
