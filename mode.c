@@ -33,7 +33,7 @@ switch_to_focused_mode (struct ring *ring)
   START (ring, focus);
   report (ring, '{');
   struct ring_limits *limits = &ring->limits;
-  limits->restart = SEARCH_CONFLICTS + FOCUSED_RESTART_INTERVAL;
+  limits->restart = SEARCH_PROGRESS + FOCUSED_RESTART_INTERVAL;
 }
 
 static void
@@ -47,7 +47,7 @@ switch_to_stable_mode (struct ring *ring)
   START (ring, stable);
   report (ring, '[');
   struct ring_limits *limits = &ring->limits;
-  limits->restart = SEARCH_CONFLICTS + STABLE_RESTART_INTERVAL;
+  limits->restart = SEARCH_PROGRESS + STABLE_RESTART_INTERVAL;
   ring->reluctant.u = ring->reluctant.v = 1;
 }
 
@@ -60,7 +60,7 @@ switching_mode (struct ring *ring)
   if (ring->statistics.switched)
     return SEARCH_TICKS > l->mode;
   else
-    return SEARCH_CONFLICTS > l->mode;
+    return SEARCH_PROGRESS > l->mode;
 }
 
 void

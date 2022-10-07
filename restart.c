@@ -14,7 +14,7 @@ restarting (struct ring *ring)
   if (!ring->level)
     return false;
   struct ring_limits *l = &ring->limits;
-  if (l->restart >= SEARCH_CONFLICTS)
+  if (l->restart >= SEARCH_PROGRESS)
     return false;
   if (ring->stable)
     return true;
@@ -34,8 +34,8 @@ restart (struct ring *ring)
 {
   struct ring_statistics *statistics = &ring->statistics;
   statistics->restarts++;
-  very_verbose (ring, "restart %" PRIu64 " at %" PRIu64 " conflicts",
-		statistics->restarts, SEARCH_CONFLICTS);
+  very_verbose (ring, "restart %" PRIu64 " at %" PRIu64,
+		statistics->restarts, SEARCH_PROGRESS);
   update_best_and_target_phases (ring);
   backtrack (ring, 0);
   struct ring_limits *limits = &ring->limits;
@@ -55,8 +55,8 @@ restart (struct ring *ring)
     }
   else
     interval = FOCUSED_RESTART_INTERVAL + logn (statistics->restarts) - 1;
-  limits->restart = SEARCH_CONFLICTS + interval;
+  limits->restart = SEARCH_PROGRESS + interval;
   very_verbose (ring, "new restart limit at %" PRIu64
-		" after %" PRIu64 " conflicts", limits->restart, interval);
+		" after %" PRIu64, limits->restart, interval);
   verbose_report (ring, 'r', 1);
 }

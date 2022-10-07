@@ -40,7 +40,7 @@ struct ring_limits
   long long conflicts;
   struct
   {
-    uint64_t conflicts;
+    uint64_t progress;
     uint64_t reductions;
   } probe;
 };

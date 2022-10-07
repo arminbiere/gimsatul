@@ -313,6 +313,7 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
     {
       LOGWATCH (conflict, "conflicting");
       context->conflicts++;
+      context->progress++;
       ring->import_after_propagation_and_conflict = true;
     }
 

@@ -67,6 +67,7 @@ really_import_binary_clause (struct ring *ring, unsigned lit, unsigned other)
   (void) new_local_binary_clause (ring, true, lit, other);
   trace_add_binary (&ring->trace, lit, other);
   INC_BINARY_CLAUSE_STATISTICS (imported);
+  ring->statistics.contexts[ring->context].progress++;
 }
 
 static void
@@ -304,6 +305,7 @@ really_import_large_clause (struct ring *ring, struct clause *clause,
   assert (0 < glue);
   assert (glue <= ring->options.maximum_shared_glue);
   INC_LARGE_CLAUSE_STATISTICS (imported, glue);
+  ring->statistics.contexts[ring->context].progress++;
 }
 
 static unsigned

@@ -13,7 +13,7 @@
 bool
 reducing (struct ring *ring)
 {
-  return ring->limits.reduce < SEARCH_CONFLICTS;
+  return ring->limits.reduce < SEARCH_PROGRESS;
 }
 
 void
@@ -287,8 +287,8 @@ reduce (struct ring *ring)
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
   statistics->reductions++;
-  verbose (ring, "reduction %" PRIu64 " at %" PRIu64 " conflicts",
-	   statistics->reductions, SEARCH_CONFLICTS);
+  verbose (ring, "reduction %" PRIu64 " at %" PRIu64,
+	   statistics->reductions, SEARCH_PROGRESS);
   bool fixed = ring->last.fixed != ring->statistics.fixed;
   unsigned start = 1;
   if (fixed)
@@ -308,12 +308,11 @@ reduce (struct ring *ring)
   free (map);
   check_clause_statistics (ring);
   check_redundant_and_tier2_offsets (ring);
-  limits->reduce = SEARCH_CONFLICTS;
+  limits->reduce = SEARCH_PROGRESS;
   unsigned interval = ring->options.reduce_interval;
   assert (interval);
   limits->reduce += interval * sqrt (statistics->reductions);
-  very_verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
-		limits->reduce);
+  very_verbose (ring, "next reduce limit at %" PRIu64, limits->reduce);
   report (ring, '-');
   STOP (ring, reduce);
 }
