@@ -99,8 +99,6 @@ struct ring
 
   volatile int status;
 
-  unsigned diversify;
-
   bool inconsistent;
   bool stable;
 

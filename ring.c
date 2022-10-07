@@ -79,8 +79,6 @@ init_ring (struct ring *ring)
   size_t size = ring->size;
   very_verbose (ring, "initializing 'ring[%u]' of size %zu", ring->id, size);
 
-  ring->diversify = INVALID;
-
   assert (!ring->marks);
   if (ring->values)
     free (ring->values);

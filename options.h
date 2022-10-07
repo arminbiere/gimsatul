@@ -57,14 +57,13 @@ OPTION (bool,     binary,                1, 0, 1,     "use binary DRAT proof for
 OPTION (bool,     bump_reasons,          1, 0, 1,     "bump reason side literals") \
 OPTION (unsigned, clause_size_limit,     100,3,10000,"during simplification") \
 OPTION (bool,     deduplicate,           1, 0, 1,     "remove duplicated binary clauses") \
-OPTION (bool,     diversify,             0, 0, 1,     "diversification decision literal") \
 OPTION (bool,     eliminate,             1, 0, 1,     "bounded variable elimination") \
 OPTION (unsigned, eliminate_bound,       16, 0, 1024, "additionally added clause margin") \
 OPTION (unsigned, eliminate_ticks,       20, 0, INF,  "elimination ticks limit in millions") \
 OPTION (bool,     fail,                  1, 0, 1,     "failed literal probing") \
 OPTION (bool,     focus_initially,       1, 0, 1,     "start with focus mode initially") \
 OPTION (bool,     force,                 0, 0, 1,     "force relaxed parsing and proof writing") \
-OPTION (unsigned, maximum_shared_glue,   2, 0, 15,    "share 0=binary 1=glue1 2=glue2 ... clauses") \
+OPTION (unsigned, maximum_shared_glue,   8, 0, 15,    "share 0=binary 1=glue1 2=glue2 ... clauses") \
 OPTION (bool,     minimize,              1, 0, 1,     "minimize learned clauses") \
 OPTION (unsigned, minimize_depth,        1000,1,INF,  "recursive clause minimization depth") \
 OPTION (unsigned, occurrence_limit,      1000,0,INF,  "literal occurrence limit in simplification") \

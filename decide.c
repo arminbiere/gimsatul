@@ -123,46 +123,17 @@ decide (struct ring *ring)
   context += ring->context;
   uint64_t decisions = context->decisions++;
 
-  unsigned lit;
-  if (ring->id && ring->options.diversify && !ring->stable && !ring->level)
-    {
-      lit = ring->diversify;
-      if (lit == INVALID)
-	{
-          unsigned idx;
-	NEW_DIVERSIFICATION_LITERAL:
-	  idx = random_decision (ring);
-	  lit = LIT (idx);
-	  if (random_bit (&ring->random))
-	    lit = NOT (lit);
-	  ring->diversify = lit;
-	  LOG ("new diversification literal %s", LOGLIT (lit));
-	}
-      else
-	{
-	  if (ring->values[lit])
-	    goto NEW_DIVERSIFICATION_LITERAL;
-	  unsigned idx = IDX (lit);
-	  if (ring->inactive[idx])
-	    goto NEW_DIVERSIFICATION_LITERAL;
-	  LOG ("reusing diversification literal %s", LOGLIT (lit));
-	}
-    }
-  else 
-    {
-      unsigned idx;
-      if (ring->id && decisions < ring->options.random_decisions)
-	idx = random_decision (ring);
-      else if (ring->stable)
-	idx = best_decision_on_heap (ring);
-      else
-	idx = best_decision_on_queue (ring);
-      signed char phase = decide_phase (ring, idx);
-      lit = LIT (idx);
-      if (phase < 0)
-	lit = NOT (lit);
-    }
-
+  unsigned idx;
+  if (ring->id && decisions < ring->options.random_decisions)
+    idx = random_decision (ring);
+  else if (ring->stable)
+    idx = best_decision_on_heap (ring);
+  else
+    idx = best_decision_on_queue (ring);
+  signed char phase = decide_phase (ring, idx);
+  unsigned lit = LIT (idx);
+  if (phase < 0)
+    lit = NOT (lit);
 
   ring->level++;
   assign_decision (ring, lit);
