@@ -442,6 +442,9 @@ import_shared (struct ring *ring)
     return false;
   if (import_units (ring))
     return true;
+  if (!ring->import_after_propagation_and_conflict)
+    return 
+  ring->import_after_propagation_and_conflict = false;
   struct ruler *ruler = ring->ruler;
   size_t rings = SIZE (ruler->rings);
   assert (rings <= UINT_MAX);
@@ -465,10 +468,12 @@ import_shared (struct ring *ring)
     return false;
   if (is_binary_pointer (clause))
     return import_binary (ring, clause);
+#if 0
   uint64_t import = ring->limits.import;
   if (import)
     ring->limits.import = import - 1;
-  if (clause->glue > TIER1_GLUE_LIMIT && (!ring->stable || !import))
+#endif
+  if (clause->glue > TIER1_GLUE_LIMIT && !ring->stable) // TODO remove: (!ring->stable || !import))
     {
       dereference_clause (ring, clause);
       return false;

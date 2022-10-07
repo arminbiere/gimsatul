@@ -90,6 +90,5 @@ switch_mode (struct ring *ring)
   l->mode = SEARCH_TICKS + interval;
   very_verbose (ring, "new mode switching limit at %" PRIu64
 		" after %" PRIu64 " ticks", l->mode, interval);
-  l->import = 0;
   ring->last.decisions = SEARCH_DECISIONS;
 }
