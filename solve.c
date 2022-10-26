@@ -76,10 +76,13 @@ set_ring_limits (struct ring *ring, long long conflicts)
       else
 	ring->options.target_phases = 1;
 
-      if ((ring->id % 6) < 4)
-	ring->options.phase = 1;
-      else
-	ring->options.phase = 0;
+      if (!ring->options.force_phase)
+	{
+	  if ((ring->id % 6) < 4)
+	    ring->options.phase = 1;
+	  else
+	    ring->options.phase = 0;
+	}
 
       if (ring->options.switch_mode)
 	{
