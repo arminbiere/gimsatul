@@ -1,7 +1,11 @@
 # Version 1.0.4rc1
 
 - Added '--force-phase' option to force every worker ring to only
-  use the initial phase specified with '--phase=[01]'.
+  use the initial phase as specified with '--phase=[01]' for all
+  decisions (even in the default portfolio mode).  Added statistics
+  gathering and printing code for phase decisions too.
+
+- Minor compilation issue.
 
 # Version 1.0.3
 
