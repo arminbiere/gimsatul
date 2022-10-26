@@ -10,7 +10,7 @@ uint64_t
 scale_interval (struct ring * ring, const char * name, uint64_t interval)
 {
   uint64_t reference = ring->statistics.irredundant;
-  double f = logn (reference);
+  double f = logn (reference ? reference : 1);
   double ff = f * f;
   uint64_t scaled = ff * interval;
   // *INDENT-OFF*

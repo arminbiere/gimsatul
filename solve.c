@@ -59,7 +59,7 @@ set_ring_limits (struct ring *ring, long long conflicts)
 	  break;
 	}
 
-      if (ring->id & 1)
+      if (!ring->options.force_phase && (ring->id & 1))
 	ring->options.phase ^= 1;
 
       if (ring->id & 2)

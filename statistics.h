@@ -70,6 +70,15 @@ struct ring_statistics
     uint64_t implied;
   } vivify;
 
+  struct
+  {
+    uint64_t heap;
+    uint64_t negative;
+    uint64_t positive;
+    uint64_t queue;
+    uint64_t random;
+  } decisions;
+
 #define SIZE_GLUE_STATISTICS 16
 
   uint64_t diverged;

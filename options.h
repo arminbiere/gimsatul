@@ -62,6 +62,7 @@ OPTION (unsigned, eliminate_bound,       16, 0, 1024, "additionally added clause
 OPTION (unsigned, eliminate_ticks,       20, 0, INF,  "elimination ticks limit in millions") \
 OPTION (bool,     fail,                  1, 0, 1,     "failed literal probing") \
 OPTION (bool,     focus_initially,       1, 0, 1,     "start with focus mode initially") \
+OPTION (bool,     force_phase,           0, 0, 1,     "force phase (same phase for all solvers") \
 OPTION (bool,     force,                 0, 0, 1,     "force relaxed parsing and proof writing") \
 OPTION (unsigned, maximum_shared_glue,   8, 0, 15,    "share 0=binary 1=glue1 2=glue2 ... clauses") \
 OPTION (bool,     minimize,              1, 0, 1,     "minimize learned clauses") \

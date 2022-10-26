@@ -1,3 +1,12 @@
+# Version 1.0.4rc1
+
+- Added '--force-phase' option to force every worker ring to only
+  use the initial phase as specified with '--phase=[01]' for all
+  decisions (even in the default portfolio mode).  Added statistics
+  gathering and printing code for phase decisions too.
+
+- Minor compilation issue.
+
 # Version 1.0.3
 
 As version 1.0.2 in single threaded mode was still lagging behind 'Kissat

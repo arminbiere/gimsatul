@@ -17,7 +17,9 @@ decide_phase (struct ring *ring, unsigned idx)
 {
   struct phases *p = ring->phases + idx;
   signed char res = 0;
-  if (ring->stable)
+  if (ring->options.force_phase)
+    res = initial_phase (ring);
+  if (!res && ring->stable)
     res = p->target;
   if (!res)
     res = p->saved;
@@ -57,6 +59,10 @@ random_decision (struct ring *ring)
 
   LOG ("random decision %s", LOGVAR (idx));
 
+  if (ring->context == SEARCH_CONTEXT)
+    ring->statistics.decisions.random++;
+
+
   return idx;
 }
 
@@ -86,6 +92,9 @@ best_decision_on_heap (struct ring *ring)
   LOG ("best decision %s on heap with score %g",
        LOGVAR (idx), nodes[idx].score);
 
+  if (ring->context == SEARCH_CONTEXT)
+    ring->statistics.decisions.heap++;
+
   return idx;
 }
 
@@ -113,6 +122,10 @@ best_decision_on_queue (struct ring *ring)
 
   LOG ("best decision %s on queue with stamp %" PRIu64,
        LOGVAR (idx), search->stamp);
+
+  if (ring->context == SEARCH_CONTEXT)
+    ring->statistics.decisions.queue++;
+
   return idx;
 }
 
@@ -133,8 +146,17 @@ decide (struct ring *ring)
 
   signed char phase = decide_phase (ring, idx);
   unsigned lit = LIT (idx);
+
   if (phase < 0)
     lit = NOT (lit);
+
+  if (ring->context == SEARCH_CONTEXT)
+    {
+      if (phase < 0)
+	ring->statistics.decisions.negative++;
+      else
+	ring->statistics.decisions.positive++;
+    }
 
   ring->level++;
   assign_decision (ring, lit);
