@@ -1,3 +1,8 @@
+# Version 1.0.4rc1
+
+- Added '--force-phase' option to force every worker ring to only
+  use the initial phase specified with '--phase=[01]'.
+
 # Version 1.0.3
 
 As version 1.0.2 in single threaded mode was still lagging behind 'Kissat

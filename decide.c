@@ -17,7 +17,9 @@ decide_phase (struct ring *ring, unsigned idx)
 {
   struct phases *p = ring->phases + idx;
   signed char res = 0;
-  if (ring->stable)
+  if (ring->options.force_phase)
+    res = initial_phase (ring);
+  if (!res && ring->stable)
     res = p->target;
   if (!res)
     res = p->saved;
