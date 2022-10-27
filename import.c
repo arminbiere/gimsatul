@@ -7,6 +7,8 @@
 #include "trace.h"
 #include "utilities.h"
 
+#include "cover.h"
+
 bool
 import_units (struct ring *ring)
 {
@@ -373,6 +375,9 @@ import_large_clause (struct ring *ring, struct clause *clause)
   signed char other_value = 0;
   unsigned other = find_literal_to_watch (ring, clause, lit,
 					  &other_value, &other_level);
+  
+  COVER (lit_value < other_value);
+
 #define SUBSUME_LARGE_CLAUSE(CLAUSE) \
 do { \
   if (subsumed_large_clause (ring, clause)) \
@@ -390,6 +395,8 @@ do { \
       return false;
     }
 
+  COVER (other_value > 0 && lit_value < 0 && other_level <= lit_level);
+
   if ((lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
       (other_value > 0 && lit_value < 0 && other_level <= lit_level))
     {
@@ -406,6 +413,9 @@ do { \
 
   unsigned lit_pos = ring->trail.pos[IDX (lit)];
   unsigned other_pos = ring->trail.pos[IDX (other)];
+
+  COVER (lit_value < 0 && other_value >= 0);
+  COVER (lit_value < 0 && lit_level < other_level);
 
   if (lit_value < 0 &&
       (other_value >= 0 ||
