@@ -26,7 +26,7 @@ start_running_ring (struct ring *ring)
   pthread_t *thread = ruler->threads + ring->id;
   if (pthread_create (thread, 0, solve_routine, ring))
     fatal_error ("failed to create solving thread %u", ring->id);
-#if 1
+#if 0
   int sched_getcpu (void);
   message (ring, "sched_getcpu: cpu=%08x", sched_getcpu ());
 #endif
