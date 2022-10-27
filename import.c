@@ -118,7 +118,7 @@ import_binary (struct ring *ring, struct clause *clause)
   signed char *values = ring->values;
   unsigned lit = lit_pointer (clause);
   signed char lit_value = values[lit];
-  unsigned lit_level = INVALID;
+  unsigned lit_level = 0;
   if (lit_value)
     {
       lit_level = VAR (lit)->level;
@@ -127,12 +127,22 @@ import_binary (struct ring *ring, struct clause *clause)
     }
   unsigned other = other_pointer (clause);
   signed char other_value = values[other];
-  unsigned other_level = INVALID;
+  unsigned other_level = 0;
   if (other_value)
     {
       other_level = VAR (other)->level;
       if (other_value > 0 && !other_level)
 	return false;
+    }
+
+  if (lit_value < other_value ||
+      (lit_value == other_value &&
+       ((lit_value > 0 && lit_level > other_level) ||
+        (lit_value < 0 && lit_level < other_level))))
+    {
+      SWAP (unsigned, lit, other);
+      SWAP (signed char, lit_value, other_value);
+      SWAP (unsigned, lit_level, other_level);
     }
 
 #define SUBSUME_BINARY(LIT, OTHER) \
@@ -144,6 +154,8 @@ do { \
     } \
 } while (0)
 
+  assert (lit_value >= other_value);
+
   if (lit_value >= 0 && other_value >= 0)
     {
       SUBSUME_BINARY (lit, other);
@@ -152,8 +164,7 @@ do { \
       return false;
     }
 
-  if ((lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
-      (other_value > 0 && lit_value < 0 && other_level <= lit_level))
+  if (lit_value > 0 && other_value < 0 && lit_level <= other_level)
     {
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
@@ -166,15 +177,27 @@ do { \
       return false;
     }
 
+  if (lit_value < 0 && lit_level < other_level)
+    {
+      fprintf (stderr, "lit %u@%u=%d\n", lit, lit_level, lit_value);
+      fprintf (stderr, "other %u@%u=%d\n", other, other_level, other_value);
+      fflush (stderr);
+    }
+
   unsigned *pos = ring->trail.pos;
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
+
+  COVER (lit_value < 0 && other_value >= 0);
+  COVER (lit_value < 0 && lit_level < other_level);
 
   if (lit_value < 0 &&
       (other_value >= 0 ||
        lit_level < other_level ||
        (lit_level == other_level && lit_pos < other_pos)))
     {
+      assert (other_value < 0);
+      assert (lit_level >= other_level);
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other,
 		 "importing (repropagate first literal %s)", LOGLIT (lit));
@@ -375,8 +398,7 @@ import_large_clause (struct ring *ring, struct clause *clause)
   signed char other_value = 0;
   unsigned other = find_literal_to_watch (ring, clause, lit,
 					  &other_value, &other_level);
-  
-  COVER (lit_value < other_value);
+  assert (lit_value >= other_value);
 
 #define SUBSUME_LARGE_CLAUSE(CLAUSE) \
 do { \
@@ -395,10 +417,7 @@ do { \
       return false;
     }
 
-  COVER (other_value > 0 && lit_value < 0 && other_level <= lit_level);
-
-  if ((lit_value > 0 && other_value < 0 && lit_level <= other_level) ||
-      (other_value > 0 && lit_value < 0 && other_level <= lit_level))
+  if (lit_value > 0 && other_value < 0 && lit_level <= other_level)
     {
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
@@ -411,17 +430,15 @@ do { \
       return false;
     }
 
-  unsigned lit_pos = ring->trail.pos[IDX (lit)];
-  unsigned other_pos = ring->trail.pos[IDX (other)];
-
-  COVER (lit_value < 0 && other_value >= 0);
-  COVER (lit_value < 0 && lit_level < other_level);
+  unsigned *pos = ring->trail.pos;
+  unsigned lit_pos = pos[IDX (lit)];
+  unsigned other_pos = pos[IDX (other)];
 
   if (lit_value < 0 &&
-      (other_value >= 0 ||
-       lit_level < other_level ||
-       (lit_level == other_level && lit_pos < other_pos)))
+      lit_level == other_level && lit_pos < other_pos)
     {
+      assert (other_value < 0);
+      assert (lit_level >= other_level);
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (repropagate first watch %s)",
 		 LOGLIT (lit));
