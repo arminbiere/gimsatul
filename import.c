@@ -80,7 +80,10 @@ force_to_repropagate (struct ring *ring, unsigned lit)
   unsigned idx = IDX (lit);
   struct variable *v = ring->variables + idx;
   if (ring->level > v->level)
-    backtrack (ring, v->level);
+    {
+      ring->statistics.diverged++;
+      backtrack (ring, v->level);
+    }
   size_t pos = ring->trail.pos[idx];
   assert (pos < SIZE (ring->trail));
   LOG ("setting end of trail to %zu", pos);
@@ -185,7 +188,7 @@ do { \
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
 
-  if (lit_value < 0 && lit_level == other_level && lit_pos < other_pos)
+  if (lit_value < 0 && lit_level == other_level && lit_pos > other_pos)
     {
       assert (lit_level >= other_level);
       SUBSUME_BINARY (lit, other);
@@ -193,20 +196,19 @@ do { \
 		 "importing (repropagate first watch %s)", LOGLIT (lit));
       force_to_repropagate (ring, lit);
       really_import_binary_clause (ring, lit, other);
-      ring->statistics.diverged++;
       return true;
     }
 
   assert (!lit_value ||
 	   other_level < lit_level ||
-	   (other_level == lit_level && other_pos < lit_pos));
+	   (other_level == lit_level && other_pos > lit_pos));
 
   SUBSUME_BINARY (lit, other);
   LOGBINARY (true, lit, other,
 	     "importing (repropagate second watch %s))", LOGLIT (other));
   force_to_repropagate (ring, other);
   really_import_binary_clause (ring, lit, other);
-  ring->statistics.diverged++;
+
   return true;
 }
 
@@ -428,7 +430,7 @@ do { \
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
 
-  if (lit_value < 0 && lit_level == other_level && lit_pos < other_pos)
+  if (lit_value < 0 && lit_level == other_level && lit_pos > other_pos)
     {
       assert (lit_level >= other_level);
       SUBSUME_LARGE_CLAUSE (clause);
@@ -436,20 +438,19 @@ do { \
 		 LOGLIT (lit));
       force_to_repropagate (ring, lit);
       really_import_large_clause (ring, clause, lit, other);
-      ring->statistics.diverged++;
       return true;
     }
 
   assert (!lit_value ||
 	  other_level < lit_level ||
-	  (other_level == lit_level && other_pos < lit_pos));
+	  (other_level == lit_level && other_pos > lit_pos));
 
   SUBSUME_LARGE_CLAUSE (clause);
   LOGCLAUSE (clause, "importing (repropagate second watch %s)",
 	     LOGLIT (other));
   force_to_repropagate (ring, other);
   really_import_large_clause (ring, clause, lit, other);
-  ring->statistics.diverged++;
+
   return true;
 }
 
