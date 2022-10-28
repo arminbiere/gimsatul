@@ -173,8 +173,7 @@ do { \
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
       really_import_binary_clause (ring, lit, other);
-      COVER (lit_level < other_level);
-      if (ring->context == PROBING_CONTEXT)
+      if (lit_level < other_level && ring->context == PROBING_CONTEXT)
 	{
 	  ring->statistics.diverged++;
 	  return true;
@@ -417,8 +416,7 @@ do { \
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
       really_import_large_clause (ring, clause, lit, other);
-      COVER (lit_level < other_level);
-      if (ring->context == PROBING_CONTEXT)
+      if (lit_level < other_level && ring->context == PROBING_CONTEXT)
 	{
 	  ring->statistics.diverged++;
 	  return true;
