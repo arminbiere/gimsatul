@@ -40,6 +40,7 @@ import_units (struct ring *ring)
       very_verbose (ring, "importing unit %d",
 		    unmap_and_export_literal (ruler->unmap, unit));
       INC_UNIT_CLAUSE_STATISTICS (imported);
+      assert (imported < UINT_MAX);
       imported++;
       if (value < 0)
 	{
@@ -177,26 +178,18 @@ do { \
       return false;
     }
 
-  if (lit_value < 0 && lit_level < other_level)
-    {
-      fprintf (stderr, "lit %u@%u=%d\n", lit, lit_level, lit_value);
-      fprintf (stderr, "other %u@%u=%d\n", other, other_level, other_value);
-      fflush (stderr);
-    }
-
   unsigned *pos = ring->trail.pos;
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
 
+  COVER (other_value >= 0);
   COVER (lit_value < 0 && other_value >= 0);
   COVER (lit_value < 0 && lit_level < other_level);
 
-  if (lit_value < 0 &&
-      (other_value >= 0 ||
-       lit_level < other_level ||
-       (lit_level == other_level && lit_pos < other_pos)))
+  assert (other_value < 0);
+
+  if (lit_value < 0 && lit_level == other_level && lit_pos < other_pos)
     {
-      assert (other_value < 0);
       assert (lit_level >= other_level);
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other,
@@ -207,10 +200,9 @@ do { \
       return true;
     }
 
-  assert (other_value < 0 &&
-	  (lit_value >= 0 ||
+  assert (lit_value >= 0 ||
 	   other_level < lit_level ||
-	   (other_level == lit_level && other_pos < lit_pos)));
+	   (other_level == lit_level && other_pos < lit_pos));
 
   SUBSUME_BINARY (lit, other);
   LOGBINARY (true, lit, other,
@@ -434,10 +426,12 @@ do { \
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
 
+  COVER (other_value >= 0);
+  assert (other_value < 0);
+
   if (lit_value < 0 &&
       lit_level == other_level && lit_pos < other_pos)
     {
-      assert (other_value < 0);
       assert (lit_level >= other_level);
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (repropagate first watch %s)",
@@ -448,10 +442,9 @@ do { \
       return true;
     }
 
-  assert (other_value < 0 &&
-	  (lit_value >= 0 ||
+  assert (lit_value >= 0 ||
 	   other_level < lit_level ||
-	   (other_level == lit_level && other_pos < lit_pos)));
+	   (other_level == lit_level && other_pos < lit_pos));
 
   SUBSUME_LARGE_CLAUSE (clause);
   LOGCLAUSE (clause, "importing (repropagate second watch %s)",
