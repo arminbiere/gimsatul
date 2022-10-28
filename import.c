@@ -146,6 +146,9 @@ import_binary (struct ring *ring, struct clause *clause)
       SWAP (unsigned, lit_level, other_level);
     }
 
+  LOG ("imported binary clause first watch %s second %s",
+       LOGLIT (lit), LOGLIT (other));
+
 #define SUBSUME_BINARY(LIT, OTHER) \
 do { \
   if (subsumed_binary (ring, LIT, OTHER)) \
@@ -170,6 +173,7 @@ do { \
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
       really_import_binary_clause (ring, lit, other);
+      COVER (lit_level < other_level);
       if (ring->context == PROBING_CONTEXT)
 	{
 	  ring->statistics.diverged++;
@@ -384,6 +388,11 @@ import_large_clause (struct ring *ring, struct clause *clause)
   signed char other_value = 0;
   unsigned other = find_literal_to_watch (ring, clause, lit,
 					  &other_value, &other_level);
+
+  LOGCLAUSE (clause,
+             "imported first watch %s second %s in",
+             LOGLIT (lit), LOGLIT (other));
+
 #define SUBSUME_LARGE_CLAUSE(CLAUSE) \
 do { \
   if (subsumed_large_clause (ring, clause)) \
@@ -408,6 +417,7 @@ do { \
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
       really_import_large_clause (ring, clause, lit, other);
+      COVER (lit_level < other_level);
       if (ring->context == PROBING_CONTEXT)
 	{
 	  ring->statistics.diverged++;
