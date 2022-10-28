@@ -79,6 +79,8 @@ struct ring_statistics
     uint64_t random;
   } decisions;
 
+  uint64_t random_sequences;
+
 #define SIZE_GLUE_STATISTICS 16
 
   uint64_t diverged;

@@ -6,6 +6,8 @@
 #include "ring.h"
 #include "utilities.h"
 
+#include <inttypes.h>
+
 signed char
 initial_phase (struct ring *ring)
 {
@@ -63,7 +65,6 @@ random_decision (struct ring *ring)
 
   if (ring->context == SEARCH_CONTEXT)
     ring->statistics.decisions.random++;
-
 
   return idx;
 }
@@ -132,24 +133,91 @@ best_decision_on_queue (struct ring *ring)
 }
 
 void
+start_random_decision_sequence (struct ring * ring)
+{
+  if (!ring->options.random_decisions)
+    return;
+
+  if (ring->stable && !ring->options.random_stable_decisions)
+    return;
+
+  if (!ring->stable && !ring->options.random_focused_decisions)
+    return;
+
+  if (ring->randec)
+    very_verbose (ring, "continuing random decision sequence at %"
+                  PRIu64 " conflicts", SEARCH_CONFLICTS);
+  else
+    {
+      uint64_t sequences = ++ring->statistics.random_sequences;
+      unsigned length = ring->options.random_decision_length;
+      ring->randec = length;
+
+      very_verbose (ring, "starting random decision sequence %" PRIu64
+                    " at %" PRIu64 " conflicts",
+		    sequences, SEARCH_CONFLICTS);
+
+      uint64_t base = ring->options.random_decision_interval;
+      uint64_t interval = base * logn (sequences);
+      ring->limits.randec = SEARCH_CONFLICTS + interval;
+    }
+}
+
+static unsigned
+next_random_decision (struct ring * ring)
+{
+  if (!ring->size)
+    return INVALID_VAR;
+
+  if (!ring->options.random_decisions)
+    return INVALID_VAR;
+
+  if (ring->stable && !ring->options.random_stable_decisions)
+    return INVALID_VAR;
+
+  if (!ring->stable && !ring->options.random_focused_decisions)
+    return INVALID_VAR;
+
+  if (!ring->randec)
+    {
+      assert (ring->level);
+      if (ring->level > 1)
+	return INVALID_VAR;
+
+      uint64_t conflicts = SEARCH_CONFLICTS;
+      if (conflicts < ring->limits.randec)
+	return INVALID_VAR;
+
+      start_random_decision_sequence (ring);
+    }
+
+
+  return random_decision (ring);
+}
+
+void
 decide (struct ring *ring)
 {
-  struct context *context = ring->statistics.contexts;
-  context += ring->context;
-  uint64_t decisions = context->decisions++;
+  ring->level++;
 
-  unsigned idx;
-  if (ring->id && decisions < ring->options.random_decisions)
-    idx = random_decision (ring);
-  else if (ring->stable)
-    idx = best_decision_on_heap (ring);
-  else
-    idx = best_decision_on_queue (ring);
+  unsigned idx = next_random_decision (ring);
+  if (idx == INVALID_VAR)
+    {
+      if (ring->stable)
+	idx = best_decision_on_heap (ring);
+      else
+	idx = best_decision_on_queue (ring);
+    }
+
   signed char phase = decide_phase (ring, idx);
   unsigned lit = LIT (idx);
 
   if (phase < 0)
     lit = NOT (lit);
+
+  struct context *context = ring->statistics.contexts;
+  context += ring->context;
+  context->decisions++;
 
   if (ring->context == SEARCH_CONTEXT)
     {
@@ -159,6 +227,5 @@ decide (struct ring *ring)
 	ring->statistics.decisions.positive++;
     }
 
-  ring->level++;
   assign_decision (ring, lit);
 }

@@ -1,4 +1,5 @@
 #include "bump.h"
+#include "decide.h"
 #include "message.h"
 #include "mode.h"
 #include "options.h"
@@ -91,4 +92,6 @@ switch_mode (struct ring *ring)
   very_verbose (ring, "new mode switching limit at %" PRIu64
 		" after %" PRIu64 " ticks", l->mode, interval);
   ring->last.decisions = SEARCH_DECISIONS;
+
+  start_random_decision_sequence (ring);
 }

@@ -43,6 +43,9 @@ print_ring_statistics (struct ring *ring)
   PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
            "random-decisions:", s->decisions.random,
 	   percent (s->decisions.random, decisions));
+  PRINTLN ("  %-22s %17" PRIu64 " %13.2f decisions",
+           "random-sequences:", s->random_sequences,
+	   average (s->decisions.random, s->random_sequences));
   PRINTLN ("%-22s %17u %13.2f %% variables", "solving-fixed:",
 	   s->fixed, percent (s->fixed, variables));
   PRINTLN ("%-22s %17u %13.2f %% variables", "failed-literals:",

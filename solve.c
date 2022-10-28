@@ -124,6 +124,13 @@ set_ring_limits (struct ring *ring, long long conflicts)
     verbose (ring, "initial mode switching interval of %" PRIu64 " conflicts",
 	     limits->mode);
 
+  if (ring->options.random_decisions)
+    {
+      limits->randec = ring->options.random_decision_interval;
+      verbose (ring, "random decision interval of %"
+               PRIu64 " conflicts", limits->randec);
+    }
+
   limits->reduce = ring->options.reduce_interval;
   limits->restart = FOCUSED_RESTART_INTERVAL;
   limits->rephase = ring->options.rephase_interval;

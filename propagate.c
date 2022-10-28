@@ -314,6 +314,17 @@ ring_propagate (struct ring *ring, bool stop_at_conflict,
       LOGWATCH (conflict, "conflicting");
       context->conflicts++;
       ring->import_after_propagation_and_conflict = true;
+
+      if (ring->context == SEARCH_CONTEXT && ring->randec)
+	{
+	  if (!--ring->randec)
+	    very_verbose (ring, "last random decision conflict");
+	  else if (ring->randec == 1)
+	    very_verbose (ring, "one more random decision conflict to go");
+	  else
+	    very_verbose (ring, "%u more random decision conflicts to go",
+	                 ring->randec);
+	}
     }
 
   context->propagations += propagations;

@@ -30,6 +30,7 @@ struct reluctant
 struct ring_limits
 {
   uint64_t mode;
+  uint64_t randec;
   uint64_t reduce;
   uint64_t rephase;
   uint64_t restart;
@@ -148,6 +149,7 @@ struct ring
   struct ring_profiles profiles;
   struct ring_statistics statistics;
 
+  unsigned randec;
   uint64_t random;
 };
 
