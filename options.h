@@ -74,7 +74,7 @@ OPTION (bool,     probe,                 1, 0, 1,     "enable probing based inpr
 OPTION (unsigned, probe_interval,        100, 1, INF, "probing base conflict interval") \
 OPTION (unsigned, random_decisions,      100, 0, INF, "initial random decisions") \
 OPTION (bool,     random_order,          0, 0, 1,     "initial random decision order") \
-OPTION (unsigned, reduce_interval,       1e3, 1, INF, "reduce base conflict interval") \
+OPTION (unsigned, reduce_interval,       1e3, 1, 1e5, "reduce base conflict interval") \
 OPTION (bool,     rephase,               1, 0, 1,     "reset saved phases regularly") \
 OPTION (unsigned, rephase_interval,      1e3, 1, INF, "base rephase conflict interval") \
 OPTION (unsigned, report,                1, 0, INF,   "report details for many threads") \

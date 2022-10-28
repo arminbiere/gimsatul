@@ -17,7 +17,7 @@ config.h: VERSION makefile
 	./mkconfig.sh > $@
 
 clean:
-	rm -f makefile config.h *.o gimsatul *~ cnf/*.err cnf/*.log
+	rm -f makefile config.h *.o gimsatul *~ cnf/*.err cnf/*.log *.[ch].gc* gmon.out
 indent:
 	indent *.[ch]
 test: all

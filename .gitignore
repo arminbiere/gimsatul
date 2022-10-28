@@ -2,3 +2,6 @@ makefile
 config.h
 *.o
 gimsatul
+*.[ch].gc*
+gmon.out
+*~

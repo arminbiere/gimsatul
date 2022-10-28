@@ -157,7 +157,7 @@ do { \
 
   assert (lit_value >= other_value);
 
-  if (lit_value >= 0 && other_value >= 0)
+  if (other_value >= 0)
     {
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
@@ -165,7 +165,7 @@ do { \
       return false;
     }
 
-  if (lit_value > 0 && other_value < 0 && lit_level <= other_level)
+  if (lit_value > 0 && lit_level <= other_level)
     {
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other, "importing (no propagation)");
@@ -182,31 +182,25 @@ do { \
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
 
-  COVER (other_value >= 0);
-  COVER (lit_value < 0 && other_value >= 0);
-  COVER (lit_value < 0 && lit_level < other_level);
-
-  assert (other_value < 0);
-
   if (lit_value < 0 && lit_level == other_level && lit_pos < other_pos)
     {
       assert (lit_level >= other_level);
       SUBSUME_BINARY (lit, other);
       LOGBINARY (true, lit, other,
-		 "importing (repropagate first literal %s)", LOGLIT (lit));
+		 "importing (repropagate first watch %s)", LOGLIT (lit));
       force_to_repropagate (ring, lit);
       really_import_binary_clause (ring, lit, other);
       ring->statistics.diverged++;
       return true;
     }
 
-  assert (lit_value >= 0 ||
+  assert (!lit_value ||
 	   other_level < lit_level ||
 	   (other_level == lit_level && other_pos < lit_pos));
 
   SUBSUME_BINARY (lit, other);
   LOGBINARY (true, lit, other,
-	     "importing (repropagate second literal %s))", LOGLIT (other));
+	     "importing (repropagate second watch %s))", LOGLIT (other));
   force_to_repropagate (ring, other);
   really_import_binary_clause (ring, lit, other);
   ring->statistics.diverged++;
@@ -390,8 +384,6 @@ import_large_clause (struct ring *ring, struct clause *clause)
   signed char other_value = 0;
   unsigned other = find_literal_to_watch (ring, clause, lit,
 					  &other_value, &other_level);
-  assert (lit_value >= other_value);
-
 #define SUBSUME_LARGE_CLAUSE(CLAUSE) \
 do { \
   if (subsumed_large_clause (ring, clause)) \
@@ -401,7 +393,9 @@ do { \
     } \
 } while (0)
 
-  if (lit_value >= 0 && other_value >= 0)
+  assert (lit_value >= other_value);
+
+  if (other_value >= 0)
     {
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
@@ -409,7 +403,7 @@ do { \
       return false;
     }
 
-  if (lit_value > 0 && other_value < 0 && lit_level <= other_level)
+  if (lit_value > 0 && lit_level <= other_level)
     {
       SUBSUME_LARGE_CLAUSE (clause);
       LOGCLAUSE (clause, "importing (no propagation)");
@@ -426,11 +420,7 @@ do { \
   unsigned lit_pos = pos[IDX (lit)];
   unsigned other_pos = pos[IDX (other)];
 
-  COVER (other_value >= 0);
-  assert (other_value < 0);
-
-  if (lit_value < 0 &&
-      lit_level == other_level && lit_pos < other_pos)
+  if (lit_value < 0 && lit_level == other_level && lit_pos < other_pos)
     {
       assert (lit_level >= other_level);
       SUBSUME_LARGE_CLAUSE (clause);
@@ -442,9 +432,9 @@ do { \
       return true;
     }
 
-  assert (lit_value >= 0 ||
-	   other_level < lit_level ||
-	   (other_level == lit_level && other_pos < lit_pos));
+  assert (!lit_value ||
+	  other_level < lit_level ||
+	  (other_level == lit_level && other_pos < lit_pos));
 
   SUBSUME_LARGE_CLAUSE (clause);
   LOGCLAUSE (clause, "importing (repropagate second watch %s)",
