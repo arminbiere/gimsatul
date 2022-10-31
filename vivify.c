@@ -309,7 +309,7 @@ do { \
 
 static struct watch *
 vivify_deduce (struct vivifier *vivifier,
-	       struct watch *conflict, unsigned implied)
+	       struct watch * candidate, struct watch *conflict, unsigned implied)
 {
   struct ring *ring = vivifier->ring;
   struct unsigneds *analyzed = &ring->analyzed;
@@ -368,7 +368,7 @@ vivify_deduce (struct vivifier *vivifier,
 	}
       PUSH (*ring_clause, implied);
     }
-  struct watch *reason = conflict;
+  struct watch *reason = conflict ? conflict : candidate;
   unsigned *begin = trail->begin;
   unsigned *t = trail->end;
   while (t != begin)
@@ -604,6 +604,9 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
     {
       signed char value = values[lit];
 
+      if (value < 0)
+	continue;
+
       if (value > 0)
 	{
 	  LOG ("vivify implied literal %s", LOGLIT (lit));
@@ -613,9 +616,6 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
 	  implied = lit;
 	  break;
 	}
-
-      if (value < 0)
-	continue;
 
       assert (!value);
 
@@ -644,7 +644,7 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
 
   struct watch *candidate = tag_index (true, idx, INVALID_LIT);
   struct watch *subsuming =
-    vivify_deduce (vivifier, conflict ? conflict : candidate, implied);
+    vivify_deduce (vivifier, candidate, conflict, implied);
 
   for (all_watcher_literals (other, watcher))
     marks[other] = 0;
