@@ -607,25 +607,28 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
 	  break;
 	}
 
-      if (!value)
-	{
-	  ring->level++;
-	  ring->statistics.contexts[PROBING_CONTEXT].decisions++;
-	  unsigned not_lit = NOT (lit);
+      if (value < 0)
+	continue;
+
+      assert (!value);
+
+      ring->level++;
+      ring->statistics.contexts[PROBING_CONTEXT].decisions++;
+      unsigned not_lit = NOT (lit);
 #ifdef LOGGING
-	  if (ring->stable)
-	    LOG ("assuming %s score %g",
-		 LOGLIT (not_lit), ring->heap.nodes[IDX (not_lit)].score);
-	  else
-	    LOG ("assuming %s stamp %" PRIu64,
-		 LOGLIT (not_lit), ring->queue.links[IDX (not_lit)].stamp);
+      if (ring->stable)
+	LOG ("assuming %s score %g",
+	     LOGLIT (not_lit), ring->heap.nodes[IDX (not_lit)].score);
+      else
+	LOG ("assuming %s stamp %" PRIu64,
+	     LOGLIT (not_lit), ring->queue.links[IDX (not_lit)].stamp);
 #endif
-	  assign_decision (ring, not_lit);
-	  PUSH (*decisions, not_lit);
-	  conflict = ring_propagate (ring, false, clause);
-	  if (conflict)
-	    break;
-	}
+      assign_decision (ring, not_lit);
+      PUSH (*decisions, not_lit);
+
+      conflict = ring_propagate (ring, false, clause);
+      if (conflict)
+	break;
     }
 
   signed char *marks = ring->marks;
