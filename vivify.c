@@ -120,24 +120,31 @@ better_vivification_candidate (unsigned *counts,
   unsigned *alits = a->aux, *blits = b->aux;
   unsigned *end_alits = alits + asize;
   unsigned *end_blits = blits + bsize;
+
   for (unsigned *p = alits, *q = blits;
        p != end_alits && q != end_blits; p++, q++)
-    if (smaller_vivification_literal (counts, *p, *q))
-      return false;
-    else if (smaller_vivification_literal (counts, *q, *p))
-      return true;
+    {
+      if (smaller_vivification_literal (counts, *p, *q))
+	return false;
+      else if (smaller_vivification_literal (counts, *q, *p))
+	return true;
+    }
+
   if (asize < bsize)
     return false;
   if (asize > bsize)
     return true;
+
   if (aclause)
     asize = aclause->size;
   if (bclause)
     bsize = bclause->size;
+
   if (asize < bsize)
     return false;
   if (asize > bsize)
     return true;
+
   return a < b;
 }
 
