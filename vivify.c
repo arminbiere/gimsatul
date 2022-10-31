@@ -314,13 +314,16 @@ vivify_deduce (struct vivifier *vivifier,
   struct ring *ring = vivifier->ring;
   struct unsigneds *analyzed = &ring->analyzed;
   struct variable *variables = ring->variables;
+
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *levels = &ring->levels;
+
   signed char *marks = ring->marks;
   unsigned *used = ring->used;
-  struct ring_trail *trail = &ring->trail;
+
   assert (EMPTY (*analyzed));
   assert (EMPTY (*ring_clause));
+
   if (implied != INVALID)
     {
       for (all_watches (watch, REFERENCES (implied)))
@@ -368,9 +371,13 @@ vivify_deduce (struct vivifier *vivifier,
 	}
       PUSH (*ring_clause, implied);
     }
+
   struct watch *reason = conflict ? conflict : candidate;
+
+  struct ring_trail *trail = &ring->trail;
   unsigned *begin = trail->begin;
   unsigned *t = trail->end;
+
   while (t != begin)
     {
       assert (reason);
