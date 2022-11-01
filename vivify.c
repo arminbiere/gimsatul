@@ -321,6 +321,8 @@ vivify_deduce (struct vivifier *vivifier,
   signed char *marks = ring->marks;
   unsigned *used = ring->used;
 
+  struct watch * subsumed = 0;
+
   assert (EMPTY (*analyzed));
   assert (EMPTY (*ring_clause));
 
@@ -333,7 +335,7 @@ vivify_deduce (struct vivifier *vivifier,
 	      assert (lit_pointer (watch) == implied);
 	      unsigned other = other_pointer (watch);
 	      if (marks[other])
-		return watch;
+		subsumed = watch;
 	    }
 	  else
 	    {
@@ -354,9 +356,10 @@ vivify_deduce (struct vivifier *vivifier,
 		    break;
 		  }
 	      if (subsuming)
-		return watch;
+		subsumed = watch;
 	    }
 	}
+
       unsigned idx = IDX (implied);
       struct variable *v = variables + idx;
       unsigned level = v->level;
@@ -418,7 +421,7 @@ vivify_deduce (struct vivifier *vivifier,
 	}
     }
   LOGTMP ("vivification deduced");
-  return 0;
+  return subsumed;
 }
 
 static bool
@@ -658,7 +661,7 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
 
   unsigned res = 0;
 
-  if (subsuming)
+  if (ring->options.vivify_subsume && subsuming)
     {
       ring->statistics.vivify.succeeded++;
       ring->statistics.vivify.subsumed++;
