@@ -517,7 +517,7 @@ sort_vivification_probes (signed char *values, unsigned *counts,
   unsigned *end = sorted->end;
   for (unsigned *p = begin; p + 1 != end; p++)
     for (unsigned *q = p + 1; q != end; q++)
-      if (smaller_vivification_literal (counts, *q, *p)) // FIXME: wrong order!
+      if (smaller_vivification_literal (counts, *p, *q))
 	SWAP (unsigned, *p, *q);
 }
 
@@ -594,12 +594,10 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
     {
       signed char value = values[lit];
       struct variable *v = VAR (lit);
-#if 0
       if (value < 0 && !v->level)
 	continue;
-      assert (!value || v->level); // TODO simplify following 'if'
-#endif
-      if (value && v->level && !v->reason)
+      assert (!value || v->level);
+      if (value && !v->reason)
 	{
 	  LOG ("skipping reused decision %s", LOGLIT (lit));
 	  assert (!v->reason);
