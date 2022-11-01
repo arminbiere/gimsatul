@@ -399,8 +399,8 @@ vivify_deduce (struct vivifier *vivifier,
 	  for (all_watcher_literals (other, watcher))
 	    ANALYZE (other);
 	}
-      if (marked)
-	return reason;
+      if (marked && !subsumed)
+        subsumed = reason;
       while (t != begin)
 	{
 	  unsigned lit = *--t;
@@ -517,7 +517,7 @@ sort_vivification_probes (signed char *values, unsigned *counts,
   unsigned *end = sorted->end;
   for (unsigned *p = begin; p + 1 != end; p++)
     for (unsigned *q = p + 1; q != end; q++)
-      if (smaller_vivification_literal (counts, *q, *p))
+      if (smaller_vivification_literal (counts, *q, *p)) // FIXME: wrong order!
 	SWAP (unsigned, *p, *q);
 }
 
@@ -594,6 +594,11 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
     {
       signed char value = values[lit];
       struct variable *v = VAR (lit);
+#if 0
+      if (value < 0 && !v->level)
+	continue;
+      assert (!value || v->level); // TODO simplify following 'if'
+#endif
       if (value && v->level && !v->reason)
 	{
 	  LOG ("skipping reused decision %s", LOGLIT (lit));
@@ -606,6 +611,15 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
     }
 
   sort_vivification_probes (values, vivifier->counts, sorted);
+#ifdef LOGGING
+  do {
+    LOGPREFIX ("sorted vivification size %zu literals", SIZE (*sorted));
+    unsigned * counts = vivifier->counts;
+    for (all_elements_on_stack (unsigned, lit, *sorted))
+      printf (" %s#%u", LOGLIT (lit), counts[lit]);
+    LOGSUFFIX ();
+  } while (0);
+#endif
 
   unsigned implied = INVALID;
   struct watch *conflict;
