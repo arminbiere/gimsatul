@@ -292,8 +292,6 @@ do { \
   unsigned level = v->level; \
   if (!level) \
     break; \
-  if (marked && !marks[OTHER]) \
-    marked = false; \
   if (v->seen) \
     break; \
   v->seen = true; \
@@ -307,7 +305,7 @@ do { \
     PUSH (*ring_clause, OTHER); \
 } while (0)
 
-static struct watch *
+static void
 vivify_deduce (struct vivifier *vivifier,
 	       struct watch * candidate, struct watch *conflict, unsigned implied)
 {
@@ -318,48 +316,13 @@ vivify_deduce (struct vivifier *vivifier,
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *levels = &ring->levels;
 
-  signed char *marks = ring->marks;
   unsigned *used = ring->used;
-
-  struct watch * subsumed = 0;
 
   assert (EMPTY (*analyzed));
   assert (EMPTY (*ring_clause));
 
   if (implied != INVALID)
     {
-      for (all_watches (watch, REFERENCES (implied)))
-	{
-	  if (is_binary_pointer (watch))
-	    {
-	      assert (lit_pointer (watch) == implied);
-	      unsigned other = other_pointer (watch);
-	      if (marks[other])
-		subsumed = watch;
-	    }
-	  else
-	    {
-	      bool subsuming = true;
-	      struct watcher *watcher = get_watcher (ring, watch);
-	      for (all_watcher_literals (other, watcher))
-		if (!marks[other])
-		  {
-		    signed char value = ring->values[other];
-		    if (value < 0)
-		      {
-			unsigned other_idx = IDX (other);
-			struct variable *v = variables + other_idx;
-			if (!v->level)
-			  continue;
-		      }
-		    subsuming = false;
-		    break;
-		  }
-	      if (subsuming)
-		subsumed = watch;
-	    }
-	}
-
       unsigned idx = IDX (implied);
       struct variable *v = variables + idx;
       unsigned level = v->level;
@@ -385,7 +348,6 @@ vivify_deduce (struct vivifier *vivifier,
     {
       assert (reason);
       LOGWATCH (reason, "vivify analyzing");
-      bool marked = true;
       if (is_binary_pointer (reason))
 	{
 	  unsigned lit = lit_pointer (reason);
@@ -399,8 +361,6 @@ vivify_deduce (struct vivifier *vivifier,
 	  for (all_watcher_literals (other, watcher))
 	    ANALYZE (other);
 	}
-      if (marked && !subsumed)
-        subsumed = reason;
       while (t != begin)
 	{
 	  unsigned lit = *--t;
@@ -421,7 +381,6 @@ vivify_deduce (struct vivifier *vivifier,
 	}
     }
   LOGTMP ("vivification deduced");
-  return subsumed;
 }
 
 static bool
@@ -660,29 +619,12 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
 	break;
     }
 
-  signed char *marks = ring->marks;
-  for (all_watcher_literals (other, watcher))
-    marks[other] = 1;
-
   struct watch *candidate = tag_index (true, idx, INVALID_LIT);
-  struct watch *subsuming =
-    vivify_deduce (vivifier, candidate, conflict, implied);
-
-  for (all_watcher_literals (other, watcher))
-    marks[other] = 0;
+  vivify_deduce (vivifier, candidate, conflict, implied);
 
   unsigned res = 0;
 
-  if (ring->options.vivify_subsume && subsuming)
-    {
-      ring->statistics.vivify.succeeded++;
-      ring->statistics.vivify.subsumed++;
-      LOGWATCH (subsuming, "vivify subsuming");
-      LOGWATCH (candidate, "vivify subsumed");
-      mark_garbage_watcher (ring, watcher);
-      watcher->clause->vivified = true;
-    }
-  else if (vivify_shrink (ring, watcher))
+  if (vivify_shrink (ring, watcher))
     {
       ring->statistics.vivify.succeeded++;
       ring->statistics.vivify.strengthened++;
@@ -764,7 +706,6 @@ vivify_clauses (struct ring *ring)
       (void) rescheduled, (void) scheduled;
 #endif
 
-      uint64_t subsumed = ring->statistics.vivify.subsumed;
       uint64_t strengthened = ring->statistics.vivify.strengthened;
       uint64_t vivified = ring->statistics.vivify.succeeded;
       uint64_t tried = ring->statistics.vivify.tried;
@@ -824,7 +765,6 @@ vivify_clauses (struct ring *ring)
 
       release_vivifier (&vivifier);
 
-      subsumed = ring->statistics.vivify.subsumed - subsumed;
       strengthened = ring->statistics.vivify.strengthened - strengthened;
       vivified = ring->statistics.vivify.succeeded - vivified;
       tried = ring->statistics.vivify.tried - tried;
@@ -837,14 +777,7 @@ vivify_clauses (struct ring *ring)
 		    PROBING_TICKS - probing_ticks_before,
 		    (PROBING_TICKS > limit ? "limit hit" : "completed"));
 
-      very_verbose (ring,
-		    "subsumed %" PRIu64 " tier%u clauses %.0f%% of vivified "
-		    "and strengthened %" PRIu64 " clauses %.0f%%",
-		    subsumed, tier, percent (subsumed, vivified),
-		    strengthened, percent (strengthened, vivified));
-
-      verbose_report (ring, (tier == 1 ? 'v' : 'u'),
-		      !(subsumed || strengthened));
+      verbose_report (ring, (tier == 1 ? 'v' : 'u'), !strengthened);
     }
   STOP (ring, vivify);
 }
