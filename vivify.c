@@ -627,7 +627,6 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
   if (vivify_shrink (ring, watcher))
     {
       ring->statistics.vivify.succeeded++;
-      ring->statistics.vivify.strengthened++;
       LOGWATCH (candidate, "vivify strengthening");
       struct watch *strengthened = vivify_learn (vivifier, candidate);
       watcher = index_to_watcher (ring, idx);
@@ -706,7 +705,6 @@ vivify_clauses (struct ring *ring)
       (void) rescheduled, (void) scheduled;
 #endif
 
-      uint64_t strengthened = ring->statistics.vivify.strengthened;
       uint64_t vivified = ring->statistics.vivify.succeeded;
       uint64_t tried = ring->statistics.vivify.tried;
 
@@ -765,7 +763,6 @@ vivify_clauses (struct ring *ring)
 
       release_vivifier (&vivifier);
 
-      strengthened = ring->statistics.vivify.strengthened - strengthened;
       vivified = ring->statistics.vivify.succeeded - vivified;
       tried = ring->statistics.vivify.tried - tried;
 
@@ -777,7 +774,7 @@ vivify_clauses (struct ring *ring)
 		    PROBING_TICKS - probing_ticks_before,
 		    (PROBING_TICKS > limit ? "limit hit" : "completed"));
 
-      verbose_report (ring, (tier == 1 ? 'v' : 'u'), !strengthened);
+      verbose_report (ring, (tier == 1 ? 'v' : 'u'), !vivified);
     }
   STOP (ring, vivify);
 }
