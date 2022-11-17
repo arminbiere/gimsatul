@@ -15,6 +15,9 @@ struct heap
   double increment;
   struct node *nodes;
   struct node *root;
+#ifndef NDEBUG
+  double last;
+#endif
 };
 
 /*------------------------------------------------------------------------*/

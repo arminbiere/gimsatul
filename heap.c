@@ -88,6 +88,10 @@ pop_heap (struct heap *heap)
   struct node *child = root->child;
   heap->root = collapse_node (child);
   assert (!heap_contains (heap, root));
+#ifndef NDEBUG
+  assert (heap->last >= root->score);
+  heap->last = root->score;
+#endif
 }
 
 void
@@ -97,6 +101,10 @@ push_heap (struct heap *heap, struct node *node)
   node->child = 0;
   heap->root = merge_nodes (heap->root, node);
   assert (heap_contains (heap, node));
+#ifndef NDEBUG
+  if (heap->last < node->score)
+    heap->last = node->score;
+#endif
 }
 
 void
@@ -107,6 +115,10 @@ update_heap (struct heap *heap, struct node *node, double new_score)
   if (old_score == new_score)
     return;
   node->score = new_score;
+#ifndef NDEBUG
+  if (heap->last < new_score)
+    heap->last = new_score;
+#endif
   struct node *root = heap->root;
   if (root == node)
     return;
