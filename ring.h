@@ -74,6 +74,11 @@ struct ring_last
   } mode;
 };
 
+struct ring_delay
+{
+  struct { uint64_t count, current; } bump_reason;
+};
+
 struct ring_trail
 {
   unsigned *begin, *end, *pos;
@@ -143,6 +148,7 @@ struct ring
   struct averages averages[2];
   struct intervals intervals;
   struct ring_last last;
+  struct ring_delay delay;
   struct ring_limits limits;
   struct options options;
   struct reluctant reluctant;

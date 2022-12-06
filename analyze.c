@@ -44,15 +44,23 @@ analyze_reason_side_literals (struct ring *ring)
 {
   if (!ring->options.bump_reasons)
     return;
+
+  uint64_t *count = &ring->delay.bump_reason.count;
+  if (*count)
+    {
+      *count -= 1;
+      return;
+    }
+
   if (ring->averages[ring->stable].decisions.value > 10)
     return;
+
+  size_t original = SIZE (ring->analyzed);
+  size_t limit = 10 * original;
   uint64_t ticks = 0;
-  size_t limit = 10 * SIZE (ring->clause);
-  size_t pushed = 0;
+
   for (all_elements_on_stack (unsigned, lit, ring->clause))
     {
-      if (pushed > limit)
-	break;
       struct variable *v = VAR (lit);
       if (!v->level)
 	continue;
@@ -63,8 +71,10 @@ analyze_reason_side_literals (struct ring *ring)
       if (is_binary_pointer (reason))
 	{
 	  assert (NOT (lit) == lit_pointer (reason));
-	  if (analyze_reason_side_literal (ring, other_pointer (reason)))
-	    pushed++;
+	  if (analyze_reason_side_literal (ring,
+					   other_pointer (reason)) &&
+	      SIZE (ring->analyzed) > limit)
+	    break;
 	}
       else
 	{
@@ -73,11 +83,26 @@ analyze_reason_side_literals (struct ring *ring)
 	  ticks++;
 	  for (all_watcher_literals (other, watcher))
 	    if (other != not_lit &&
-		analyze_reason_side_literal (ring, other) && ++pushed > limit)
+		analyze_reason_side_literal (ring, other) &&
+		SIZE (ring->analyzed) > limit)
 	      break;
 	}
     }
+
   ring->statistics.contexts[ring->context].ticks += ticks;
+
+  uint64_t *current = &ring->delay.bump_reason.current;
+
+  if (SIZE (ring->analyzed) > limit)
+    {
+      while (SIZE (ring->analyzed) > original)
+	ring->variables[POP (ring->analyzed)].seen = false;
+      *current += 1;
+    }
+  else if (*current)
+    *current /= 2;
+
+  *count = *current;
 }
 
 static bool
