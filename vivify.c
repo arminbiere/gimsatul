@@ -306,8 +306,8 @@ do { \
 } while (0)
 
 static void
-vivify_deduce (struct vivifier *vivifier,
-	       struct watch * candidate, struct watch *conflict, unsigned implied)
+vivify_deduce (struct vivifier *vivifier, struct watch * candidate,
+               struct watch *conflict, unsigned implied)
 {
   struct ring *ring = vivifier->ring;
   struct unsigneds *analyzed = &ring->analyzed;
@@ -500,16 +500,42 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
   signed char *values = ring->values;
   struct clause *clause = watcher->clause;
 
-  for (all_literals_in_clause (lit, clause))
-    if (values[lit] > 0 && !VAR (lit)->level)
+  {
+    unsigned unit = INVALID_LIT;
+    for (all_literals_in_clause (lit, clause))
       {
-	LOGCLAUSE (clause, "root-level satisfied");
-	mark_garbage_watcher (ring, watcher);
-	return 0;
+	signed char value = values[lit];
+	if (value <= 0)
+	  continue;
+	struct variable * v = VAR (lit);
+	if (!v->level)
+	  {
+	    LOGCLAUSE (clause, "root-level satisfied");
+	    mark_garbage_watcher (ring, watcher);
+	    return 0;
+	  }
+	struct watch * reason = v->reason;
+	if (reason && !is_binary_pointer (reason) &&
+	    get_watcher (ring, reason) == watcher)
+	  unit = lit;
       }
 
-  LOGCLAUSE (clause, "trying to vivify watcher[%u]", idx);
-  ring->statistics.vivify.tried++;
+    LOGCLAUSE (clause, "trying to vivify watcher[%u]", idx);
+    ring->statistics.vivify.tried++;
+
+#if 0
+    if (unit != INVALID_LIT)
+      {
+	LOG ("vivification candidate is the reason for %s", LOGLIT (unit));
+	assert (values[unit] > 0);
+	unsigned unit_level = VAR (unit)->level;
+	assert (unit_level > 0);
+	unsigned level = unit_level - 1;
+	backtrack (ring, level);
+        RESIZE (*decisions, level);
+      }
+#endif
+  }
 
   for (unsigned level = 0; level != SIZE (*decisions); level++)
     {
