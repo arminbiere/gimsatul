@@ -246,11 +246,19 @@ index_to_watcher (struct ring *ring, unsigned idx)
   return &PEEK (ring->watchers, idx);
 }
 
+#include <sys/types.h>
+#include <unistd.h>
+
 static inline struct watcher *
 get_watcher (struct ring *ring, struct watch *watch)
 {
   assert (!is_binary_pointer (watch));
   size_t idx = index_pointer (watch);
+  if (idx >= SIZE (ring->watchers)) {
+    fprintf (stderr, "process %zu hangs\n", (size_t) getpid ()), fflush (stderr);
+    for (;;)
+      ;
+  }
   return &PEEK (ring->watchers, idx);
 }
 

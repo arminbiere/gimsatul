@@ -423,12 +423,14 @@ vivify_learn (struct vivifier *vivifier, struct watch *candidate)
   assert (size < get_clause (ring, candidate)->size);
   unsigned *literals = ring_clause->begin;
   struct watch *res = 0;
+  if (ring->level)
+    {
+      backtrack (ring, 0);
+      CLEAR (*decisions);
+    }
   if (size == 1)
     {
       unsigned unit = literals[0];
-      assert (ring->level);
-      backtrack (ring, 0);
-      CLEAR (*decisions);
       trace_add_unit (&ring->trace, unit);
       if (ring_propagate (ring, false, 0))
 	set_inconsistent (ring,
@@ -775,7 +777,10 @@ vivify_clauses (struct ring *ring)
 	}
 
       if (!ring->inconsistent && ring->level)
-	backtrack (ring, 0);
+	{
+	  backtrack (ring, 0);
+	  CLEAR (*decisions);
+	}
 
       size_t final_scheduled = SIZE (vivifier.candidates);
       size_t remain = final_scheduled - i;
