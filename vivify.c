@@ -502,15 +502,6 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
   signed char *values = ring->values;
   struct clause *clause = watcher->clause;
 
-#if 0
-  for (all_literals_in_clause (lit, clause))
-    if (values[lit] > 0 && !VAR (lit)->level)
-      {
-	LOGCLAUSE (clause, "root-level satisfied");
-	mark_garbage_watcher (ring, watcher);
-	return 0;
-      }
-#else
   {
     unsigned unit = INVALID_LIT;
     for (all_literals_in_clause (lit, clause))
@@ -542,7 +533,6 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
         RESIZE (*decisions, level);
       }
   }
-#endif
 
   LOGCLAUSE (clause, "trying to vivify watcher[%u]", idx);
   ring->statistics.vivify.tried++;
