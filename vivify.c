@@ -605,7 +605,7 @@ vivify_watcher (struct vivifier *vivifier, unsigned tier, unsigned idx)
 #endif
 
   unsigned implied = INVALID;
-  struct watch *conflict;
+  struct watch *conflict = 0;
 
   for (all_elements_on_stack (unsigned, lit, *sorted))
     {
