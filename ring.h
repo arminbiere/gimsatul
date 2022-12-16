@@ -251,15 +251,6 @@ get_watcher (struct ring *ring, struct watch *watch)
 {
   assert (!is_binary_pointer (watch));
   size_t idx = index_pointer (watch);
-  if (idx >= SIZE (ring->watchers))
-    {
-      extern int getpid (void);
-      fprintf (stderr, "HANGING with index %zu in process %d\n",
-               idx, getpid ());
-      fflush (stderr);
-      for (;;)
-	;
-    }
   return &PEEK (ring->watchers, idx);
 }
 
