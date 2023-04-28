@@ -43,7 +43,12 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
       unsigned other = other_pointer (reason);
       unsigned other_idx = IDX (other);
       struct variable *u = ring->variables + other_idx;
-      reason = u->reason;
+      if (is_binary_pointer (u->reason)) {
+	bool redundant = redundant_pointer (reason) ||
+	                 redundant_pointer (u->reason);
+	reason = tag_binary (redundant, lit, other_pointer (u->reason));
+	LOGWATCH (reason, "jumping %s reason", LOGLIT (lit));
+      }
     }
     v->reason = reason;
   }
