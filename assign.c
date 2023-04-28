@@ -38,8 +38,15 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
       assert (!ring->inactive[idx]);
       ring->inactive[idx] = true;
     }
-  else
+  else {
+    if (is_binary_pointer (reason)) {
+      unsigned other = other_pointer (reason);
+      unsigned other_idx = IDX (other);
+      struct variable *u = ring->variables + other_idx;
+      reason = u->reason;
+    }
     v->reason = reason;
+  }
 
   struct ring_trail *trail = &ring->trail;
   size_t pos = trail->end - trail->begin;
