@@ -257,10 +257,8 @@ analyze (struct ring *ring, struct watch *reason)
   bump_variables (ring);
   backtrack (ring, level - 1);
   update_best_and_target_phases (ring);
-#if 0
   if (jump < level - 1)
     backtrack (ring, jump);
-#endif
   unsigned size = SIZE (*ring_clause);
   assert (size);
   if (size == 1)
