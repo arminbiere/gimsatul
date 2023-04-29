@@ -1,9 +1,11 @@
 #include "assign.h"
+#include "cover.h"
 #include "macros.h"
 #include "ruler.h"
 #include "trace.h"
 
 #define UNIT_REASON ((struct watch*) 1)
+#define DECISION_REASON ((struct watch*) 2)
 
 static void
 assign (struct ring *ring, unsigned lit, struct watch *reason)
@@ -27,9 +29,45 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
 
   struct variable *v = ring->variables + idx;
   unsigned level = ring->level;
-  v->level = level;
+  unsigned assignment_level;
+  if (reason == UNIT_REASON)
+    assignment_level = 0, reason = 0;
+  else if (reason == DECISION_REASON)
+    assignment_level = level, reason = 0;
+  else if (!level)
+    assignment_level = 0;
+  else if (is_binary_pointer (reason)) {
+    unsigned other = other_pointer (reason);
+    unsigned other_idx = IDX (other);
+    struct variable *u = ring->variables + other_idx;
+    assignment_level = u->level;
+    if (assignment_level && is_binary_pointer (u->reason)) {
+      bool redundant = redundant_pointer (reason) ||
+		       redundant_pointer (u->reason);
+      reason = tag_binary (redundant, lit, other_pointer (u->reason));
+      LOGWATCH (reason, "jumping %s reason", LOGLIT (lit));
+#ifdef METRICS
+      ring->statistics.contexts[ring->context].jumped++;
+#endif
+    }
+  } else {
+    assignment_level = 0;
+    struct watcher *watcher = get_watcher (ring, reason);
+    for (all_watcher_literals (other, watcher)) {
+      if (other == lit)
+	continue;
+      unsigned other_idx = IDX (other);
+      struct variable *u = ring->variables + other_idx;
+      unsigned other_level = u->level;
+      if (other_level > assignment_level)
+	assignment_level = other_level;
+    }
+  }
 
-  if (!level)
+  assert (assignment_level <= level);
+  v->level = assignment_level;
+
+  if (!assignment_level)
     {
       if (reason)
 	trace_add_unit (&ring->trace, lit);
@@ -40,29 +78,20 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
       assert (!ring->inactive[idx]);
       ring->inactive[idx] = true;
     }
-  else {
-    if (is_binary_pointer (reason)) {
-      unsigned other = other_pointer (reason);
-      unsigned other_idx = IDX (other);
-      struct variable *u = ring->variables + other_idx;
-      if (is_binary_pointer (u->reason)) {
-	bool redundant = redundant_pointer (reason) ||
-	                 redundant_pointer (u->reason);
-	reason = tag_binary (redundant, lit, other_pointer (u->reason));
-	LOGWATCH (reason, "jumping %s reason", LOGLIT (lit));
-#ifdef METRICS
-	ring->statistics.contexts[ring->context].jumped++;
-#endif
-      }
-    }
+  else
     v->reason = reason;
-  }
 
   struct ring_trail *trail = &ring->trail;
   size_t pos = trail->end - trail->begin;
   assert (pos < ring->size);
   trail->pos[idx] = pos;
   *trail->end++ = lit;
+
+#ifdef LOGGING
+  if (assignment_level < level)
+    LOGWATCH (reason, "out-of-order assignment %s reason", LOGLIT (lit));
+#endif
+  COVER (assignment_level < level);
 }
 
 void
@@ -79,7 +108,7 @@ assign_ring_unit (struct ring *ring, unsigned unit)
 #if 0
   assert (!ring->level);
 #endif
-  assign (ring, unit, 0);
+  assign (ring, unit, UNIT_REASON);
   LOG ("assign %s unit", LOGLIT (unit));
 }
 
@@ -87,7 +116,7 @@ void
 assign_decision (struct ring *ring, unsigned decision)
 {
   assert (ring->level);
-  assign (ring, decision, 0);
+  assign (ring, decision, DECISION_REASON);
 #ifdef LOGGING
   if (ring->context == WALK_CONTEXT)
     LOG ("assign %s decision warm-up", LOGLIT (decision));
