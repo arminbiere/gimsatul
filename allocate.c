@@ -1,4 +1,5 @@
 #include "allocate.h"
+#include "geatures.h"
 #include "message.h"
 
 void *
@@ -69,8 +70,8 @@ allocate_aligned_and_clear_array (size_t alignment, size_t num, size_t bytes)
   assert (bytes <= total);
   assert (num <= total);
   void *res;
-#ifdef _POSIX_C_SOURCE
-#ifndef HAVE_MEMALIGN
+#if defined(GIMSATUL_HAS_POSIX_MEMALIGN) || defined(GIMSATUL_HAVE_MEMALIGN)
+#ifdef GIMSATUL_HAS_POSIX_MEMALIGN
   if (posix_memalign (&res, alignment, total))
     res = 0;
 #else
@@ -123,7 +124,7 @@ allocate_aligned_and_clear_array (size_t alignment, size_t num, size_t bytes)
 void
 deallocate_aligned (size_t alignment, void *ptr)
 {
-#ifdef _POSIX_C_SOURCE
+#if defined(GIMSATUL_HAS_POSIX_MEMALIGN) || defined(GIMSATUL_HAVE_MEMALIGN)
   free (ptr);
 #else
   assert (is_power_of_two (alignment));
