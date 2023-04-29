@@ -6,16 +6,15 @@
 void
 export_units (struct ring *ring)
 {
-  assert (!ring->level);
   struct ruler *ruler = ring->ruler;
-  struct ring_trail *trail = &ring->trail;
+  struct ring_units *units = &ring->ring_units;
   volatile signed char *values = ruler->values;
-  unsigned *end = trail->end;
+  unsigned *end = units->end;
   bool locked = false;
-  while (trail->export != end)
+  while (units->export != end)
     {
-      assert (trail->export < trail->end);
-      unsigned unit = *trail->export++;
+      assert (units->export < units->end);
+      unsigned unit = *units->export++;
 #ifndef NFASTPATH
       if (values[unit])
 	continue;

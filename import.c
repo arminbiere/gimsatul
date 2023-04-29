@@ -15,7 +15,7 @@ import_units (struct ring *ring)
   assert (ring->pool);
   struct ruler *ruler = ring->ruler;
 #ifndef NFASTPATH
-  if (ring->units == ruler->units.end)
+  if (ring->ruler_units == ruler->units.end)
     return false;
 #endif
   struct variable *variables = ring->variables;
@@ -24,9 +24,9 @@ import_units (struct ring *ring)
   unsigned imported = 0;
   if (pthread_mutex_lock (&ruler->locks.units))
     fatal_error ("failed to acquire unit lock");
-  while (ring->units != ruler->units.end)
+  while (ring->ruler_units != ruler->units.end)
     {
-      unsigned unit = *ring->units++;
+      unsigned unit = *ring->ruler_units++;
       LOG ("trying to import unit %s", LOGLIT (unit));
       signed char value = values[unit];
       if (level && value)

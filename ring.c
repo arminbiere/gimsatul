@@ -98,8 +98,13 @@ init_ring (struct ring *ring)
   assert (!trail->begin);
   assert (!trail->pos);
   trail->end = trail->begin = allocate_array (size, sizeof *trail->begin);
-  trail->export = trail->propagate = trail->iterate = trail->begin;
+  trail->propagate = trail->begin;
   trail->pos = allocate_array (size, sizeof *trail->pos);
+
+  struct ring_units * units = &ring->ring_units;
+  assert (!units->begin);
+  units->end = units->begin = allocate_array (size, sizeof *units->begin);
+  units->export = units->iterate = units->begin;
 
   assert (!ring->variables);
   ring->variables = allocate_and_clear_array (size, sizeof *ring->variables);
@@ -134,10 +139,16 @@ release_ring (struct ring *ring, bool keep_values)
   RELEASE (ring->outoforder);
 
   FREE (ring->references);
+
   struct ring_trail *trail = &ring->trail;
   free (trail->begin);
   free (trail->pos);
   memset (trail, 0, sizeof *trail);
+
+  struct ring_units * units = &ring->ring_units;
+  free (units->begin);
+  memset (units, 0, sizeof*units);
+
   FREE (ring->variables);
 }
 

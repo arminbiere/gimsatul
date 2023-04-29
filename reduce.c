@@ -100,7 +100,7 @@ check_redundant_and_tier2_offsets (struct ring *ring)
 }
 
 #define all_literals_on_trail_with_reason(LIT) \
-  unsigned * P_ ## LIT = ring->trail.iterate, \
+  unsigned * P_ ## LIT = ring->trail.begin, \
            * END_ ## LIT = ring->trail.end, LIT; \
   P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
   ++ P_ ## LIT

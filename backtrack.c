@@ -40,7 +40,7 @@ backtrack (struct ring *ring, unsigned new_level)
   assert (EMPTY (ring->outoforder));
   while (t != trail->begin)
     {
-      unsigned lit = t[-1];
+      unsigned lit = *--t;
       unsigned idx = IDX (lit);
       struct variable * v = ring->variables + idx;
       unsigned lit_level = v->level;
@@ -48,14 +48,11 @@ backtrack (struct ring *ring, unsigned new_level)
 	PUSH (ring->outoforder, lit);
       else {
 	unassign (ring, lit);
-	t--;
 	if (!v->reason && new_level + 1 == lit_level)
 	  break;
       }
     }
   trail->end = trail->propagate = t;
-  assert (trail->export <= trail->propagate);
-  assert (trail->iterate <= trail->propagate);
   ring->level = new_level;
   LOG ("backtracked to decision level %u", new_level);
   while (!EMPTY (ring->outoforder)) {

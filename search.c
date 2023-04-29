@@ -22,20 +22,17 @@ void
 iterate (struct ring *ring)
 {
   assert (ring->iterating);
-  assert (!ring->level);
-  struct ring_trail *trail = &ring->trail;
-  assert (trail->end == trail->propagate);
-  assert (trail->iterate <= trail->propagate);
-  if (trail->iterate < trail->propagate)
+  struct ring_units *units = &ring->ring_units;
+  if (units->iterate < units->end)
     {
 #ifndef QUIET
-      size_t new_units = trail->propagate - trail->iterate;
+      size_t new_units = units->end - units->iterate;
       very_verbose (ring, "iterating %zu units", new_units);
       int report_level = (ring->iterating < 0);
       verbose_report (ring, 'i', report_level);
 #endif
       export_units (ring);
-      trail->iterate = trail->propagate;
+      units->iterate = units->end;
     }
   ring->iterating = 0;
 }

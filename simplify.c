@@ -805,7 +805,7 @@ continue_importing_and_propagating_units (struct ring *ring)
   bool done = true;
   unsigned *ruler_units_end = ruler->units.end;
   for (all_rings (ring))
-    if (ring->units != ruler_units_end)
+    if (ring->ruler_units != ruler_units_end)
       {
 	done = false;
 	break;
