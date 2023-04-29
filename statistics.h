@@ -17,6 +17,7 @@ struct ruler;
 struct context
 {
   uint64_t ticks;
+  uint64_t jumped;
   uint64_t propagations;
   uint64_t conflicts;
   uint64_t decisions;

@@ -18,6 +18,7 @@ print_ring_statistics (struct ring *ring)
   uint64_t conflicts = c->conflicts;
   uint64_t decisions = c->decisions;
   uint64_t propagations = c->propagations;
+  uint64_t jumped = c->jumped;
 #ifdef METRICS
   uint64_t visits = 0;
   for (unsigned i = 0; i != SIZE_VISITS; i++)
@@ -200,6 +201,8 @@ do { \
     }
 
 
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% propagations",
+	   "jumped:", jumped, percent (jumped, propagations));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f millions per second",
 	   "propagations:", propagations, average (propagations,
 						   1e6 * search));

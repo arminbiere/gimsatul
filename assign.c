@@ -48,6 +48,9 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
 	                 redundant_pointer (u->reason);
 	reason = tag_binary (redundant, lit, other_pointer (u->reason));
 	LOGWATCH (reason, "jumping %s reason", LOGLIT (lit));
+#ifdef METRICS
+	ring->statistics.contexts[ring->context].jumped++;
+#endif
       }
     }
     v->reason = reason;
