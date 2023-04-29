@@ -14,10 +14,11 @@ restarting (struct ring *ring)
   if (!ring->level)
     return false;
   struct ring_limits *l = &ring->limits;
-  if (l->restart >= SEARCH_CONFLICTS)
+  if (SEARCH_CONFLICTS <= l->restart)
     return false;
   if (ring->stable)
     return true;
+  l->restart = SEARCH_CONFLICTS;
   struct averages *a = ring->averages;
   double fast = a->glue.fast.value;
   double slow = a->glue.slow.value;
