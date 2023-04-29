@@ -217,12 +217,14 @@ analyze (struct ring *ring, struct watch *reason)
  	 conflict_level = lit_level;
       }
     }
-  LOGWATCH (reason, "conflict level %u", conflict_level);
+  assert (conflict_level <= ring->level);
   if (conflict_level < ring->level)
     {
       LOG ("forced to backtrack to conflict level %u", conflict_level);
       backtrack (ring, conflict_level);
     }
+  else
+    LOG ("conflict level %u matches decision level", conflict_level);
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *analyzed = &ring->analyzed;
   struct unsigneds *levels = &ring->levels;

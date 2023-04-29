@@ -4,11 +4,12 @@
 #include "ruler.h"
 #include "trace.h"
 
-#define UNIT_REASON ((struct watch*) 1)
-#define DECISION_REASON ((struct watch*) 2)
+#define DECISION_REASON 0
+#define UNIT_REASON 1
+#define REAL_REASON 2
 
 static void
-assign (struct ring *ring, unsigned lit, struct watch *reason)
+assign (struct ring *ring, unsigned lit, struct watch *reason, int type)
 {
   const unsigned not_lit = NOT (lit);
   unsigned idx = IDX (lit);
@@ -30,10 +31,10 @@ assign (struct ring *ring, unsigned lit, struct watch *reason)
   struct variable *v = ring->variables + idx;
   unsigned level = ring->level;
   unsigned assignment_level;
-  if (reason == UNIT_REASON)
-    assignment_level = 0, reason = 0;
-  else if (reason == DECISION_REASON)
+  if (type == DECISION_REASON)
     assignment_level = level, reason = 0;
+  else if (type == UNIT_REASON)
+    assignment_level = 0, reason = 0;
   else if (!level)
     assignment_level = 0;
   else if (is_binary_pointer (reason)) {
@@ -98,17 +99,14 @@ void
 assign_with_reason (struct ring *ring, unsigned lit, struct watch *reason)
 {
   assert (reason);
-  assign (ring, lit, reason);
+  assign (ring, lit, reason, REAL_REASON);
   LOGWATCH (reason, "assign %s with reason", LOGLIT (lit));
 }
 
 void
 assign_ring_unit (struct ring *ring, unsigned unit)
 {
-#if 0
-  assert (!ring->level);
-#endif
-  assign (ring, unit, UNIT_REASON);
+  assign (ring, unit, 0, UNIT_REASON);
   LOG ("assign %s unit", LOGLIT (unit));
 }
 
@@ -116,7 +114,7 @@ void
 assign_decision (struct ring *ring, unsigned decision)
 {
   assert (ring->level);
-  assign (ring, decision, DECISION_REASON);
+  assign (ring, decision, 0, DECISION_REASON);
 #ifdef LOGGING
   if (ring->context == WALK_CONTEXT)
     LOG ("assign %s decision warm-up", LOGLIT (decision));
