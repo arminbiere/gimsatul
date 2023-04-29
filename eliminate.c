@@ -142,7 +142,6 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
     }
 
   size_t resolvents = 0;
-  size_t resolutions = 0;
   unsigned bound = ruler->limits.current_bound;
   size_t limit = occurrences + bound;
   ROG ("actual limit %zu = occurrences %zu + bound %u",
@@ -150,6 +149,7 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
 
 #ifdef LOGGING
   uint64_t ticks_before = ruler->statistics.ticks.elimination;
+  size_t resolutions = 0;
 #endif
 
   if (find_definition (simplifier, pivot))
@@ -167,7 +167,9 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
 		{
 		  if (elimination_ticks_limit_hit (simplifier))
 		    break;
+#ifdef LOGGING
 		  resolutions++;
+#endif
 		  if (can_resolve_clause (simplifier, neg_clause, not_pivot))
 		    if (resolvents++ == limit)
 		      break;
@@ -193,7 +195,9 @@ can_eliminate_variable (struct simplifier *simplifier, unsigned idx)
 	    {
 	      if (elimination_ticks_limit_hit (simplifier))
 		break;
+#ifdef LOGGING
 	      resolutions++;
+#endif
 	      if (can_resolve_clause (simplifier, neg_clause, not_pivot))
 		if (resolvents++ == limit)
 		  break;
@@ -354,7 +358,9 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
   unsigned not_pivot = NOT (pivot);
   struct clauses *pos_clauses = &OCCURRENCES (pivot);
   struct clauses *neg_clauses = &OCCURRENCES (not_pivot);
+#ifdef LOGGING
   size_t resolvents = 0;
+#endif
   signed char *marks = simplifier->marks;
   struct clauses *gate = simplifier->gate;
   if (EMPTY (*gate))
@@ -376,7 +382,9 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
 						  neg_clause, not_pivot))
 		{
 		  add_resolvent (simplifier);
+#ifdef LOGGING
 		  resolvents++;
+#endif
 		}
 	      CLEAR (simplifier->resolvent);
 	      if (ruler->inconsistent)
@@ -408,7 +416,9 @@ eliminate_variable (struct simplifier *simplifier, unsigned idx)
 						      neg_clause, not_pivot))
 		    {
 		      add_resolvent (simplifier);
+#ifdef LOGGING
 		      resolvents++;
+#endif
 		    }
 		  CLEAR (simplifier->resolvent);
 		  if (ruler->inconsistent)

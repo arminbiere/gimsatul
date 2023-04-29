@@ -7,6 +7,7 @@
 #include "trace.h"
 #include "utilities.h"
 
+#include <inttypes.h>
 #include <string.h>
 
 static bool
@@ -211,7 +212,9 @@ forward_subsume_large_clause (struct simplifier *simplifier,
   assert (!clause->garbage);
   assert (clause->size <= ruler->limits.clause_size_limit);
   mark_clause (simplifier->marks, clause, INVALID);
-  unsigned reentered = 0;
+#ifdef LOGGING
+  size_t reentered = 0;
+#endif
 REENTER:
   ;
   unsigned remove = INVALID, other = INVALID;
@@ -281,8 +284,11 @@ REENTER:
 	    }
 	  else if (!is_binary_pointer (clause))
 	    {
+#ifdef LOGGING
 	      reentered++;
+#endif
 	      ROGCLAUSE (clause, "updated subsumption candidate");
+	      ROGCLAUSE (clause, "reentering %zu", reentered);
 	      goto REENTER;
 	    }
 	}
@@ -408,8 +414,8 @@ subsume_clauses (struct simplifier *simplifier, unsigned round)
   strengthened.delta = strengthened.after - strengthened.before;
 #ifndef QUIET
   double end_subsumption = STOP (ruler, subsume);
-  message (0, "[%u] subsumed %zu clauses %.0f%% and "
-	   "strengthened %zu clauses %.0f%% in %.2f seconds", round,
+  message (0, "[%u] subsumed %" PRIu64 " clauses %.0f%% and "
+	   "strengthened %" PRIu64 " clauses %.0f%% in %.2f seconds", round,
 	   subsumed.delta, percent (subsumed.delta, statistics->original),
 	   strengthened.delta, percent (strengthened.delta,
 					statistics->original),

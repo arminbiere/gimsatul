@@ -1,6 +1,7 @@
 #include "allocate.h"
 #include "build.h"
 #include "file.h"
+#include "geatures.h"
 #include "options.h"
 #include "message.h"
 
@@ -81,7 +82,7 @@ match_and_find_option_argument (const char *arg, const char *match)
   return is_number_string (p) ? p : 0;
 }
 
-#ifdef _POSIX_C_SOURCE
+#ifdef GIMSATUL_HAS_COMPRESSION
 
 static FILE *
 open_and_read_from_pipe (const char *path, const char *fmt)
@@ -370,7 +371,7 @@ parse_options (int argc, char **argv, struct options *opts)
 	      opts->dimacs.path = "<stdin>";
 	      opts->dimacs.file = stdin;
 	    }
-#ifdef _POSIX_C_SOURCE
+#ifdef GIMSATUL_HAS_COMPRESSION
 	  else if (has_suffix (opt, ".bz2"))
 	    {
 	      opts->dimacs.file =

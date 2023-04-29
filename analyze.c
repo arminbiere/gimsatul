@@ -217,7 +217,7 @@ analyze (struct ring *ring, struct watch *reason)
  	 conflict_level = lit_level;
       }
     }
-  LOGWATCH (watch, "conflict level %u", conflict_level);
+  LOGWATCH (reason, "conflict level %u", conflict_level);
   if (conflict_level < ring->level)
     {
       LOG ("forced to backtrack to conflict level %u", conflict_level);
@@ -285,8 +285,10 @@ analyze (struct ring *ring, struct watch *reason)
   bump_variables (ring);
   backtrack (ring, level - 1);
   update_best_and_target_phases (ring);
+#if 0
   if (jump < level - 1)
     backtrack (ring, jump);
+#endif
   unsigned size = SIZE (*ring_clause);
   assert (size);
   if (size == 1)

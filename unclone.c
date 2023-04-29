@@ -104,6 +104,7 @@ save_large_watched_clauses (struct ring *ring)
     }
   RESIZE (ring->watchers, 1);
   very_verbose (ring, "saved %zu redundant large watches", saved);
+  very_verbose (ring, "collected %zu large watches", collected);
   if (ring->id)
     {
       assert (!transferred);
