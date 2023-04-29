@@ -131,6 +131,7 @@ release_ring (struct ring *ring, bool keep_values)
   RELEASE (ring->levels);
   RELEASE (ring->minimize);
   RELEASE (ring->sorter);
+  RELEASE (ring->outoforder);
 
   FREE (ring->references);
   struct ring_trail *trail = &ring->trail;

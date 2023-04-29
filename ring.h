@@ -129,6 +129,7 @@ struct ring
   struct unsigneds levels;
   struct unsigneds minimize;
   struct unsigneds sorter;
+  struct unsigneds outoforder;
 
   struct references *references;
   struct ring_trail trail;
