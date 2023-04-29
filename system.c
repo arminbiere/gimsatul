@@ -51,13 +51,14 @@ maximum_resident_set_size (void)
 
 mach_port_t mach_task_self (void);
 
-size_t current_resident_set_size (void) {
-    struct task_basic_info info;
-      mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;
-        if (KERN_SUCCESS != task_info (mach_task_self (), TASK_BASIC_INFO,
-	                                   (task_info_t) &info, &count))
-	      return 0;
-	        return info.resident_size;
+size_t current_resident_set_size (void)
+{
+  struct task_basic_info info;
+  mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;
+  if (KERN_SUCCESS != task_info (mach_task_self (), TASK_BASIC_INFO,
+				 (task_info_t) &info, &count))
+    return 0;
+  return info.resident_size;
 }
 
 #else
