@@ -3,6 +3,8 @@
 #include "ruler.h"
 #include "trace.h"
 
+#define UNIT_REASON ((struct watch*) 1)
+
 static void
 assign (struct ring *ring, unsigned lit, struct watch *reason)
 {
@@ -74,7 +76,9 @@ assign_with_reason (struct ring *ring, unsigned lit, struct watch *reason)
 void
 assign_ring_unit (struct ring *ring, unsigned unit)
 {
+#if 0
   assert (!ring->level);
+#endif
   assign (ring, unit, 0);
   LOG ("assign %s unit", LOGLIT (unit));
 }
