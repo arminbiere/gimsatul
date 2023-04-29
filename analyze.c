@@ -195,6 +195,34 @@ analyze (struct ring *ring, struct watch *reason)
       set_inconsistent (ring, "conflict on root-level produces empty clause");
       return false;
     }
+  unsigned conflict_level = 0;
+  assert (reason);
+  if (is_binary_pointer (reason))
+    {
+      unsigned lit = lit_pointer (reason);
+      unsigned lit_level = VAR (lit)->level;
+      if (lit_level > conflict_level)
+	conflict_level = lit_level;
+      unsigned other = other_pointer (reason);
+      unsigned other_level = VAR (other)->level;
+      if (other_level > conflict_level)
+	conflict_level = other_level;
+    }
+  else
+    {
+      struct watcher *watcher = get_watcher (ring, reason);
+      for (all_watcher_literals (lit, watcher)) {
+	unsigned lit_level = VAR (lit)->level;
+        if (lit_level > conflict_level)
+ 	 conflict_level = lit_level;
+      }
+    }
+  LOGWATCH (watch, "conflict level %u", conflict_level);
+  if (conflict_level < ring->level)
+    {
+      LOG ("forced to backtrack to conflict level %u", conflict_level);
+      backtrack (ring, conflict_level);
+    }
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *analyzed = &ring->analyzed;
   struct unsigneds *levels = &ring->levels;
