@@ -36,6 +36,7 @@ disconnect_references (struct ring *ring, struct watches *saved)
       disconnected += SIZE (*watches);
       RELEASE (*watches);
     }
+  very_verbose (ring, "disconnected %zu clauses", disconnected);
 }
 
 void
