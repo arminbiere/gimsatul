@@ -3,6 +3,7 @@
 #include "fail.h"
 #include "message.h"
 #include "probe.h"
+#include "propagate.h"
 #include "ring.h"
 #include "scale.h"
 #include "utilities.h"
@@ -30,7 +31,11 @@ probe (struct ring *ring)
   ring->context = PROBING_CONTEXT;
   ring->statistics.probings++;
   if (ring->level)
-    backtrack (ring, 0);
+    {
+      backtrack (ring, 0);
+      if (ring_propagate (ring, true, 0))
+	set_inconsistent (ring, "propagation after backtracking failed");
+    }
   failed_literal_probing (ring);
   vivify_clauses (ring);
   ring->context = SEARCH_CONTEXT;

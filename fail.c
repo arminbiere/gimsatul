@@ -17,6 +17,8 @@
 void
 failed_literal_probing (struct ring *ring)
 {
+  if (ring->inconsistent)
+    return;
   if (!ring->options.fail)
     return;
   START (ring, fail);

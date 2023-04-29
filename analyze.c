@@ -2,6 +2,7 @@
 #include "assign.h"
 #include "backtrack.h"
 #include "bump.h"
+#include "cover.h"
 #include "export.h"
 #include "macros.h"
 #include "minimize.h"
@@ -156,7 +157,7 @@ update_decision_rate (struct ring *ring)
   ring->last.decisions = current;
 }
 
-#define ANALYZE_LITERAL(OTHER) \
+#define RESOLVE_LITERAL(OTHER) \
 do { \
   if (OTHER == uip) \
     break; \
@@ -164,13 +165,14 @@ do { \
   unsigned OTHER_IDX = IDX (OTHER); \
   struct variable *V = variables + OTHER_IDX; \
   unsigned OTHER_LEVEL = V->level; \
+  assert (OTHER_LEVEL <= conflict_level); \
   if (!OTHER_LEVEL) \
     break; \
   if (V->seen) \
     break; \
   V->seen = true; \
   PUSH (*analyzed, OTHER_IDX); \
-  if (OTHER_LEVEL == level) \
+  if (OTHER_LEVEL == conflict_level) \
     { \
       open++; \
       break; \
@@ -186,6 +188,22 @@ do { \
     } \
 } while (0)
 
+#define CONFLICT_LITERAL(LIT_ARG) \
+do { \
+  unsigned LIT = (LIT_ARG); \
+  unsigned LIT_IDX = IDX (LIT); \
+  struct variable * V = ring->variables + LIT_IDX; \
+  unsigned LIT_LEVEL = V->level; \
+  if (forced_literal == INVALID_LIT || LIT_LEVEL > conflict_level) \
+    { \
+      conflict_level = LIT_LEVEL; \
+      literals_on_conflict_level = 1; \
+      forced_literal = LIT; \
+    } \
+  else if (LIT_LEVEL == conflict_level) \
+    literals_on_conflict_level++; \
+} while (0)
+
 bool
 analyze (struct ring *ring, struct watch *reason)
 {
@@ -196,26 +214,21 @@ analyze (struct ring *ring, struct watch *reason)
       return false;
     }
   unsigned conflict_level = 0;
+  unsigned literals_on_conflict_level = 0;
+  unsigned forced_literal = INVALID_LIT;
   assert (reason);
   if (is_binary_pointer (reason))
     {
       unsigned lit = lit_pointer (reason);
-      unsigned lit_level = VAR (lit)->level;
-      if (lit_level > conflict_level)
-	conflict_level = lit_level;
       unsigned other = other_pointer (reason);
-      unsigned other_level = VAR (other)->level;
-      if (other_level > conflict_level)
-	conflict_level = other_level;
+      CONFLICT_LITERAL (lit);
+      CONFLICT_LITERAL (other);
     }
   else
     {
       struct watcher *watcher = get_watcher (ring, reason);
-      for (all_watcher_literals (lit, watcher)) {
-	unsigned lit_level = VAR (lit)->level;
-        if (lit_level > conflict_level)
- 	 conflict_level = lit_level;
-      }
+      for (all_watcher_literals (lit, watcher))
+	CONFLICT_LITERAL (lit);
     }
   assert (conflict_level <= ring->level);
   if (conflict_level < ring->level)
@@ -225,6 +238,22 @@ analyze (struct ring *ring, struct watch *reason)
     }
   else
     LOG ("conflict level %u matches decision level", conflict_level);
+  if (!conflict_level)
+    {
+      set_inconsistent (ring, "conflict on root-level produces empty clause");
+      return false;
+    }
+  if (literals_on_conflict_level == 1)
+    {
+      LOG ("only literal %s on conflict level", LOGLIT (forced_literal));
+      backtrack (ring, conflict_level - 1);
+      LOGWATCH (reason, "forcing %s through", LOGLIT (forced_literal));
+      assign_with_reason (ring, forced_literal,  reason);
+      return true;
+    } 
+  else
+    LOG ("conflict has %u literals on conflict level",
+    literals_on_conflict_level);
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *analyzed = &ring->analyzed;
   struct unsigneds *levels = &ring->levels;
@@ -246,22 +275,25 @@ analyze (struct ring *ring, struct watch *reason)
 	{
 	  unsigned lit = lit_pointer (reason);
 	  unsigned other = other_pointer (reason);
-	  ANALYZE_LITERAL (lit);
-	  ANALYZE_LITERAL (other);
+	  RESOLVE_LITERAL (lit);
+	  RESOLVE_LITERAL (other);
 	}
       else
 	{
 	  struct watcher *watcher = get_watcher (ring, reason);
 	  bump_reason (ring, watcher);
 	  for (all_watcher_literals (lit, watcher))
-	    ANALYZE_LITERAL (lit);
+	    RESOLVE_LITERAL (lit);
 	}
+      struct variable * v;
       do
 	{
 	  assert (t > ring->trail.begin);
 	  uip = *--t;
+	  unsigned uip_idx = IDX (uip);
+	  v = ring->variables + uip_idx;
 	}
-      while (!VAR (uip)->seen);
+      while (!v->seen || v->level != conflict_level);
       if (!--open)
 	break;
       reason = variables[IDX (uip)].reason;
