@@ -1,3 +1,4 @@
+#include "geatures.h"
 #include "message.h"
 #include "options.h"
 #include "parse.h"
@@ -285,7 +286,7 @@ parse_dimacs_body (struct ruler *ruler, int variables, int expected)
   assert (dimacs->file);
   if (dimacs->close == 1)
     fclose (dimacs->file);
-#ifdef _POSIX_C_SOURCE
+#ifdef GIMSATUL_HAS_COMPRESSION
   if (dimacs->close == 2)
     pclose (dimacs->file);
 #endif

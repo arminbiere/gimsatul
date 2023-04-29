@@ -45,6 +45,23 @@ maximum_resident_set_size (void)
   return ((size_t) u.ru_maxrss) << 10;
 }
 
+#ifdef __APPLE__
+
+#include <mach/task.h>
+
+mach_port_t mach_task_self (void);
+
+size_t current_resident_set_size (void) {
+    struct task_basic_info info;
+      mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;
+        if (KERN_SUCCESS != task_info (mach_task_self (), TASK_BASIC_INFO,
+	                                   (task_info_t) &info, &count))
+	      return 0;
+	        return info.resident_size;
+}
+
+#else
+
 size_t
 current_resident_set_size (void)
 {
@@ -58,6 +75,8 @@ current_resident_set_size (void)
   fclose (file);
   return scanned == 2 ? rss * sysconf (_SC_PAGESIZE) : 0;
 }
+
+#endif
 
 void
 summarize_used_resources (unsigned t)
