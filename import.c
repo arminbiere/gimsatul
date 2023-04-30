@@ -2,6 +2,7 @@
 #include "backtrack.h"
 #include "import.h"
 #include "message.h"
+#include "propagate.h"
 #include "random.h"
 #include "ruler.h"
 #include "trace.h"
@@ -20,7 +21,6 @@ import_units (struct ring *ring)
 #endif
   struct variable *variables = ring->variables;
   signed char *values = ring->values;
-  unsigned level = ring->level;
   unsigned imported = 0;
   if (pthread_mutex_lock (&ruler->locks.units))
     fatal_error ("failed to acquire unit lock");
@@ -29,12 +29,37 @@ import_units (struct ring *ring)
       unsigned unit = *ring->ruler_units++;
       LOG ("trying to import unit %s", LOGLIT (unit));
       signed char value = values[unit];
-      if (level && value)
+      unsigned unit_idx = IDX (unit);
+      struct variable * v = variables + unit_idx;
+#if 0
+      while (value && v->level)
 	{
-	  unsigned idx = IDX (unit);
-	  if (variables[idx].level)
-	    value = 0;
+	  backtrack (ring, v->level - 1);
+	  while (ring_propagate (ring, true, 0))
+	    {
+	      if (!v->level) {
+		set_inconsistent (ring,
+		  "propagation after backtracking failed");
+		imported = INVALID;
+		goto DONE;
+	      }
+	      backtrack (ring, 0);
+	    }
+	  value = values[unit];
 	}
+#else
+      if (value && v->level) {
+	backtrack (ring, 0);
+	if (ring_propagate (ring, true, 0))
+	  {
+	    set_inconsistent (ring,
+	      "propagation after backtracking failed");
+	    imported = INVALID;
+	    goto DONE;
+	  }
+	value = values[unit];
+      }
+#endif
       if (value > 0)
 	continue;
       very_verbose (ring, "importing unit %d",
@@ -46,10 +71,11 @@ import_units (struct ring *ring)
 	{
 	  set_inconsistent (ring, "imported falsified unit");
 	  imported = INVALID;
-	  break;
+	  goto DONE;
 	}
       assign_ring_unit (ring, unit);
     }
+DONE:
   if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
   if (!imported)
