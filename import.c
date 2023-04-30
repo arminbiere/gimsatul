@@ -48,7 +48,6 @@ import_units (struct ring *ring)
 	  imported = INVALID;
 	  break;
 	}
-      assert (!ring->level);
       assign_ring_unit (ring, unit);
     }
   if (pthread_mutex_unlock (&ruler->locks.units))

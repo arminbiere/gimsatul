@@ -90,6 +90,7 @@ assign (struct ring *ring, unsigned lit, struct watch *reason, int type)
   size_t pos = SIZE (*trail);
   assert (pos < ring->size);
   trail->pos[idx] = pos;
+  assert (trail->end < trail->begin + ring->size);
   *trail->end++ = lit;
 
 #ifdef LOGGING
