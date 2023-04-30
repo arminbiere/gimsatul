@@ -248,6 +248,15 @@ analyze (struct ring *ring, struct watch *reason)
       LOG ("only literal %s on conflict level", LOGLIT (forced_literal));
       backtrack (ring, conflict_level - 1);
       LOGWATCH (reason, "forcing %s through", LOGLIT (forced_literal));
+      if (is_binary_pointer (reason)) {
+	unsigned lit = lit_pointer (reason);
+	unsigned other = other_pointer (reason);
+	assert (lit == forced_literal || other == forced_literal);
+	other = lit^other^forced_literal;
+	assert (other != forced_literal);
+	bool redundant = redundant_pointer (reason);
+	reason = tag_binary (redundant, forced_literal, other);
+      }
       assign_with_reason (ring, forced_literal,  reason);
       return true;
     } 
