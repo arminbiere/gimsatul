@@ -826,11 +826,9 @@ synchronize_exported_and_imported_units (struct ring *ring)
     return false;
 
   if (ring->level)
-    {
-      backtrack (ring, 0);
-      if (ring_propagate (ring, true, 0))
-	set_inconsistent (ring, "propagation after backtracking failed");
-    }
+    backtrack (ring, 0);
+  if (ring_propagate (ring, true, 0))
+    set_inconsistent (ring, "propagation before simplification failed");
   while (continue_importing_and_propagating_units (ring))
     if (import_shared (ring))
       if (!ring->inconsistent)
