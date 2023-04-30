@@ -1,3 +1,5 @@
+// vi:tw=0
+
 #ifndef _options_h_INCLUDED
 #define _options_h_INCLUDED
 
@@ -53,9 +55,11 @@
 #define INF INT_MAX
 
 #define OPTIONS \
+OPTION (unsigned, backjump_limit,        100, 0, INF, "number of levels jumped over") \
 OPTION (bool,     binary,                1, 0, 1,     "use binary DRAT proof format") \
 OPTION (bool,     bump_reasons,          1, 0, 1,     "bump reason side literals") \
-OPTION (unsigned, clause_size_limit,     100,3,10000,"during simplification") \
+OPTION (unsigned, clause_size_limit,     100,3,10000, "during simplification") \
+OPTION (bool,     chronological,         1, 0, 1,     "enable chronological backtracking") \
 OPTION (bool,     deduplicate,           1, 0, 1,     "remove duplicated binary clauses") \
 OPTION (bool,     eliminate,             1, 0, 1,     "bounded variable elimination") \
 OPTION (unsigned, eliminate_bound,       16, 0, 1024, "additionally added clause margin") \

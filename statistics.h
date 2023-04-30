@@ -20,6 +20,7 @@ struct context
   uint64_t jumped;
   uint64_t propagations;
   uint64_t conflicts;
+  uint64_t chronological;
   uint64_t decisions;
 #ifdef METRICS
   uint64_t visits[SIZE_VISITS];

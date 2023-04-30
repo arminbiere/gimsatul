@@ -16,6 +16,7 @@ print_ring_statistics (struct ring *ring)
   struct ring_statistics *s = &ring->statistics;
   struct context *c = s->contexts + SEARCH_CONTEXT;
   uint64_t conflicts = c->conflicts;
+  uint64_t chronological = c->chronological;
   uint64_t decisions = c->decisions;
   uint64_t propagations = c->propagations;
   uint64_t jumped = c->jumped;
@@ -27,6 +28,8 @@ print_ring_statistics (struct ring *ring)
   unsigned variables = ring->ruler->size;
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per second", "conflicts:",
 	   conflicts, average (conflicts, search));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% conflicts", "chronological:",
+	   chronological, percent (chronological, conflicts));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per conflict", "decisions:",
 	   decisions, average (decisions, conflicts));
   PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
