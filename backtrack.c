@@ -55,11 +55,15 @@ backtrack (struct ring *ring, unsigned new_level)
   trail->end = trail->propagate = t;
   ring->level = new_level;
   LOG ("backtracked to decision level %u", new_level);
+  size_t pos = SIZE (*trail);
   while (!EMPTY (ring->outoforder)) {
     unsigned lit = POP (ring->outoforder);
     LOG ("keeping out-of-order assigned %s", LOGLIT (lit));
     *trail->end++ = lit;
+    unsigned idx = IDX (lit);
+    trail->pos[idx] = pos++;
   }
+  assert (pos == SIZE (*trail));
 }
 
 void

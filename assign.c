@@ -87,7 +87,7 @@ assign (struct ring *ring, unsigned lit, struct watch *reason, int type)
     v->reason = reason;
 
   struct ring_trail *trail = &ring->trail;
-  size_t pos = trail->end - trail->begin;
+  size_t pos = SIZE (*trail);
   assert (pos < ring->size);
   trail->pos[idx] = pos;
   *trail->end++ = lit;
