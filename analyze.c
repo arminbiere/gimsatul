@@ -274,8 +274,11 @@ bool analyze(struct ring *ring, struct watch *reason) {
     if (!ring->options.chronological || back < ring->options.backjump_limit ||
 	back - ring->options.backjump_limit <= jump)
       backtrack(ring, jump);
-    else
+    else {
+      LOG ("chronological backtracking only (staying at %u not %u)",
+           back, jump);
       ring->statistics.contexts[ring->context].chronological++;
+    }
   }
   unsigned size = SIZE(*ring_clause);
   assert(size);

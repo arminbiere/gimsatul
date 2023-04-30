@@ -18,17 +18,23 @@
 #include <assert.h>
 #include <inttypes.h>
 
+static bool
+iterating (struct ring * ring)
+{
+  struct ring_units *units = &ring->ring_units;
+  return units->iterate < units->end;
+}
+
 void
 iterate (struct ring *ring)
 {
-  assert (ring->iterating);
   struct ring_units *units = &ring->ring_units;
   if (units->iterate < units->end)
     {
 #ifndef QUIET
       size_t new_units = units->end - units->iterate;
       very_verbose (ring, "iterating %zu units", new_units);
-      int report_level = (ring->iterating < 0);
+      int report_level = (ring->iterating <= 0);
       verbose_report (ring, 'i', report_level);
 #endif
       export_units (ring);
@@ -128,7 +134,7 @@ search (struct ring *ring)
 	}
       else if (!ring->unassigned)
 	set_satisfied (ring), res = 10;
-      else if (ring->iterating)
+      else if (iterating (ring))
 	iterate (ring);
       else if (terminate_ring (ring))
 	break;

@@ -48,11 +48,6 @@ import_units (struct ring *ring)
 	  imported = INVALID;
 	  break;
 	}
-      if (level)
-	{
-	  backtrack (ring, 0);
-	  level = 0;
-	}
       assert (!ring->level);
       assign_ring_unit (ring, unit);
     }
