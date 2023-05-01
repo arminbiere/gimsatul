@@ -13,13 +13,13 @@ scale_interval (struct ring *ring, const char *name, uint64_t interval)
   double f = logn (reference);
   double ff = f * f;
   uint64_t scaled = ff * interval;
-  // *INDENT-OFF*
+  // clang-format off
   very_verbose (ring, "scaled %s interval %" PRIu64
                 " = %g * %" PRIu64
                 " = %g^2 * %" PRIu64
                 " = log10^2(%" PRIu64 ") * %" PRIu64,
                 name, scaled, ff, interval, f, interval, reference, interval);
-  // *INDENT-ON*
+  // clang-format on
   (void) name;
   return scaled;
 }

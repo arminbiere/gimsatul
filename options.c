@@ -223,13 +223,13 @@ parse_options (int argc, char **argv, struct options *opts)
 	      printf ("\n");
 	      print_usage_of_generic_options ();
 	      printf ("\n");
-// *INDENT-OFF*
+// clang-format off
 	      fputs (
 "which can also be used in the form '--<name>' and '--no-<name>'\n"
 "for '<bool>' options instead of '--<name>=true' or '--<name>=false'\n"
 "where 'true' / 'false' can be replaced by '1' / '0' as well.\n",
 		stdout);
-// *INDENT-ON*
+// clang-format on
 	    }
 	  exit (0);
 	}

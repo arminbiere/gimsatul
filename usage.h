@@ -1,4 +1,4 @@
-// *INDENT-OFF*
+// clang-format off
 
 static char * compact_usage = 
 
@@ -40,4 +40,4 @@ static char * additional_less_common_options =
 
 ;
 
-// *INDENT-ON*
+// clang-format on

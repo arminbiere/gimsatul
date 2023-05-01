@@ -29,7 +29,7 @@ SIGNAL(SIGINT) \
 SIGNAL(SIGSEGV) \
 SIGNAL(SIGTERM)
 
-// *INDENT-OFF*
+// clang-format off
 
 // Saved previous signal handlers.
 
@@ -39,7 +39,7 @@ SIGNALS
 #undef SIGNAL
 static void (*saved_SIGALRM_handler)(int);
 
-// *INDENT-ON*
+// clang-format on
 
 static void
 reset_alarm_handler (void)
@@ -54,12 +54,12 @@ reset_signal_handlers (void)
   one_global_ruler = 0;
   if (atomic_exchange (&catching_signals, false))
     {
-  // *INDENT-OFF*
+  // clang-format off
 #define SIGNAL(SIG) \
       signal (SIG, saved_ ## SIG ## _handler);
       SIGNALS
 #undef SIGNAL
-  // *INDENT-ON*
+  // clang-format on
     }
   reset_alarm_handler ();
 }
@@ -164,12 +164,12 @@ set_signal_handlers (struct ruler *ruler)
   unsigned seconds = ruler->options.seconds;
   one_global_ruler = ruler;
   assert (!catching_signals);
-  // *INDENT-OFF*
+  // clang-format off
 #define SIGNAL(SIG) \
   saved_ ## SIG ##_handler = signal (SIG, catch_signal);
   SIGNALS
 #undef SIGNAL
-  // *INDENT-ON*
+  // clang-format on
   catching_signals = true;
   if (seconds)
     set_alarm_handler (seconds);

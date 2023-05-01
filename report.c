@@ -8,11 +8,11 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-// *INDENT-OFF*
+// clang-format off
 
 static _Atomic (uint64_t) reported;
 
-// *INDENT-ON*
+// clang-format on
 
 void
 verbose_report (struct ring *ring, char type, int level)

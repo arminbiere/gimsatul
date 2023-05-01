@@ -196,7 +196,7 @@ solve_rings (struct ruler *ruler)
       init_barrier (&ruler->barriers.NAME, #NAME, threads);
       BARRIERS
 #undef BARRIER
-// *INDENT-OFF*
+// clang-format off
 
       for (all_rings (ring))
 	start_running_ring (ring);
@@ -204,7 +204,7 @@ solve_rings (struct ruler *ruler)
       for (all_rings (ring))
 	stop_running_ring (ring);
 
-// *INDENT-ON*
+// clang-format on
     }
   else
     {
