@@ -79,13 +79,12 @@ force_to_repropagate (struct ring *ring, unsigned lit)
   LOG ("forcing to repropagate %s", LOGLIT (lit));
   assert (ring->values[lit] < 0);
   unsigned idx = IDX (lit);
-  struct variable *v = ring->variables + idx;
   size_t pos = ring->trail.pos[idx];
   assert (pos < SIZE (ring->trail));
   unsigned *propagate = ring->trail.begin + pos;
   assert (propagate < ring->trail.end);
   assert (*propagate == NOT (lit));
-  assert (propagate < ring->trail.propagate)
+  assert (propagate < ring->trail.propagate);
   ring->trail.propagate = propagate;
   LOG ("setting end of trail to %zu", pos);
   if (!ring->level)
