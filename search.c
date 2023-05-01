@@ -1,4 +1,5 @@
 #include "analyze.h"
+#include "backtrack.h"
 #include "decide.h"
 #include "export.h"
 #include "import.h"
@@ -41,6 +42,23 @@ iterate (struct ring *ring)
       units->iterate = units->end;
     }
   ring->iterating = 0;
+}
+
+bool
+backtrack_propagate_iterate (struct ring * ring)
+{
+  assert (!ring->inconsistent);
+  if (ring->level)
+    backtrack (ring, 0);
+  if (ring_propagate (ring, true, 0))
+    {
+      set_inconsistent (ring,
+			"failed propagation after root-level backtracking");
+      return false;
+    }
+  iterate (ring);
+  assert (!ring->inconsistent);
+  return true;
 }
 
 static void

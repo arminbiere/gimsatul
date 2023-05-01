@@ -1,5 +1,6 @@
 #include "assign.h"
 #include "backtrack.h"
+#include "cover.h"
 #include "import.h"
 #include "message.h"
 #include "propagate.h"
@@ -31,37 +32,17 @@ import_units (struct ring *ring)
       signed char value = values[unit];
       unsigned unit_idx = IDX (unit);
       struct variable * v = variables + unit_idx;
-#if 0
-      while (value && v->level)
+      if (value && v->level)
 	{
 	  backtrack (ring, v->level - 1);
-	  while (ring_propagate (ring, true, 0))
-	    {
-	      if (!v->level) {
-		set_inconsistent (ring,
-		  "propagation after backtracking failed");
-		imported = INVALID;
-		goto DONE;
-	      }
-	      backtrack (ring, 0);
-	    }
-	  value = values[unit];
+	  assert (!values[unit]);
+	  value = 0;
 	}
-#else
-      if (value && v->level) {
-	backtrack (ring, 0);
-	if (ring_propagate (ring, true, 0))
-	  {
-	    set_inconsistent (ring,
-	      "propagation after backtracking failed");
-	    imported = INVALID;
-	    goto DONE;
-	  }
-	value = values[unit];
-      }
-#endif
       if (value > 0)
-	continue;
+	{
+	  assert (!v->level);
+	  continue;
+	}
       very_verbose (ring, "importing unit %d",
 		    unmap_and_export_literal (ruler->unmap, unit));
       INC_UNIT_CLAUSE_STATISTICS (imported);
@@ -69,13 +50,13 @@ import_units (struct ring *ring)
       imported++;
       if (value < 0)
 	{
+	  assert (!v->level);
 	  set_inconsistent (ring, "imported falsified unit");
 	  imported = INVALID;
-	  goto DONE;
+	  break;
 	}
       assign_ring_unit (ring, unit);
     }
-DONE:
   if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
   if (!imported)
@@ -99,18 +80,14 @@ force_to_repropagate (struct ring *ring, unsigned lit)
   assert (ring->values[lit] < 0);
   unsigned idx = IDX (lit);
   struct variable *v = ring->variables + idx;
-  if (ring->level > v->level)
-    {
-      ring->statistics.diverged++;
-      backtrack (ring, v->level);
-    }
   size_t pos = ring->trail.pos[idx];
   assert (pos < SIZE (ring->trail));
-  LOG ("setting end of trail to %zu", pos);
   unsigned *propagate = ring->trail.begin + pos;
   assert (propagate < ring->trail.end);
   assert (*propagate == NOT (lit));
+  assert (propagate < ring->trail.propagate)
   ring->trail.propagate = propagate;
+  LOG ("setting end of trail to %zu", pos);
   if (!ring->level)
     ring->iterating = -1;
 }

@@ -732,14 +732,12 @@ walking_loop (struct walker *walker)
 void
 local_search (struct ring *ring)
 {
+  if (!backtrack_propagate_iterate (ring))
+    return;
   STOP_SEARCH_AND_START (walk);
   assert (ring->context == SEARCH_CONTEXT);
   ring->context = WALK_CONTEXT;
   ring->statistics.walked++;
-  if (ring->level)
-    backtrack (ring, 0);
-  if (ring_propagate (ring, true, 0))
-    goto DONE;
   if (ring->last.fixed != ring->statistics.fixed)
     mark_satisfied_watchers_as_garbage (ring);
   {
@@ -750,7 +748,6 @@ local_search (struct ring *ring)
     delete_walker (walker);
     fix_values_after_local_search (ring);
   }
-DONE:
   ring->last.walk = SEARCH_TICKS;
   assert (ring->context == WALK_CONTEXT);
   ring->context = SEARCH_CONTEXT;

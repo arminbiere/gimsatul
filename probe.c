@@ -6,6 +6,7 @@
 #include "propagate.h"
 #include "ring.h"
 #include "scale.h"
+#include "search.h"
 #include "utilities.h"
 #include "vivify.h"
 
@@ -24,16 +25,14 @@ probing (struct ring *ring)
 int
 probe (struct ring *ring)
 {
+  if (!backtrack_propagate_iterate (ring))
+    return 20;
   assert (ring->size);
   assert (ring->options.probe);
   STOP_SEARCH_AND_START (probe);
   assert (ring->context == SEARCH_CONTEXT);
   ring->context = PROBING_CONTEXT;
   ring->statistics.probings++;
-  if (ring->level)
-      backtrack (ring, 0);
-  if (ring_propagate (ring, true, 0))
-    set_inconsistent (ring, "propagation before probing failed");
   failed_literal_probing (ring);
   vivify_clauses (ring);
   ring->context = SEARCH_CONTEXT;

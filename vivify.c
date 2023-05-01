@@ -683,6 +683,8 @@ vivify_clauses (struct ring *ring)
     return;
   if (!ring->options.vivify)
     return;
+  if (!backtrack_propagate_iterate (ring))
+    return;
   START (ring, vivify);
   assert (SEARCH_TICKS >= ring->last.probing);
 

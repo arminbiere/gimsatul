@@ -124,6 +124,7 @@ failed_literal_probing (struct ring *ring)
 	      assert (probe & 1);
 	      assert (last == NOT (probe));
 	      backtrack (ring, 0);
+	      assert (ring->trail.end == ring->trail.propagate);
 	      for (unsigned *p = lift.begin; p != lift.end; p++)
 		{
 		  unit = *p;
@@ -164,8 +165,11 @@ failed_literal_probing (struct ring *ring)
 		ring->iterating = -1;
 	    }
 	}
-      if (ring->level)
-	backtrack (ring, 0);
+      if (ring->level) 
+	{
+	  backtrack (ring, 0);
+	  assert (ring->trail.end == ring->trail.propagate);
+	}
       assert (!ring->level);
       if (!ok)
 	{
