@@ -1,75 +1,64 @@
+#include "watches.h"
 #include "clause.h"
-#include "ring.h"
 #include "message.h"
+#include "ring.h"
 #include "tagging.h"
 #include "trace.h"
-#include "watches.h"
 #include "utilities.h"
 #include "vivify.h"
 
 #include <string.h>
 
-void
-release_references (struct ring *ring)
-{
+void release_references (struct ring *ring) {
   if (ring->references)
     for (all_ring_literals (lit))
       RELEASE (REFERENCES (lit));
 }
 
-void
-disconnect_references (struct ring *ring, struct watches *saved)
-{
+void disconnect_references (struct ring *ring, struct watches *saved) {
   size_t disconnected = 0;
-  for (all_ring_literals (lit))
-    {
-      struct references *watches = &REFERENCES (lit);
-      for (all_watches (watch, *watches))
-	if (is_binary_pointer (watch))
-	  {
-	    assert (redundant_pointer (watch));
-	    assert (lit_pointer (watch) == lit);
-	    unsigned other = other_pointer (watch);
-	    if (other < lit)
-	      PUSH (*saved, watch);
-	  }
-      disconnected += SIZE (*watches);
-      RELEASE (*watches);
-    }
+  for (all_ring_literals (lit)) {
+    struct references *watches = &REFERENCES (lit);
+    for (all_watches (watch, *watches))
+      if (is_binary_pointer (watch)) {
+        assert (redundant_pointer (watch));
+        assert (lit_pointer (watch) == lit);
+        unsigned other = other_pointer (watch);
+        if (other < lit)
+          PUSH (*saved, watch);
+      }
+    disconnected += SIZE (*watches);
+    RELEASE (*watches);
+  }
   very_verbose (ring, "disconnected %zu clauses", disconnected);
 }
 
-void
-reconnect_watches (struct ring *ring, struct watches *saved)
-{
+void reconnect_watches (struct ring *ring, struct watches *saved) {
   size_t reconnected = 0;
-  for (all_watchers (watcher))
-    {
-      unsigned *literals = watcher->clause->literals;
-      watcher->sum = literals[0] ^ literals[1];
-      watch_literal (ring, literals[0], literals[1], watcher);
-      watch_literal (ring, literals[1], literals[0], watcher);
-      reconnected++;
-    }
-  for (all_watches (lit_watch, *saved))
-    {
-      assert (is_binary_pointer (lit_watch));
-      assert (redundant_pointer (lit_watch));
-      unsigned lit = lit_pointer (lit_watch);
-      unsigned other = other_pointer (lit_watch);
-      struct watch *other_watch = tag_binary (true, other, lit);
-      push_watch (ring, lit, lit_watch);
-      push_watch (ring, other, other_watch);
-    }
+  for (all_watchers (watcher)) {
+    unsigned *literals = watcher->clause->literals;
+    watcher->sum = literals[0] ^ literals[1];
+    watch_literal (ring, literals[0], literals[1], watcher);
+    watch_literal (ring, literals[1], literals[0], watcher);
+    reconnected++;
+  }
+  for (all_watches (lit_watch, *saved)) {
+    assert (is_binary_pointer (lit_watch));
+    assert (redundant_pointer (lit_watch));
+    unsigned lit = lit_pointer (lit_watch);
+    unsigned other = other_pointer (lit_watch);
+    struct watch *other_watch = tag_binary (true, other, lit);
+    push_watch (ring, lit, lit_watch);
+    push_watch (ring, other, other_watch);
+  }
   very_verbose (ring, "reconnected %zu clauses", reconnected);
   ring->trail.propagate = ring->trail.begin;
 }
 
-struct watch *
-watch_literals_in_large_clause (struct ring *ring,
-				struct clause *clause,
-				unsigned first, unsigned second)
-{
+struct watch *watch_literals_in_large_clause (struct ring *ring,
+                                              struct clause *clause,
+                                              unsigned first,
+                                              unsigned second) {
   assert (clause->size > 2);
   assert (!clause->garbage);
   assert (!clause->dirty);
@@ -87,7 +76,7 @@ watch_literals_in_large_clause (struct ring *ring,
   size_t size_watchers = SIZE (ring->watchers);
   if (size_watchers >= MAX_WATCHER_INDEX)
     fatal_error ("more than %zu watched clauses in ring[%u]",
-		 (size_t) MAX_WATCHER_INDEX, ring->id);
+                 (size_t) MAX_WATCHER_INDEX, ring->id);
   unsigned idx = size_watchers;
 
   if (FULL (ring->watchers))
@@ -143,16 +132,13 @@ watch_literals_in_large_clause (struct ring *ring,
 
 struct watch *
 watch_first_two_literals_in_large_clause (struct ring *ring,
-					  struct clause *clause)
-{
+                                          struct clause *clause) {
   unsigned *lits = clause->literals;
   return watch_literals_in_large_clause (ring, clause, lits[0], lits[1]);
 }
 
-struct watch *
-new_local_binary_clause (struct ring *ring, bool redundant,
-			 unsigned lit, unsigned other)
-{
+struct watch *new_local_binary_clause (struct ring *ring, bool redundant,
+                                       unsigned lit, unsigned other) {
   inc_clauses (ring, redundant);
   struct watch *watch_lit = tag_binary (redundant, lit, other);
   struct watch *watch_other = tag_binary (redundant, other, lit);
@@ -162,9 +148,7 @@ new_local_binary_clause (struct ring *ring, bool redundant,
   return watch_lit;
 }
 
-unsigned *
-flush_watchers (struct ring *ring, unsigned start)
-{
+unsigned *flush_watchers (struct ring *ring, unsigned start) {
   assert (start);
   struct watchers *watchers = &ring->watchers;
   assert (!EMPTY (*watchers));
@@ -187,72 +171,60 @@ flush_watchers (struct ring *ring, unsigned start)
   unsigned deleted = 0;
   unsigned mapped = 0;
 #endif
-  if (start >= ring->redundant)
-    {
-      assert (ring->redundant);
-      redundant = ring->redundant;
-    }
+  if (start >= ring->redundant) {
+    assert (ring->redundant);
+    redundant = ring->redundant;
+  }
 
-  for (struct watcher * p = begin; p != end; p++, src++)
-    {
-      if (p->garbage && !p->reason)
-	{
-	  struct clause *clause = p->clause;
+  for (struct watcher *p = begin; p != end; p++, src++) {
+    if (p->garbage && !p->reason) {
+      struct clause *clause = p->clause;
 #ifndef QUIET
-	  deleted += dereference_clause (ring, clause);
-	  flushed++;
+      deleted += dereference_clause (ring, clause);
+      flushed++;
 #else
-	  (void) dereference_clause (ring, clause);
+      (void) dereference_clause (ring, clause);
 #endif
-	}
-      else
-	{
-	  *q++ = *p;
+    } else {
+      *q++ = *p;
 
-	  if (!redundant && p->redundant)
-	    redundant = dst;
+      if (!redundant && p->redundant)
+        redundant = dst;
 
-	  if (!tier2 && p->redundant && TIER1_GLUE_LIMIT < p->glue)
-	    tier2 = dst;
+      if (!tier2 && p->redundant && TIER1_GLUE_LIMIT < p->glue)
+        tier2 = dst;
 
-	  assert (src < size);
-	  assert (dst < MAX_WATCHER_INDEX);
-	  map[src] = dst++;
+      assert (src < size);
+      assert (dst < MAX_WATCHER_INDEX);
+      map[src] = dst++;
 #ifndef QUIET
-	  mapped++;
+      mapped++;
 #endif
-	}
     }
+  }
   watchers->end = q;
 
-  verbose (ring, "mapped %u non-garbage watchers %.0f%%",
-	   mapped, percent (mapped, size));
-  verbose (ring,
-	   "flushed %u garbage watched and deleted %u clauses %.0f%%",
-	   flushed, deleted, percent (deleted, flushed));
+  verbose (ring, "mapped %u non-garbage watchers %.0f%%", mapped,
+           percent (mapped, size));
+  verbose (ring, "flushed %u garbage watched and deleted %u clauses %.0f%%",
+           flushed, deleted, percent (deleted, flushed));
 
-  if (redundant)
-    {
-      very_verbose (ring, "redundant clauses start at watcher index %u",
-		    redundant);
-      ring->redundant = redundant;
-    }
-  else
-    {
-      very_verbose (ring, "no redundant clauses watched");
-      ring->redundant = SIZE (*watchers);
-    }
+  if (redundant) {
+    very_verbose (ring, "redundant clauses start at watcher index %u",
+                  redundant);
+    ring->redundant = redundant;
+  } else {
+    very_verbose (ring, "no redundant clauses watched");
+    ring->redundant = SIZE (*watchers);
+  }
 
-  if (tier2)
-    {
-      very_verbose (ring, "tier2 clauses start at watcher index %u", tier2);
-      ring->tier2 = tier2;
-    }
-  else
-    {
-      very_verbose (ring, "no tier2 clauses watched");
-      ring->tier2 = SIZE (*watchers);
-    }
+  if (tier2) {
+    very_verbose (ring, "tier2 clauses start at watcher index %u", tier2);
+    ring->tier2 = tier2;
+  } else {
+    very_verbose (ring, "no tier2 clauses watched");
+    ring->tier2 = SIZE (*watchers);
+  }
 
   assert (ring->redundant);
   assert (ring->tier2);
@@ -260,42 +232,36 @@ flush_watchers (struct ring *ring, unsigned start)
   return map;
 }
 
-void
-mark_garbage_watcher (struct ring *ring, struct watcher *watcher)
-{
+void mark_garbage_watcher (struct ring *ring, struct watcher *watcher) {
   LOGCLAUSE (watcher->clause, "marking garbage watcher to");
   assert (!watcher->garbage);
   watcher->garbage = true;
   dec_clauses (ring, watcher->redundant);
 }
 
-void
-sort_redundant_watcher_indices (struct ring *ring,
-				size_t size_indices, unsigned *indices)
-{
+void sort_redundant_watcher_indices (struct ring *ring, size_t size_indices,
+                                     unsigned *indices) {
   if (size_indices < 2)
     return;
   size_t size_count = MAX_GLUE + 1, count[size_count];
   memset (count, 0, sizeof count);
   unsigned *end = indices + size_indices;
-  for (unsigned *p = indices; p != end; p++)
-    {
-      unsigned idx = *p;
-      struct watcher *watcher = index_to_watcher (ring, idx);
-      assert (watcher->glue <= MAX_GLUE);
-      assert (watcher->redundant);
-      count[watcher->glue]++;
-    }
+  for (unsigned *p = indices; p != end; p++) {
+    unsigned idx = *p;
+    struct watcher *watcher = index_to_watcher (ring, idx);
+    assert (watcher->glue <= MAX_GLUE);
+    assert (watcher->redundant);
+    count[watcher->glue]++;
+  }
   size_t pos = 0, *c = count + size_count, size;
   while (c-- != count)
     size = *c, *c = pos, pos += size;
   unsigned *tmp = sorter_block (ring, size_indices);
-  for (unsigned *p = indices; p != end; p++)
-    {
-      unsigned idx = *p;
-      struct watcher *watcher = index_to_watcher (ring, idx);
-      tmp[count[watcher->glue]++] = idx;
-    }
+  for (unsigned *p = indices; p != end; p++) {
+    unsigned idx = *p;
+    struct watcher *watcher = index_to_watcher (ring, idx);
+    tmp[count[watcher->glue]++] = idx;
+  }
   size_t bytes = size_indices * sizeof *indices;
   memcpy (indices, tmp, bytes);
 }

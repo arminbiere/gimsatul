@@ -4,8 +4,7 @@
 struct ring;
 struct clause;
 
-struct counter
-{
+struct counter {
   unsigned count;
   struct clause *clause;
 };

@@ -6,8 +6,7 @@
 #include "message.h"
 #include "system.h"
 
-struct profile
-{
+struct profile {
   const char *name;
   volatile double start;
   volatile double time;
@@ -25,10 +24,8 @@ struct profile
 \
   RING_PROFILE (solve)
 
-struct ring_profiles
-{
-#define RING_PROFILE(NAME) \
-  struct profile NAME;
+struct ring_profiles {
+#define RING_PROFILE(NAME) struct profile NAME;
   RING_PROFILES
 #undef RING_PROFILE
 };
@@ -45,10 +42,8 @@ struct ring_profiles
 \
   RULER_PROFILE (total)
 
-struct ruler_profiles
-{
-#define RULER_PROFILE(NAME) \
-  struct profile NAME;
+struct ruler_profiles {
+#define RULER_PROFILE(NAME) struct profile NAME;
   RULER_PROFILES
 #undef RULER_PROFILE
 };
@@ -57,63 +52,63 @@ struct ruler_profiles
 
 #define profile_time current_time
 
-#define START(OWNER,NAME) \
-  (verbosity < 0 ? 0.0 : \
-    start_profile (&OWNER->profiles.NAME, profile_time ()))
+#define START(OWNER, NAME) \
+  (verbosity < 0 ? 0.0 \
+                 : start_profile (&OWNER->profiles.NAME, profile_time ()))
 
-#define STOP(OWNER,NAME) \
-  (verbosity < 0 ? 0.0 : \
-    stop_profile (&OWNER->profiles.NAME, profile_time ()))
+#define STOP(OWNER, NAME) \
+  (verbosity < 0 ? 0.0 \
+                 : stop_profile (&OWNER->profiles.NAME, profile_time ()))
 
 #define MODE_PROFILE \
   (ring->stable ? &ring->profiles.stable : &ring->profiles.focus)
 
 #define STOP_SEARCH() \
-do { \
-  if (verbosity < 0) \
-    break; \
-  double t = profile_time (); \
-  stop_profile (MODE_PROFILE, t); \
-  stop_profile (&ring->profiles.search, t); \
-} while (0)
+  do { \
+    if (verbosity < 0) \
+      break; \
+    double t = profile_time (); \
+    stop_profile (MODE_PROFILE, t); \
+    stop_profile (&ring->profiles.search, t); \
+  } while (0)
 
 #define START_SEARCH() \
-do { \
-  if (verbosity < 0) \
-    break; \
-  double t = profile_time (); \
-  start_profile (&ring->profiles.search, t); \
-  start_profile (MODE_PROFILE, t); \
-} while (0)
+  do { \
+    if (verbosity < 0) \
+      break; \
+    double t = profile_time (); \
+    start_profile (&ring->profiles.search, t); \
+    start_profile (MODE_PROFILE, t); \
+  } while (0)
 
 #define STOP_SEARCH_AND_START(NAME) \
-do { \
-  if (verbosity < 0) \
-    break; \
-  double t = profile_time (); \
-  stop_profile (MODE_PROFILE, t); \
-  stop_profile (&ring->profiles.search, t); \
-  start_profile (&ring->profiles.NAME, t); \
-} while (0)
+  do { \
+    if (verbosity < 0) \
+      break; \
+    double t = profile_time (); \
+    stop_profile (MODE_PROFILE, t); \
+    stop_profile (&ring->profiles.search, t); \
+    start_profile (&ring->profiles.NAME, t); \
+  } while (0)
 
 #define STOP_AND_START_SEARCH(NAME) \
-do { \
-  if (verbosity < 0) \
-    break; \
-  double t = profile_time (); \
-  stop_profile (&ring->profiles.NAME, t); \
-  start_profile (&ring->profiles.search, t); \
-  start_profile (MODE_PROFILE, t); \
-} while (0)
+  do { \
+    if (verbosity < 0) \
+      break; \
+    double t = profile_time (); \
+    stop_profile (&ring->profiles.NAME, t); \
+    start_profile (&ring->profiles.search, t); \
+    start_profile (MODE_PROFILE, t); \
+  } while (0)
 
-#define INIT_PROFILE(OWNER,NAME) \
-do { \
-  if (verbosity < 0) \
-    break; \
-  struct profile * profile = &OWNER->profiles.NAME; \
-  profile->start = -1; \
-  profile->name = #NAME; \
-} while (0)
+#define INIT_PROFILE(OWNER, NAME) \
+  do { \
+    if (verbosity < 0) \
+      break; \
+    struct profile *profile = &OWNER->profiles.NAME; \
+    profile->start = -1; \
+    profile->name = #NAME; \
+  } while (0)
 
 /*------------------------------------------------------------------------*/
 
@@ -122,20 +117,30 @@ double stop_profile (struct profile *, double time);
 
 #else
 
-struct ring_profiles
-{
-};
-struct ruler_profiles
-{
-};
+struct ring_profiles {};
+struct ruler_profiles {};
 
-#define START(...) do { } while (0)
-#define STOP(...) do { } while (0)
-#define START_SEARCH(...) do { } while (0)
-#define STOP_SEARCH(...) do { } while (0)
-#define STOP_SEARCH_AND_START(...) do { } while (0)
-#define STOP_AND_START_SEARCH(...) do { } while (0)
-#define INIT_PROFILE(...) do { } while (0)
+#define START(...) \
+  do { \
+  } while (0)
+#define STOP(...) \
+  do { \
+  } while (0)
+#define START_SEARCH(...) \
+  do { \
+  } while (0)
+#define STOP_SEARCH(...) \
+  do { \
+  } while (0)
+#define STOP_SEARCH_AND_START(...) \
+  do { \
+  } while (0)
+#define STOP_AND_START_SEARCH(...) \
+  do { \
+  } while (0)
+#define INIT_PROFILE(...) \
+  do { \
+  } while (0)
 
 #endif
 

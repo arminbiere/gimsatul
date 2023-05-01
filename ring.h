@@ -22,13 +22,11 @@
 
 struct ruler;
 
-struct reluctant
-{
+struct reluctant {
   uint64_t u, v;
 };
 
-struct ring_limits
-{
+struct ring_limits {
   uint64_t mode;
   uint64_t randec;
   uint64_t reduce;
@@ -36,22 +34,18 @@ struct ring_limits
   uint64_t restart;
   uint64_t simplify;
   long long conflicts;
-  struct
-  {
+  struct {
     uint64_t conflicts;
     uint64_t reductions;
   } probe;
 };
 
-struct intervals
-{
+struct intervals {
   uint64_t mode;
 };
 
-struct averages
-{
-  struct
-  {
+struct averages {
+  struct {
     struct average fast;
     struct average slow;
   } glue;
@@ -60,47 +54,42 @@ struct averages
   struct average decisions;
 };
 
-struct ring_last
-{
+struct ring_last {
   uint64_t decisions;
   unsigned fixed;
   uint64_t probing;
   uint64_t walk;
-  struct mode
-  {
+  struct mode {
     uint64_t conflicts;
     uint64_t ticks;
     double time;
   } mode;
 };
 
-struct ring_delay
-{
-  struct { uint64_t count, current; } bump_reason;
+struct ring_delay {
+  struct {
+    uint64_t count, current;
+  } bump_reason;
 };
 
-struct ring_trail
-{
+struct ring_trail {
   unsigned *begin, *end;
   unsigned *pos, *propagate;
 };
 
-struct ring_units
-{
-  unsigned * begin, * end;
-  unsigned * iterate, *export;
+struct ring_units {
+  unsigned *begin, *end;
+  unsigned *iterate, *export;
 };
 
 #define BINARY_SHARED 0
 #define SIZE_SHARED 16
 
-struct pool
-{
+struct pool {
   atomic_uintptr_t share[SIZE_SHARED];
 };
 
-struct ring
-{
+struct ring {
   unsigned id;
   unsigned threads;
   struct pool *pool;
@@ -166,8 +155,7 @@ struct ring
   uint64_t random;
 };
 
-struct rings
-{
+struct rings {
   struct ring **begin, **end, **allocated;
 };
 
@@ -179,37 +167,37 @@ struct rings
 /*------------------------------------------------------------------------*/
 
 #define all_ring_indices(IDX) \
-  unsigned IDX = 0, END_ ## IDX = ring->size; \
-  IDX != END_ ## IDX; \
+  unsigned IDX = 0, END_##IDX = ring->size; \
+  IDX != END_##IDX; \
   ++IDX
 
 #define all_ring_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*ring->size; \
-  LIT != END_ ## LIT; \
+  unsigned LIT = 0, END_##LIT = 2 * ring->size; \
+  LIT != END_##LIT; \
   ++LIT
 
 #define all_phases(PHASE) \
-  struct phases * PHASE = ring->phases, \
-                  * END_ ## PHASE = PHASE + ring->size; \
-  (PHASE != END_ ## PHASE); \
+  struct phases *PHASE = ring->phases, *END_##PHASE = PHASE + ring->size; \
+  (PHASE != END_##PHASE); \
   ++PHASE
 
 #define all_averages(AVG) \
-  struct average * AVG = (struct average*) &ring->averages, \
-  * END_ ## AVG = (struct average*) ((char*) AVG + sizeof ring->averages); \
-  AVG != END_ ## AVG; \
+  struct average *AVG = (struct average *) &ring->averages, \
+                 *END_##AVG = (struct average *) ((char *) AVG + \
+                                                  sizeof ring->averages); \
+  AVG != END_##AVG; \
   ++AVG
 
 #define all_watchers(WATCHER) \
-  struct watcher * WATCHER = ring->watchers.begin + 1, \
-                  * END_ ## WATCHER = ring->watchers.end; \
-  (WATCHER != END_ ## WATCHER); \
+  struct watcher *WATCHER = ring->watchers.begin + 1, \
+                 *END_##WATCHER = ring->watchers.end; \
+  (WATCHER != END_##WATCHER); \
   ++WATCHER
 
 #define all_redundant_watchers(WATCHER) \
-  struct watcher * WATCHER = ring->watchers.begin + ring->redundant, \
-                  * END_ ## WATCHER = ring->watchers.end; \
-  (WATCHER != END_ ## WATCHER); \
+  struct watcher *WATCHER = ring->watchers.begin + ring->redundant, \
+                 *END_##WATCHER = ring->watchers.end; \
+  (WATCHER != END_##WATCHER); \
   ++WATCHER
 
 /*------------------------------------------------------------------------*/
@@ -236,9 +224,8 @@ unsigned *sorter_block (struct ring *, size_t size);
 
 /*------------------------------------------------------------------------*/
 
-static inline unsigned
-watcher_to_index (struct ring *ring, struct watcher *watcher)
-{
+static inline unsigned watcher_to_index (struct ring *ring,
+                                         struct watcher *watcher) {
   assert (ring->watchers.begin <= watcher);
   assert (watcher < ring->watchers.end);
   size_t idx = watcher - ring->watchers.begin;
@@ -247,40 +234,34 @@ watcher_to_index (struct ring *ring, struct watcher *watcher)
   return idx;
 }
 
-static inline struct watcher *
-index_to_watcher (struct ring *ring, unsigned idx)
-{
+static inline struct watcher *index_to_watcher (struct ring *ring,
+                                                unsigned idx) {
   return &PEEK (ring->watchers, idx);
 }
 
-static inline struct watcher *
-get_watcher (struct ring *ring, struct watch *watch)
-{
+static inline struct watcher *get_watcher (struct ring *ring,
+                                           struct watch *watch) {
   assert (!is_binary_pointer (watch));
   size_t idx = index_pointer (watch);
   return &PEEK (ring->watchers, idx);
 }
 
-static inline struct clause *
-get_clause (struct ring *ring, struct watch *watch)
-{
+static inline struct clause *get_clause (struct ring *ring,
+                                         struct watch *watch) {
   assert (watch);
   return get_watcher (ring, watch)->clause;
 }
 
 /*------------------------------------------------------------------------*/
 
-static inline void
-push_watch (struct ring *ring, unsigned lit, struct watch *watch)
-{
+static inline void push_watch (struct ring *ring, unsigned lit,
+                               struct watch *watch) {
   LOGWATCH (watch, "watching %s in", LOGLIT (lit));
   PUSH (REFERENCES (lit), watch);
 }
 
-static inline void
-watch_literal (struct ring *ring,
-	       unsigned lit, unsigned other, struct watcher *watcher)
-{
+static inline void watch_literal (struct ring *ring, unsigned lit,
+                                  unsigned other, struct watcher *watcher) {
   unsigned idx = watcher_to_index (ring, watcher);
   struct watch *watch = tag_index (watcher->redundant, idx, other);
   push_watch (ring, lit, watch);

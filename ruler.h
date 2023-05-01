@@ -11,8 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct ruler_trail
-{
+struct ruler_trail {
   unsigned *begin;
   unsigned *propagate;
   unsigned *volatile end;
@@ -23,12 +22,10 @@ struct ruler_trail
   LOCK (simplify) \
   LOCK (terminate) \
   LOCK (units) \
-  LOCK (winner) \
+  LOCK (winner)
 
-struct ruler_locks
-{
-#define LOCK(NAME) \
-  pthread_mutex_t NAME;
+struct ruler_locks {
+#define LOCK(NAME) pthread_mutex_t NAME;
   LOCKS
 #undef LOCK
 };
@@ -39,25 +36,21 @@ struct ruler_locks
   BARRIER (import) \
   BARRIER (run) \
   BARRIER (start) \
-  BARRIER (unclone) \
+  BARRIER (unclone)
 
-struct ruler_barriers
-{
-#define BARRIER(NAME) \
-  struct barrier NAME;
+struct ruler_barriers {
+#define BARRIER(NAME) struct barrier NAME;
   BARRIERS
 #undef BARRIER
 };
 
-struct ruler_last
-{
+struct ruler_last {
   unsigned fixed;
   uint64_t garbage;
   uint64_t search;
 };
 
-struct ruler_limits
-{
+struct ruler_limits {
   bool initialized;
 
   uint64_t elimination;
@@ -71,8 +64,7 @@ struct ruler_limits
   unsigned max_rounds;
 };
 
-struct ruler
-{
+struct ruler {
   unsigned size;
   unsigned compact;
 
@@ -122,21 +114,21 @@ struct ruler
 /*------------------------------------------------------------------------*/
 
 #define all_rings(RING) \
-  all_pointers_on_stack(struct ring, RING, ruler->rings)
+  all_pointers_on_stack (struct ring, RING, ruler->rings)
 
 #define all_ruler_indices(IDX) \
-  unsigned IDX = 0, END_ ## IDX = ruler->compact; \
-  IDX != END_ ## IDX; \
+  unsigned IDX = 0, END_##IDX = ruler->compact; \
+  IDX != END_##IDX; \
   ++IDX
 
 #define all_ruler_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*ruler->compact; \
-  LIT != END_ ## LIT; \
+  unsigned LIT = 0, END_##LIT = 2 * ruler->compact; \
+  LIT != END_##LIT; \
   ++LIT
 
 #define all_positive_ruler_literals(LIT) \
-  unsigned LIT = 0, END_ ## LIT = 2*ruler->compact; \
-  LIT != END_ ## LIT; \
+  unsigned LIT = 0, END_##LIT = 2 * ruler->compact; \
+  LIT != END_##LIT; \
   LIT += 2
 
 /*------------------------------------------------------------------------*/
@@ -163,9 +155,8 @@ void print_ruler_profiles (struct ruler *);
 
 /*------------------------------------------------------------------------*/
 
-static inline void
-connect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
-{
+static inline void connect_literal (struct ruler *ruler, unsigned lit,
+                                    struct clause *clause) {
   PUSH (OCCURRENCES (lit), clause);
 }
 

@@ -9,8 +9,7 @@
 
 /*------------------------------------------------------------------------*/
 
-struct simplifier
-{
+struct simplifier {
   struct ruler *ruler;
   signed char *marks;
   bool *eliminated;
@@ -22,7 +21,8 @@ struct simplifier
 
 void add_resolvent (struct simplifier *);
 void recycle_clause (struct simplifier *, struct clause *, unsigned except);
-void recycle_clauses (struct simplifier *, struct clauses *, unsigned except);
+void recycle_clauses (struct simplifier *, struct clauses *,
+                      unsigned except);
 void simplify_ruler (struct ruler *);
 
 /*------------------------------------------------------------------------*/
@@ -32,9 +32,8 @@ int simplify_ring (struct ring *);
 
 /*------------------------------------------------------------------------*/
 
-static inline void
-mark_eliminate_literal (struct simplifier *simplifier, unsigned lit)
-{
+static inline void mark_eliminate_literal (struct simplifier *simplifier,
+                                           unsigned lit) {
   unsigned idx = IDX (lit);
   bool *eliminate = simplifier->ruler->eliminate;
   assert (eliminate);
@@ -47,16 +46,14 @@ mark_eliminate_literal (struct simplifier *simplifier, unsigned lit)
   eliminate[idx] = true;
 }
 
-static inline void
-mark_eliminate_clause (struct simplifier *simplifier, struct clause *clause)
-{
+static inline void mark_eliminate_clause (struct simplifier *simplifier,
+                                          struct clause *clause) {
   for (all_literals_in_clause (lit, clause))
     mark_eliminate_literal (simplifier, lit);
 }
 
-static inline void
-mark_subsume_literal (struct simplifier *simplifier, unsigned lit)
-{
+static inline void mark_subsume_literal (struct simplifier *simplifier,
+                                         unsigned lit) {
   unsigned idx = IDX (lit);
   bool *subsume = simplifier->ruler->subsume;
   assert (subsume);
@@ -69,16 +66,14 @@ mark_subsume_literal (struct simplifier *simplifier, unsigned lit)
   subsume[idx] = true;
 }
 
-static inline void
-mark_subsume_clause (struct simplifier *simplifier, struct clause *clause)
-{
+static inline void mark_subsume_clause (struct simplifier *simplifier,
+                                        struct clause *clause) {
   for (all_literals_in_clause (lit, clause))
     mark_subsume_literal (simplifier, lit);
 }
 
 static inline bool
-subsumption_ticks_limit_hit (struct simplifier *simplifier)
-{
+subsumption_ticks_limit_hit (struct simplifier *simplifier) {
   struct ruler *ruler = simplifier->ruler;
   struct ruler_statistics *statistics = &ruler->statistics;
   struct ruler_limits *limits = &ruler->limits;
@@ -86,8 +81,7 @@ subsumption_ticks_limit_hit (struct simplifier *simplifier)
 }
 
 static inline bool
-elimination_ticks_limit_hit (struct simplifier *simplifier)
-{
+elimination_ticks_limit_hit (struct simplifier *simplifier) {
   struct ruler *ruler = simplifier->ruler;
   struct ruler_statistics *statistics = &ruler->statistics;
   struct ruler_limits *limits = &ruler->limits;

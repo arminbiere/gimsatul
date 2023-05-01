@@ -5,9 +5,9 @@
 
 #include "message.h"
 
-#include <stdbool.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 struct ring;
@@ -40,69 +40,64 @@ const char *rogvar (struct ruler *, unsigned idx);
   release_message_lock ()
 
 #define LOG(...) \
-do { \
-  LOGPREFIX (__VA_ARGS__); \
-  LOGSUFFIX (); \
-} while (0)
+  do { \
+    LOGPREFIX (__VA_ARGS__); \
+    LOGSUFFIX (); \
+  } while (0)
 
 #define LOGTMP(...) \
-do { \
-  LOGPREFIX (__VA_ARGS__); \
-  printf (" size %zu temporary clause", SIZE (ring->clause)); \
-  for (all_elements_on_stack (unsigned, LIT, ring->clause)) \
-    printf (" %s", LOGLIT (LIT)); \
-  LOGSUFFIX (); \
-} while (0)
+  do { \
+    LOGPREFIX (__VA_ARGS__); \
+    printf (" size %zu temporary clause", SIZE (ring->clause)); \
+    for (all_elements_on_stack (unsigned, LIT, ring->clause)) \
+      printf (" %s", LOGLIT (LIT)); \
+    LOGSUFFIX (); \
+  } while (0)
 
-#define LOGBINARY(REDUNDANT,LIT,OTHER, ...) \
-do { \
-  LOGPREFIX (__VA_ARGS__); \
-  if ((REDUNDANT)) \
-    printf (" redundant"); \
-  else \
-    printf (" irredundant"); \
-  printf (" binary clause %s %s", LOGLIT (LIT), LOGLIT (OTHER)); \
-  LOGSUFFIX (); \
-} while (0)
+#define LOGBINARY(REDUNDANT, LIT, OTHER, ...) \
+  do { \
+    LOGPREFIX (__VA_ARGS__); \
+    if ((REDUNDANT)) \
+      printf (" redundant"); \
+    else \
+      printf (" irredundant"); \
+    printf (" binary clause %s %s", LOGLIT (LIT), LOGLIT (OTHER)); \
+    LOGSUFFIX (); \
+  } while (0)
 
 #define LOGCLAUSE(CLAUSE, ...) \
-do { \
-  if (is_binary_pointer (CLAUSE)) \
-    { \
+  do { \
+    if (is_binary_pointer (CLAUSE)) { \
       bool REDUNDANT = redundant_pointer (CLAUSE); \
       unsigned LIT = lit_pointer (CLAUSE); \
       unsigned OTHER = other_pointer (CLAUSE); \
       LOGBINARY (REDUNDANT, LIT, OTHER, __VA_ARGS__); \
-    } \
-  else \
-    { \
+    } else { \
       LOGPREFIX (__VA_ARGS__); \
       if ((CLAUSE)->garbage) \
-	printf (" garbage"); \
+        printf (" garbage"); \
       if ((CLAUSE)->redundant) \
-	printf (" redundant glue %u", (CLAUSE)->glue); \
+        printf (" redundant glue %u", (CLAUSE)->glue); \
       else \
-	printf (" irredundant"); \
-      printf (" size %u clause[%" PRIu64 "]", \
-	      (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
+        printf (" irredundant"); \
+      printf (" size %u clause[%" PRIu64 "]", (CLAUSE)->size, \
+              (uint64_t) (CLAUSE)->id); \
       for (all_literals_in_clause (LIT, (CLAUSE))) \
-	printf (" %s", LOGLIT (LIT)); \
+        printf (" %s", LOGLIT (LIT)); \
       LOGSUFFIX (); \
     } \
-} while (0)
+  } while (0)
 
 #define LOGWATCH(WATCH, ...) \
-do { \
-  if (is_binary_pointer (WATCH)) \
-    { \
+  do { \
+    if (is_binary_pointer (WATCH)) { \
       unsigned LIT = lit_pointer (WATCH); \
       unsigned OTHER = other_pointer (WATCH); \
       bool REDUNDANT = redundant_pointer (WATCH); \
       LOGBINARY (REDUNDANT, LIT, OTHER, __VA_ARGS__); \
-    } \
-  else \
-    LOGCLAUSE (get_clause (ring, WATCH), __VA_ARGS__); \
-} while (0)
+    } else \
+      LOGCLAUSE (get_clause (ring, WATCH), __VA_ARGS__); \
+  } while (0)
 
 #define ROGPREFIX(...) \
   if (verbosity < INT_MAX) \
@@ -114,64 +109,75 @@ do { \
 #define ROGSUFFIX LOGSUFFIX
 
 #define ROG(...) \
-do { \
-  ROGPREFIX (__VA_ARGS__); \
-  ROGSUFFIX (); \
-} while (0)
-
+  do { \
+    ROGPREFIX (__VA_ARGS__); \
+    ROGSUFFIX (); \
+  } while (0)
 
 #define LOG(...) \
-do { \
-  LOGPREFIX (__VA_ARGS__); \
-  LOGSUFFIX (); \
-} while (0)
+  do { \
+    LOGPREFIX (__VA_ARGS__); \
+    LOGSUFFIX (); \
+  } while (0)
 
-#define ROGBINARY(LIT,OTHER, ...) \
-do { \
-  ROGPREFIX (__VA_ARGS__); \
-  printf (" irredundant"); \
-  printf (" binary clause %s %s", ROGLIT (LIT), ROGLIT (OTHER)); \
-  ROGSUFFIX (); \
-} while (0)
+#define ROGBINARY(LIT, OTHER, ...) \
+  do { \
+    ROGPREFIX (__VA_ARGS__); \
+    printf (" irredundant"); \
+    printf (" binary clause %s %s", ROGLIT (LIT), ROGLIT (OTHER)); \
+    ROGSUFFIX (); \
+  } while (0)
 
 #define ROGCLAUSE(CLAUSE, ...) \
-do { \
-  if (is_binary_pointer (CLAUSE)) \
-    { \
+  do { \
+    if (is_binary_pointer (CLAUSE)) { \
       assert (!redundant_pointer (CLAUSE)); \
       unsigned LIT = lit_pointer (CLAUSE); \
       unsigned OTHER = other_pointer (CLAUSE); \
       ROGBINARY (LIT, OTHER, __VA_ARGS__); \
-    } \
-  else \
-    { \
+    } else { \
       ROGPREFIX (__VA_ARGS__); \
       if ((CLAUSE)->garbage) \
-	printf (" garbage"); \
+        printf (" garbage"); \
       if ((CLAUSE)->redundant) \
-	printf (" redundant glue %u", (CLAUSE)->glue); \
+        printf (" redundant glue %u", (CLAUSE)->glue); \
       else \
-	printf (" irredundant"); \
-      printf (" size %u clause[%" PRIu64 "]", \
-	      (CLAUSE)->size, (uint64_t) (CLAUSE)->id); \
+        printf (" irredundant"); \
+      printf (" size %u clause[%" PRIu64 "]", (CLAUSE)->size, \
+              (uint64_t) (CLAUSE)->id); \
       for (all_literals_in_clause (LIT, (CLAUSE))) \
-	printf (" %s", ROGLIT (LIT)); \
+        printf (" %s", ROGLIT (LIT)); \
       ROGSUFFIX (); \
     } \
-} while (0)
-
+  } while (0)
 
 #else
 
-#define LOG(...) do { } while (0)
-#define LOGTMP(...) do { } while (0)
-#define LOGBINARY(...) do { } while (0)
-#define LOGCLAUSE(...) do { } while (0)
-#define LOGWATCH(...) do { } while (0)
+#define LOG(...) \
+  do { \
+  } while (0)
+#define LOGTMP(...) \
+  do { \
+  } while (0)
+#define LOGBINARY(...) \
+  do { \
+  } while (0)
+#define LOGCLAUSE(...) \
+  do { \
+  } while (0)
+#define LOGWATCH(...) \
+  do { \
+  } while (0)
 
-#define ROG(...) do { } while (0)
-#define ROGBINARY(...) do { } while (0)
-#define ROGCLAUSE(...) do { } while (0)
+#define ROG(...) \
+  do { \
+  } while (0)
+#define ROGBINARY(...) \
+  do { \
+  } while (0)
+#define ROGCLAUSE(...) \
+  do { \
+  } while (0)
 
 #endif
 

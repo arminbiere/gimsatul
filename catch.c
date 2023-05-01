@@ -4,11 +4,11 @@
 #include "statistics.h"
 
 #include <assert.h>
+#include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
-#include <stdlib.h>
-#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -22,12 +22,12 @@ static atomic_bool catching_alarm;
 /*------------------------------------------------------------------------*/
 
 #define SIGNALS \
-SIGNAL(SIGABRT) \
-SIGNAL(SIGBUS) \
-SIGNAL(SIGILL) \
-SIGNAL(SIGINT) \
-SIGNAL(SIGSEGV) \
-SIGNAL(SIGTERM)
+  SIGNAL (SIGABRT) \
+  SIGNAL (SIGBUS) \
+  SIGNAL (SIGILL) \
+  SIGNAL (SIGINT) \
+  SIGNAL (SIGSEGV) \
+  SIGNAL (SIGTERM)
 
 // clang-format off
 
@@ -41,40 +41,34 @@ static void (*saved_SIGALRM_handler)(int);
 
 // clang-format on
 
-static void
-reset_alarm_handler (void)
-{
+static void reset_alarm_handler (void) {
   if (atomic_exchange (&catching_alarm, false))
     signal (SIGALRM, saved_SIGALRM_handler);
 }
 
-void
-reset_signal_handlers (void)
-{
+void reset_signal_handlers (void) {
   one_global_ruler = 0;
-  if (atomic_exchange (&catching_signals, false))
-    {
-  // clang-format off
+  if (atomic_exchange (&catching_signals, false)) {
+    // clang-format off
 #define SIGNAL(SIG) \
       signal (SIG, saved_ ## SIG ## _handler);
       SIGNALS
 #undef SIGNAL
-  // clang-format on
-    }
+    // clang-format on
+  }
   reset_alarm_handler ();
 }
 
-static void
-caught_message (int sig)
-{
+static void caught_message (int sig) {
   if (verbosity < 0)
     return;
   const char *name = "SIGNUNKNOWN";
 #define SIGNAL(SIG) \
-  if (sig == SIG) name = #SIG;
+  if (sig == SIG) \
+    name = #SIG;
   SIGNALS
 #undef SIGNAL
-    if (sig == SIGALRM)
+  if (sig == SIGALRM)
     name = "SIGALRM";
   char buffer[80];
   sprintf (buffer, "c\nc caught signal %d (%s)\nc\n", sig, name);
@@ -83,38 +77,34 @@ caught_message (int sig)
     exit (2);
 }
 
-static void
-raising_message (int sig)
-{
+static void raising_message (int sig) {
   if (verbosity < 0)
     return;
   const char *name = "SIGNUNKNOWN";
 #define SIGNAL(SIG) \
-  if (sig == SIG) name = #SIG;
+  if (sig == SIG) \
+    name = #SIG;
   SIGNALS
 #undef SIGNAL
-    if (sig == SIGALRM)
+  if (sig == SIGALRM)
     name = "SIGALRM";
   char buffer[80];
-  sprintf (buffer, "c\nc raising signal %d (%s) after reporting statistics\n",
-	   sig, name);
+  sprintf (buffer,
+           "c\nc raising signal %d (%s) after reporting statistics\n", sig,
+           name);
   size_t bytes = strlen (buffer);
   if (write (1, buffer, bytes) != bytes)
     exit (2);
 }
 
-static void
-exit_message (void)
-{
+static void exit_message (void) {
   const char *message = "c calling 'exit (1)' as raising signal returned\n";
   size_t bytes = strlen (message);
   if (write (1, message, bytes) != bytes)
     exit (2);
 }
 
-static void
-catch_signal (int sig)
-{
+static void catch_signal (int sig) {
   if (atomic_exchange (&caught_signal, sig))
     return;
   caught_message (sig);
@@ -132,9 +122,7 @@ catch_signal (int sig)
   exit (1);
 }
 
-static void
-catch_alarm (int sig)
-{
+static void catch_alarm (int sig) {
   assert (sig == SIGALRM);
   if (!catching_alarm)
     catch_signal (sig);
@@ -148,9 +136,7 @@ catch_alarm (int sig)
   caught_signal = 0;
 }
 
-static void
-set_alarm_handler (unsigned seconds)
-{
+static void set_alarm_handler (unsigned seconds) {
   assert (seconds);
   assert (!catching_alarm);
   saved_SIGALRM_handler = signal (SIGALRM, catch_alarm);
@@ -158,9 +144,7 @@ set_alarm_handler (unsigned seconds)
   catching_alarm = true;
 }
 
-void
-set_signal_handlers (struct ruler *ruler)
-{
+void set_signal_handlers (struct ruler *ruler) {
   unsigned seconds = ruler->options.seconds;
   one_global_ruler = ruler;
   assert (!catching_signals);

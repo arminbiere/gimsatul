@@ -5,14 +5,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct link
-{
+struct link {
   struct link *prev, *next;
   uint64_t stamp;
 };
 
-struct queue
-{
+struct queue {
   struct link *links;
   struct link *first, *last;
   struct link *search;
@@ -26,18 +24,15 @@ void dequeue (struct queue *queue, struct link *link);
 
 /*------------------------------------------------------------------------*/
 
-static inline void
-update_queue_search (struct queue *queue, struct link *link)
-{
+static inline void update_queue_search (struct queue *queue,
+                                        struct link *link) {
   struct link *search = queue->search;
   assert (search);
   if (search->stamp < link->stamp)
     queue->search = link;
 }
 
-static inline void
-reset_queue_search (struct queue *queue)
-{
+static inline void reset_queue_search (struct queue *queue) {
   queue->search = queue->last;
 }
 

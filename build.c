@@ -4,9 +4,7 @@
 
 #include <stdio.h>
 
-void
-print_banner (void)
-{
+void print_banner (void) {
   if (verbosity < 0)
     return;
   printf ("c GimSATul SAT Solver\n");
@@ -17,14 +15,6 @@ print_banner (void)
   printf ("c %s\n", BUILD);
 }
 
-void
-print_version (void)
-{
-  printf ("%s\n", VERSION);
-}
+void print_version (void) { printf ("%s\n", VERSION); }
 
-void
-print_id (void)
-{
-  printf ("%s\n", GITID ? GITID : "unknown");
-}
+void print_id (void) { printf ("%s\n", GITID ? GITID : "unknown"); }

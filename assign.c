@@ -7,9 +7,8 @@
 #define UNIT_REASON 1
 #define REAL_REASON 2
 
-static void
-assign (struct ring *ring, unsigned lit, struct watch *reason, int type)
-{
+static void assign (struct ring *ring, unsigned lit, struct watch *reason,
+                    int type) {
   const unsigned not_lit = NOT (lit);
   unsigned idx = IDX (lit);
 
@@ -42,8 +41,8 @@ assign (struct ring *ring, unsigned lit, struct watch *reason, int type)
     struct variable *u = ring->variables + other_idx;
     assignment_level = u->level;
     if (assignment_level && is_binary_pointer (u->reason)) {
-      bool redundant = redundant_pointer (reason) ||
-		       redundant_pointer (u->reason);
+      bool redundant =
+          redundant_pointer (reason) || redundant_pointer (u->reason);
       reason = tag_binary (redundant, lit, other_pointer (u->reason));
 #ifdef LOGGING
       v->level = assignment_level;
@@ -58,31 +57,29 @@ assign (struct ring *ring, unsigned lit, struct watch *reason, int type)
     struct watcher *watcher = get_watcher (ring, reason);
     for (all_watcher_literals (other, watcher)) {
       if (other == lit)
-	continue;
+        continue;
       unsigned other_idx = IDX (other);
       struct variable *u = ring->variables + other_idx;
       unsigned other_level = u->level;
       if (other_level > assignment_level)
-	assignment_level = other_level;
+        assignment_level = other_level;
     }
   }
 
   assert (assignment_level <= level);
   v->level = assignment_level;
 
-  if (!assignment_level)
-    {
-      if (reason)
-	trace_add_unit (&ring->trace, lit);
-      v->reason = 0;
-      ring->statistics.fixed++;
-      assert (ring->statistics.active);
-      ring->statistics.active--;
-      assert (!ring->inactive[idx]);
-      ring->inactive[idx] = true;
-      *ring->ring_units.end++ = lit;
-    }
-  else
+  if (!assignment_level) {
+    if (reason)
+      trace_add_unit (&ring->trace, lit);
+    v->reason = 0;
+    ring->statistics.fixed++;
+    assert (ring->statistics.active);
+    ring->statistics.active--;
+    assert (!ring->inactive[idx]);
+    ring->inactive[idx] = true;
+    *ring->ring_units.end++ = lit;
+  } else
     v->reason = reason;
 
   struct ring_trail *trail = &ring->trail;
@@ -102,24 +99,19 @@ assign (struct ring *ring, unsigned lit, struct watch *reason, int type)
 #endif
 }
 
-void
-assign_with_reason (struct ring *ring, unsigned lit, struct watch *reason)
-{
+void assign_with_reason (struct ring *ring, unsigned lit,
+                         struct watch *reason) {
   assert (reason);
   assign (ring, lit, reason, REAL_REASON);
   LOGWATCH (reason, "assign %s with reason", LOGLIT (lit));
 }
 
-void
-assign_ring_unit (struct ring *ring, unsigned unit)
-{
+void assign_ring_unit (struct ring *ring, unsigned unit) {
   assign (ring, unit, 0, UNIT_REASON);
   LOG ("assign %s unit", LOGLIT (unit));
 }
 
-void
-assign_decision (struct ring *ring, unsigned decision)
-{
+void assign_decision (struct ring *ring, unsigned decision) {
   assert (ring->level);
   assign (ring, decision, 0, DECISION_REASON);
 #ifdef LOGGING
@@ -127,15 +119,14 @@ assign_decision (struct ring *ring, unsigned decision)
     LOG ("assign %s decision warm-up", LOGLIT (decision));
   else if (ring->context == PROBING_CONTEXT)
     LOG ("assign %s decision probe", LOGLIT (decision));
-  else
-    {
-      assert (ring->context == SEARCH_CONTEXT);
-      if (ring->stable)
-	LOG ("assign %s decision score %g",
-	     LOGLIT (decision), ring->heap.nodes[IDX (decision)].score);
-      else
-	LOG ("assign %s decision stamp %" PRIu64,
-	     LOGLIT (decision), ring->queue.links[IDX (decision)].stamp);
-    }
+  else {
+    assert (ring->context == SEARCH_CONTEXT);
+    if (ring->stable)
+      LOG ("assign %s decision score %g", LOGLIT (decision),
+           ring->heap.nodes[IDX (decision)].score);
+    else
+      LOG ("assign %s decision stamp %" PRIu64, LOGLIT (decision),
+           ring->queue.links[IDX (decision)].stamp);
+  }
 #endif
 }

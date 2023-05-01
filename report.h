@@ -10,8 +10,12 @@ void verbose_report (struct ring *, char, int level);
 
 #else
 
-#define report(...) do { } while (0)
-#define verbose_report(...) do { } while (0)
+#define report(...) \
+  do { \
+  } while (0)
+#define verbose_report(...) \
+  do { \
+  } while (0)
 
 #endif
 

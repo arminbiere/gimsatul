@@ -1,21 +1,15 @@
 #ifndef _utilities_h_INCLUDED
 #define _utilities_h_INCLUDED
 
-#include "options.h"
 #include "macros.h"
+#include "options.h"
 
 #include <assert.h>
 #include <stdlib.h>
 
-static inline double
-average (double a, double b)
-{
-  return b ? a / b : 0;
-}
+static inline double average (double a, double b) { return b ? a / b : 0; }
 
-static inline double
-percent (double a, double b)
-{
+static inline double percent (double a, double b) {
   return average (100 * a, b);
 }
 
@@ -26,25 +20,20 @@ double nlog3n (uint64_t count);
 double nlog4n (uint64_t count);
 unsigned gcd (unsigned, unsigned);
 
-static inline void
-mark_literal (signed char *marks, unsigned lit)
-{
+static inline void mark_literal (signed char *marks, unsigned lit) {
   unsigned idx = IDX (lit);
   assert (!marks[idx]);
   marks[idx] = SGN (lit) ? -1 : 1;
 }
 
-static inline void
-unmark_literal (signed char *marks, unsigned lit)
-{
+static inline void unmark_literal (signed char *marks, unsigned lit) {
   unsigned idx = IDX (lit);
   assert (marks[idx]);
   marks[idx] = 0;
 }
 
-static inline signed char
-marked_literal (signed char *marks, unsigned lit)
-{
+static inline signed char marked_literal (signed char *marks,
+                                          unsigned lit) {
   unsigned idx = IDX (lit);
   signed char res = marks[idx];
   if (SGN (lit))
@@ -52,9 +41,7 @@ marked_literal (signed char *marks, unsigned lit)
   return res;
 }
 
-static inline unsigned
-unmap_literal (unsigned *unmap, unsigned lit)
-{
+static inline unsigned unmap_literal (unsigned *unmap, unsigned lit) {
   if (!unmap)
     return lit;
   unsigned idx = IDX (lit);
@@ -64,9 +51,7 @@ unmap_literal (unsigned *unmap, unsigned lit)
   return res;
 }
 
-static inline int
-only_export_literal (unsigned unsigned_lit)
-{
+static inline int only_export_literal (unsigned unsigned_lit) {
   unsigned unsigned_idx = IDX (unsigned_lit);
   assert (unsigned_idx < (unsigned) INT_MAX);
   int signed_lit = unsigned_idx + 1;
@@ -75,16 +60,13 @@ only_export_literal (unsigned unsigned_lit)
   return signed_lit;
 }
 
-static inline int
-unmap_and_export_literal (unsigned *unmap, unsigned unsigned_lit)
-{
+static inline int unmap_and_export_literal (unsigned *unmap,
+                                            unsigned unsigned_lit) {
   unsigned unmapped_idx;
-  if (unmap)
-    {
-      unsigned unsigned_idx = IDX (unsigned_lit);
-      unmapped_idx = unmap[unsigned_idx];
-    }
-  else
+  if (unmap) {
+    unsigned unsigned_idx = IDX (unsigned_lit);
+    unmapped_idx = unmap[unsigned_idx];
+  } else
     unmapped_idx = IDX (unsigned_lit);
   assert (unmapped_idx < (unsigned) INT_MAX);
   int signed_lit = unmapped_idx + 1;
@@ -93,9 +75,7 @@ unmap_and_export_literal (unsigned *unmap, unsigned unsigned_lit)
   return signed_lit;
 }
 
-static inline size_t
-cache_lines (void *p, void *q)
-{
+static inline size_t cache_lines (void *p, void *q) {
   if (p == q)
     return 0;
   assert (p >= q);
@@ -104,9 +84,7 @@ cache_lines (void *p, void *q)
   return res;
 }
 
-static inline bool
-is_power_of_two (size_t n)
-{
+static inline bool is_power_of_two (size_t n) {
   return n && !(n & (n - 1));
 }
 

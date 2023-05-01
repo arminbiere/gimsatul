@@ -1,8 +1,6 @@
 #include "heap.h"
 
-static struct node *
-merge_nodes (struct node *a, struct node *b)
-{
+static struct node *merge_nodes (struct node *a, struct node *b) {
   if (!a)
     return b;
   if (!b)
@@ -24,50 +22,40 @@ merge_nodes (struct node *a, struct node *b)
   return parent;
 }
 
-static struct node *
-collapse_node (struct node *node)
-{
+static struct node *collapse_node (struct node *node) {
   if (!node)
     return 0;
 
   struct node *next = node, *tail = 0;
 
-  do
-    {
-      struct node *a = next;
-      assert (a);
-      struct node *b = a->next;
-      if (b)
-	{
-	  next = b->next;
-	  struct node *tmp = merge_nodes (a, b);
-	  assert (tmp);
-	  tmp->prev = tail;
-	  tail = tmp;
-	}
-      else
-	{
-	  a->prev = tail;
-	  tail = a;
-	  break;
-	}
+  do {
+    struct node *a = next;
+    assert (a);
+    struct node *b = a->next;
+    if (b) {
+      next = b->next;
+      struct node *tmp = merge_nodes (a, b);
+      assert (tmp);
+      tmp->prev = tail;
+      tail = tmp;
+    } else {
+      a->prev = tail;
+      tail = a;
+      break;
     }
-  while (next);
+  } while (next);
 
   struct node *res = 0;
-  while (tail)
-    {
-      struct node *prev = tail->prev;
-      res = merge_nodes (res, tail);
-      tail = prev;
-    }
+  while (tail) {
+    struct node *prev = tail->prev;
+    res = merge_nodes (res, tail);
+    tail = prev;
+  }
 
   return res;
 }
 
-static void
-deheap_node (struct node *node)
-{
+static void deheap_node (struct node *node) {
   assert (node);
   struct node *prev = node->prev;
   struct node *next = node->next;
@@ -81,9 +69,7 @@ deheap_node (struct node *node)
     next->prev = prev;
 }
 
-void
-pop_heap (struct heap *heap)
-{
+void pop_heap (struct heap *heap) {
   struct node *root = heap->root;
   struct node *child = root->child;
   heap->root = collapse_node (child);
@@ -94,9 +80,7 @@ pop_heap (struct heap *heap)
 #endif
 }
 
-void
-push_heap (struct heap *heap, struct node *node)
-{
+void push_heap (struct heap *heap, struct node *node) {
   assert (!heap_contains (heap, node));
   node->child = 0;
   heap->root = merge_nodes (heap->root, node);
@@ -107,9 +91,7 @@ push_heap (struct heap *heap, struct node *node)
 #endif
 }
 
-void
-update_heap (struct heap *heap, struct node *node, double new_score)
-{
+void update_heap (struct heap *heap, struct node *node, double new_score) {
   double old_score = node->score;
   assert (old_score <= new_score);
   if (old_score == new_score)

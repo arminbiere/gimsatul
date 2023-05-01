@@ -8,8 +8,7 @@
 struct ring;
 struct ruler;
 
-struct barrier
-{
+struct barrier {
   const char *name;
   pthread_mutex_t mutex;
   pthread_cond_t condition;

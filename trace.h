@@ -7,8 +7,7 @@
 
 struct file;
 
-struct trace
-{
+struct trace {
   bool binary;
   struct file *file;
   struct buffer buffer;
@@ -18,7 +17,8 @@ struct trace
 void trace_add_empty (struct trace *);
 void trace_add_unit (struct trace *, unsigned unit);
 void trace_add_binary (struct trace *, unsigned, unsigned);
-void trace_add_literals (struct trace *, size_t, unsigned *, unsigned except);
+void trace_add_literals (struct trace *, size_t, unsigned *,
+                         unsigned except);
 
 void trace_delete_literals (struct trace *, size_t, unsigned *);
 void trace_delete_binary (struct trace *, unsigned, unsigned);

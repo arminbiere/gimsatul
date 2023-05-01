@@ -7,10 +7,8 @@
 
 #include <string.h>
 
-struct clause *
-new_large_clause (size_t size, unsigned *literals,
-		  bool redundant, unsigned glue)
-{
+struct clause *new_large_clause (size_t size, unsigned *literals,
+                                 bool redundant, unsigned glue) {
   assert (2 <= size);
   size_t bytes = size * sizeof (unsigned);
   struct clause *clause = allocate_block (sizeof *clause + bytes);
@@ -40,54 +38,45 @@ new_large_clause (size_t size, unsigned *literals,
   return clause;
 }
 
-void
-mark_clause (signed char *marks, struct clause *clause, unsigned except)
-{
+void mark_clause (signed char *marks, struct clause *clause,
+                  unsigned except) {
   if (is_binary_pointer (clause))
     mark_literal (marks, other_pointer (clause));
   else
     for (all_literals_in_clause (other, clause))
       if (other != except)
-	mark_literal (marks, other);
+        mark_literal (marks, other);
 }
 
-void
-unmark_clause (signed char *marks, struct clause *clause, unsigned except)
-{
+void unmark_clause (signed char *marks, struct clause *clause,
+                    unsigned except) {
   if (is_binary_pointer (clause))
     unmark_literal (marks, other_pointer (clause));
   else
     for (all_literals_in_clause (other, clause))
       if (other != except)
-	unmark_literal (marks, other);
+        unmark_literal (marks, other);
 }
 
-void
-trace_add_clause (struct trace *trace, struct clause *clause)
-{
+void trace_add_clause (struct trace *trace, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   trace_add_literals (trace, clause->size, clause->literals, INVALID);
 }
 
-void
-trace_delete_clause (struct trace *trace, struct clause *clause)
-{
+void trace_delete_clause (struct trace *trace, struct clause *clause) {
   if (!clause->garbage)
     trace_delete_literals (trace, clause->size, clause->literals);
 }
 
-static void
-delete_clause (struct ring *ring, struct clause *clause)
-{
+static void delete_clause (struct ring *ring, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   LOGCLAUSE (clause, "delete");
   trace_delete_clause (&ring->trace, clause);
   free (clause);
 }
 
-void
-reference_clause (struct ring *ring, struct clause *clause, unsigned inc)
-{
+void reference_clause (struct ring *ring, struct clause *clause,
+                       unsigned inc) {
   assert (inc);
   assert (!is_binary_pointer (clause));
   unsigned shared = atomic_fetch_add (&clause->shared, inc);
@@ -95,9 +84,7 @@ reference_clause (struct ring *ring, struct clause *clause, unsigned inc)
   assert (shared < MAX_THREADS - inc), (void) shared;
 }
 
-bool
-dereference_clause (struct ring *ring, struct clause *clause)
-{
+bool dereference_clause (struct ring *ring, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   LOGCLAUSE (clause, "dereference once (was shared %u)", clause->shared);
   unsigned shared = atomic_fetch_sub (&clause->shared, 1);

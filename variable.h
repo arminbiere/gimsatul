@@ -5,16 +5,14 @@
 
 struct watch;
 
-struct phases
-{
-  signed char best:2;
-  signed char saved:2;
-  signed char target:2;
-  signed char padding:2;
+struct phases {
+  signed char best : 2;
+  signed char saved : 2;
+  signed char target : 2;
+  signed char padding : 2;
 };
 
-struct variable
-{
+struct variable {
   unsigned level;
   bool minimize;
   bool poison;

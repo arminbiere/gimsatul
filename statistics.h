@@ -14,8 +14,7 @@ struct ruler;
 #define SIZE_VISITS 16
 #endif
 
-struct context
-{
+struct context {
   uint64_t ticks;
   uint64_t jumped;
   uint64_t propagations;
@@ -27,8 +26,7 @@ struct context
 #endif
 };
 
-struct ring_statistics
-{
+struct ring_statistics {
   uint64_t flips;
   uint64_t probings;
   uint64_t reductions;
@@ -45,8 +43,7 @@ struct ring_statistics
 
   struct context contexts[SIZE_CONTEXTS];
 
-  struct
-  {
+  struct {
     uint64_t learned;
 #ifdef METRICS
     uint64_t deduced;
@@ -63,15 +60,13 @@ struct ring_statistics
   size_t irredundant;
   size_t redundant;
 
-  struct
-  {
+  struct {
     uint64_t tried;
     uint64_t reused;
     uint64_t succeeded;
   } vivify;
 
-  struct
-  {
+  struct {
     uint64_t heap;
     uint64_t negative;
     uint64_t positive;
@@ -85,8 +80,7 @@ struct ring_statistics
 
   uint64_t diverged;
 
-  struct
-  {
+  struct {
     uint64_t units;
     uint64_t clauses;
     uint64_t binaries;
@@ -96,10 +90,8 @@ struct ring_statistics
 #endif
   } learned, exported, imported, shared;
 
-  struct
-  {
-    struct
-    {
+  struct {
+    struct {
       uint64_t checked;
       uint64_t succeeded;
     } binary, large;
@@ -108,83 +100,76 @@ struct ring_statistics
 
 #ifdef METRICS
 
-#define ADD_CLAUSE_METRICS(NAME,INC,GLUE,SIZE) \
-do { \
-  if ((GLUE) < SIZE_GLUE_STATISTICS) \
-    S->NAME.glue[(GLUE)] += (INC); \
-  else \
-    S->NAME.glue[0] += (INC); \
-} while (0)
+#define ADD_CLAUSE_METRICS(NAME, INC, GLUE, SIZE) \
+  do { \
+    if ((GLUE) < SIZE_GLUE_STATISTICS) \
+      S->NAME.glue[(GLUE)] += (INC); \
+    else \
+      S->NAME.glue[0] += (INC); \
+  } while (0)
 
 #else
 
-#define ADD_CLAUSE_METRICS(...) do { } while (0)
+#define ADD_CLAUSE_METRICS(...) \
+  do { \
+  } while (0)
 
 #endif
 
-#define ADD_CLAUSE_STATISTICS(NAME,INC,GLUE,SIZE) \
-do { \
-  struct ring_statistics * S = &ring->statistics; \
-  if ((SIZE) == 1) \
-    { \
+#define ADD_CLAUSE_STATISTICS(NAME, INC, GLUE, SIZE) \
+  do { \
+    struct ring_statistics *S = &ring->statistics; \
+    if ((SIZE) == 1) { \
       /* NOTE: units are NOT clauses */ \
       assert (!(GLUE)); \
       S->NAME.units += (INC); \
-    } \
-  else \
-    { \
+    } else { \
       assert ((GLUE) > 0); \
       assert ((SIZE) > 1); \
       S->NAME.clauses += (INC); \
-      if ((SIZE) == 2) \
-	{ \
-          /* NOTE: binaries ARE clauses */ \
-          /* NOTE: binaries ARE tier1 clauses too */ \
-	  assert ((GLUE) == 1); \
-	  S->NAME.binaries += (INC); \
-	} \
+      if ((SIZE) == 2) { \
+        /* NOTE: binaries ARE clauses */ \
+        /* NOTE: binaries ARE tier1 clauses too */ \
+        assert ((GLUE) == 1); \
+        S->NAME.binaries += (INC); \
+      } \
       if ((GLUE) <= TIER1_GLUE_LIMIT) \
-	S->NAME.tier1 += (INC); \
+        S->NAME.tier1 += (INC); \
       else if ((GLUE) <= TIER2_GLUE_LIMIT) \
-	S->NAME.tier2 += (INC); \
+        S->NAME.tier2 += (INC); \
       else \
-	S->NAME.tier3 += (INC); \
+        S->NAME.tier3 += (INC); \
       ADD_CLAUSE_METRICS (NAME, (INC), (GLUE), (SIZE)); \
     } \
-} while (0)
+  } while (0)
 
 #define INC_UNIT_CLAUSE_STATISTICS(NAME) \
   ADD_CLAUSE_STATISTICS (NAME, 1, 0, 1)
 
-#define INC_CLAUSE_STATISTICS(NAME,GLUE,SIZE) \
+#define INC_CLAUSE_STATISTICS(NAME, GLUE, SIZE) \
   ADD_CLAUSE_STATISTICS (NAME, 1, (GLUE), (SIZE))
 
-#define ADD_BINARY_CLAUSE_STATISTICS(NAME,INC) \
+#define ADD_BINARY_CLAUSE_STATISTICS(NAME, INC) \
   ADD_CLAUSE_STATISTICS (NAME, (INC), 1, 2)
 
-#define ADD_LARGE_CLAUSE_STATISTICS(NAME,INC,GLUE) \
+#define ADD_LARGE_CLAUSE_STATISTICS(NAME, INC, GLUE) \
   ADD_CLAUSE_STATISTICS (NAME, (INC), (GLUE), 3)
 
 #define INC_BINARY_CLAUSE_STATISTICS(NAME) \
   ADD_BINARY_CLAUSE_STATISTICS (NAME, 1)
 
-#define INC_LARGE_CLAUSE_STATISTICS(NAME,GLUE) \
+#define INC_LARGE_CLAUSE_STATISTICS(NAME, GLUE) \
   ADD_LARGE_CLAUSE_STATISTICS (NAME, 1, (GLUE))
 
-#define SEARCH_CONFLICTS \
-  ring->statistics.contexts[SEARCH_CONTEXT].conflicts
+#define SEARCH_CONFLICTS ring->statistics.contexts[SEARCH_CONTEXT].conflicts
 
-#define SEARCH_DECISIONS \
-  ring->statistics.contexts[SEARCH_CONTEXT].decisions
+#define SEARCH_DECISIONS ring->statistics.contexts[SEARCH_CONTEXT].decisions
 
-#define SEARCH_TICKS \
-  ring->statistics.contexts[SEARCH_CONTEXT].ticks
+#define SEARCH_TICKS ring->statistics.contexts[SEARCH_CONTEXT].ticks
 
-#define PROBING_TICKS \
-  ring->statistics.contexts[PROBING_CONTEXT].ticks
+#define PROBING_TICKS ring->statistics.contexts[PROBING_CONTEXT].ticks
 
-struct ruler_statistics
-{
+struct ruler_statistics {
   uint64_t garbage;
   uint64_t binaries;
   unsigned active;
@@ -198,13 +183,11 @@ struct ruler_statistics
   uint64_t selfsubsumed;
   uint64_t simplifications;
   size_t weakened;
-  struct
-  {
+  struct {
     uint64_t elimination;
     uint64_t subsumption;
   } ticks;
-  struct
-  {
+  struct {
     unsigned simplifying;
     unsigned solving;
     unsigned total;

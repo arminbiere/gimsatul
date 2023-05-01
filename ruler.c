@@ -1,8 +1,8 @@
+#include "ruler.h"
 #include "message.h"
 #include "pthread.h"
-#include "ruler.h"
-#include "trace.h"
 #include "simplify.h"
+#include "trace.h"
 #include "utilities.h"
 
 #include <string.h>
@@ -11,30 +11,22 @@
 
 #ifndef QUIET
 
-void
-init_ruler_profiles (struct ruler *ruler)
-{
-#define RULER_PROFILE(NAME) \
-  INIT_PROFILE (ruler, NAME);
+void init_ruler_profiles (struct ruler *ruler) {
+#define RULER_PROFILE(NAME) INIT_PROFILE (ruler, NAME);
   RULER_PROFILES
 #undef RULER_PROFILE
-    START (ruler, total);
+  START (ruler, total);
 }
 
 #endif
 
-static void
-init_locks (struct ruler *ruler)
-{
-#define LOCK(NAME) \
-  pthread_mutex_init (&ruler->locks.NAME, 0);
+static void init_locks (struct ruler *ruler) {
+#define LOCK(NAME) pthread_mutex_init (&ruler->locks.NAME, 0);
   LOCKS
 #undef LOCK
 }
 
-struct ruler *
-new_ruler (size_t size, struct options *opts)
-{
+struct ruler *new_ruler (size_t size, struct options *opts) {
   assert (0 < opts->threads);
   assert (opts->threads <= MAX_THREADS);
   struct ruler *ruler = allocate_and_clear_block (sizeof *ruler);
@@ -48,7 +40,7 @@ new_ruler (size_t size, struct options *opts)
   init_locks (ruler);
 
   ruler->occurrences =
-    allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
+      allocate_and_clear_array (2 * size, sizeof *ruler->occurrences);
   ruler->values = allocate_and_clear_block (2 * size);
 
 #ifndef NDEBUG
@@ -71,9 +63,7 @@ new_ruler (size_t size, struct options *opts)
 
 /*------------------------------------------------------------------------*/
 
-static void
-release_occurrences (struct ruler *ruler)
-{
+static void release_occurrences (struct ruler *ruler) {
   if (!ruler->occurrences)
     return;
   for (all_ruler_literals (lit))
@@ -81,9 +71,7 @@ release_occurrences (struct ruler *ruler)
   free (ruler->occurrences);
 }
 
-static void
-release_clauses (struct ruler *ruler)
-{
+static void release_clauses (struct ruler *ruler) {
   for (all_clauses (clause, ruler->clauses))
     if (!is_binary_pointer (clause))
       free (clause);
@@ -92,18 +80,14 @@ release_clauses (struct ruler *ruler)
 
 #ifndef NDEBUG
 
-static void
-release_original (struct ruler *ruler)
-{
+static void release_original (struct ruler *ruler) {
   RELEASE (*ruler->original);
   free (ruler->original);
 }
 
 #endif
 
-void
-delete_ruler (struct ruler *ruler)
-{
+void delete_ruler (struct ruler *ruler) {
   free (ruler->eliminate);
   free (ruler->subsume);
 
@@ -128,49 +112,42 @@ delete_ruler (struct ruler *ruler)
 
 /*------------------------------------------------------------------------*/
 
-void
-flush_large_clause_occurrences (struct ruler *ruler)
-{
+void flush_large_clause_occurrences (struct ruler *ruler) {
   ROG ("flushing large clauses occurrences");
   size_t flushed = 0;
-  for (all_ruler_literals (lit))
-    {
-      struct clauses *clauses = &OCCURRENCES (lit);
-      struct clause **begin = clauses->begin, **q = begin;
-      struct clause **end = clauses->end, **p = q;
-      while (p != end)
-	{
-	  struct clause *clause = *p++;
-	  if (is_binary_pointer (clause))
-	    *q++ = clause;
-	  else
-	    flushed++;
-	}
-      clauses->end = q;
+  for (all_ruler_literals (lit)) {
+    struct clauses *clauses = &OCCURRENCES (lit);
+    struct clause **begin = clauses->begin, **q = begin;
+    struct clause **end = clauses->end, **p = q;
+    while (p != end) {
+      struct clause *clause = *p++;
+      if (is_binary_pointer (clause))
+        *q++ = clause;
+      else
+        flushed++;
     }
+    clauses->end = q;
+  }
   very_verbose (0, "flushed %zu large clause occurrences", flushed);
 }
 
-static void
-connect_ruler_binary (struct ruler *ruler, unsigned lit, unsigned other)
-{
+static void connect_ruler_binary (struct ruler *ruler, unsigned lit,
+                                  unsigned other) {
   struct clauses *clauses = &OCCURRENCES (lit);
   struct clause *watch_lit = tag_binary (false, lit, other);
   PUSH (*clauses, watch_lit);
 }
 
-void
-new_ruler_binary_clause (struct ruler *ruler, unsigned lit, unsigned other)
-{
+void new_ruler_binary_clause (struct ruler *ruler, unsigned lit,
+                              unsigned other) {
   ROGBINARY (lit, other, "new");
   connect_ruler_binary (ruler, lit, other);
   connect_ruler_binary (ruler, other, lit);
   ruler->statistics.binaries++;
 }
 
-void
-disconnect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
-{
+void disconnect_literal (struct ruler *ruler, unsigned lit,
+                         struct clause *clause) {
   ROGCLAUSE (clause, "disconnecting %s from", ROGLIT (lit));
   struct clauses *clauses = &OCCURRENCES (lit);
   struct clause **begin = clauses->begin, **q = begin;
@@ -180,15 +157,13 @@ disconnect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
     ruler->statistics.ticks.elimination += ticks;
   if (ruler->subsuming)
     ruler->statistics.ticks.subsumption += ticks;
-  while (p != end)
-    {
-      struct clause *other_clause = *q++ = *p++;
-      if (other_clause == clause)
-	{
-	  q--;
-	  break;
-	}
+  while (p != end) {
+    struct clause *other_clause = *q++ = *p++;
+    if (other_clause == clause) {
+      q--;
+      break;
     }
+  }
   while (p != end)
     *q++ = *p++;
   assert (q + 1 == p);
@@ -197,17 +172,13 @@ disconnect_literal (struct ruler *ruler, unsigned lit, struct clause *clause)
     RELEASE (*clauses);
 }
 
-void
-connect_large_clause (struct ruler *ruler, struct clause *clause)
-{
+void connect_large_clause (struct ruler *ruler, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   for (all_literals_in_clause (lit, clause))
     connect_literal (ruler, lit, clause);
 }
 
-void
-assign_ruler_unit (struct ruler *ruler, unsigned unit)
-{
+void assign_ruler_unit (struct ruler *ruler, unsigned unit) {
   signed char *values = (signed char *) ruler->values;
   unsigned not_unit = NOT (unit);
   assert (!values[unit]);
@@ -226,40 +197,33 @@ assign_ruler_unit (struct ruler *ruler, unsigned unit)
   ruler->statistics.active--;
 }
 
-void
-recycle_clause (struct simplifier *simplifier,
-		struct clause *clause, unsigned lit)
-{
+void recycle_clause (struct simplifier *simplifier, struct clause *clause,
+                     unsigned lit) {
   struct ruler *ruler = simplifier->ruler;
-  if (is_binary_pointer (clause))
-    {
-      assert (lit == lit_pointer (clause));
-      assert (!redundant_pointer (clause));
-      unsigned other = other_pointer (clause);
-      struct clause *other_clause = tag_binary (false, other, lit);
-      disconnect_literal (ruler, other, other_clause);
-      ROGBINARY (lit, other, "disconnected and deleted");
-      assert (ruler->statistics.binaries);
-      ruler->statistics.binaries--;
-      trace_delete_binary (&ruler->trace, lit, other);
-      mark_eliminate_literal (simplifier, other);
-    }
-  else
-    {
-      ROGCLAUSE (clause, "disconnecting and marking garbage");
-      trace_delete_clause (&ruler->trace, clause);
-      ruler->statistics.garbage++;
-      clause->garbage = true;
-      for (all_literals_in_clause (other, clause))
-	if (other != lit)
-	  mark_eliminate_literal (simplifier, other);
-    }
+  if (is_binary_pointer (clause)) {
+    assert (lit == lit_pointer (clause));
+    assert (!redundant_pointer (clause));
+    unsigned other = other_pointer (clause);
+    struct clause *other_clause = tag_binary (false, other, lit);
+    disconnect_literal (ruler, other, other_clause);
+    ROGBINARY (lit, other, "disconnected and deleted");
+    assert (ruler->statistics.binaries);
+    ruler->statistics.binaries--;
+    trace_delete_binary (&ruler->trace, lit, other);
+    mark_eliminate_literal (simplifier, other);
+  } else {
+    ROGCLAUSE (clause, "disconnecting and marking garbage");
+    trace_delete_clause (&ruler->trace, clause);
+    ruler->statistics.garbage++;
+    clause->garbage = true;
+    for (all_literals_in_clause (other, clause))
+      if (other != lit)
+        mark_eliminate_literal (simplifier, other);
+  }
 }
 
-void
-recycle_clauses (struct simplifier *simplifier,
-		 struct clauses *clauses, unsigned except)
-{
+void recycle_clauses (struct simplifier *simplifier,
+                      struct clauses *clauses, unsigned except) {
 #ifdef LOGGING
   struct ruler *ruler = simplifier->ruler;
   ROG ("disconnecting and deleting clauses with %s", ROGLIT (except));
@@ -271,9 +235,7 @@ recycle_clauses (struct simplifier *simplifier,
 
 /*------------------------------------------------------------------------*/
 
-void
-push_ring (struct ruler *ruler, struct ring *ring)
-{
+void push_ring (struct ruler *ruler, struct ring *ring) {
   if (pthread_mutex_lock (&ruler->locks.rings))
     fatal_error ("failed to acquire rings lock while pushing ring");
   size_t id = SIZE (ruler->rings);
@@ -288,9 +250,7 @@ push_ring (struct ruler *ruler, struct ring *ring)
   ring->trace.unmap = ruler->unmap;
 }
 
-void
-detach_ring (struct ring *ring)
-{
+void detach_ring (struct ring *ring) {
   struct ruler *ruler = ring->ruler;
   if (pthread_mutex_lock (&ruler->locks.rings))
     fatal_error ("failed to acquire rings lock while detaching ring");
@@ -303,9 +263,7 @@ detach_ring (struct ring *ring)
 
 /*------------------------------------------------------------------------*/
 
-void
-set_terminate (struct ruler *ruler)
-{
+void set_terminate (struct ruler *ruler) {
   if (pthread_mutex_lock (&ruler->locks.terminate))
     fatal_error ("failed to acquire terminate lock");
   ruler->terminate = true;
@@ -317,9 +275,7 @@ set_terminate (struct ruler *ruler)
   abort_waiting_and_disable_barrier (&ruler->barriers.unclone);
 }
 
-void
-set_winner (struct ring *ring)
-{
+void set_winner (struct ring *ring) {
   volatile struct ring *winner;
   struct ruler *ruler = ring->ruler;
   bool winning;
@@ -332,21 +288,18 @@ set_winner (struct ring *ring)
     ruler->winner = ring;
   if (pthread_mutex_unlock (&ruler->locks.winner))
     fatal_error ("failed to release winner lock");
-  if (!winning)
-    {
-      assert (winner);
-      assert (winner->status == ring->status);
-      return;
-    }
+  if (!winning) {
+    assert (winner);
+    assert (winner->status == ring->status);
+    return;
+  }
   set_terminate (ruler);
   verbose (ring, "winning ring[%u] with status %d", ring->id, ring->status);
 }
 
 /*------------------------------------------------------------------------*/
 
-struct ring *
-first_ring (struct ruler *ruler)
-{
+struct ring *first_ring (struct ruler *ruler) {
   if (pthread_mutex_lock (&ruler->locks.rings))
     fatal_error ("failed to acquire rings lock while getting first");
   assert (!EMPTY (ruler->rings));

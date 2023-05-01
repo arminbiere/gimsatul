@@ -8,9 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 
-void
-die (const char *fmt, ...)
-{
+void die (const char *fmt, ...) {
   acquire_message_lock ();
   fputs ("gimsatul: error: ", stderr);
   va_list ap;
@@ -23,9 +21,7 @@ die (const char *fmt, ...)
   exit (1);
 }
 
-void
-fatal_error (const char *fmt, ...)
-{
+void fatal_error (const char *fmt, ...) {
   acquire_message_lock ();
   fputs ("gimsatul: fatal error: ", stderr);
   va_list ap;
@@ -44,9 +40,7 @@ int verbosity;
 
 static pthread_mutex_t message_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static void
-message_lock_failure (const char *str)
-{
+static void message_lock_failure (const char *str) {
   char buffer[128];
   sprintf (buffer, "gimsatul: fatal message locking error: %s\n", str);
   size_t len = strlen (buffer);
@@ -56,16 +50,12 @@ message_lock_failure (const char *str)
   abort ();
 }
 
-void
-acquire_message_lock (void)
-{
+void acquire_message_lock (void) {
   if (pthread_mutex_lock (&message_mutex))
     message_lock_failure ("failed to acquire message lock");
 }
 
-void
-release_message_lock (void)
-{
+void release_message_lock (void) {
   if (pthread_mutex_unlock (&message_mutex))
     message_lock_failure ("failed to release message lock");
 }

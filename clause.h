@@ -11,45 +11,43 @@
 
 struct ring;
 
-struct clause
-{
+struct clause {
 #ifdef LOGGING
   uint64_t id;
 #endif
   atomic_ushort shared;
   unsigned char glue;
-  bool cleaned:1;
-  bool dirty:1;
-  bool garbage:1;
-  bool mapped:1;
-  unsigned padding:1;
-  bool redundant:1;
-  bool subsume:1;
-  bool vivified:1;
+  bool cleaned : 1;
+  bool dirty : 1;
+  bool garbage : 1;
+  bool mapped : 1;
+  unsigned padding : 1;
+  bool redundant : 1;
+  bool subsume : 1;
+  bool vivified : 1;
   unsigned size;
   unsigned literals[];
 };
 
-struct clauses
-{
+struct clauses {
   struct clause **begin, **end, **allocated;
 };
 
 /*------------------------------------------------------------------------*/
 
-#define all_clauses(ELEM,CLAUSES) \
+#define all_clauses(ELEM, CLAUSES) \
   all_pointers_on_stack (struct clause, ELEM, CLAUSES)
 
-#define all_literals_in_clause(LIT,CLAUSE) \
-  unsigned * P_ ## LIT = (CLAUSE)->literals, \
-           * END_ ## LIT = P_ ## LIT + (CLAUSE)->size, LIT;\
-  P_ ## LIT != END_ ## LIT && (LIT = *P_ ## LIT, true); \
-  ++ P_ ## LIT
+#define all_literals_in_clause(LIT, CLAUSE) \
+  unsigned *P_##LIT = (CLAUSE)->literals, \
+           *END_##LIT = P_##LIT + (CLAUSE)->size, LIT; \
+  P_##LIT != END_##LIT && (LIT = *P_##LIT, true); \
+  ++P_##LIT
 
 /*------------------------------------------------------------------------*/
 
-struct clause *new_large_clause (size_t, unsigned *,
-				 bool redundant, unsigned glue);
+struct clause *new_large_clause (size_t, unsigned *, bool redundant,
+                                 unsigned glue);
 
 void mark_clause (signed char *marks, struct clause *, unsigned except);
 void unmark_clause (signed char *marks, struct clause *, unsigned except);

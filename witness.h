@@ -13,7 +13,9 @@ void check_witness (signed char *values, struct unsigneds *);
 
 #else
 
-#define check_witness(...) do { } while (0)
+#define check_witness(...) \
+  do { \
+  } while (0)
 
 #endif
 
