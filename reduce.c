@@ -1,7 +1,7 @@
-#include "reduce.h"
 #include "barrier.h"
 #include "macros.h"
 #include "message.h"
+#include "reduce.h"
 #include "report.h"
 #include "ring.h"
 #include "trace.h"
@@ -185,7 +185,9 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
 
 static void flush_references (struct ring *ring, bool fixed, unsigned start,
                               unsigned *map) {
+#if !defined(QUIET) || !defined(NDEBUG)
   size_t flushed = 0;
+#endif
   signed char *values = ring->values;
   struct variable *variables = ring->variables;
   for (all_ring_literals (lit)) {
@@ -218,7 +220,9 @@ static void flush_references (struct ring *ring, bool fixed, unsigned start,
             dec_clauses (ring, redundant);
             trace_delete_binary (&ring->trace, lit, other);
           }
+#if !defined(QUIET) || !defined(NDEBUG)
           flushed++;
+#endif
         } else
           *q++ = watch;
       } else {
@@ -230,8 +234,11 @@ static void flush_references (struct ring *ring, bool fixed, unsigned start,
           unsigned other = other_pointer (watch);
           struct watch *mapped = tag_index (redundant, dst, other);
           *q++ = mapped;
-        } else
+        } else {
+#if !defined(QUIET) || !defined(NDEBUG)
           flushed++;
+#endif
+        }
       }
     }
     watches->end = q;

@@ -66,22 +66,35 @@ static void save_large_watched_clauses (struct ring *ring) {
   struct clauses *clauses = &ruler->clauses;
   assert (ring->id || EMPTY (*clauses));
   struct clauses *save = &ring->saved;
-  size_t transferred = 0, collected = 0, saved = 0, flushed = 0;
+#ifndef QUIET
+  size_t collected = 0, saved = 0;
+#endif
+#if !defined(QUIET) || !defined(NDEBUG)
+  size_t transferred = 0, flushed = 0;
+#endif
   for (all_watchers (watcher)) {
     struct clause *clause = watcher->clause;
     if (watcher->garbage) {
       dereference_clause (ring, clause);
+#ifndef QUIET
       collected++;
+#endif
     } else {
       if (watcher->redundant) {
         PUSH (*save, watcher->clause);
+#ifndef QUIET
         saved++;
+#endif
       } else if (ring->id) {
         dereference_clause (ring, clause);
+#if !defined(QUIET) || !defined(NDEBUG)
         flushed++;
+#endif
       } else {
         PUSH (*clauses, clause);
+#if !defined(QUIET) || !defined(NDEBUG)
         transferred++;
+#endif
       }
       dec_clauses (ring, watcher->redundant);
     }

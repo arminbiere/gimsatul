@@ -16,7 +16,9 @@ void release_references (struct ring *ring) {
 }
 
 void disconnect_references (struct ring *ring, struct watches *saved) {
+#ifndef QUIET
   size_t disconnected = 0;
+#endif
   for (all_ring_literals (lit)) {
     struct references *watches = &REFERENCES (lit);
     for (all_watches (watch, *watches))
@@ -27,20 +29,26 @@ void disconnect_references (struct ring *ring, struct watches *saved) {
         if (other < lit)
           PUSH (*saved, watch);
       }
+#ifndef QUIET
     disconnected += SIZE (*watches);
+#endif
     RELEASE (*watches);
   }
   very_verbose (ring, "disconnected %zu clauses", disconnected);
 }
 
 void reconnect_watches (struct ring *ring, struct watches *saved) {
+#ifndef QUIET
   size_t reconnected = 0;
+#endif
   for (all_watchers (watcher)) {
     unsigned *literals = watcher->clause->literals;
     watcher->sum = literals[0] ^ literals[1];
     watch_literal (ring, literals[0], literals[1], watcher);
     watch_literal (ring, literals[1], literals[0], watcher);
+#ifndef QUIET
     reconnected++;
+#endif
   }
   for (all_watches (lit_watch, *saved)) {
     assert (is_binary_pointer (lit_watch));

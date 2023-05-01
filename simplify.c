@@ -74,7 +74,9 @@ static bool ruler_propagate (struct simplifier *simplifier) {
   struct ruler *ruler = simplifier->ruler;
   signed char *values = (signed char *) ruler->values;
   struct ruler_trail *units = &ruler->units;
+#ifndef QUIET
   size_t garbage = 0;
+#endif
   while (!ruler->inconsistent && units->propagate != units->end) {
     unsigned lit = *units->propagate++;
     ROG ("propagating unit %s", ROGLIT (lit));
@@ -135,7 +137,9 @@ static bool ruler_propagate (struct simplifier *simplifier) {
         mark_eliminate_clause (simplifier, clause);
         ruler->statistics.garbage++;
         clause->garbage = true;
+#ifndef QUIET
         garbage++;
+#endif
       }
     }
   }
@@ -146,7 +150,9 @@ static bool ruler_propagate (struct simplifier *simplifier) {
 static void mark_satisfied_ruler_clauses (struct simplifier *simplifier) {
   struct ruler *ruler = simplifier->ruler;
   signed char *values = (signed char *) ruler->values;
+#ifndef QUIET
   size_t marked_satisfied = 0, marked_dirty = 0;
+#endif
   for (all_clauses (clause, ruler->clauses)) {
     if (clause->garbage)
       continue;
@@ -166,12 +172,16 @@ static void mark_satisfied_ruler_clauses (struct simplifier *simplifier) {
       mark_eliminate_clause (simplifier, clause);
       ruler->statistics.garbage++;
       clause->garbage = true;
+#ifndef QUIET
       marked_satisfied++;
+#endif
     } else if (dirty) {
       ROGCLAUSE (clause, "marking dirty");
       assert (!clause->dirty);
       clause->dirty = true;
+#ifndef QUIET
       marked_dirty++;
+#endif
     }
   }
   very_verbose (0,
@@ -184,7 +194,9 @@ static void
 flush_garbage_and_satisfied_occurrences (struct simplifier *simplifier) {
   struct ruler *ruler = simplifier->ruler;
   signed char *values = (signed char *) ruler->values;
+#ifndef QUIET
   size_t flushed = 0;
+#endif
   size_t deleted = 0;
   for (all_ruler_literals (lit)) {
     signed char lit_value = values[lit];
@@ -207,19 +219,25 @@ flush_garbage_and_satisfied_occurrences (struct simplifier *simplifier) {
               mark_eliminate_literal (simplifier, other);
             deleted++;
           }
+#ifndef QUIET
           flushed++;
+#endif
           q--;
         } else {
           assert (!lit_value);
           assert (!other_value);
         }
       } else if (clause->garbage) {
+#ifndef QUIET
         flushed++;
+#endif
         q--;
       }
     }
     if (lit_value) {
+#ifndef QUIET
       flushed += q - begin;
+#endif
       RELEASE (*clauses);
     } else
       clauses->end = q;
@@ -236,7 +254,10 @@ delete_large_garbage_ruler_clauses (struct simplifier *simplifier) {
   struct clauses *clauses = &ruler->clauses;
   struct clause **begin_clauses = clauses->begin, **q = begin_clauses;
   struct clause **end_clauses = clauses->end, **p = q;
-  size_t deleted = 0, shrunken = 0;
+#ifndef QUIET
+  size_t deleted = 0;
+  size_t shrunken = 0;
+#endif
   signed char *values = (signed char *) ruler->values;
   bool trace = ruler->options.proof.file;
   struct unsigneds remove;
@@ -246,11 +267,15 @@ delete_large_garbage_ruler_clauses (struct simplifier *simplifier) {
     if (clause->garbage) {
       ROGCLAUSE (clause, "finally deleting");
       free (clause);
+#ifndef QUIET
       deleted++;
+#endif
       q--;
     } else if (clause->dirty) {
       assert (EMPTY (remove));
+#ifndef QUIET
       shrunken++;
+#endif
       ROGCLAUSE (clause, "shrinking dirty");
       unsigned *literals = clause->literals;
       unsigned old_size = clause->size;
@@ -481,11 +506,15 @@ static size_t current_ruler_clauses (struct ruler *ruler) {
 static void push_ruler_units_to_extension_stack (struct ruler *ruler) {
   struct unsigneds *extension = &ruler->extension[1];
   unsigned *unmap = ruler->unmap;
+#ifndef QUIET
   size_t pushed = 0;
+#endif
   for (all_elements_on_stack (unsigned, lit, ruler->units)) {
     unsigned unmapped = unmap_literal (unmap, lit);
     PUSH (*extension, unmapped);
+#ifndef QUIET
     pushed++;
+#endif
   }
   verbose (0, "pushed %zu units on extension stack", pushed);
   ruler->units.end = ruler->units.propagate = ruler->units.begin;

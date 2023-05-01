@@ -297,17 +297,23 @@ flush_large_garbage_clauses_and_reconnect (struct ruler *ruler) {
   struct clauses *clauses = &ruler->clauses;
   struct clause **begin = clauses->begin, **q = begin;
   struct clause **end = clauses->end, **p = q;
+#ifndef QUIET
   size_t flushed = 0, reconnected = 0;
+#endif
   while (p != end) {
     struct clause *clause = *q++ = *p++;
     if (clause->garbage) {
       ROGCLAUSE (clause, "finally deleting");
       free (clause);
+#ifndef QUIET
       flushed++;
+#endif
       q--;
     } else {
       connect_large_clause (ruler, clause);
+#ifndef QUIET
       reconnected++;
+#endif
     }
   }
   clauses->end = q;

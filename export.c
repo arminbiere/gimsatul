@@ -92,7 +92,9 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
 }
 
 void flush_pool (struct ring *ring) {
+#ifndef QUIET
   size_t flushed = 0;
+#endif
   for (unsigned i = 0; i != ring->threads; i++) {
     if (i == ring->id)
       continue;
@@ -104,7 +106,9 @@ void flush_pool (struct ring *ring) {
         continue;
       if (shared != BINARY_SHARED)
         dereference_clause (ring, (struct clause *) clause);
+#ifndef QUIET
       flushed++;
+#endif
     }
   }
   very_verbose (ring, "flushed %zu clauses to be exported", flushed);

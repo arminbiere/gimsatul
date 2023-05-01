@@ -234,7 +234,9 @@ static void import_decisions (struct walker *walker) {
   walker->extra += extra;
   very_verbose (ring, "warming up needed %" PRIu64 " extra ticks", extra);
   signed char *values = ring->values;
+#ifndef QUIET
   unsigned pos = 0, neg = 0, ignored = 0;
+#endif
   struct variable *v = ring->variables;
   signed char *q = values;
   assert (!ring->level);
@@ -244,10 +246,14 @@ static void import_decisions (struct walker *walker) {
     assert (phase);
     if (*q) {
       phase = 0;
+#ifndef QUIET
       ignored++;
+#endif
     } else {
+#ifndef QUIET
       pos += (phase > 0);
       neg += (phase < 0);
+#endif
       v->level = INVALID_VAR;
     }
     *q++ = phase;

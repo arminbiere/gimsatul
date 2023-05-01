@@ -347,12 +347,16 @@ void set_satisfied (struct ring *ring) {
 }
 
 void mark_satisfied_watchers_as_garbage (struct ring *ring) {
+#ifndef QUIET
   size_t marked = 0;
+  size_t size = 0;
+#endif
   signed char *values = ring->values;
   struct variable *variables = ring->variables;
-  size_t size = 0;
   for (all_watchers (watcher)) {
+#ifndef QUIET
     size++;
+#endif
     if (watcher->garbage)
       continue;
     bool satisfied = false;
@@ -368,7 +372,9 @@ void mark_satisfied_watchers_as_garbage (struct ring *ring) {
     if (!satisfied)
       continue;
     mark_garbage_watcher (ring, watcher);
+#ifndef QUIET
     marked++;
+#endif
   }
   ring->last.fixed = ring->statistics.fixed;
   verbose (ring, "marked %zu satisfied clauses as garbage %.0f%%", marked,

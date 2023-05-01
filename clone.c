@@ -61,19 +61,26 @@ static void transfer_ruler_clauses_to_ring (struct ring *ring) {
   assert (!ruler->inconsistent);
   assert (first_ring (ruler) == ring);
   assert (!ring->id);
+#ifndef QUIET
   size_t transferred = 0;
+#endif
   for (all_clauses (clause, ruler->clauses)) {
     LOGCLAUSE (clause, "transferring");
     assert (!clause->garbage);
     (void) watch_first_two_literals_in_large_clause (ring, clause);
+#ifndef QUIET
     transferred++;
+#endif
   }
   very_verbose (ring, "transferred %zu large clauses", transferred);
 }
 
 static void restore_saved_redundant_clauses (struct ring *ring) {
   struct clauses *saved = &ring->saved;
-  size_t binaries = 0, large = 0;
+  size_t binaries = 0;
+#ifndef QUIET
+  size_t large = 0;
+#endif
   unsigned tier2 = 0;
   ring->redundant = SIZE (ring->watchers);
   for (all_clauses (clause, *saved)) {
@@ -92,7 +99,9 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
       if (!tier2 && clause->glue > TIER1_GLUE_LIMIT)
         tier2 = SIZE (ring->watchers);
       (void) watch_first_two_literals_in_large_clause (ring, clause);
+#ifndef QUIET
       large++;
+#endif
     }
   }
   RELEASE (*saved);
@@ -145,12 +154,16 @@ static void clone_ruler (struct ruler *src) {
 static void clone_clauses (struct ring *ring) {
   struct ruler *ruler = ring->ruler;
   assert (!ruler->inconsistent);
+#ifndef QUIET
   size_t shared = 0;
+#endif
   for (all_clauses (clause, ruler->clauses)) {
     assert (!clause->redundant);
     reference_clause (ring, clause, 1);
     (void) watch_first_two_literals_in_large_clause (ring, clause);
+#ifndef QUIET
     shared++;
+#endif
   }
   very_verbose (ring, "sharing %zu large clauses", shared);
 }

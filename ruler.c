@@ -114,7 +114,9 @@ void delete_ruler (struct ruler *ruler) {
 
 void flush_large_clause_occurrences (struct ruler *ruler) {
   ROG ("flushing large clauses occurrences");
+#ifndef QUIET
   size_t flushed = 0;
+#endif
   for (all_ruler_literals (lit)) {
     struct clauses *clauses = &OCCURRENCES (lit);
     struct clause **begin = clauses->begin, **q = begin;
@@ -123,8 +125,11 @@ void flush_large_clause_occurrences (struct ruler *ruler) {
       struct clause *clause = *p++;
       if (is_binary_pointer (clause))
         *q++ = clause;
-      else
+      else {
+#ifndef QUIET
         flushed++;
+#endif
+      }
     }
     clauses->end = q;
   }

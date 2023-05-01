@@ -53,7 +53,9 @@ signed char *extend_witness (struct ring *ring) {
     LOG ("forcing original literal %u(%d)=1 as saved unit", lit,
          only_export_literal (lit));
   }
+#ifndef QUIET
   size_t flipped = 0;
+#endif
   struct unsigneds *extension = &ruler->extension[0];
   unsigned *begin = extension->begin;
   unsigned *p = extension->end;
@@ -105,7 +107,9 @@ signed char *extend_witness (struct ring *ring) {
         assert (witness[not_pivot] > 0);
         witness[pivot] = 1;
         witness[not_pivot] = -1;
+#ifndef QUIET
         flipped++;
+#endif
       }
       satisfied = false;
 #ifdef LOGGING
