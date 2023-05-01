@@ -5,7 +5,6 @@
 #include "assign.h"
 #include "backtrack.h"
 #include "bump.h"
-#include "cover.h"
 #include "export.h"
 #include "macros.h"
 #include "minimize.h"

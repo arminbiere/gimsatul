@@ -1,6 +1,5 @@
 #include "assign.h"
 #include "backtrack.h"
-#include "cover.h"
 #include "import.h"
 #include "message.h"
 #include "propagate.h"
@@ -8,8 +7,6 @@
 #include "ruler.h"
 #include "trace.h"
 #include "utilities.h"
-
-#include "cover.h"
 
 bool
 import_units (struct ring *ring)

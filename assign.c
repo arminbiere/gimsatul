@@ -1,5 +1,4 @@
 #include "assign.h"
-#include "cover.h"
 #include "macros.h"
 #include "ruler.h"
 #include "trace.h"
