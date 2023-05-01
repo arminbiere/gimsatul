@@ -673,7 +673,7 @@ void vivify_clauses (struct ring *ring) {
         if (ring->inconsistent)
           break;
         if (ring->level)
-          backtrack (ring, ring->level - 1);
+          backtrack (ring, 0);
         RESIZE (*decisions, ring->level);
         assert (ring->level == SIZE (*decisions));
         if (ring_propagate (ring, false, 0)) {

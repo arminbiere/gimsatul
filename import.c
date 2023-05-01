@@ -50,6 +50,8 @@ bool import_units (struct ring *ring) {
   }
   if (pthread_mutex_unlock (&ruler->locks.units))
     fatal_error ("failed to release unit lock");
+  if (ring->inconsistent)
+    return true;
   if (!imported)
     return false;
   ring->iterating = -1;
