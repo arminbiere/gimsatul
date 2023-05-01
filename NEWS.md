@@ -1,4 +1,8 @@
-# Version 1.0.4rc1
+# Version 1.1.0-rc.1
+
+- Chronological backtracking (also helps importing units).
+
+- Binary reason jumping.
 
 - Added '--force-phase' option to force every worker ring to only
   use the initial phase as specified with '--phase=[01]' for all
