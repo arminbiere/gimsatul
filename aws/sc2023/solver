@@ -1,5 +1,5 @@
 #!/bin/sh
-json=/rundir/input.json
+json=$1/input.json
 [ -f $json ] || json=/rundir/input.json
 input=`awk '/formula_file/{print $2}' $json|sed -e s/,$// -e s/\"//g`
 time=`awk '/timeout_seconds/{print $2}' $json|sed -e s/,$// -e s/\"//g`
