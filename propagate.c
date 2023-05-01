@@ -1,6 +1,7 @@
 #include "propagate.h"
 #include "assign.h"
 #include "macros.h"
+#include "message.h"
 #include "ruler.h"
 #include "utilities.h"
 

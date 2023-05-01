@@ -1,6 +1,7 @@
 #include "decide.h"
 #include "assign.h"
 #include "macros.h"
+#include "message.h"
 #include "options.h"
 #include "random.h"
 #include "ring.h"

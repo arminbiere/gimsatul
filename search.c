@@ -55,8 +55,10 @@ bool backtrack_propagate_iterate (struct ring *ring) {
 
 static void start_search (struct ring *ring) {
   ring->stable = !ring->options.focus_initially;
+#ifndef QUIET
   double t = START (ring, search);
   ring->last.mode.time = t;
+#endif
   if (ring->stable) {
     report (ring, '[');
     START (ring, stable);

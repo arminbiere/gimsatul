@@ -9,6 +9,8 @@
 
 #include <inttypes.h>
 
+#ifndef QUIET
+
 static void report_mode_duration (struct ring *ring, double t,
                                   const char *type) {
   struct ring_last *l = &ring->last;
@@ -22,11 +24,15 @@ static void report_mode_duration (struct ring *ring, double t,
   l->mode.ticks = SEARCH_TICKS;
 }
 
+#endif
+
 static void switch_to_focused_mode (struct ring *ring) {
   assert (ring->stable);
   report (ring, ']');
+#ifndef QUIET
   double t = STOP (ring, stable);
   report_mode_duration (ring, t, "stable");
+#endif
   ring->stable = false;
   START (ring, focus);
   report (ring, '{');
@@ -37,8 +43,10 @@ static void switch_to_focused_mode (struct ring *ring) {
 static void switch_to_stable_mode (struct ring *ring) {
   assert (!ring->stable);
   report (ring, '}');
+#ifndef QUIET
   double t = STOP (ring, focus);
   report_mode_duration (ring, t, "focused");
+#endif
   ring->stable = true;
   START (ring, stable);
   report (ring, '[');

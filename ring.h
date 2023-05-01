@@ -59,11 +59,13 @@ struct ring_last {
   unsigned fixed;
   uint64_t probing;
   uint64_t walk;
+#ifndef QUIET
   struct mode {
     uint64_t conflicts;
     uint64_t ticks;
     double time;
   } mode;
+#endif
 };
 
 struct ring_delay {
