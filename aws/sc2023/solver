@@ -1,0 +1,17 @@
+#!/bin/sh
+json=$1/input.json
+input=`awk '/formula_file/{print $2}' $json|sed -e s/,$// -e s/\"//g`
+time=`awk '/timeout_seconds/{print $2}' $json|sed -e s/,$//`
+stdout=/runsolver/stdout
+stderr=/runsolver/stderr
+/gimsatul/gimsatul --time=$time --threads=32 $input 1>$stdout 2>$stderr
+status=$?
+cat<<EOF
+{
+  "return_code": $status,
+  "artifacts": {
+    "stdout_path": "$stdout",
+    "stderr_path": "$stderr"
+  }
+}
+EOF
