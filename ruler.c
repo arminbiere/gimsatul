@@ -284,7 +284,7 @@ push_ring (struct ruler *ruler, struct ring *ring)
   ring->id = id;
   ring->random = ring->id;
   ring->ruler = ruler;
-  ring->units = ruler->units.end;
+  ring->ruler_units = ruler->units.end;
   ring->trace.unmap = ruler->unmap;
 }
 

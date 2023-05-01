@@ -59,8 +59,8 @@ static char (*schedule[]) (struct ring *) = {
 void
 rephase (struct ring *ring)
 {
-  if (ring->level)
-    backtrack (ring, 0);
+  if (!backtrack_propagate_iterate (ring))
+    return;
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
   uint64_t rephased = ++statistics->rephased;

@@ -81,9 +81,14 @@ struct ring_delay
 
 struct ring_trail
 {
-  unsigned *begin, *end, *pos;
-  unsigned *propagate, *iterate;
-  unsigned *export;
+  unsigned *begin, *end;
+  unsigned *pos, *propagate;
+};
+
+struct ring_units
+{
+  unsigned * begin, * end;
+  unsigned * iterate, *export;
 };
 
 #define BINARY_SHARED 0
@@ -99,7 +104,7 @@ struct ring
   unsigned id;
   unsigned threads;
   struct pool *pool;
-  unsigned *units;
+  unsigned *ruler_units;
   struct ruler *ruler;
 
   volatile int status;
@@ -129,9 +134,11 @@ struct ring
   struct unsigneds levels;
   struct unsigneds minimize;
   struct unsigneds sorter;
+  struct unsigneds outoforder;
 
   struct references *references;
   struct ring_trail trail;
+  struct ring_units ring_units;
   struct variable *variables;
 
   struct heap heap;

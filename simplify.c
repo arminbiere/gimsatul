@@ -9,6 +9,7 @@
 #include "propagate.h"
 #include "report.h"
 #include "scale.h"
+#include "search.h"
 #include "simplify.h"
 #include "substitute.h"
 #include "subsume.h"
@@ -805,7 +806,7 @@ continue_importing_and_propagating_units (struct ring *ring)
   bool done = true;
   unsigned *ruler_units_end = ruler->units.end;
   for (all_rings (ring))
-    if (ring->units != ruler_units_end)
+    if (ring->ruler_units != ruler_units_end)
       {
 	done = false;
 	break;
@@ -825,14 +826,13 @@ synchronize_exported_and_imported_units (struct ring *ring)
   if (!rendezvous (&ruler->barriers.import, ring, false))
     return false;
 
-  if (ring->level)
-    backtrack (ring, 0);
-  while (continue_importing_and_propagating_units (ring))
-    if (import_shared (ring))
-      if (!ring->inconsistent)
-	if (ring_propagate (ring, false, 0))
-	  set_inconsistent (ring,
-			    "propagation after importing shared failed");
+  if (backtrack_propagate_iterate (ring))
+    while (continue_importing_and_propagating_units (ring))
+      if (import_shared (ring))
+	if (!ring->inconsistent)
+	  if (ring_propagate (ring, false, 0))
+	    set_inconsistent (ring,
+			      "propagation after importing shared failed");
 
   assert (ring->inconsistent || ring->trail.propagate == ring->trail.end);
 

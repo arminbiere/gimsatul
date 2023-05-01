@@ -128,7 +128,8 @@ shrink_clause (struct ring *ring)
       uip = *t--;
       unsigned idx = IDX (uip);
       struct variable *v = variables + idx;
-      assert (v->level == level);
+      if (v->level != level)
+	continue;
       if (!v->shrinkable)
 	continue;
       struct watch *reason = v->reason;

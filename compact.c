@@ -419,7 +419,7 @@ compact_ring (struct ring *ring, unsigned *map, struct clauses *mapped)
   ring->size = new_size;
   ring->statistics.active = new_size;
 
-  ring->units = ruler->units.end;
+  ring->ruler_units = ruler->units.end;
 }
 
 static void

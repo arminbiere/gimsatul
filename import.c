@@ -2,12 +2,11 @@
 #include "backtrack.h"
 #include "import.h"
 #include "message.h"
+#include "propagate.h"
 #include "random.h"
 #include "ruler.h"
 #include "trace.h"
 #include "utilities.h"
-
-#include "cover.h"
 
 bool
 import_units (struct ring *ring)
@@ -15,28 +14,32 @@ import_units (struct ring *ring)
   assert (ring->pool);
   struct ruler *ruler = ring->ruler;
 #ifndef NFASTPATH
-  if (ring->units == ruler->units.end)
+  if (ring->ruler_units == ruler->units.end)
     return false;
 #endif
   struct variable *variables = ring->variables;
   signed char *values = ring->values;
-  unsigned level = ring->level;
   unsigned imported = 0;
   if (pthread_mutex_lock (&ruler->locks.units))
     fatal_error ("failed to acquire unit lock");
-  while (ring->units != ruler->units.end)
+  while (ring->ruler_units != ruler->units.end)
     {
-      unsigned unit = *ring->units++;
+      unsigned unit = *ring->ruler_units++;
       LOG ("trying to import unit %s", LOGLIT (unit));
       signed char value = values[unit];
-      if (level && value)
+      unsigned unit_idx = IDX (unit);
+      struct variable * v = variables + unit_idx;
+      if (value && v->level)
 	{
-	  unsigned idx = IDX (unit);
-	  if (variables[idx].level)
-	    value = 0;
+	  backtrack (ring, v->level - 1);
+	  assert (!values[unit]);
+	  value = 0;
 	}
       if (value > 0)
-	continue;
+	{
+	  assert (!v->level);
+	  continue;
+	}
       very_verbose (ring, "importing unit %d",
 		    unmap_and_export_literal (ruler->unmap, unit));
       INC_UNIT_CLAUSE_STATISTICS (imported);
@@ -44,16 +47,11 @@ import_units (struct ring *ring)
       imported++;
       if (value < 0)
 	{
+	  assert (!v->level);
 	  set_inconsistent (ring, "imported falsified unit");
 	  imported = INVALID;
 	  break;
 	}
-      if (level)
-	{
-	  backtrack (ring, 0);
-	  level = 0;
-	}
-      assert (!ring->level);
       assign_ring_unit (ring, unit);
     }
   if (pthread_mutex_unlock (&ruler->locks.units))
@@ -78,19 +76,14 @@ force_to_repropagate (struct ring *ring, unsigned lit)
   LOG ("forcing to repropagate %s", LOGLIT (lit));
   assert (ring->values[lit] < 0);
   unsigned idx = IDX (lit);
-  struct variable *v = ring->variables + idx;
-  if (ring->level > v->level)
-    {
-      ring->statistics.diverged++;
-      backtrack (ring, v->level);
-    }
   size_t pos = ring->trail.pos[idx];
   assert (pos < SIZE (ring->trail));
-  LOG ("setting end of trail to %zu", pos);
   unsigned *propagate = ring->trail.begin + pos;
   assert (propagate < ring->trail.end);
   assert (*propagate == NOT (lit));
+  assert (propagate < ring->trail.propagate);
   ring->trail.propagate = propagate;
+  LOG ("setting end of trail to %zu", pos);
   if (!ring->level)
     ring->iterating = -1;
 }

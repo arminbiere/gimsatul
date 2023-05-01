@@ -37,20 +37,33 @@ backtrack (struct ring *ring, unsigned new_level)
   LOG ("backtracking to decision level %u", new_level);
   struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;
+  assert (EMPTY (ring->outoforder));
   while (t != trail->begin)
     {
-      unsigned lit = t[-1];
-      unsigned lit_level = VAR (lit)->level;
-      if (lit_level == new_level)
-	break;
-      unassign (ring, lit);
-      t--;
+      unsigned lit = *--t;
+      unsigned idx = IDX (lit);
+      struct variable * v = ring->variables + idx;
+      unsigned lit_level = v->level;
+      if (lit_level <= new_level)
+	PUSH (ring->outoforder, lit);
+      else {
+	unassign (ring, lit);
+	if (!v->reason && new_level + 1 == lit_level)
+	  break;
+      }
     }
   trail->end = trail->propagate = t;
-  assert (trail->export <= trail->propagate);
-  assert (trail->iterate <= trail->propagate);
   ring->level = new_level;
   LOG ("backtracked to decision level %u", new_level);
+  size_t pos = SIZE (*trail);
+  while (!EMPTY (ring->outoforder)) {
+    unsigned lit = POP (ring->outoforder);
+    LOG ("keeping out-of-order assigned %s", LOGLIT (lit));
+    *trail->end++ = lit;
+    unsigned idx = IDX (lit);
+    trail->pos[idx] = pos++;
+  }
+  assert (pos == SIZE (*trail));
 }
 
 void

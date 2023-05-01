@@ -3,6 +3,7 @@
 #include "decide.h"
 #include "logging.h"
 #include "message.h"
+#include "propagate.h"
 #include "random.h"
 #include "ruler.h"
 #include "search.h"
@@ -731,20 +732,22 @@ walking_loop (struct walker *walker)
 void
 local_search (struct ring *ring)
 {
+  if (!backtrack_propagate_iterate (ring))
+    return;
   STOP_SEARCH_AND_START (walk);
   assert (ring->context == SEARCH_CONTEXT);
   ring->context = WALK_CONTEXT;
   ring->statistics.walked++;
-  if (ring->level)
-    backtrack (ring, 0);
   if (ring->last.fixed != ring->statistics.fixed)
     mark_satisfied_watchers_as_garbage (ring);
-  struct walker *walker = new_walker (ring);
-  walking_loop (walker);
-  save_final_minimum (walker);
-  verbose (ring, "walker flipped %" PRIu64 " literals", walker->flips);
-  delete_walker (walker);
-  fix_values_after_local_search (ring);
+  {
+    struct walker *walker = new_walker (ring);
+    walking_loop (walker);
+    save_final_minimum (walker);
+    verbose (ring, "walker flipped %" PRIu64 " literals", walker->flips);
+    delete_walker (walker);
+    fix_values_after_local_search (ring);
+  }
   ring->last.walk = SEARCH_TICKS;
   assert (ring->context == WALK_CONTEXT);
   ring->context = SEARCH_CONTEXT;

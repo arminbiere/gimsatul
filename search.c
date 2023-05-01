@@ -1,4 +1,5 @@
 #include "analyze.h"
+#include "backtrack.h"
 #include "decide.h"
 #include "export.h"
 #include "import.h"
@@ -18,26 +19,46 @@
 #include <assert.h>
 #include <inttypes.h>
 
+static bool
+iterating (struct ring * ring)
+{
+  struct ring_units *units = &ring->ring_units;
+  return units->iterate < units->end;
+}
+
 void
 iterate (struct ring *ring)
 {
-  assert (ring->iterating);
-  assert (!ring->level);
-  struct ring_trail *trail = &ring->trail;
-  assert (trail->end == trail->propagate);
-  assert (trail->iterate <= trail->propagate);
-  if (trail->iterate < trail->propagate)
+  struct ring_units *units = &ring->ring_units;
+  if (units->iterate < units->end)
     {
 #ifndef QUIET
-      size_t new_units = trail->propagate - trail->iterate;
+      size_t new_units = units->end - units->iterate;
       very_verbose (ring, "iterating %zu units", new_units);
-      int report_level = (ring->iterating < 0);
+      int report_level = (ring->iterating <= 0);
       verbose_report (ring, 'i', report_level);
 #endif
       export_units (ring);
-      trail->iterate = trail->propagate;
+      units->iterate = units->end;
     }
   ring->iterating = 0;
+}
+
+bool
+backtrack_propagate_iterate (struct ring * ring)
+{
+  assert (!ring->inconsistent);
+  if (ring->level)
+    backtrack (ring, 0);
+  if (ring_propagate (ring, true, 0))
+    {
+      set_inconsistent (ring,
+			"failed propagation after root-level backtracking");
+      return false;
+    }
+  iterate (ring);
+  assert (!ring->inconsistent);
+  return true;
 }
 
 static void
@@ -131,7 +152,7 @@ search (struct ring *ring)
 	}
       else if (!ring->unassigned)
 	set_satisfied (ring), res = 10;
-      else if (ring->iterating)
+      else if (iterating (ring))
 	iterate (ring);
       else if (terminate_ring (ring))
 	break;
