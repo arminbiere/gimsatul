@@ -7,5 +7,5 @@ RUN apt-get install -y git make gcc
 RUN git clone --branch sc2023 https://github.com/arminbiere/gimsatul
 WORKDIR gimsatul
 RUN ./configure -q && make
-COPY aws/sc2023/solver /competition/solver
+COPY solver /competition/solver
 RUN chmod +x /competition/solver
