@@ -8,4 +8,4 @@ cat<<EOF>input.json
   "solver_argument_list": [""]
 }
 EOF
-exec docker run -i --shm-size=32g --name leader --entrypoint bash --rm -v `pwd`:/rundir satcomp-gimsatul -c "/competition/solver; cat /rundir/stdout.log; cat /rundir/stderr.log 1>&2"
+exec docker run -i --shm-size=32g --name leader --entrypoint bash --rm -v `pwd`:/rundir satcomp-gimsatul -c '/competition/solver; status=$?; cat /rundir/stdout.log; cat /rundir/stderr.log 1>&2; exit $status'

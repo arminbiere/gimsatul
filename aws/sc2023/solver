@@ -7,7 +7,7 @@ stdout=/rundir/stdout.log
 stderr=/rundir/stderr.log
 /gimsatul/gimsatul --time=$time --threads=32 $input 1>$stdout 2>$stderr
 status=$?
-exec cat<<EOF
+cat<<EOF
 {
   "return_code": $status,
   "artifacts": {
@@ -15,4 +15,4 @@ exec cat<<EOF
     "stderr_path": "$stderr"
   }
 }
-EOF
+exit $status
