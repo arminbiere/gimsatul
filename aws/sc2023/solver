@@ -15,4 +15,5 @@ cat<<EOF
     "stderr_path": "$stderr"
   }
 }
+EOF
 exit $status
