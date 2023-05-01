@@ -18,8 +18,8 @@ config.h: VERSION makefile
 
 clean:
 	rm -f makefile config.h *.o gimsatul *~ cnf/*.err cnf/*.log *.[ch].gc* gmon.out
-indent:
-	indent *.[ch]
+format:
+	clang-format -i *.[ch]
 test: all
 	cnf/test.sh
 docker: clean

@@ -1,4 +1,4 @@
-# Version 1.1.0-rc.1
+# Version 1.1.0
 
 - Chronological backtracking (also helps importing units).
 
