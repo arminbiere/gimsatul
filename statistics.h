@@ -2,6 +2,7 @@
 #define _statistics_h_INCLUDED
 
 #include <stdint.h>
+#include <stdlib.h>
 
 /*------------------------------------------------------------------------*/
 

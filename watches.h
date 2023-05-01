@@ -2,6 +2,7 @@
 #define _watches_h_INCLUDED
 
 #include <stdbool.h>
+#include <stdlib.h>
 
 struct clause;
 struct ring;
