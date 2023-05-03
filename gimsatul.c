@@ -1,5 +1,3 @@
-// Copyright (c) 2022 Armin Biere University of Freiburg
-
 #include "build.h"
 #include "catch.h"
 #include "clone.h"
