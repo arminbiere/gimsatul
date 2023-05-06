@@ -15,21 +15,21 @@ More details can be found in the first report on Gimsatul submitted and presente
 [12th Workshop on Pragmatics of SAT (POS'22)](http://www.pragmaticsofsat.org/2022)
 at:
 
-<quote>
-<a href="/fleury/index.html#publications">Mathias Fleury</a>
+
+>
+<a href="https://cca.informatik.uni-freiburg.de/fleury/index.html#publications">Mathias Fleury</a>
 and
-<a href="/biere/index.html#publications">Armin Biere</a>.
-<a href="/papers/FleuryBiere-ARXIV22.pdf">Scalable Proof Producing Multi-Threaded SAT Solving with Gimsatul through Sharing instead of Copying Clauses</a>.
+<a href="https://cca.informatik.uni-freiburg.de/biere/index.html#publications">Armin Biere</a>.
+<a href="https://cca.informatik.uni-freiburg.de/papers/FleuryBiere-ARXIV22.pdf">Scalable Proof Producing Multi-Threaded SAT Solving with Gimsatul through Sharing instead of Copying Clauses</a>.
 CoRR abs/2207.13577 (2022), presented at
 <a href="http://www.pragmaticsofsat.org/2022/">12th Workshop on Pragmatics of SAT (POS'22)</a>.
 <br>
-[ <a href="/papers/FleuryBiere-ARXIV22.pdf">paper</a>
+[ <a href="https://cca.informatik.uni-freiburg.de/papers/FleuryBiere-ARXIV22.pdf">paper</a>
 | <a href="http://arxiv.org/abs/2207.13577">arxiv</a>
-| <a href="/papers/FleuryBiere-ARXIV22.bib">bibtex</a>
+| <a href="https://cca.informatik.uni-freiburg.de/papers/FleuryBiere-ARXIV22.bib">bibtex</a>
 | <a href="https://github.com/arminbiere/gimsatul">gimsatul</a>
-| <a href="/biere/talks/Biere-POS22-talk.pdf">slides</a>
+| <a href="https://cca.informatik.uni-freiburg.de/biere/talks/Biere-POS22-talk.pdf">slides</a>
 ]
-</quote>
 
 ## Sharing
 
