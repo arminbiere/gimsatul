@@ -12,7 +12,7 @@ overall memory foot-print small.
 ## References
 
 More details can be found in the first report on Gimsatul submitted and presented
-[12th Workshop on Pragmatics of SAT (POS'22)](http://www.pragmaticsofsat.org/2022)
+[(POS'22)](http://www.pragmaticsofsat.org/2022)
 at:
 
 
