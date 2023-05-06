@@ -53,7 +53,7 @@
 #define INF INT_MAX
 
 #define OPTIONS \
-  OPTION (unsigned, backjump_limit, 0, 0, INF, \
+  OPTION (unsigned, backjump_limit, 100, 0, INF, \
           "number of levels jumped over") \
   OPTION (bool, binary, 1, 0, 1, "use binary DRAT proof format") \
   OPTION (bool, bump_reasons, 1, 0, 1, "bump reason side literals") \
