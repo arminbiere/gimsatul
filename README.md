@@ -12,8 +12,8 @@ overall memory foot-print small.
 ## References
 
 More details can be found in the first report on Gimsatul submitted and presented
-[(POS'22)](http://www.pragmaticsofsat.org/2022)
-at:
+at
+[(POS'22)](http://www.pragmaticsofsat.org/2022):
 
 
 <a href="https://cca.informatik.uni-freiburg.de/fleury/index.html#publications">Mathias Fleury</a>
@@ -31,6 +31,10 @@ CoRR abs/2207.13577 (2022), presented at
 | <a href="https://github.com/arminbiere/gimsatul">gimsatul</a>
 | <a href="https://cca.informatik.uni-freiburg.de/biere/talks/Biere-POS22-talk.pdf">slides</a>
 ]
+
+You might also want to check out our SAT competition proceedings entries for Gimsatul which can be found at our 
+<a href="https://cca.informatik.uni-freiburg.de/papers">publication</a>
+page.
 
 ## Sharing
 
