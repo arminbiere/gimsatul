@@ -16,11 +16,12 @@ More details can be found in the first report on Gimsatul submitted and presente
 at:
 
 
->
 <a href="https://cca.informatik.uni-freiburg.de/fleury/index.html#publications">Mathias Fleury</a>
 and
 <a href="https://cca.informatik.uni-freiburg.de/biere/index.html#publications">Armin Biere</a>.
+<br>
 <a href="https://cca.informatik.uni-freiburg.de/papers/FleuryBiere-ARXIV22.pdf">Scalable Proof Producing Multi-Threaded SAT Solving with Gimsatul through Sharing instead of Copying Clauses</a>.
+<br>
 CoRR abs/2207.13577 (2022), presented at
 <a href="http://www.pragmaticsofsat.org/2022/">12th Workshop on Pragmatics of SAT (POS'22)</a>.
 <br>
