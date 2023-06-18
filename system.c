@@ -32,7 +32,12 @@ size_t maximum_resident_set_size (void) {
   struct rusage u;
   if (getrusage (RUSAGE_SELF, &u))
     return 0;
-  return ((size_t) u.ru_maxrss) << 10;
+  size_t res = (size_t) u.ru_maxrss;
+#ifdef __APPLE__
+  return res;
+#else
+  return res << 10;
+#endif
 }
 
 #ifdef __APPLE__
