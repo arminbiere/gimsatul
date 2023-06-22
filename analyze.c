@@ -322,6 +322,7 @@ bool analyze (struct ring *ring, struct watch *reason) {
       }
       struct clause *learned_clause =
           new_large_clause (size, literals, true, glue);
+      learned_clause->origin = ring->id;
       LOGCLAUSE (learned_clause, "new");
       learned =
           watch_first_two_literals_in_large_clause (ring, learned_clause);

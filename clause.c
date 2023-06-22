@@ -17,6 +17,7 @@ struct clause *new_large_clause (size_t size, unsigned *literals,
   clause->id = atomic_fetch_add (&clause_ids, 1);
 #endif
   clause->shared = 0;
+  clause->origin = -1;
 
   if (glue > MAX_GLUE)
     glue = MAX_GLUE;

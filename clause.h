@@ -15,7 +15,8 @@ struct clause {
 #ifdef LOGGING
   uint64_t id;
 #endif
-  atomic_ushort shared;
+  atomic_uint shared;
+  unsigned short origin;
   unsigned char glue;
   bool cleaned : 1;
   bool dirty : 1;

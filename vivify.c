@@ -405,6 +405,7 @@ static struct watch *vivify_learn (struct vivifier *vivifier,
     if (glue == size)
       glue = size - 1;
     struct clause *clause = new_large_clause (size, literals, true, glue);
+    clause->origin = ring->id;
     res = watch_first_two_literals_in_large_clause (ring, clause);
     trace_add_clause (&ring->trace, clause);
     export_large_clause (ring, clause);
