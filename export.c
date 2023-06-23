@@ -65,11 +65,21 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   if (!ring->options.share_learned)
     return;
-  unsigned glue = clause->glue;
-  assert (glue);
-  if (glue > ring->options.maximum_shared_glue)
-    return;
-  assert (glue < SIZE_SHARED);
+  unsigned position;
+  if (ring->options.share_by_size) {
+    unsigned size = clause->size;
+    assert (size > 2);
+    if (size > ring->options.maximum_shared_size)
+      return;
+    position = size - 2;
+  } else {
+    unsigned glue = clause->glue;
+    assert (glue);
+    if (glue > ring->options.maximum_shared_glue)
+      return;
+    position = glue;
+  }
+  assert (position < SIZE_SHARED);
   LOGCLAUSE (clause, "exporting");
   unsigned inc = threads - 1;
   assert (inc);
@@ -80,15 +90,15 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   for (unsigned i = 0; i != threads; i++, pool++) {
     if (i == ring->id)
       continue;
-    atomic_uintptr_t *share = &pool->share[glue];
+    atomic_uintptr_t *share = &pool->share[position];
     uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
     if (previous)
       dereference_clause (ring, (struct clause *) previous);
     else
       exported++;
   }
-  ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue);
-  INC_LARGE_CLAUSE_STATISTICS (shared, glue);
+  ADD_LARGE_CLAUSE_STATISTICS (exported, exported, position);
+  INC_LARGE_CLAUSE_STATISTICS (shared, position);
 }
 
 void flush_pool (struct ring *ring) {

@@ -70,6 +70,7 @@
   OPTION (bool, force_phase, 0, 0, 1, "force phase (same phase for all solvers") \
   OPTION (bool, force, 0, 0, 1, "force relaxed parsing and proof writing") \
   OPTION (unsigned, maximum_shared_glue, 8, 0, 15, "share 0=binary 1=glue1 2=glue2 ... clauses") \
+  OPTION (unsigned, maximum_shared_size, 10, 2, 17, "size limit of shared clauses") \
   OPTION (bool, increase_imported_glue, 1, 0, 1, "increase glue of imported clauses") \
   OPTION (bool, minimize, 1, 0, 1, "minimize learned clauses") \
   OPTION (unsigned, minimize_depth, 1000, 1, INF, "recursive clause minimization depth") \
@@ -89,6 +90,7 @@
   OPTION (unsigned, rephase_interval, 1e3, 1, INF, "base rephase conflict interval") \
   OPTION (unsigned, report, 1, 0, INF, "report details for many threads") \
   OPTION (bool, share_learned, 1, 0, 1, "export and import learned clauses") \
+  OPTION (bool, share_by_size, 1, 0, 1, "prioritize shared clauses by size and not glue") \
   OPTION (bool, shrink, 1, 0, 1, "shrink (glue 1) learned clauses") \
   OPTION (bool, simplify, 1, 0, 1, "elimination, subsumption and substitution") \
   OPTION (unsigned, simplify_boost, 1, 0, 1, "additional initial boost to simplification") \

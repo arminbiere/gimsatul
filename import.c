@@ -288,10 +288,17 @@ static void really_import_large_clause (struct ring *ring,
                                         unsigned first, unsigned second) {
   watch_literals_in_large_clause (ring, clause, first, second);
   assert (clause->redundant);
-  unsigned glue = clause->glue;
-  assert (0 < glue);
-  assert (glue <= ring->options.maximum_shared_glue);
-  INC_LARGE_CLAUSE_STATISTICS (imported, glue);
+  unsigned position;
+  if (ring->options.share_by_size) {
+    assert (clause->size > 2);
+    position = clause->size - 2;
+    assert (position <= ring->options.maximum_shared_size);
+  } else {
+    position = clause->glue;
+    assert (position <= ring->options.maximum_shared_glue);
+  }
+  assert (0 < position);
+  INC_LARGE_CLAUSE_STATISTICS (imported, position);
   if (ring->options.bump_imported_clauses) {
     assert (EMPTY (ring->analyzed));
     for (all_literals_in_clause (lit, clause))
