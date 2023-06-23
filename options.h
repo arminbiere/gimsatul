@@ -56,6 +56,8 @@
   OPTION (unsigned, backjump_limit, 100, 0, INF, \
           "number of levels jumped over") \
   OPTION (bool, binary, 1, 0, 1, "use binary DRAT proof format") \
+  OPTION (bool, bump_imported_clauses, 1, 0, 1, \
+          "bump variables of imported clauses") \
   OPTION (bool, bump_reasons, 1, 0, 1, "bump reason side literals") \
   OPTION (unsigned, clause_size_limit, 100, 3, 10000, \
           "during simplification") \
@@ -75,6 +77,8 @@
   OPTION (bool, force, 0, 0, 1, "force relaxed parsing and proof writing") \
   OPTION (unsigned, maximum_shared_glue, 8, 0, 15, \
           "share 0=binary 1=glue1 2=glue2 ... clauses") \
+  OPTION (bool, increase_imported_glue, 1, 0, 1, \
+          "increase glue of imported clauses") \
   OPTION (bool, minimize, 1, 0, 1, "minimize learned clauses") \
   OPTION (unsigned, minimize_depth, 1000, 1, INF, \
           "recursive clause minimization depth") \
