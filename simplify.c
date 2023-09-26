@@ -689,8 +689,7 @@ void simplify_ruler (struct ruler *ruler) {
   message (0, "simplification #%" PRIu64 " took %.2f seconds",
            ruler->statistics.simplifications,
            end_simplification - start_simplification);
-  if (!initially)
-    message (0, 0);
+  reset_report ();
 #endif
 }
 

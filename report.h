@@ -5,6 +5,7 @@
 
 struct ring;
 
+void reset_report ();
 void report (struct ring *, char);
 void verbose_report (struct ring *, char, int level);
 
