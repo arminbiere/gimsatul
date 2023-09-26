@@ -10,7 +10,7 @@ void print_banner (void) {
   printf ("c GimSATul SAT Solver\n");
   printf ("c Copyright (c) 2022-2023 Armin Biere University of Freiburg\n");
   fputs ("c\n", stdout);
-  printf ("c Version %s%s\n", VERSION, GITID ? " " GITID : "");
+  printf ("c Version %s%s%s\n", VERSION, GITID ? " " : "", GITID ? GITID : "");
   printf ("c %s\n", COMPILER);
   printf ("c %s\n", BUILD);
 }
