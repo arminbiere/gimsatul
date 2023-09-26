@@ -585,6 +585,19 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
     struct watch *strengthened = vivify_learn (vivifier, candidate);
     watcher = index_to_watcher (ring, idx);
     mark_garbage_watcher (ring, watcher);
+
+    // This is the single unprotected write access to clause data
+    // in parallel and thus in principle is a data race.  On the
+    // Other hand it just marks this clause to be ignored, actually
+    // targeted to be garbage collected in other threads (during
+    // vivification). Therefore this condition is never reset and a race
+    // might only delay deletion.  Furthermore the 'vivified' flag is a
+    // single bit and there is the risk that multiple threads writing
+    // concurrently to the word with this bit (after reading the word
+    // or byte with the bit first).  However, as 'vivified' is the only data
+    // written in parallel all those competing threads will only potentially
+    // differ in that bit, and all want to set it true, which is sane.
+
     watcher->clause->vivified = true;
 
     if (!ring->inconsistent && strengthened &&
