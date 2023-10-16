@@ -140,8 +140,6 @@ static void gather_reduce_candidates (struct ring *ring,
   for (struct watcher *watcher = redundant; watcher != end; watcher++) {
     if (watcher->garbage)
       continue;
-    if (watcher->reason)
-      continue;
     if (!watcher->redundant)
       continue;
     const unsigned char used = watcher->used;
@@ -153,6 +151,8 @@ static void gather_reduce_candidates (struct ring *ring,
     if (glue <= TIER1_GLUE_LIMIT && used)
       continue;
     if (glue <= TIER2_GLUE_LIMIT && used == MAX_USED - 1)
+      continue;
+    if (watcher->reason)
       continue;
     unsigned idx = watcher_to_index (ring, watcher);
     PUSH (*candidates, idx);
