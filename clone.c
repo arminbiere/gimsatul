@@ -114,17 +114,8 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
   else
     very_verbose (ring, "redundant clauses start at watcher index %u",
                   ring->redundant);
-  if (tier2) {
-    very_verbose (ring, "tier2 clauses start at watcher index %u",
-                  ring->tier2);
-    ring->tier2 = tier2;
-  } else {
-    very_verbose (ring, "no tier2 clauses watched");
-    ring->tier2 = SIZE (ring->watchers);
-  }
 
   assert (ring->redundant);
-  assert (ring->tier2);
 }
 
 void copy_ruler (struct ring *ring) {
