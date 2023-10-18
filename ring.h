@@ -136,7 +136,6 @@ struct ring {
   struct phases *phases;
   struct queue queue;
 
-  unsigned tier2;
   unsigned redundant;
   struct watchers watchers;
   struct clauses saved;

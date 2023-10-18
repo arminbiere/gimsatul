@@ -11,6 +11,8 @@
 
 struct ring;
 
+#define MAX_GLUE 255
+
 struct clause {
 #ifdef LOGGING
   uint64_t id;

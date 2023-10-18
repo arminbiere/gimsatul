@@ -93,21 +93,17 @@ struct watch *watch_literals_in_large_clause (struct ring *ring,
   assert (ring->watchers.end <= ring->watchers.allocated);
 
   unsigned size = clause->size;
-  unsigned glue = clause->glue;
-  if (ring->options.increase_imported_glue && clause->origin != ring->id)
-    glue++;
+  unsigned glue =
+      (ring->options.increase_imported_glue && clause->origin != ring->id)
+          ? MAX_GLUE
+          : clause->glue;
+
   bool redundant = clause->redundant;
 
   if (size > SIZE_WATCHER_LITERALS)
     size = 0;
 
-  unsigned used;
-  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
-    used = 2;
-  else if (redundant && glue > TIER2_GLUE_LIMIT)
-    used = 1;
-  else
-    used = 0;
+  unsigned used = MAX_USED;
 
   assert (size < (1 << (8 * sizeof watcher->size)));
   assert (glue < (1 << (8 * sizeof watcher->glue)));
@@ -228,16 +224,7 @@ unsigned *flush_watchers (struct ring *ring, unsigned start) {
     ring->redundant = SIZE (*watchers);
   }
 
-  if (tier2) {
-    very_verbose (ring, "tier2 clauses start at watcher index %u", tier2);
-    ring->tier2 = tier2;
-  } else {
-    very_verbose (ring, "no tier2 clauses watched");
-    ring->tier2 = SIZE (*watchers);
-  }
-
   assert (ring->redundant);
-  assert (ring->tier2);
 
   return map;
 }
