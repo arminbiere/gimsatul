@@ -189,7 +189,6 @@ static void sort_vivivification_candidates (struct ring *ring,
                    watcher->glue, size, idx);
         unsigned *lits = watcher->aux;
         unsigned *end_lits = lits + size;
-        ;
         for (unsigned *p = lits; p != end_lits; p++) {
           unsigned lit = *p;
           printf (" %s#%u", LOGLIT (lit), counts[lit]);
@@ -675,7 +674,6 @@ void vivify_clauses (struct ring *ring) {
     uint64_t tried = ring->statistics.vivify.tried;
 
     struct unsigneds *decisions = &vivifier.decisions;
-    ;
 
     size_t i = 0;
     while (i != SIZE (vivifier.candidates)) {

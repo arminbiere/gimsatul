@@ -356,7 +356,6 @@ static void compact_ring (struct ring *ring, unsigned *map,
   ring->size = new_size;
   ring->target = 0;
   ring->unassigned = new_size;
-  ;
 
   init_ring (ring);
 
