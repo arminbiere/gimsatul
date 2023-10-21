@@ -267,7 +267,7 @@ static void release_pool (struct ring *ring) {
     if (i == ring->id)
       continue;
     for (unsigned i = 1; i != SIZE_POOL; i++) {
-      struct bucket * bucket = &pool->bucket[i];
+      struct bucket *bucket = &pool->bucket[i];
       struct clause *clause = (struct clause *) bucket->shared;
       if (!clause)
         continue;
@@ -390,7 +390,7 @@ unsigned *sorter_block (struct ring *ring, size_t size) {
   return ring->sorter.begin;
 }
 
-struct ring * random_other_ring (struct ring * ring) {
+struct ring *random_other_ring (struct ring *ring) {
   struct ruler *ruler = ring->ruler;
   size_t rings = SIZE (ruler->rings);
   assert (rings <= UINT_MAX);

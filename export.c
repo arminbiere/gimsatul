@@ -95,9 +95,9 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
       if (empty || redundancy <= b->redundancy) {
         uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
         if (ptr) {
-	  struct clause * previous = (struct clause*) ptr;
-	  if (!is_binary_pointer (previous))
-	    dereference_clause (ring, previous);
+          struct clause *previous = (struct clause *) ptr;
+          if (!is_binary_pointer (previous))
+            dereference_clause (ring, previous);
         } else
           exported++;
         break;
@@ -117,12 +117,12 @@ void flush_pool (struct ring *ring) {
       continue;
     struct pool *pool = ring->pool + i;
     for (unsigned shared = 0; shared != SIZE_POOL; shared++) {
-      struct bucket * b = &pool->bucket[shared];
+      struct bucket *b = &pool->bucket[shared];
       atomic_uintptr_t *share = &b->shared;
       uintptr_t ptr = atomic_exchange (share, 0);
       if (!ptr)
         continue;
-      struct clause * clause = (struct clause*) ptr;
+      struct clause *clause = (struct clause *) ptr;
       if (!is_binary_pointer (clause))
         dereference_clause (ring, clause);
 #ifndef QUIET

@@ -228,7 +228,7 @@ void print_ring_profiles (struct ring *);
 
 unsigned *sorter_block (struct ring *, size_t size);
 
-struct ring * random_other_ring (struct ring *);
+struct ring *random_other_ring (struct ring *);
 
 /*------------------------------------------------------------------------*/
 

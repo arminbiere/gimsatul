@@ -421,12 +421,12 @@ bool import_shared (struct ring *ring) {
     return true;
   if (!ring->import_after_propagation_and_conflict)
     return false;
-  struct ring * src = random_other_ring (ring);
+  struct ring *src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
-  struct bucket * end = pool->bucket + SIZE_POOL;
+  struct bucket *end = pool->bucket + SIZE_POOL;
   struct clause *clause = 0;
-  for (struct bucket * b = pool->bucket; !clause && b != end; b++) {
-    atomic_uintptr_t* p = &b->shared;
+  for (struct bucket *b = pool->bucket; !clause && b != end; b++) {
+    atomic_uintptr_t *p = &b->shared;
 #ifndef NFASTPATH
     if (*p)
 #endif
@@ -434,13 +434,11 @@ bool import_shared (struct ring *ring) {
   }
   if (!clause)
     return false;
+  bool res = false;
   if (is_binary_pointer (clause))
-    return import_binary (ring, clause);
-  if (clause->glue > TIER1_GLUE_LIMIT && !ring->stable) {
-    dereference_clause (ring, clause);
-    return false;
-  }
-  bool res = import_large_clause (ring, clause);
+    res = import_binary (ring, clause);
+  else
+    res = import_large_clause (ring, clause);
   if (res)
     ring->import_after_propagation_and_conflict = false;
   return res;
