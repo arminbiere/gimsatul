@@ -98,11 +98,12 @@ void print_ring_statistics (struct ring *ring) {
 #endif
 
 #ifdef METRICS
-#define PRINT_CLAUSE_METRICS(NAME, MAXGLUE) INSTANTIATE (1, MAXGLUE, NAME)
+#define PRINT_CLAUSE_METRICS(NAME) \
+  INSTANTIATE (1, SIZE_GLUE_STATISTICS-1, NAME)
 #else
-#define PRINT_CLAUSE_METRICS(NAME, MAXGLUE) /**/
+#define PRINT_CLAUSE_METRICS(NAME) /**/
 #endif
-#define PRINT_CLAUSE_STATISTICS(NAME, MAXGLUE) \
+#define PRINT_CLAUSE_STATISTICS(NAME) \
   do { \
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
              "  " #NAME "-binaries:", s->NAME.binaries, \
@@ -116,7 +117,7 @@ void print_ring_statistics (struct ring *ring) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
              "  " #NAME "-tier3:", s->NAME.tier3, \
              percent (s->NAME.tier3, s->NAME.clauses)); \
-    PRINT_CLAUSE_METRICS (NAME, MAXGLUE); \
+    PRINT_CLAUSE_METRICS (NAME); \
   } while (0)
 #define MACRO(SIZE, NAME) \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
@@ -125,7 +126,7 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per second",
            "learned-clauses:", s->learned.clauses,
            average (s->learned.clauses, search));
-  PRINT_CLAUSE_STATISTICS (learned, SIZE_GLUE_STATISTICS - 1);
+  PRINT_CLAUSE_STATISTICS (learned);
 #ifdef METRICS
   uint64_t learned_glue_small = 0;
   for (unsigned glue = 1; glue != SIZE_GLUE_STATISTICS; glue++)
@@ -139,16 +140,13 @@ void print_ring_statistics (struct ring *ring) {
 #endif
 
   if (ring->pool) {
-#ifdef METRICS
-    unsigned maximum_shared_glue = ring->options.maximum_shared_glue;
-#endif
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
              "imported-clauses:", s->imported.clauses,
              percent (s->imported.clauses, s->learned.clauses));
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% imported clauses",
              "  diverged-imports:", s->diverged,
              percent (s->diverged, s->imported.clauses));
-    PRINT_CLAUSE_STATISTICS (imported, maximum_shared_glue);
+    PRINT_CLAUSE_STATISTICS (imported);
 
     {
       uint64_t subsumed =
@@ -170,7 +168,7 @@ void print_ring_statistics (struct ring *ring) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
              "exported-clauses:", s->exported.clauses,
              percent (s->exported.clauses, s->learned.clauses));
-    PRINT_CLAUSE_STATISTICS (exported, maximum_shared_glue);
+    PRINT_CLAUSE_STATISTICS (exported);
 
     PRINTLN ("%-22s %17" PRIu64 " %13.2f exported clauses rate",
              "shared-clauses:", s->shared.clauses,
@@ -194,7 +192,13 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f exported glue" #SIZE " rate", \
            "  " #NAME "-glue" #SIZE ":", s->NAME.glue[SIZE], \
            average (s->exported.glue[SIZE], s->NAME.glue[SIZE]))
-    INSTANTIATE (1, maximum_shared_glue, shared);
+    INSTANTIATE (1, SIZE_GLUE_STATISTICS, shared);
+#undef MACRO
+#define MACRO(SIZE, NAME) \
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f exported size" #SIZE " rate", \
+           "  " #NAME "-size" #SIZE ":", s->NAME.size[SIZE], \
+           average (s->exported.size[SIZE], s->NAME.size[SIZE]))
+    INSTANTIATE (1, SIZE_SIZE_STATISTICS, shared);
 #endif
 #undef MACRO
   }

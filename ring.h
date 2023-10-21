@@ -84,11 +84,16 @@ struct ring_units {
   unsigned *iterate, *export;
 };
 
-#define BINARY_SHARED 0
-#define SIZE_SHARED 16
+#define BINARY_BUCKET 0
+#define SIZE_POOL 8
+
+struct bucket {
+  uint64_t redundancy;
+  atomic_uintptr_t shared;
+};
 
 struct pool {
-  atomic_uintptr_t share[SIZE_SHARED];
+  struct bucket bucket[SIZE_POOL];
 };
 
 struct ring {
@@ -222,6 +227,8 @@ void set_satisfied (struct ring *);
 void print_ring_profiles (struct ring *);
 
 unsigned *sorter_block (struct ring *, size_t size);
+
+struct ring * random_other_ring (struct ring *);
 
 /*------------------------------------------------------------------------*/
 

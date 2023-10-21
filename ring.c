@@ -266,8 +266,9 @@ static void release_pool (struct ring *ring) {
   for (unsigned i = 0; i != ring->threads; i++, pool++) {
     if (i == ring->id)
       continue;
-    for (unsigned i = 1; i != SIZE_SHARED; i++) {
-      struct clause *clause = (struct clause *) pool->share[i];
+    for (unsigned i = 1; i != SIZE_POOL; i++) {
+      struct bucket * bucket = &pool->bucket[i];
+      struct clause *clause = (struct clause *) bucket->shared;
       if (!clause)
         continue;
       if (is_binary_pointer (clause))
@@ -387,4 +388,19 @@ unsigned *sorter_block (struct ring *ring, size_t size) {
   while (CAPACITY (ring->sorter) < size)
     ENLARGE (ring->sorter);
   return ring->sorter.begin;
+}
+
+struct ring * random_other_ring (struct ring * ring) {
+  struct ruler *ruler = ring->ruler;
+  size_t rings = SIZE (ruler->rings);
+  assert (rings <= UINT_MAX);
+  assert (rings > 1);
+  unsigned id = random_modulo (&ring->random, rings - 1) + ring->id + 1;
+  if (id >= rings)
+    id -= rings;
+  assert (id < rings);
+  assert (id != ring->id);
+  struct ring *res = ruler->rings.begin[id];
+  assert (res->pool);
+  return res;
 }

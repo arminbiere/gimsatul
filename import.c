@@ -5,6 +5,7 @@
 #include "message.h"
 #include "propagate.h"
 #include "random.h"
+#include "ring.h"
 #include "ruler.h"
 #include "trace.h"
 #include "utilities.h"
@@ -288,17 +289,7 @@ static void really_import_large_clause (struct ring *ring,
                                         unsigned first, unsigned second) {
   watch_literals_in_large_clause (ring, clause, first, second);
   assert (clause->redundant);
-  unsigned position;
-  if (ring->options.share_by_size) {
-    assert (clause->size > 2);
-    position = clause->size - 2;
-    assert (position <= ring->options.maximum_shared_size);
-  } else {
-    position = clause->glue;
-    assert (position <= ring->options.maximum_shared_glue);
-  }
-  assert (0 < position);
-  INC_LARGE_CLAUSE_STATISTICS (imported, position);
+  INC_LARGE_CLAUSE_STATISTICS (imported, clause->glue, clause->size);
   if (ring->options.bump_imported_clauses) {
     assert (EMPTY (ring->analyzed));
     for (all_literals_in_clause (lit, clause))
@@ -430,25 +421,17 @@ bool import_shared (struct ring *ring) {
     return true;
   if (!ring->import_after_propagation_and_conflict)
     return false;
-  struct ruler *ruler = ring->ruler;
-  size_t rings = SIZE (ruler->rings);
-  assert (rings <= UINT_MAX);
-  assert (rings > 1);
-  unsigned id = random_modulo (&ring->random, rings - 1) + ring->id + 1;
-  if (id >= rings)
-    id -= rings;
-  assert (id < rings);
-  assert (id != ring->id);
-  struct ring *src = ruler->rings.begin[id];
-  assert (src->pool);
+  struct ring * src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
-  atomic_uintptr_t *end = pool->share + SIZE_SHARED;
+  struct bucket * end = pool->bucket + SIZE_POOL;
   struct clause *clause = 0;
-  for (atomic_uintptr_t *p = pool->share; !clause && p != end; p++)
+  for (struct bucket * b = pool->bucket; !clause && b != end; b++) {
+    atomic_uintptr_t* p = &b->shared;
 #ifndef NFASTPATH
     if (*p)
 #endif
       clause = (struct clause *) atomic_exchange (p, 0);
+  }
   if (!clause)
     return false;
   if (is_binary_pointer (clause))

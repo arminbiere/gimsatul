@@ -36,6 +36,14 @@ void export_units (struct ring *ring) {
     fatal_error ("failed to release unit lock");
 }
 
+static uint64_t compute_redundancy (struct ring *ring, unsigned glue,
+                                    unsigned size) {
+  bool share_by_size = ring->options.share_by_size;
+  unsigned high = share_by_size ? size : glue;
+  unsigned low = share_by_size ? glue : size;
+  return (((uint64_t) high) << 32) + low;
+}
+
 void export_binary_clause (struct ring *ring, struct watch *watch) {
   assert (is_binary_pointer (watch));
   unsigned threads = ring->threads;
@@ -45,13 +53,16 @@ void export_binary_clause (struct ring *ring, struct watch *watch) {
     return;
   LOGWATCH (watch, "exporting");
   unsigned exported = 0;
-  for (unsigned i = 0; i != threads; i++) {
+  unsigned redundancy = compute_redundancy (ring, 1, 2);
+  struct pool *pool = ring->pool;
+  for (unsigned i = 0; i != threads; i++, pool++) {
     if (i == ring->id)
       continue;
-    struct pool *pool = ring->pool + i;
     struct clause *clause = (struct clause *) watch;
-    atomic_uintptr_t *share = &pool->share[BINARY_SHARED];
+    struct bucket *bucket = &pool->bucket[BINARY_BUCKET];
+    atomic_uintptr_t *share = &bucket->shared;
     uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
+    bucket->redundancy = redundancy;
     exported += !previous;
   }
   ADD_BINARY_CLAUSE_STATISTICS (exported, exported);
@@ -65,21 +76,6 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   if (!ring->options.share_learned)
     return;
-  unsigned position;
-  if (ring->options.share_by_size) {
-    unsigned size = clause->size;
-    assert (size > 2);
-    if (size > ring->options.maximum_shared_size)
-      return;
-    position = size - 2;
-  } else {
-    unsigned glue = clause->glue;
-    assert (glue);
-    if (glue > ring->options.maximum_shared_glue)
-      return;
-    position = glue;
-  }
-  assert (position < SIZE_SHARED);
   LOGCLAUSE (clause, "exporting");
   unsigned inc = threads - 1;
   assert (inc);
@@ -87,18 +83,29 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   struct pool *pool = ring->pool;
   assert (pool);
   unsigned exported = 0;
+  unsigned glue = clause->glue, size = clause->size;
+  unsigned redundancy = compute_redundancy (ring, glue, size);
   for (unsigned i = 0; i != threads; i++, pool++) {
     if (i == ring->id)
       continue;
-    atomic_uintptr_t *share = &pool->share[position];
-    uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
-    if (previous)
-      dereference_clause (ring, (struct clause *) previous);
-    else
-      exported++;
+    for (unsigned j = 0; j != SIZE_POOL; j++) {
+      struct bucket *b = &pool->bucket[j];
+      atomic_uintptr_t *share = &b->shared;
+      bool empty = !*share;
+      if (empty || redundancy <= b->redundancy) {
+        uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
+        if (ptr) {
+	  struct clause * previous = (struct clause*) ptr;
+	  if (!is_binary_pointer (previous))
+	    dereference_clause (ring, previous);
+        } else
+          exported++;
+        break;
+      }
+    }
   }
-  ADD_LARGE_CLAUSE_STATISTICS (exported, exported, position);
-  INC_LARGE_CLAUSE_STATISTICS (shared, position);
+  ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue, size);
+  INC_LARGE_CLAUSE_STATISTICS (shared, glue, size);
 }
 
 void flush_pool (struct ring *ring) {
@@ -109,13 +116,15 @@ void flush_pool (struct ring *ring) {
     if (i == ring->id)
       continue;
     struct pool *pool = ring->pool + i;
-    for (unsigned shared = 0; shared != SIZE_SHARED; shared++) {
-      atomic_uintptr_t *share = &pool->share[shared];
-      uintptr_t clause = atomic_exchange (share, 0);
-      if (!clause)
+    for (unsigned shared = 0; shared != SIZE_POOL; shared++) {
+      struct bucket * b = &pool->bucket[shared];
+      atomic_uintptr_t *share = &b->shared;
+      uintptr_t ptr = atomic_exchange (share, 0);
+      if (!ptr)
         continue;
-      if (shared != BINARY_SHARED)
-        dereference_clause (ring, (struct clause *) clause);
+      struct clause * clause = (struct clause*) ptr;
+      if (!is_binary_pointer (clause))
+        dereference_clause (ring, clause);
 #ifndef QUIET
       flushed++;
 #endif

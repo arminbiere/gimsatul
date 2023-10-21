@@ -78,6 +78,7 @@ struct ring_statistics {
   uint64_t random_sequences;
 
 #define SIZE_GLUE_STATISTICS 16
+#define SIZE_SIZE_STATISTICS 16
 
   uint64_t diverged;
 
@@ -88,6 +89,7 @@ struct ring_statistics {
     uint64_t tier1, tier2, tier3;
 #ifdef METRICS
     uint64_t glue[SIZE_GLUE_STATISTICS];
+    uint64_t size[SIZE_SIZE_STATISTICS];
 #endif
   } learned, exported, imported, shared;
 
@@ -107,6 +109,10 @@ struct ring_statistics {
       S->NAME.glue[(GLUE)] += (INC); \
     else \
       S->NAME.glue[0] += (INC); \
+    if ((SIZE) < SIZE_SIZE_STATISTICS) \
+      S->NAME.size[(SIZE)] += (INC); \
+    else \
+      S->NAME.size[0] += (INC); \
   } while (0)
 
 #else
@@ -153,14 +159,14 @@ struct ring_statistics {
 #define ADD_BINARY_CLAUSE_STATISTICS(NAME, INC) \
   ADD_CLAUSE_STATISTICS (NAME, (INC), 1, 2)
 
-#define ADD_LARGE_CLAUSE_STATISTICS(NAME, INC, GLUE) \
-  ADD_CLAUSE_STATISTICS (NAME, (INC), (GLUE), 3)
+#define ADD_LARGE_CLAUSE_STATISTICS(NAME, INC, GLUE, SIZE) \
+  ADD_CLAUSE_STATISTICS (NAME, (INC), (GLUE), (SIZE))
 
 #define INC_BINARY_CLAUSE_STATISTICS(NAME) \
   ADD_BINARY_CLAUSE_STATISTICS (NAME, 1)
 
-#define INC_LARGE_CLAUSE_STATISTICS(NAME, GLUE) \
-  ADD_LARGE_CLAUSE_STATISTICS (NAME, 1, (GLUE))
+#define INC_LARGE_CLAUSE_STATISTICS(NAME, GLUE, SIZE) \
+  ADD_LARGE_CLAUSE_STATISTICS (NAME, 1, (GLUE), (SIZE))
 
 #define SEARCH_CONFLICTS ring->statistics.contexts[SEARCH_CONTEXT].conflicts
 
