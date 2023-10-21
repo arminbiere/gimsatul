@@ -428,8 +428,10 @@ bool import_shared (struct ring *ring) {
     return false;
   if (import_units (ring))
     return true;
-  if (!ring->import_after_propagation_and_conflict)
-    return ring->import_after_propagation_and_conflict = false;
+  bool import = ring->import_after_propagation_and_conflict;
+  ring->import_after_propagation_and_conflict = false;
+  if (!import)
+    return false;
   struct ruler *ruler = ring->ruler;
   size_t rings = SIZE (ruler->rings);
   assert (rings <= UINT_MAX);
