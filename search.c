@@ -16,6 +16,8 @@
 #include "simplify.h"
 #include "walk.h"
 
+#include "cover.h" // TODO remove
+
 #include <assert.h>
 #include <inttypes.h>
 
@@ -131,9 +133,10 @@ int search (struct ring *ring) {
       break;
     else if (walk_initially (ring))
       local_search (ring);
-    else if (conflict_limit_hit (ring))
+    else if (conflict_limit_hit (ring)) {
+      set_terminate (ring->ruler, ring);
       break;
-    else if (reducing (ring))
+    } else if (reducing (ring))
       reduce (ring);
     else if (restarting (ring))
       restart (ring);
@@ -148,8 +151,9 @@ int search (struct ring *ring) {
     else if (!import_shared (ring))
       decide (ring);
     else if (ring->inconsistent)
-      res = 20;
+      COVER (!ring->ruler->terminate), res = 20;
   }
   stop_search (ring, res);
+  COVER (!ring->ruler->terminate);
   return res;
 }

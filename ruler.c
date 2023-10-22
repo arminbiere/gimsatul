@@ -268,12 +268,23 @@ void detach_ring (struct ring *ring) {
 
 /*------------------------------------------------------------------------*/
 
-void set_terminate (struct ruler *ruler) {
+void set_terminate (struct ruler *ruler, struct ring * ring) {
+  bool terminated;
   if (pthread_mutex_lock (&ruler->locks.terminate))
     fatal_error ("failed to acquire terminate lock");
-  ruler->terminate = true;
+  terminated = ruler->terminate;
+  if (!terminated)
+    ruler->terminate = true;
   if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
+
+  if (terminated)
+    return;
+
+  if (ring)
+    verbose (ring, "termination forced by ring %u", ring->id);
+  else
+    verbose (0, "termination forced globally");
 
   abort_waiting_and_disable_barrier (&ruler->barriers.start);
   abort_waiting_and_disable_barrier (&ruler->barriers.import);
@@ -298,7 +309,7 @@ void set_winner (struct ring *ring) {
     assert (winner->status == ring->status);
     return;
   }
-  set_terminate (ruler);
+  set_terminate (ruler, ring);
   verbose (ring, "winning ring[%u] with status %d", ring->id, ring->status);
 }
 
