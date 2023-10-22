@@ -48,7 +48,6 @@ static bool exporting (struct ring *ring) {
   unsigned threads = ring->threads;
   if (threads < 2)
     return false;
-  assert (!is_binary_pointer (clause));
   if (!ring->options.share_learned)
     return false;
   return true;

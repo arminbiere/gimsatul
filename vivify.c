@@ -58,6 +58,16 @@ static inline bool watched_vivification_candidate (struct ring *ring,
     if (watcher->glue > TIER2_GLUE_LIMIT)
       return false;
   }
+
+  // As long we are increase the glue of imported clauses in 'watches.c' to
+  // 'MAX_GLUE' the following condition can not be true. Therefore a
+  // side-effect of that option to be set is to never vivify imported
+  // clauses.  If this is desirable, then we might want to use the real glue
+  // above and also during sorting candidates.
+  //
+  assert (!ring->options.increase_imported_glue ||
+          watcher->clause->origin == ring->id);
+
   if (watcher->clause->vivified) {
     LOGCLAUSE (watcher->clause, "already vivified");
     mark_garbage_watcher (ring, watcher);
@@ -405,6 +415,11 @@ static struct watch *vivify_learn (struct vivifier *vivifier,
       glue = size - 1;
     struct clause *clause = new_large_clause (size, literals, true, glue);
     clause->origin = ring->id;
+    // This implicitly would import a shrunken previously imported clause
+    // into the ring, but as long increasing the glue of imported clauses is
+    // enabled those imported clauses never are vivification candidates
+    // unless we change the 'watched_vivification_candidate' function above
+    // to use the actual glue of the clause and not of the watcher.
     res = watch_first_two_literals_in_large_clause (ring, clause);
     trace_add_clause (&ring->trace, clause);
     export_large_clause (ring, clause);
