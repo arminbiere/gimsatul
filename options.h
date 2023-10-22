@@ -107,6 +107,7 @@
   OPTION (unsigned, subsume_ticks, 20, 0, INF, "subsumption ticks limit in millions") \
   OPTION (unsigned, target_phases, 1, 0, 2, "target phases (2 = in focused mode too)") \
   OPTION (bool, vivify, 1, 0, 1, "vivification of redundant clauses") \
+  OPTION (bool, vivify_export, 0, 0, 1, "export vivified clauses") \
   OPTION (bool, walk_initially, 0, 0, 1, "local search initially") \
   OPTION (bool, warm_up_walking, 1, 0, 1, "unit propagation warm-up of local search") \
   OPTION (bool, witness, 1, 0, 1, "print satisfying assignment")

@@ -415,7 +415,8 @@ static struct watch *vivify_learn (struct vivifier *vivifier,
     unsigned lit = literals[0], other = literals[1];
     res = new_local_binary_clause (ring, true, lit, other);
     trace_add_binary (&ring->trace, lit, other);
-    export_binary_clause (ring, res);
+    if (ring->options.vivify_export)
+      export_binary_clause (ring, res);
   } else {
     struct watcher *watcher = get_watcher (ring, candidate);
     unsigned glue = SIZE (*levels);
@@ -435,7 +436,8 @@ static struct watch *vivify_learn (struct vivifier *vivifier,
     // to use the actual glue of the clause and not of the watcher.
     res = watch_first_two_literals_in_large_clause (ring, clause);
     trace_add_clause (&ring->trace, clause);
-    export_large_clause (ring, clause);
+    if (ring->options.vivify_export)
+      export_large_clause (ring, clause);
   }
   return res;
 }
