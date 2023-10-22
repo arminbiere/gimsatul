@@ -69,7 +69,7 @@
   OPTION (bool, focus_initially, 1, 0, 1, "start with focus mode initially") \
   OPTION (bool, force_phase, 0, 0, 1, "force phase (same phase for all solvers") \
   OPTION (bool, force, 0, 0, 1, "force relaxed parsing and proof writing") \
-  OPTION (bool, increase_imported_glue, 1, 0, 1, "increase glue of imported clauses") \
+  OPTION (unsigned, increase_imported_glue, 2, 0, 2, "increase glue imported glue (2=max)") \
   OPTION (bool, minimize, 1, 0, 1, "minimize learned clauses") \
   OPTION (unsigned, minimize_depth, 1000, 1, INF, "recursive clause minimization depth") \
   OPTION (unsigned, occurrence_limit, 1000, 0, INF, "literal occurrence limit in simplification") \

@@ -270,6 +270,8 @@ static size_t schedule_vivification_candidates (struct vivifier *vivifier,
     unsigned level = v->level; \
     if (!level) \
       break; \
+    if (subsuming && marked_literal (ring_marks, OTHER) <= 0) \
+      subsuming = false; \
     if (v->seen) \
       break; \
     v->seen = true; \
@@ -282,9 +284,10 @@ static size_t schedule_vivification_candidates (struct vivifier *vivifier,
       PUSH (*ring_clause, OTHER); \
   } while (0)
 
-static void vivify_deduce (struct vivifier *vivifier,
-                           struct watch *candidate, struct watch *conflict,
-                           unsigned implied) {
+static struct watch *vivify_deduce (struct vivifier *vivifier,
+                                    struct watch *candidate,
+                                    struct watch *conflict,
+                                    unsigned implied) {
   struct ring *ring = vivifier->ring;
   struct unsigneds *analyzed = &ring->analyzed;
   struct variable *variables = ring->variables;
@@ -318,9 +321,12 @@ static void vivify_deduce (struct vivifier *vivifier,
   unsigned *begin = trail->begin;
   unsigned *t = trail->end;
 
+  signed char *ring_marks = ring->marks;
+
   while (t != begin) {
     assert (reason);
     LOGWATCH (reason, "vivify analyzing");
+    bool subsuming = true;
     if (is_binary_pointer (reason)) {
       unsigned lit = lit_pointer (reason);
       ANALYZE (lit);
@@ -330,6 +336,10 @@ static void vivify_deduce (struct vivifier *vivifier,
       struct watcher *watcher = get_watcher (ring, reason);
       for (all_watcher_literals (other, watcher))
         ANALYZE (other);
+    }
+    if (subsuming) {
+      LOGWATCH (reason, "vivify subsuming");
+      return reason;
     }
     while (t != begin) {
       unsigned lit = *--t;
@@ -349,6 +359,8 @@ static void vivify_deduce (struct vivifier *vivifier,
     }
   }
   LOGTMP ("vivification deduced");
+
+  return 0;
 }
 
 static bool vivify_shrink (struct ring *ring, struct watcher *candidate) {
@@ -589,12 +601,24 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
       break;
   }
 
+  for (all_literals_in_clause (lit, clause))
+    mark_literal (ring->marks, lit);
+
   struct watch *candidate = tag_index (true, idx, INVALID_LIT);
-  vivify_deduce (vivifier, candidate, conflict, implied);
+  struct watch *subsuming =
+      vivify_deduce (vivifier, candidate, conflict, implied);
+
+  for (all_literals_in_clause (lit, clause))
+    unmark_literal (ring->marks, lit);
 
   unsigned res = 0;
 
-  if (vivify_shrink (ring, watcher)) {
+  if (subsuming) {
+    ring->statistics.vivify.succeeded++;
+    ring->statistics.vivify.subsumed++;
+    LOGCLAUSE (watcher->clause, "vivify subsumed");
+    mark_garbage_watcher (ring, watcher);
+  } else if (vivify_shrink (ring, watcher)) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.strengthened++;
     LOGWATCH (candidate, "vivify strengthening");
@@ -629,7 +653,14 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
       if (!ring->import_after_propagation_and_conflict)
         ring->import_after_propagation_and_conflict = true;
     }
-  } else {
+  } else if (implied != INVALID) {
+    ring->statistics.vivify.succeeded++;
+    ring->statistics.vivify.implied++;
+    LOGCLAUSE (watcher->clause, "vivify implied");
+    mark_garbage_watcher (ring, watcher);
+  }
+
+  if (!res) {
     LOGCLAUSE (clause, "vivification failed on");
     if (conflict && ring->import_after_propagation_and_conflict)
       ring->import_after_propagation_and_conflict = false;
