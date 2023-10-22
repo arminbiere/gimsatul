@@ -55,16 +55,23 @@ void export_binary_clause (struct ring *ring, struct watch *watch) {
   unsigned exported = 0;
   unsigned redundancy = compute_redundancy (ring, 1, 2);
   struct pool *pool = ring->pool;
+#if 0
   for (unsigned i = 0; i != threads; i++, pool++) {
     if (i == ring->id)
       continue;
+#else
+  struct ring * other = random_other_ring (ring);
+  pool += other->id;
+#endif
     struct clause *clause = (struct clause *) watch;
     struct bucket *bucket = &pool->bucket[BINARY_BUCKET];
     atomic_uintptr_t *share = &bucket->shared;
     uintptr_t previous = atomic_exchange (share, (uintptr_t) clause);
     bucket->redundancy = redundancy;
     exported += !previous;
+#if 0
   }
+#endif
   ADD_BINARY_CLAUSE_STATISTICS (exported, exported);
   INC_BINARY_CLAUSE_STATISTICS (shared);
 }
@@ -85,9 +92,14 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   unsigned exported = 0;
   unsigned glue = clause->glue, size = clause->size;
   unsigned redundancy = compute_redundancy (ring, glue, size);
+#if 0
   for (unsigned i = 0; i != threads; i++, pool++) {
     if (i == ring->id)
       continue;
+#else
+  struct ring * other = random_other_ring (ring);
+  pool += other->id;
+#endif
     for (unsigned j = 0; j != SIZE_POOL; j++) {
       struct bucket *b = &pool->bucket[j];
       atomic_uintptr_t *share = &b->shared;
@@ -103,7 +115,9 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
         break;
       }
     }
+#if 0
   }
+#endif
   ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue, size);
   INC_LARGE_CLAUSE_STATISTICS (shared, glue, size);
 }
