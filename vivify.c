@@ -62,7 +62,8 @@ static inline bool watched_vivification_candidate (struct ring *ring,
   // As long we increase the glue of imported clauses in 'watches.c' to
   // 'MAX_GLUE', which is larger than 'TIER2_GLUE_LIMIT', the following
   // condition can not be true. Therefore the side-effect of that option
-  // enabled is to never vivify imported clauses.
+  // enabled is to never vivify imported clauses.  If we increase the
+  // glue of imported clauses just by one we can get in this situation.
   //
   assert (!ring->options.increase_imported_glue ||
           watcher->glue == watcher->clause->glue + 1 ||
