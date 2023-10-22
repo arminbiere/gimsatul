@@ -59,13 +59,13 @@ static inline bool watched_vivification_candidate (struct ring *ring,
       return false;
   }
 
-  // As long we are increase the glue of imported clauses in 'watches.c' to
-  // 'MAX_GLUE' the following condition can not be true. Therefore a
-  // side-effect of that option to be set is to never vivify imported
-  // clauses.  If this is desirable, then we might want to use the real glue
-  // above and also during sorting candidates.
+  // As long we increase the glue of imported clauses in 'watches.c' to
+  // 'MAX_GLUE', which is larger than 'TIER2_GLUE_LIMIT', the following
+  // condition can not be true. Therefore the side-effect of that option
+  // enabled is to never vivify imported clauses.
   //
   assert (!ring->options.increase_imported_glue ||
+          watcher->glue == watcher->clause->glue + 1 ||
           watcher->clause->origin == ring->id);
 
   if (watcher->clause->vivified) {
@@ -612,16 +612,26 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
     // written in parallel all those competing threads will only potentially
     // differ in that bit, and all want to set it true, which is sane.
 
+    // However, if long imported clause glues are increased to MAX_GLUE in
+    // the watcher (when watching them) other threads would never try to
+    // vivify this clause.  If it is just increased by one it happens.
+
     watcher->clause->vivified = true;
 
-    if (!ring->inconsistent && strengthened &&
-        !is_binary_pointer (strengthened)) {
-      struct watcher *swatcher = get_watcher (ring, strengthened);
-      if (watched_vivification_candidate (ring, swatcher, tier))
-        res = index_pointer (strengthened);
+    if (!ring->inconsistent && strengthened) {
+      if (!is_binary_pointer (strengthened)) {
+        struct watcher *swatcher = get_watcher (ring, strengthened);
+        if (watched_vivification_candidate (ring, swatcher, tier))
+          res = index_pointer (strengthened);
+      }
+      if (!ring->import_after_propagation_and_conflict)
+        ring->import_after_propagation_and_conflict = true;
     }
-  } else
+  } else {
     LOGCLAUSE (clause, "vivification failed on");
+    if (conflict && ring->import_after_propagation_and_conflict)
+      ring->import_after_propagation_and_conflict = false;
+  }
 
   clear_analyzed (ring);
   CLEAR (ring->clause);

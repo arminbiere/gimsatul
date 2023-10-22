@@ -93,10 +93,17 @@ struct watch *watch_literals_in_large_clause (struct ring *ring,
   assert (ring->watchers.end <= ring->watchers.allocated);
 
   unsigned size = clause->size;
+#if 0
   unsigned glue =
       (ring->options.increase_imported_glue && clause->origin != ring->id)
           ? MAX_GLUE
           : clause->glue;
+#else
+  unsigned glue = clause->glue;
+  if (glue < MAX_GLUE &&
+      ring->options.increase_imported_glue && clause->origin != ring->id)
+    glue++;
+#endif
 
   bool redundant = clause->redundant;
 
