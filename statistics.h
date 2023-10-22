@@ -64,6 +64,8 @@ struct ring_statistics {
   struct {
     uint64_t tried;
     uint64_t reused;
+    uint64_t strengthened;
+    uint64_t subsumed;
     uint64_t succeeded;
   } vivify;
 

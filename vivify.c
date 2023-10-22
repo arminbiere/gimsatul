@@ -595,6 +595,7 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
 
   if (vivify_shrink (ring, watcher)) {
     ring->statistics.vivify.succeeded++;
+    ring->statistics.vivify.strengthened++;
     LOGWATCH (candidate, "vivify strengthening");
     struct watch *strengthened = vivify_learn (vivifier, candidate);
     watcher = index_to_watcher (ring, idx);
