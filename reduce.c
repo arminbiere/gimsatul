@@ -145,12 +145,10 @@ static void gather_reduce_candidates (struct ring *ring,
     const unsigned char used = watcher->used;
     if (used)
       watcher->used = used - 1;
-    if (used == MAX_USED)
-      continue;
     const unsigned char glue = watcher->glue;
     if (glue <= TIER1_GLUE_LIMIT && used)
       continue;
-    if (glue <= TIER2_GLUE_LIMIT && used == MAX_USED - 1)
+    if (glue <= TIER2_GLUE_LIMIT && used >= MAX_USED - 1)
       continue;
     if (watcher->reason)
       continue;
