@@ -85,7 +85,7 @@ struct ruler {
   struct clauses *occurrences;
   pthread_t *threads;
   unsigned *unmap;
-  volatile signed char *values;
+  signed char volatile *values;
 
   struct ruler_barriers barriers;
   struct ruler_locks locks;

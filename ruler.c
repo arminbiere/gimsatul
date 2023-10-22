@@ -263,12 +263,12 @@ void detach_ring (struct ring *ring) {
   assert (ruler->rings.begin[ring->id] == ring);
   ruler->rings.begin[ring->id] = 0;
   if (pthread_mutex_unlock (&ruler->locks.rings))
-    fatal_error ("failed to release ringfs lock while detaching ring");
+    fatal_error ("failed to release rings lock while detaching ring");
 }
 
 /*------------------------------------------------------------------------*/
 
-void set_terminate (struct ruler *ruler, struct ring * ring) {
+void set_terminate (struct ruler *ruler, struct ring *ring) {
   bool terminated;
   if (pthread_mutex_lock (&ruler->locks.terminate))
     fatal_error ("failed to acquire terminate lock");
@@ -278,6 +278,12 @@ void set_terminate (struct ruler *ruler, struct ring * ring) {
   if (pthread_mutex_unlock (&ruler->locks.terminate))
     fatal_error ("failed to release terminate lock");
 
+  // Always force to disable barriers to avoid races.
+
+  abort_waiting_and_disable_barrier (&ruler->barriers.start);
+  abort_waiting_and_disable_barrier (&ruler->barriers.import);
+  abort_waiting_and_disable_barrier (&ruler->barriers.unclone);
+
   if (terminated)
     return;
 
@@ -285,10 +291,6 @@ void set_terminate (struct ruler *ruler, struct ring * ring) {
     verbose (ring, "termination forced by ring %u", ring->id);
   else
     verbose (0, "termination forced globally");
-
-  abort_waiting_and_disable_barrier (&ruler->barriers.start);
-  abort_waiting_and_disable_barrier (&ruler->barriers.import);
-  abort_waiting_and_disable_barrier (&ruler->barriers.unclone);
 }
 
 void set_winner (struct ring *ring) {
@@ -304,13 +306,12 @@ void set_winner (struct ring *ring) {
     ruler->winner = ring;
   if (pthread_mutex_unlock (&ruler->locks.winner))
     fatal_error ("failed to release winner lock");
+  set_terminate (ruler, ring); // Always force termination to avoid race.
   if (!winning) {
     assert (winner);
     assert (winner->status == ring->status);
-    return;
-  }
-  set_terminate (ruler, ring);
-  verbose (ring, "winning ring[%u] with status %d", ring->id, ring->status);
+  } else
+    verbose (ring, "winning ring[%u] status %d", ring->id, ring->status);
 }
 
 /*------------------------------------------------------------------------*/

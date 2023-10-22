@@ -16,8 +16,6 @@
 #include "simplify.h"
 #include "walk.h"
 
-#include "cover.h" // TODO remove
-
 #include <assert.h>
 #include <inttypes.h>
 
@@ -96,6 +94,7 @@ static bool conflict_limit_hit (struct ring *ring) {
     return false;
   verbose (ring, "conflict limit %ld hit at %" PRIu64 " conflicts", limit,
            conflicts);
+  set_terminate (ring->ruler, ring);
   return true;
 }
 
@@ -133,10 +132,9 @@ int search (struct ring *ring) {
       break;
     else if (walk_initially (ring))
       local_search (ring);
-    else if (conflict_limit_hit (ring)) {
-      set_terminate (ring->ruler, ring);
+    else if (conflict_limit_hit (ring))
       break;
-    } else if (reducing (ring))
+    else if (reducing (ring))
       reduce (ring);
     else if (restarting (ring))
       restart (ring);
@@ -151,9 +149,9 @@ int search (struct ring *ring) {
     else if (!import_shared (ring))
       decide (ring);
     else if (ring->inconsistent)
-      COVER (!ring->ruler->terminate), res = 20;
+      res = 20;
   }
   stop_search (ring, res);
-  COVER (!ring->ruler->terminate);
+  assert (ring->ruler->terminate); // Might break due to races.
   return res;
 }
