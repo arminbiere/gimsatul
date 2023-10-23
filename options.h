@@ -69,7 +69,7 @@
   OPTION (bool, focus_initially, 1, 0, 1, "start with focus mode initially") \
   OPTION (bool, force_phase, 0, 0, 1, "force phase (same phase for all solvers") \
   OPTION (bool, force, 0, 0, 1, "force relaxed parsing and proof writing") \
-  OPTION (unsigned, increase_imported_glue, 2, 0, 2, "increase glue imported glue (2=max)") \
+  OPTION (unsigned, increase_imported_glue, 1, 0, 2, "increase glue imported glue (2=max)") \
   OPTION (bool, minimize, 1, 0, 1, "minimize learned clauses") \
   OPTION (unsigned, minimize_depth, 1000, 1, INF, "recursive clause minimization depth") \
   OPTION (unsigned, occurrence_limit, 1000, 0, INF, "literal occurrence limit in simplification") \
@@ -107,7 +107,7 @@
   OPTION (unsigned, subsume_ticks, 20, 0, INF, "subsumption ticks limit in millions") \
   OPTION (unsigned, target_phases, 1, 0, 2, "target phases (2 = in focused mode too)") \
   OPTION (bool, vivify, 1, 0, 1, "vivification of redundant clauses") \
-  OPTION (bool, vivify_export, 0, 0, 1, "export vivified clauses") \
+  OPTION (bool, vivify_export, 1, 0, 1, "export vivified clauses") \
   OPTION (bool, walk_initially, 0, 0, 1, "local search initially") \
   OPTION (bool, warm_up_walking, 1, 0, 1, "unit propagation warm-up of local search") \
   OPTION (bool, witness, 1, 0, 1, "print satisfying assignment")
