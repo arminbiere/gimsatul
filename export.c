@@ -63,25 +63,27 @@ static void export_clause (struct ring *ring, struct clause *clause) {
   unsigned redundancy = compute_redundancy (ring, glue, size);
   struct ring *other = random_other_ring (ring);
   struct pool *pool = ring->pool + other->id;
+  struct bucket *worst = 0;
   LOG ("exporting to random other target ring %u", other->id);
   unsigned exported = 0;
-  for (unsigned j = 0; j != SIZE_POOL; j++) {
-    struct bucket *b = &pool->bucket[j];
-    atomic_uintptr_t *share = &b->shared;
-    bool empty = !*share;
-    if (empty || redundancy <= b->redundancy) {
-      if (!is_binary_pointer (clause))
-        reference_clause (ring, clause, 1);
-      uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
-      b->redundancy = redundancy;
-      if (ptr) {
-        struct clause *previous = (struct clause *) ptr;
-        if (!is_binary_pointer (previous))
-          dereference_clause (ring, previous);
-      } else
-        exported++;
+  for (struct bucket *b = pool->bucket, *end = b + SIZE_POOL; b != end; b++)
+    if (!b->shared) {
+      worst = b;
       break;
-    }
+    } else if (!worst || worst->redundancy >= redundancy)
+      worst = b;
+  if (worst) {
+    atomic_uintptr_t *share = &worst->shared;
+    if (!is_binary_pointer (clause))
+      reference_clause (ring, clause, 1);
+    uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
+    worst->redundancy = redundancy;
+    if (ptr) {
+      struct clause *previous = (struct clause *) ptr;
+      if (!is_binary_pointer (previous))
+        dereference_clause (ring, previous);
+    } else
+      exported++;
   }
   ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue, size);
   INC_LARGE_CLAUSE_STATISTICS (shared, glue, size);

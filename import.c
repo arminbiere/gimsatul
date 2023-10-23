@@ -424,10 +424,13 @@ bool import_shared (struct ring *ring) {
   ring->import_after_propagation_and_conflict = false;
   struct ring *src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
-  struct bucket *end = pool->bucket + SIZE_POOL;
+  struct bucket *best = 0;
+  for (struct bucket *b = pool->bucket, *end = b + SIZE_POOL; b != end; b++)
+    if (b->shared && (!best || best->redundancy > b->redundancy))
+      best = b;
   struct clause *clause = 0;
-  for (struct bucket *b = pool->bucket; !clause && b != end; b++) {
-    atomic_uintptr_t *p = &b->shared;
+  if (best) {
+    atomic_uintptr_t *p = &best->shared;
 #ifndef NFASTPATH
     if (*p)
 #endif
