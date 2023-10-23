@@ -421,6 +421,7 @@ bool import_shared (struct ring *ring) {
     return true;
   if (!ring->import_after_propagation_and_conflict)
     return false;
+  ring->import_after_propagation_and_conflict = false;
   struct ring *src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
   struct bucket *end = pool->bucket + SIZE_POOL;
@@ -434,12 +435,7 @@ bool import_shared (struct ring *ring) {
   }
   if (!clause)
     return false;
-  bool res = false;
   if (is_binary_pointer (clause))
-    res = import_binary (ring, clause);
-  else
-    res = import_large_clause (ring, clause);
-  if (res)
-    ring->import_after_propagation_and_conflict = false;
-  return res;
+    return import_binary (ring, clause);
+  return import_large_clause (ring, clause);
 }

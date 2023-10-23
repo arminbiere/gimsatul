@@ -613,6 +613,7 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
   for (all_literals_in_clause (lit, clause))
     unmark_literal (ring->marks, lit);
 
+  bool import_before_next_vivification = false;
   unsigned res = 0;
 
   if (subsuming) {
@@ -652,21 +653,20 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
         if (watched_vivification_candidate (ring, swatcher, tier))
           res = index_pointer (strengthened);
       }
-      if (!ring->import_after_propagation_and_conflict)
-        ring->import_after_propagation_and_conflict = true;
     }
+
+    import_before_next_vivification = true;
+
   } else if (implied != INVALID) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.implied++;
     LOGCLAUSE (watcher->clause, "vivify implied");
     mark_garbage_watcher (ring, watcher);
-  }
-
-  if (!res) {
+  } else
     LOGCLAUSE (clause, "vivification failed on");
-    if (conflict && ring->import_after_propagation_and_conflict)
-      ring->import_after_propagation_and_conflict = false;
-  }
+
+  ring->import_after_propagation_and_conflict =
+      import_before_next_vivification;
 
   clear_analyzed (ring);
   CLEAR (ring->clause);
