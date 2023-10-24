@@ -419,8 +419,10 @@ bool import_shared (struct ring *ring) {
     return false;
   if (import_units (ring))
     return true;
+#if 0
   if (!ring->import_after_propagation_and_conflict)
     return false;
+#endif
   ring->import_after_propagation_and_conflict = false;
   struct ring *src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
