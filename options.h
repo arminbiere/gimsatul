@@ -88,7 +88,7 @@
   OPTION (unsigned, rephase_interval, 1e3, 1, INF, "base rephase conflict interval") \
   OPTION (unsigned, report, 1, 0, INF, "report details for many threads") \
   OPTION (bool, share_learned, 1, 0, 1, "export and import learned clauses") \
-  OPTION (bool, share_by_size, 0, 0, 1, "prioritize shared clauses by size and not glue") \
+  OPTION (bool, share_by_size, 1, 0, 1, "prioritize shared clauses by size and not glue") \
   OPTION (bool, shrink, 1, 0, 1, "shrink (glue 1) learned clauses") \
   OPTION (bool, simplify, 1, 0, 1, "elimination, subsumption and substitution") \
   OPTION (unsigned, simplify_boost, 1, 0, 1, "additional initial boost to simplification") \
