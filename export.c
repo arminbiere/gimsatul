@@ -102,10 +102,31 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   if (!exporting (ring))
     return;
-  if (clause->glue >= ring->averages->glue.slow.value/2)
-    return;
-  if (clause->size >= ring->averages->size.value/2)
-    return;
+  struct averages *a = ring->averages + ring->stable;
+  // TODO make this an option.
+  {
+    unsigned glue = clause->glue;
+    double factor = 0.5; // TODO make this an option.
+    double average = a->glue.slow.value;
+    double limit = factor * average;
+    if (glue > limit) {
+      LOGCLAUSE (clause, "failed to export (glue %u > limit %g = %g * %g)",
+                 glue, limit, factor, average);
+      return;
+    }
+  }
+  // TODO make this an option.
+  {
+    unsigned size = clause->size;
+    double factor = 0.5; // TODO make this an option.
+    double average = a->size.value;
+    double limit = factor * average;
+    if (size > limit) {
+      LOGCLAUSE (clause, "failed to export (size %u > limit %g = %g * %g)",
+                 size, limit, factor, average);
+      return;
+    }
+  }
   LOGCLAUSE (clause, "exporting");
   export_clause (ring, clause);
 }

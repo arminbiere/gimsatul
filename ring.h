@@ -86,7 +86,7 @@ struct ring_units {
 };
 
 #define BINARY_BUCKET 0
-#define SIZE_POOL 16
+#define SIZE_POOL 8
 
 struct bucket {
   uint64_t redundancy;
