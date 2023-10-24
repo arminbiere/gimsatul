@@ -52,6 +52,7 @@ struct averages {
   struct average level;
   struct average trail;
   struct average decisions;
+  struct average size;
 };
 
 struct ring_last {

@@ -289,6 +289,7 @@ bool analyze (struct ring *ring, struct watch *reason) {
     }
   }
   unsigned size = SIZE (*ring_clause);
+  update_average (ring, &a->size, "size", SLOW_ALPHA, size);
   assert (size);
   if (size == 1) {
     trace_add_unit (&ring->trace, not_uip);

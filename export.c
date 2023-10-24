@@ -102,6 +102,10 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   if (!exporting (ring))
     return;
+  if (clause->glue >= ring->averages->glue.slow.value)
+    return;
+  if (clause->size >= ring->averages->size.value)
+    return;
   LOGCLAUSE (clause, "exporting");
   export_clause (ring, clause);
 }
