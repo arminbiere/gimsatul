@@ -419,7 +419,7 @@ bool import_shared (struct ring *ring) {
     return false;
   if (import_units (ring))
     return true;
-#if 0
+#if 1
   // TODO consider to make this an option.
   if (!ring->import_after_propagation_and_conflict)
     return false;
