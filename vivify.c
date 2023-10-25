@@ -326,7 +326,7 @@ static struct watch *vivify_deduce (struct vivifier *vivifier,
   while (t != begin) {
     assert (reason);
     LOGWATCH (reason, "vivify analyzing");
-    bool subsuming = reason != candidate;
+    bool subsuming = (reason != candidate);
     if (is_binary_pointer (reason)) {
       unsigned lit = lit_pointer (reason);
       ANALYZE (lit);
@@ -338,7 +338,7 @@ static struct watch *vivify_deduce (struct vivifier *vivifier,
         ANALYZE (other);
     }
     if (subsuming) {
-      LOGWATCH (candidate, "vivified subsumed");
+      assert (candidate != reason);
       LOGWATCH (reason, "vivify subsuming");
       return reason;
     }
@@ -620,7 +620,8 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
   if (subsuming) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.subsumed++;
-    LOGCLAUSE (watcher->clause, "vivify subsumed");
+    LOGWATCH (candidate, "vivified subsumed");
+    assert (candidate != subsuming);
     mark_garbage_watcher (ring, watcher);
   } else if (vivify_shrink (ring, watcher)) {
     ring->statistics.vivify.succeeded++;
