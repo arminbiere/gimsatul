@@ -116,22 +116,23 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
                    limit, factor, average);
         return;
       }
+#if 1
+      // TODO make this an option.
+      {
+        unsigned size = clause->size;
+        double factor = 0.5; // TODO make this an option.
+        double average = a->size.value;
+        double limit = factor * average;
+        if (size > limit) {
+          LOGCLAUSE (clause,
+                     "failed to export (size %u > limit %g = %g * %g)",
+                     size, limit, factor, average);
+          return;
+        }
+      }
     }
-  }
-#if 0
-  // TODO make this an option.
-  {
-    unsigned size = clause->size;
-    double factor = 0.5; // TODO make this an option.
-    double average = a->size.value;
-    double limit = factor * average;
-    if (size > limit) {
-      LOGCLAUSE (clause, "failed to export (size %u > limit %g = %g * %g)",
-                 size, limit, factor, average);
-      return;
-    }
-  }
 #endif
+  }
   LOGCLAUSE (clause, "exporting");
   export_clause (ring, clause);
 }
