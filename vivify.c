@@ -326,7 +326,7 @@ static struct watch *vivify_deduce (struct vivifier *vivifier,
   while (t != begin) {
     assert (reason);
     LOGWATCH (reason, "vivify analyzing");
-    bool subsuming = true;
+    bool subsuming = reason != candidate;
     if (is_binary_pointer (reason)) {
       unsigned lit = lit_pointer (reason);
       ANALYZE (lit);
@@ -338,6 +338,7 @@ static struct watch *vivify_deduce (struct vivifier *vivifier,
         ANALYZE (other);
     }
     if (subsuming) {
+      LOGWATCH (candidate, "vivified subsumed");
       LOGWATCH (reason, "vivify subsuming");
       return reason;
     }
