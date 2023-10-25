@@ -153,6 +153,9 @@ static unsigned next_random_decision (struct ring *ring) {
   if (!ring->size)
     return INVALID_VAR;
 
+  if (ring->context != SEARCH_CONTEXT)
+    return INVALID_VAR;
+
   if (!ring->options.random_decisions)
     return INVALID_VAR;
 

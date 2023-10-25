@@ -83,13 +83,13 @@ void print_ring_statistics (struct ring *ring) {
            percent (s->vivify.reused, s->vivify.tried));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-strengthened:", s->vivify.strengthened,
-	   percent (s->vivify.strengthened, s->vivify.succeeded));
+           percent (s->vivify.strengthened, s->vivify.succeeded));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-subsumed:", s->vivify.subsumed,
-	   percent (s->vivify.subsumed, s->vivify.succeeded));
+           percent (s->vivify.subsumed, s->vivify.succeeded));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-implied:", s->vivify.implied,
-	   percent (s->vivify.implied, s->vivify.succeeded));
+           percent (s->vivify.implied, s->vivify.succeeded));
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned clause",
            "learned-literals:", s->literals.learned,
@@ -108,7 +108,7 @@ void print_ring_statistics (struct ring *ring) {
 
 #ifdef METRICS
 #define PRINT_CLAUSE_METRICS(NAME) \
-  INSTANTIATE (1, SIZE_GLUE_STATISTICS-1, NAME)
+  INSTANTIATE (1, SIZE_GLUE_STATISTICS - 1, NAME)
 #else
 #define PRINT_CLAUSE_METRICS(NAME) /**/
 #endif
