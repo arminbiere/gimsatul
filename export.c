@@ -120,7 +120,7 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
       // TODO make this an option.
       {
         unsigned size = clause->size;
-        double factor = 0.5; // TODO make this an option.
+        double factor = 1.0; // TODO make this an option.
         double average = a->size.value;
         double limit = factor * average;
         if (size > limit) {
