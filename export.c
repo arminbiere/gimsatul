@@ -106,7 +106,7 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   // TODO make this an option.
   {
     unsigned glue = clause->glue;
-    if (glue > TIER2_GLUE_LIMIT) {
+    if (glue > TIER1_GLUE_LIMIT) {
       double factor = 0.5; // TODO make this an option.
       double average = a->glue.slow.value;
       double limit = factor * average;
