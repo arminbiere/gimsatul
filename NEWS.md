@@ -1,5 +1,9 @@
 # Version 1.1.0
 
+- Fixed GITID issue when building from tar balls.
+
+# Version 1.1.0
+
 - Chronological backtracking (also helps importing units).
 
 - Binary reason jumping.

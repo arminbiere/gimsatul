@@ -48,9 +48,7 @@ static void assign (struct ring *ring, unsigned lit, struct watch *reason,
       v->level = assignment_level;
       LOGWATCH (reason, "jumping %s reason", LOGLIT (lit));
 #endif
-#ifdef METRICS
       ring->statistics.contexts[ring->context].jumped++;
-#endif
     }
   } else {
     assignment_level = 0;
