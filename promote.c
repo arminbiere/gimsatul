@@ -26,15 +26,18 @@ unsigned recompute_glue (struct ring *ring, struct watcher *watcher) {
     if (++new_glue == limit)
       break;
   }
-  for (all_elements_on_stack (unsigned, level, *promote))
+  while (!EMPTY (*promote)) {
+    unsigned level = POP (*promote);
+    assert (used[level] & 2);
     used[level] &= ~2u;
-  CLEAR (*promote);
+  }
   return new_glue;
 }
 
 void promote_watcher (struct ring *ring, struct watcher *watcher,
                       unsigned new_glue) {
-  assert (new_glue < watcher->glue);
+  unsigned watcher_glue = watcher->glue;
+  assert (new_glue < watcher_glue);
   struct clause *clause = watcher->clause;
   for (;;) {
     unsigned old_glue = clause->glue;
@@ -50,4 +53,15 @@ void promote_watcher (struct ring *ring, struct watcher *watcher,
   }
   ring->statistics.promoted++;
   watcher->glue = new_glue;
+  if (new_glue <= TIER1_GLUE_LIMIT) {
+    if (watcher_glue > TIER1_GLUE_LIMIT) {
+      ring->statistics.promoted1++;
+      LOGCLAUSE (clause, "promoted to tier1 from glue %u", watcher_glue);
+    }
+  } else if (new_glue <= TIER2_GLUE_LIMIT) {
+    if (watcher_glue > TIER2_GLUE_LIMIT) {
+      ring->statistics.promoted2++;
+      LOGCLAUSE (clause, "promoted to tier2 from glue %u", watcher_glue);
+    }
+  }
 }

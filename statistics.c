@@ -87,9 +87,6 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-subsumed:", s->vivify.subsumed,
            percent (s->vivify.subsumed, s->vivify.succeeded));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% subsumed",
-           "  vivify-promoted:", s->vivify.promoted,
-           percent (s->vivify.promoted, s->vivify.subsumed));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-implied:", s->vivify.implied,
            percent (s->vivify.implied, s->vivify.succeeded));
@@ -156,6 +153,12 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
            "  promoted-clauses:", s->promoted,
            percent (s->promoted, s->bumped));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted1-clauses:", s->promoted1,
+           percent (s->promoted1, s->promoted));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted2-clauses:", s->promoted2,
+           percent (s->promoted2, s->promoted));
 
   if (ring->pool) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
