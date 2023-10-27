@@ -153,7 +153,7 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned",
            "  bumped-clauses:", s->bumped,
            average (s->bumped, s->learned.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per bumped",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
            "  promoted-clauses:", s->promoted,
            percent (s->promoted, s->bumped));
 
