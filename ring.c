@@ -125,6 +125,7 @@ void release_ring (struct ring *ring, bool keep_values) {
   RELEASE (ring->minimize);
   RELEASE (ring->sorter);
   RELEASE (ring->outoforder);
+  RELEASE (ring->promote);
 
   FREE (ring->references);
 

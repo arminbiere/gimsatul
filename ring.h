@@ -132,6 +132,7 @@ struct ring {
   struct unsigneds minimize;
   struct unsigneds sorter;
   struct unsigneds outoforder;
+  struct unsigneds promote;
 
   struct references *references;
   struct ring_trail trail;

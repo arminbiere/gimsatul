@@ -139,6 +139,14 @@ struct watch *ring_propagate (struct ring *ring, bool stop_at_conflict,
         if (ignore && clause == ignore)
           continue;
 
+	unsigned watcher_glue = watcher->glue;
+	unsigned clause_glue = clause->glue;
+	assert (clause_glue <= watcher_glue);
+	if (clause_glue < watcher_glue) {
+	  watcher->glue = clause_glue;
+          LOGWATCH (watch, "updated from glue %u to", watcher_glue);
+	}
+
         // The watchers need to precisely know the two watched
         // literals, which might be different from the blocking
         // literal.  Otherwise unit propagation is not efficient

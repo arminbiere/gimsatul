@@ -87,6 +87,9 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-subsumed:", s->vivify.subsumed,
            percent (s->vivify.subsumed, s->vivify.succeeded));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% subsumed",
+           "  vivify-promoted:", s->vivify.promoted,
+           percent (s->vivify.promoted, s->vivify.subsumed));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-implied:", s->vivify.implied,
            percent (s->vivify.implied, s->vivify.succeeded));

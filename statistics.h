@@ -68,6 +68,7 @@ struct ring_statistics {
     uint64_t subsumed;
     uint64_t succeeded;
     uint64_t implied;
+    uint64_t promoted;
   } vivify;
 
   struct {
@@ -77,6 +78,13 @@ struct ring_statistics {
     uint64_t queue;
     uint64_t random;
   } decisions;
+
+  struct {
+    uint64_t total;
+    uint64_t tier1;
+    uint64_t tier2;
+    uint64_t tier3;
+  } promoted;
 
   uint64_t random_sequences;
 
