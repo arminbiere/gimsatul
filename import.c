@@ -419,12 +419,11 @@ bool import_shared (struct ring *ring) {
     return false;
   if (import_units (ring))
     return true;
-#if 1
-  // TODO consider to make this an option.
-  if (!ring->import_after_propagation_and_conflict)
-    return false;
-#endif
-  ring->import_after_propagation_and_conflict = false;
+  if (ring->options.limit_import_rate) {
+    if (!ring->import_after_propagation_and_conflict)
+      return false;
+    ring->import_after_propagation_and_conflict = false;
+  }
   struct ring *src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
   struct bucket *best = 0;

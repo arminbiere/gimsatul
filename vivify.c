@@ -622,6 +622,8 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
     ring->statistics.vivify.subsumed++;
     LOGWATCH (candidate, "vivified subsumed");
     assert (candidate != subsuming);
+    assert (is_binary_pointer (subsuming) ||
+            get_watcher (ring, subsuming)->clause != clause);
     mark_garbage_watcher (ring, watcher);
   } else if (vivify_shrink (ring, watcher)) {
     ring->statistics.vivify.succeeded++;
@@ -649,16 +651,14 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
 
     watcher->clause->vivified = true;
 
-    if (!ring->inconsistent && strengthened) {
-      if (!is_binary_pointer (strengthened)) {
-        struct watcher *swatcher = get_watcher (ring, strengthened);
-        if (watched_vivification_candidate (ring, swatcher, tier))
-          res = index_pointer (strengthened);
-      }
+    if (!ring->inconsistent && strengthened &&
+        !is_binary_pointer (strengthened)) {
+      struct watcher *swatcher = get_watcher (ring, strengthened);
+      if (watched_vivification_candidate (ring, swatcher, tier))
+        res = index_pointer (strengthened);
     }
 
     import_before_next_vivification = true;
-
   } else if (implied != INVALID) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.implied++;
