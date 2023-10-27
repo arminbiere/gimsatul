@@ -81,7 +81,6 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
 #ifndef QUIET
   size_t large = 0;
 #endif
-  unsigned tier2 = 0;
   ring->redundant = SIZE (ring->watchers);
   for (all_clauses (clause, *saved)) {
     if (is_binary_pointer (clause)) {
@@ -96,8 +95,6 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
     } else {
       assert (!clause->mapped);
       assert (!clause->garbage);
-      if (!tier2 && clause->glue > TIER1_GLUE_LIMIT)
-        tier2 = SIZE (ring->watchers);
       (void) watch_first_two_literals_in_large_clause (ring, clause);
 #ifndef QUIET
       large++;
