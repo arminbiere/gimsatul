@@ -19,7 +19,7 @@ struct clause {
 #endif
   atomic_uint shared;
   unsigned short origin;
-  unsigned char glue;
+  atomic_uchar glue;
   bool cleaned : 1;
   bool dirty : 1;
   bool garbage : 1;

@@ -124,7 +124,7 @@ struct ring {
   signed char *values;
 
   bool *inactive;
-  unsigned *used;
+  unsigned char *used;
 
   struct unsigneds analyzed;
   struct unsigneds clause;

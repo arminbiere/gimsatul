@@ -295,7 +295,7 @@ static struct watch *vivify_deduce (struct vivifier *vivifier,
   struct unsigneds *ring_clause = &ring->clause;
   struct unsigneds *levels = &ring->levels;
 
-  unsigned *used = ring->used;
+  unsigned char *used = ring->used;
 
   assert (EMPTY (*analyzed));
   assert (EMPTY (*ring_clause));
@@ -625,9 +625,21 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
     if (!is_binary_pointer (subsuming)) {
       struct watcher *subsuming_watcher = get_watcher (ring, subsuming);
       assert (clause !=subsuming_watcher->clause);
-      if (watcher->glue < subsuming_watcher->glue) {
+      unsigned watcher_glue = watcher->glue;
+      unsigned subsuming_glue = subsuming_watcher->glue;
+      if (watcher_glue < subsuming_glue) {
+	unsigned new_glue = watcher_glue;
+	struct clause * subsuming_clause = subsuming_watcher->clause;
+	for (;;) {
+	  unsigned old_glue = subsuming_clause->glue;
+	  if (new_glue == old_glue)
+	    break;
+	  unsigned tmp_glue = atomic_exchange (&subsuming_clause->glue, new_glue);
+	  if (tmp_glue < new_glue)
+	    new_glue = tmp_glue;
+	}
 	ring->statistics.vivify.promoted++;
-	subsuming_watcher->glue = watcher->glue;
+	subsuming_watcher->glue = new_glue;
       }
     }
     mark_garbage_watcher (ring, watcher);
