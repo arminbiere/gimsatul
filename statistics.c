@@ -178,38 +178,6 @@ void print_ring_statistics (struct ring *ring) {
              "exported-clauses:", s->exported.clauses,
              percent (s->exported.clauses, s->learned.clauses));
     PRINT_CLAUSE_STATISTICS (exported);
-
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported clauses rate",
-             "shared-clauses:", s->shared.clauses,
-             average (s->exported.clauses, s->shared.clauses));
-
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported binaries rate",
-             "  shared-binaries:", s->shared.binaries,
-             average (s->exported.binaries, s->shared.binaries));
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported tier1 rate",
-             "  shared-tier1:", s->shared.tier1,
-             average (s->exported.tier1, s->shared.tier1));
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported tier2 rate",
-             "  shared-tier2:", s->shared.tier2,
-             average (s->exported.tier2, s->shared.tier2));
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported tier3 rate",
-             "  shared-tier3:", s->shared.tier3,
-             average (s->exported.tier3, s->shared.tier3));
-#ifdef METRICS
-#undef MACRO
-#define MACRO(SIZE, NAME) \
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f exported glue" #SIZE " rate", \
-           "  " #NAME "-glue" #SIZE ":", s->NAME.glue[SIZE], \
-           average (s->exported.glue[SIZE], s->NAME.glue[SIZE]))
-    INSTANTIATE (1, SIZE_GLUE_STATISTICS, shared);
-#undef MACRO
-#define MACRO(SIZE, NAME) \
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f exported size" #SIZE " rate", \
-           "  " #NAME "-size" #SIZE ":", s->NAME.size[SIZE], \
-           average (s->exported.size[SIZE], s->NAME.size[SIZE]))
-    INSTANTIATE (1, SIZE_SIZE_STATISTICS, shared);
-#endif
-#undef MACRO
   }
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% propagations", "jumped:", jumped,
@@ -220,6 +188,7 @@ void print_ring_statistics (struct ring *ring) {
 #ifdef METRICS
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per propagation", "visits:", visits,
            average (visits, propagations));
+#undef MACRO
 #define MACRO(SIZE, DUMMY) \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% visits", "  visits" #SIZE ":", \
            c->visits[SIZE], percent (c->visits[SIZE], visits))

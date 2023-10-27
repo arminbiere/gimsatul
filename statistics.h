@@ -94,7 +94,7 @@ struct ring_statistics {
     uint64_t glue[SIZE_GLUE_STATISTICS];
     uint64_t size[SIZE_SIZE_STATISTICS];
 #endif
-  } learned, exported, imported, shared;
+  } learned, exported, imported;
 
   struct {
     struct {

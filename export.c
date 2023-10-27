@@ -86,7 +86,6 @@ static void export_clause (struct ring *ring, struct clause *clause) {
       exported++;
   }
   ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue, size);
-  INC_LARGE_CLAUSE_STATISTICS (shared, glue, size);
 }
 
 void export_binary_clause (struct ring *ring, struct watch *watch) {
