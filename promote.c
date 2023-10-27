@@ -57,11 +57,17 @@ void promote_watcher (struct ring *ring, struct watcher *watcher,
     if (watcher_glue > TIER1_GLUE_LIMIT) {
       ring->statistics.promoted1++;
       LOGCLAUSE (clause, "promoted to tier1 from glue %u", watcher_glue);
-    }
+    } else
+      LOGCLAUSE (clause, "promoted from glue %u but kept in tier1",
+                 watcher_glue);
   } else if (new_glue <= TIER2_GLUE_LIMIT) {
     if (watcher_glue > TIER2_GLUE_LIMIT) {
       ring->statistics.promoted2++;
       LOGCLAUSE (clause, "promoted to tier2 from glue %u", watcher_glue);
-    }
-  }
+    } else
+      LOGCLAUSE (clause, "promoted from glue %u but kept in tier2",
+                 watcher_glue);
+  } else
+    LOGCLAUSE (clause, "promoted from glue %u but kept in tier3",
+               watcher_glue);
 }

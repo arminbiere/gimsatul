@@ -14,6 +14,8 @@
 #include "sort.h"
 #include "utilities.h"
 
+#include "cover.h"
+
 #include <inttypes.h>
 #include <string.h>
 
@@ -147,7 +149,7 @@ static bool better_vivification_candidate (unsigned *counts,
                                  index_to_watcher (ring, (B)))
 
 static bool better_vivification_literal (unsigned *counts, unsigned a,
-                                        unsigned b) {
+                                         unsigned b) {
   unsigned u = counts[a];
   unsigned v = counts[b];
   if (u < v)
@@ -629,15 +631,19 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
   if (subsuming) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.subsumed++;
-    LOGWATCH (candidate, "vivified subsumed");
+    LOGWATCH (candidate, "vivify subsumed");
     assert (candidate != subsuming);
     if (!is_binary_pointer (subsuming)) {
       struct watcher *subsuming_watcher = get_watcher (ring, subsuming);
-      assert (clause != subsuming_watcher->clause);
-      unsigned watcher_glue = watcher->glue;
-      unsigned subsuming_glue = subsuming_watcher->glue;
-      if (watcher_glue < subsuming_glue)
-	promote_watcher (ring, subsuming_watcher, watcher_glue);
+      if (subsuming_watcher->redundant) {
+        assert (clause != subsuming_watcher->clause);
+	assert (clause->redundant);
+	assert (watcher->redundant);
+        unsigned watcher_glue = watcher->glue;
+        unsigned subsuming_glue = subsuming_watcher->glue;
+        if (watcher_glue < subsuming_glue)
+          promote_watcher (ring, subsuming_watcher, watcher_glue);
+      }
     }
     mark_garbage_watcher (ring, watcher);
   } else if (vivify_shrink (ring, watcher)) {
