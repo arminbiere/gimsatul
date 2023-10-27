@@ -79,12 +79,8 @@ struct ring_statistics {
     uint64_t random;
   } decisions;
 
-  struct {
-    uint64_t total;
-    uint64_t tier1;
-    uint64_t tier2;
-    uint64_t tier3;
-  } promoted;
+  uint64_t bumped;
+  uint64_t promoted;
 
   uint64_t random_sequences;
 

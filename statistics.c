@@ -150,6 +150,12 @@ void print_ring_statistics (struct ring *ring) {
            "  learned-glue-large:", s->learned.glue[0],
            percent (s->learned.glue[0], s->learned.clauses));
 #endif
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned",
+           "  bumped-clauses:", s->bumped,
+           average (s->bumped, s->learned.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per bumped",
+           "  promoted-clauses:", s->promoted,
+           percent (s->promoted, s->bumped));
 
   if (ring->pool) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",

@@ -634,6 +634,10 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
 	  unsigned old_glue = subsuming_clause->glue;
 	  if (new_glue == old_glue)
 	    break;
+	  if (old_glue < new_glue) {
+	    new_glue = old_glue;
+	    break;
+	  }
 	  unsigned tmp_glue = atomic_exchange (&subsuming_clause->glue, new_glue);
 	  if (tmp_glue < new_glue)
 	    new_glue = tmp_glue;
