@@ -709,13 +709,14 @@ void vivify_clauses (struct ring *ring) {
            delta_probing_ticks, (double) VIVIFY_EFFORT, delta_search_ticks);
 
   double sum = RELATIVE_VIVIFY_TIER1_EFFORT + RELATIVE_VIVIFY_TIER2_EFFORT;
+  uint64_t limit = PROBING_TICKS;
 
   for (unsigned tier = 1; tier <= 2; tier++) {
     if (ring->inconsistent)
       break;
     if (terminate_ring (ring))
       break;
-    uint64_t probing_ticks_before = PROBING_TICKS;
+
     double effort;
     if (tier == 2)
       effort = RELATIVE_VIVIFY_TIER2_EFFORT;
@@ -724,13 +725,14 @@ void vivify_clauses (struct ring *ring) {
 
     double scale = effort / sum;
     uint64_t scaled_ticks = scale * delta_probing_ticks;
-
+    limit += scaled_ticks;
+#ifndef QUIET
+    uint64_t probing_ticks_before = PROBING_TICKS;
+#endif
     verbose (ring,
              "tier%u vivification limit of %" PRIu64
              " vivification ticks %.0f%%",
              tier, scaled_ticks, 100.0 * scale);
-
-    uint64_t limit = probing_ticks_before + scaled_ticks;
 
     struct vivifier vivifier;
     init_vivifier (&vivifier, ring);
