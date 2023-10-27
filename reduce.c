@@ -169,6 +169,13 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
   for (all_elements_on_stack (unsigned, idx, *candidates)) {
     struct watcher *watcher = index_to_watcher (ring, idx);
     mark_garbage_watcher (ring, watcher);
+    ring->statistics.reduced.clauses++;
+    if (watcher->glue <= TIER1_GLUE_LIMIT)
+      ring->statistics.reduced.tier1++;
+    else if (watcher->glue <= TIER2_GLUE_LIMIT)
+      ring->statistics.reduced.tier2++;
+    else
+      ring->statistics.reduced.tier3++;
     if (++reduced == target)
       break;
   }

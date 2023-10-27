@@ -31,23 +31,23 @@ void print_ring_statistics (struct ring *ring) {
            percent (chronological, conflicts));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per conflict",
            "decisions:", decisions, average (decisions, conflicts));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "heap-decisions:", s->decisions.heap,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  heap-decisions:", s->decisions.heap,
            percent (s->decisions.heap, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "negative-decisions:", s->decisions.negative,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  negative-decisions:", s->decisions.negative,
            percent (s->decisions.negative, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "positive-decisions:", s->decisions.positive,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  positive-decisions:", s->decisions.positive,
            percent (s->decisions.positive, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "queue-decisions:", s->decisions.queue,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  queue-decisions:", s->decisions.queue,
            percent (s->decisions.queue, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "random-decisions:", s->decisions.random,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  random-decisions:", s->decisions.random,
            percent (s->decisions.random, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f decisions",
-           "random-sequences:", s->random_sequences,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f decisions",
+           "  random-sequences:", s->random_sequences,
            average (s->decisions.random, s->random_sequences));
   PRINTLN ("%-22s %17u %13.2f %% variables", "solving-fixed:", s->fixed,
            percent (s->fixed, variables));
@@ -151,14 +151,23 @@ void print_ring_statistics (struct ring *ring) {
            "  bumped-clauses:", s->bumped,
            average (s->bumped, s->learned.clauses));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
-           "  promoted-clauses:", s->promoted,
-           percent (s->promoted, s->bumped));
+           "promoted-clauses:", s->promoted.clauses,
+           percent (s->promoted.clauses, s->bumped));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
-           "  promoted1-clauses:", s->promoted1,
-           percent (s->promoted1, s->promoted));
+           "  promoted-kept1:", s->promoted.kept1,
+           percent (s->promoted.kept1, s->promoted.clauses));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
-           "  promoted2-clauses:", s->promoted2,
-           percent (s->promoted2, s->promoted));
+           "  promoted-kept2:", s->promoted.kept2,
+           percent (s->promoted.kept2, s->promoted.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted-kept3:", s->promoted.kept3,
+           percent (s->promoted.kept3, s->promoted.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted-tier1:", s->promoted.tier1,
+           percent (s->promoted.tier1, s->promoted.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted-tier2:", s->promoted.tier2,
+           percent (s->promoted.tier2, s->promoted.clauses));
 
   if (ring->pool) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
@@ -215,6 +224,18 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
            "reductions:", s->reductions,
            average (conflicts, s->reductions));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
+           "  reduced-clauses:", s->reduced.clauses,
+           percent (s->reduced.clauses, s->learned.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
+           "  reduced-tier1:", s->reduced.tier1,
+           percent (s->reduced.tier1, s->reduced.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
+           "  reduced-tier2:", s->reduced.tier2,
+           percent (s->reduced.tier2, s->reduced.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
+           "  reduced-tier3:", s->reduced.tier3,
+           percent (s->reduced.tier3, s->reduced.clauses));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
            "rephased:", s->rephased, average (conflicts, s->rephased));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",

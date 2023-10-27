@@ -79,9 +79,15 @@ struct ring_statistics {
   } decisions;
 
   uint64_t bumped;
-  uint64_t promoted;
-  uint64_t promoted1;
-  uint64_t promoted2;
+
+  struct {
+    uint64_t clauses;
+    uint64_t tier1;
+    uint64_t tier2;
+    uint64_t kept1;
+    uint64_t kept2;
+    uint64_t kept3;
+  } promoted;
 
   uint64_t random_sequences;
 
@@ -100,6 +106,13 @@ struct ring_statistics {
     uint64_t size[SIZE_SIZE_STATISTICS];
 #endif
   } learned, exported, imported;
+
+  struct {
+    uint64_t clauses;
+    uint64_t tier1;
+    uint64_t tier2;
+    uint64_t tier3;
+  } reduced;
 
   struct {
     struct {
