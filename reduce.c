@@ -142,16 +142,36 @@ static void gather_reduce_candidates (struct ring *ring,
       continue;
     if (!watcher->redundant)
       continue;
+    if (watcher->reason)
+      continue;
     const unsigned char used = watcher->used;
     if (used)
       watcher->used = used - 1;
     const unsigned char glue = watcher->glue;
-    if (glue <= TIER1_GLUE_LIMIT && used)
+    if (glue <= TIER1_GLUE_LIMIT && used >= MAX_USED / 2)
       continue;
-    if (glue <= TIER2_GLUE_LIMIT && used >= MAX_USED)
+    if (glue <= TIER2_GLUE_LIMIT && used >= MAX_USED - 1)
       continue;
-    if (watcher->reason)
+    if (glue > TIER2_GLUE_LIMIT && used >= MAX_USED)
       continue;
+    if (glue <= TIER1_GLUE_LIMIT && !used) {
+      ring->statistics.unused.clauses++;
+      ring->statistics.unused.tier1++;
+      mark_garbage_watcher (ring, watcher);
+      continue;
+    }
+    if (glue <= TIER2_GLUE_LIMIT && used <= MAX_USED / 4) {
+      ring->statistics.unused.clauses++;
+      ring->statistics.unused.tier2++;
+      mark_garbage_watcher (ring, watcher);
+      continue;
+    }
+    if (glue > TIER2_GLUE_LIMIT && used <= MAX_USED / 2) {
+      ring->statistics.unused.clauses++;
+      ring->statistics.unused.tier3++;
+      mark_garbage_watcher (ring, watcher);
+      continue;
+    }
     unsigned idx = watcher_to_index (ring, watcher);
     PUSH (*candidates, idx);
   }

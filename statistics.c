@@ -150,6 +150,7 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned",
            "  bumped-clauses:", s->bumped,
            average (s->bumped, s->learned.clauses));
+
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
            "promoted-clauses:", s->promoted.clauses,
            percent (s->promoted.clauses, s->bumped));
@@ -221,6 +222,7 @@ void print_ring_statistics (struct ring *ring) {
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
            "probings:", s->probings, average (conflicts, s->probings));
+
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
            "reductions:", s->reductions,
            average (conflicts, s->reductions));
@@ -236,6 +238,20 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
            "  reduced-tier3:", s->reduced.tier3,
            percent (s->reduced.tier3, s->reduced.clauses));
+
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
+           "unused-clauses:", s->unused.clauses,
+           percent (s->unused.clauses, s->learned.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% unused",
+           "  unused-tier1:", s->unused.tier1,
+           percent (s->unused.tier1, s->unused.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% unused",
+           "  unused-tier2:", s->unused.tier2,
+           percent (s->unused.tier2, s->unused.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% unused",
+           "  unused-tier3:", s->unused.tier3,
+           percent (s->unused.tier3, s->unused.clauses));
+
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
            "rephased:", s->rephased, average (conflicts, s->rephased));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",

@@ -89,6 +89,13 @@ struct ring_statistics {
     uint64_t kept3;
   } promoted;
 
+  struct {
+    uint64_t clauses;
+    uint64_t tier1;
+    uint64_t tier2;
+    uint64_t tier3;
+  } unused;
+
   uint64_t random_sequences;
 
 #define SIZE_GLUE_STATISTICS 16
