@@ -170,38 +170,6 @@ void print_ring_statistics (struct ring *ring) {
            "  promoted-tier2:", s->promoted.tier2,
            percent (s->promoted.tier2, s->promoted.clauses));
 
-  if (ring->pool) {
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
-             "imported-clauses:", s->imported.clauses,
-             percent (s->imported.clauses, s->learned.clauses));
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f %% imported clauses",
-             "  diverged-imports:", s->diverged,
-             percent (s->diverged, s->imported.clauses));
-    PRINT_CLAUSE_STATISTICS (imported);
-
-    {
-      uint64_t subsumed =
-          s->subsumed.binary.succeeded + s->subsumed.large.succeeded;
-      uint64_t checked =
-          s->subsumed.binary.checked + s->subsumed.large.checked;
-      PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
-               "subsumed-clauses:", subsumed, percent (subsumed, checked));
-      PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
-               "  subsumed-binary:", s->subsumed.binary.succeeded,
-               percent (s->subsumed.binary.succeeded,
-                        s->subsumed.binary.checked));
-      PRINTLN (
-          "%-22s %17" PRIu64 " %13.2f %% checked clauses",
-          "  subsumed-large:", s->subsumed.large.succeeded,
-          percent (s->subsumed.large.succeeded, s->subsumed.large.checked));
-    }
-
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
-             "exported-clauses:", s->exported.clauses,
-             percent (s->exported.clauses, s->learned.clauses));
-    PRINT_CLAUSE_STATISTICS (exported);
-  }
-
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% propagations", "jumped:", jumped,
            percent (jumped, propagations));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f millions per second",
@@ -239,7 +207,7 @@ void print_ring_statistics (struct ring *ring) {
            "  reduced-tier3:", s->reduced.tier3,
            percent (s->reduced.tier3, s->reduced.clauses));
 
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
            "unused-clauses:", s->unused.clauses,
            percent (s->unused.clauses, s->learned.clauses));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% unused",
@@ -251,6 +219,38 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% unused",
            "  unused-tier3:", s->unused.tier3,
            percent (s->unused.tier3, s->unused.clauses));
+
+  if (ring->pool) {
+    PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
+             "imported-clauses:", s->imported.clauses,
+             percent (s->imported.clauses, s->learned.clauses));
+    PRINTLN ("%-22s %17" PRIu64 " %13.2f %% imported clauses",
+             "  diverged-imports:", s->diverged,
+             percent (s->diverged, s->imported.clauses));
+    PRINT_CLAUSE_STATISTICS (imported);
+
+    {
+      uint64_t subsumed =
+          s->subsumed.binary.succeeded + s->subsumed.large.succeeded;
+      uint64_t checked =
+          s->subsumed.binary.checked + s->subsumed.large.checked;
+      PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
+               "subsumed-clauses:", subsumed, percent (subsumed, checked));
+      PRINTLN ("%-22s %17" PRIu64 " %13.2f %% checked clauses",
+               "  subsumed-binary:", s->subsumed.binary.succeeded,
+               percent (s->subsumed.binary.succeeded,
+                        s->subsumed.binary.checked));
+      PRINTLN (
+          "%-22s %17" PRIu64 " %13.2f %% checked clauses",
+          "  subsumed-large:", s->subsumed.large.succeeded,
+          percent (s->subsumed.large.succeeded, s->subsumed.large.checked));
+    }
+
+    PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
+             "exported-clauses:", s->exported.clauses,
+             percent (s->exported.clauses, s->learned.clauses));
+    PRINT_CLAUSE_STATISTICS (exported);
+  }
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
            "rephased:", s->rephased, average (conflicts, s->rephased));

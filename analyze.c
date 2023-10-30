@@ -15,13 +15,12 @@
 #include "utilities.h"
 
 static void bump_reason (struct ring *ring, struct watcher *watcher) {
+  assert (watcher->redundant);
   watcher->used = MAX_USED;
   ring->statistics.bumped++;
-  if (watcher->redundant) {
-    unsigned new_glue = recompute_glue (ring, watcher);
-    if (new_glue < watcher->glue)
-      promote_watcher (ring, watcher, new_glue);
-  }
+  unsigned new_glue = recompute_glue (ring, watcher);
+  if (new_glue < watcher->glue)
+    promote_watcher (ring, watcher, new_glue);
 }
 
 static bool analyze_reason_side_literal (struct ring *ring, unsigned lit) {
@@ -247,7 +246,8 @@ bool analyze (struct ring *ring, struct watch *reason) {
       RESOLVE_LITERAL (other);
     } else {
       struct watcher *watcher = get_watcher (ring, reason);
-      bump_reason (ring, watcher);
+      if (watcher->redundant)
+        bump_reason (ring, watcher);
       for (all_watcher_literals (lit, watcher))
         RESOLVE_LITERAL (lit);
     }
