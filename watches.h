@@ -9,7 +9,7 @@ struct ring;
 struct unsigneds;
 
 #define SIZE_WATCHER_LITERALS 4
-#define MAX_USED 31
+#define MAX_USED 63
 
 struct watcher {
   unsigned char size;
