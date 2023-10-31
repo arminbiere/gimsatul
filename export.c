@@ -61,11 +61,17 @@ static void export_clause (struct ring *ring, struct clause *clause) {
   else
     glue = clause->glue, size = clause->size;
   unsigned redundancy = compute_redundancy (ring, glue, size);
+  struct ruler * ruler = ring->ruler;
+#if 1
+  unsigned exported = 0;
+for (all_rings (other)) {
+  if (other == ring) continue;
+#else
   struct ring *other = random_other_ring (ring);
+#endif
   struct pool *pool = ring->pool + other->id;
   struct bucket *worst = 0;
-  LOG ("exporting to random other target ring %u", other->id);
-  unsigned exported = 0;
+  LOG ("exporting to other target ring %u", other->id);
   for (struct bucket *b = pool->bucket, *end = b + SIZE_POOL; b != end; b++)
     if (!b->shared) {
       worst = b;
@@ -85,6 +91,9 @@ static void export_clause (struct ring *ring, struct clause *clause) {
     } else
       exported++;
   }
+#if 1
+}
+#endif
   ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue, size);
 }
 
