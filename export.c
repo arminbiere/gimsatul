@@ -36,14 +36,6 @@ void export_units (struct ring *ring) {
     fatal_error ("failed to release unit lock");
 }
 
-static uint64_t compute_redundancy (struct ring *ring, unsigned glue,
-                                    unsigned size) {
-  bool share_by_size = ring->options.share_by_size;
-  unsigned high = share_by_size ? size : glue;
-  unsigned low = share_by_size ? glue : size;
-  return (((uint64_t) high) << 32) + low;
-}
-
 static bool exporting (struct ring *ring) {
   unsigned threads = ring->threads;
   if (threads < 2)
@@ -53,48 +45,71 @@ static bool exporting (struct ring *ring) {
   return true;
 }
 
-static void export_clause (struct ring *ring, struct clause *clause) {
-  assert (exporting (ring));
-  unsigned glue, size;
-  if (is_binary_pointer (clause))
-    glue = 1, size = 2;
-  else
-    glue = clause->glue, size = clause->size;
-  unsigned redundancy = compute_redundancy (ring, glue, size);
-  struct ruler * ruler = ring->ruler;
-#if 1
-  unsigned exported = 0;
-for (all_rings (other)) {
-  if (other == ring) continue;
+static struct rings *export_rings (struct ring *ring) {
+  struct rings *exports = &ring->exports;
+  CLEAR (*exports);
+#if 0
+  struct ring * other = random_other_ring (ring);
+  PUSH (*exports, other);
 #else
-  struct ring *other = random_other_ring (ring);
+  struct ruler *ruler = ring->ruler;
+  for (all_rings (other))
+    if (other != ring)
+      PUSH (*exports, other);
 #endif
-  struct pool *pool = ring->pool + other->id;
-  struct bucket *worst = 0;
+  return exports;
+}
+
+static void export_to_ring (struct ring *ring, struct ring *other,
+                            struct clause *clause, unsigned glue,
+                            unsigned size, uint64_t redundancy) {
   LOG ("exporting to other target ring %u", other->id);
-  for (struct bucket *b = pool->bucket, *end = b + SIZE_POOL; b != end; b++)
+  assert (ring != other);
+
+  struct pool *pool = ring->pool + other->id;
+  struct bucket *start = pool->bucket;
+  struct bucket *end = start + SIZE_POOL;
+  struct bucket *worst = 0;
+
+  for (struct bucket *b = start; b != end; b++) {
     if (!b->shared) {
       worst = b;
       break;
-    } else if (!worst || worst->redundancy >= redundancy)
+    }
+    if (!worst || worst->redundancy >= redundancy)
       worst = b;
-  if (worst) {
-    atomic_uintptr_t *share = &worst->shared;
-    if (!is_binary_pointer (clause))
-      reference_clause (ring, clause, 1);
-    uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
-    worst->redundancy = redundancy;
-    if (ptr) {
-      struct clause *previous = (struct clause *) ptr;
-      if (!is_binary_pointer (previous))
-        dereference_clause (ring, previous);
-    } else
-      exported++;
   }
-#if 1
+
+  if (!worst)
+    return;
+
+  atomic_uintptr_t *share = &worst->shared;
+  if (!is_binary_pointer (clause))
+    reference_clause (ring, clause, 1);
+
+  uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
+  worst->redundancy = redundancy;
+
+  if (ptr) {
+    struct clause *previous = (struct clause *) ptr;
+    if (!is_binary_pointer (previous))
+      dereference_clause (ring, previous);
+  } else
+    INC_LARGE_CLAUSE_STATISTICS (exported, glue, size);
 }
-#endif
-  ADD_LARGE_CLAUSE_STATISTICS (exported, exported, glue, size);
+
+static void export_clause (struct ring *ring, struct clause *clause) {
+  assert (exporting (ring));
+  bool binary = is_binary_pointer (clause);
+  unsigned glue = binary ? 1 : clause->glue;
+  unsigned size = binary ? 2 : clause->size;
+  bool share_by_size = ring->options.share_by_size;
+  uint64_t high = share_by_size ? size : glue;
+  uint64_t low = share_by_size ? glue : size;
+  uint64_t redundancy = (high << 32) + low;
+  struct rings *exports = export_rings (ring);
+  for (all_pointers_on_stack (struct ring, other, *exports))
+    export_to_ring (ring, other, clause, glue, size, redundancy);
 }
 
 void export_binary_clause (struct ring *ring, struct watch *watch) {

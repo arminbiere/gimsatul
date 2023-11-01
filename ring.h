@@ -97,6 +97,12 @@ struct pool {
   struct bucket bucket[SIZE_POOL];
 };
 
+struct ring;
+
+struct rings {
+  struct ring **begin, **end, **allocated;
+};
+
 struct ring {
   unsigned id;
   unsigned threads;
@@ -133,6 +139,7 @@ struct ring {
   struct unsigneds sorter;
   struct unsigneds outoforder;
   struct unsigneds promote;
+  struct rings exports;
 
   struct references *references;
   struct ring_trail trail;
@@ -161,10 +168,6 @@ struct ring {
 
   unsigned randec;
   uint64_t random;
-};
-
-struct rings {
-  struct ring **begin, **end, **allocated;
 };
 
 /*------------------------------------------------------------------------*/
