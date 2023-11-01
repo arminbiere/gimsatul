@@ -103,10 +103,10 @@ static void export_to_ring (struct ring *ring, struct ring *other,
     LOG ("exporting to ring %u bucket %zu with redundancy [%u:%u]",
          other->id, worst - start, LOG_REDUNDANCY (worst_redundancy));
 #endif
-  atomic_uintptr_t *share = &worst->shared;
   if (!is_binary_pointer (clause))
     reference_clause (ring, clause, 1);
 
+  atomic_uintptr_t *share = &worst->shared;
   uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
   worst->redundancy = redundancy;
 

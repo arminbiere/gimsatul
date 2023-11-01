@@ -450,6 +450,7 @@ bool import_shared (struct ring *ring) {
          best - start, LOG_REDUNDANCY (best_redundancy));
     atomic_uintptr_t *p = &best->shared;
     clause = (struct clause *) atomic_exchange (p, 0);
+    assert (clause);
   } else {
     LOG ("import from ring %u failed (nothing to import)", src->id);
     return false;
