@@ -85,6 +85,7 @@ struct ring_units {
   unsigned *iterate, *export;
 };
 
+#define MAX_REDUNDANCY (~(uint64_t) 0)
 #define BINARY_BUCKET 0
 #define SIZE_POOL 8
 

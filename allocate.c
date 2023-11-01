@@ -49,8 +49,7 @@ void *reallocate_block (void *ptr, size_t bytes) {
 #include <malloc.h>
 #endif
 
-void *allocate_aligned_and_clear_array (size_t alignment, size_t num,
-                                        size_t bytes) {
+void *allocate_aligned_array (size_t alignment, size_t num, size_t bytes) {
   assert (num);
   assert (bytes);
   assert (is_power_of_two (alignment));
@@ -92,7 +91,7 @@ void *allocate_aligned_and_clear_array (size_t alignment, size_t num,
   size_t allocate = total + adjustment;
   assert (adjustment < allocate);
   assert (total < allocate);
-  size_t *start = allocate_and_clear_block (allocate);
+  size_t *start = allocate_block (allocate);
   uintptr_t word = (uintptr_t) start;
   word &= ~((uintptr_t) alignment - 1);
   word += alignment;
@@ -106,7 +105,6 @@ void *allocate_aligned_and_clear_array (size_t alignment, size_t num,
   middle[1] = alignment;
 #endif
 #endif
-  memset (res, 0, total);
   return res;
 }
 

@@ -88,13 +88,14 @@ static void export_to_ring (struct ring *ring, struct ring *other,
     reference_clause (ring, clause, 1);
 
   uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
+  uint64_t worst_redundancy = worst->redundancy;
   worst->redundancy = redundancy;
 
   if (ptr) {
     struct clause *previous = (struct clause *) ptr;
     if (!is_binary_pointer (previous))
       dereference_clause (ring, previous);
-  } else
+  } else if (worst_redundancy != MAX_REDUNDANCY)
     INC_LARGE_CLAUSE_STATISTICS (exported, glue, size);
 }
 

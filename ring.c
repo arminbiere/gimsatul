@@ -257,8 +257,15 @@ static void release_saved (struct ring *ring) {
 
 void init_pool (struct ring *ring, unsigned threads) {
   ring->threads = threads;
-  ring->pool = allocate_aligned_and_clear_array (CACHE_LINE_SIZE, threads,
-                                                 sizeof *ring->pool);
+  ring->pool =
+      allocate_aligned_array (CACHE_LINE_SIZE, threads, sizeof *ring->pool);
+  struct bucket *b = ring->pool[0].bucket;
+  struct bucket *end = b + threads * SIZE_POOL;
+  while (b != end) {
+    b->shared = 0;
+    b->redundancy = MAX_REDUNDANCY;
+    b++;
+  }
 }
 
 static void release_pool (struct ring *ring) {
