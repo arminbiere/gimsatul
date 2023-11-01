@@ -86,6 +86,12 @@ struct ring_units {
 };
 
 #define MAX_REDUNDANCY (~(uint64_t) 0)
+
+#ifdef LOGGING
+#define LOG_REDUNDANCY(R) \
+  (unsigned)((R)>>32), (unsigned)(R)
+#endif
+
 #define BINARY_BUCKET 0
 #define SIZE_POOL 8
 

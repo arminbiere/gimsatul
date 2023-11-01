@@ -49,7 +49,7 @@ static struct rings *export_rings (struct ring *ring) {
   struct rings *exports = &ring->exports;
   CLEAR (*exports);
 #if 1
-  struct ring * other = random_other_ring (ring);
+  struct ring *other = random_other_ring (ring);
   PUSH (*exports, other);
 #else
   struct ruler *ruler = ring->ruler;
@@ -80,23 +80,41 @@ static void export_to_ring (struct ring *ring, struct ring *other,
       worst = b;
   }
 
-  if (!worst)
+  if (!worst) {
+    LOG ("export to ring %u failed "
+         "as all its buckets have better redundancy",
+         other->id);
     return;
+  }
 
+  uint64_t worst_redundancy = worst->redundancy;
+
+#ifdef LOGGING
+  if (worst_redundancy == MAX_REDUNDANCY)
+    LOG ("exporting to ring %u bucket %zu (first export)", other->id,
+         worst - start);
+  else
+    LOG ("exporting to ring %u bucket %zu with redundancy [%u:%u]", other->id,
+         worst - start, LOG_REDUNDANCY (worst_redundancy));
+#endif
   atomic_uintptr_t *share = &worst->shared;
   if (!is_binary_pointer (clause))
     reference_clause (ring, clause, 1);
 
   uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
-  uint64_t worst_redundancy = worst->redundancy;
   worst->redundancy = redundancy;
 
   if (ptr) {
+    assert (worst_redundancy != MAX_REDUNDANCY);
+    LOG ("previous export to ring %u bucket %zu with redundancy [%u:%u] failed",
+         other->id, worst - start, LOG_REDUNDANCY (worst_redundancy));
     struct clause *previous = (struct clause *) ptr;
     if (!is_binary_pointer (previous))
       dereference_clause (ring, previous);
-  } else if (worst_redundancy != MAX_REDUNDANCY)
+  } else if (worst_redundancy != MAX_REDUNDANCY) {
+    LOG ("previous export succeeded");
     INC_LARGE_CLAUSE_STATISTICS (exported, glue, size);
+  }
 }
 
 static void export_clause (struct ring *ring, struct clause *clause) {

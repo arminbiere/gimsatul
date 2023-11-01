@@ -426,20 +426,29 @@ bool import_shared (struct ring *ring) {
   }
   struct ring *src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
+  struct bucket *start = pool->bucket;
+  struct bucket *end = start + SIZE_POOL;
+  uint64_t best_redundancy = MAX_REDUNDANCY;
   struct bucket *best = 0;
-  for (struct bucket *b = pool->bucket, *end = b + SIZE_POOL; b != end; b++)
-    if (b->shared && (!best || best->redundancy > b->redundancy))
-      best = b;
+  for (struct bucket *b = start; b != end; b++) {
+    if (!b->shared)
+      continue;
+    uint64_t redundancy = b->redundancy;
+    if (redundancy >= best_redundancy)
+      continue;
+    best_redundancy = redundancy;
+    best = b;
+  }
   struct clause *clause = 0;
   if (best) {
+    LOG ("import from ring %u bucket %zu with redundancy [%u:%u]", src->id,
+         best - start, LOG_REDUNDANCY (best_redundancy));
     atomic_uintptr_t *p = &best->shared;
-#ifndef NFASTPATH
-    if (*p)
-#endif
-      clause = (struct clause *) atomic_exchange (p, 0);
-  }
-  if (!clause)
+    clause = (struct clause *) atomic_exchange (p, 0);
+  } else {
+    LOG ("import from ring %u failed (nothing to import)", src->id);
     return false;
+  }
   if (is_binary_pointer (clause))
     return import_binary (ring, clause);
   return import_large_clause (ring, clause);
