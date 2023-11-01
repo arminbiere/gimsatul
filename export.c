@@ -48,7 +48,7 @@ static bool exporting (struct ring *ring) {
 static struct rings *export_rings (struct ring *ring) {
   struct rings *exports = &ring->exports;
   CLEAR (*exports);
-#if 1
+#if 0
   struct ring *other = random_other_ring (ring);
   PUSH (*exports, other);
 #else
