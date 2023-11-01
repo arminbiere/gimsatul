@@ -424,12 +424,16 @@ bool import_shared (struct ring *ring) {
       return false;
     ring->import_after_propagation_and_conflict = false;
   }
+
   struct ring *src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
+
   struct bucket *start = pool->bucket;
   struct bucket *end = start + SIZE_POOL;
-  uint64_t best_redundancy = MAX_REDUNDANCY;
   struct bucket *best = 0;
+
+  uint64_t best_redundancy = MAX_REDUNDANCY;
+
   for (struct bucket *b = start; b != end; b++) {
     if (!b->shared)
       continue;
@@ -439,6 +443,7 @@ bool import_shared (struct ring *ring) {
     best_redundancy = redundancy;
     best = b;
   }
+
   struct clause *clause = 0;
   if (best) {
     LOG ("import from ring %u bucket %zu with redundancy [%u:%u]", src->id,
@@ -449,6 +454,7 @@ bool import_shared (struct ring *ring) {
     LOG ("import from ring %u failed (nothing to import)", src->id);
     return false;
   }
+
   if (is_binary_pointer (clause))
     return import_binary (ring, clause);
   return import_large_clause (ring, clause);

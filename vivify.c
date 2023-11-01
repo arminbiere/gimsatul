@@ -478,7 +478,6 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
     mark_garbage_watcher (ring, watcher);
     return 0;
   }
-  assert (watched_vivification_candidate (ring, watcher, tier));
   watcher->vivify = false;
 
   signed char *values = ring->values;

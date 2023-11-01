@@ -63,21 +63,29 @@ static struct rings *export_rings (struct ring *ring) {
 static void export_to_ring (struct ring *ring, struct ring *other,
                             struct clause *clause, unsigned glue,
                             unsigned size, uint64_t redundancy) {
-  LOG ("exporting to other target ring %u", other->id);
+  LOG ("trying to export to target ring %u with redundancy [%u:%u]",
+       other->id, LOG_REDUNDANCY (redundancy));
   assert (ring != other);
 
   struct pool *pool = ring->pool + other->id;
+
   struct bucket *start = pool->bucket;
   struct bucket *end = start + SIZE_POOL;
   struct bucket *worst = 0;
 
+  uint64_t worst_redundancy = 0;
+
   for (struct bucket *b = start; b != end; b++) {
+    uint64_t b_redundancy = b->redundancy;
     if (!b->shared) {
+      worst_redundancy = b_redundancy;
       worst = b;
       break;
     }
-    if (!worst || worst->redundancy >= redundancy)
-      worst = b;
+    if (worst_redundancy > b_redundancy)
+      continue;
+    worst_redundancy = b_redundancy;
+    worst = b;
   }
 
   if (!worst) {
@@ -87,15 +95,13 @@ static void export_to_ring (struct ring *ring, struct ring *other,
     return;
   }
 
-  uint64_t worst_redundancy = worst->redundancy;
-
 #ifdef LOGGING
   if (worst_redundancy == MAX_REDUNDANCY)
     LOG ("exporting to ring %u bucket %zu (first export)", other->id,
          worst - start);
   else
-    LOG ("exporting to ring %u bucket %zu with redundancy [%u:%u]", other->id,
-         worst - start, LOG_REDUNDANCY (worst_redundancy));
+    LOG ("exporting to ring %u bucket %zu with redundancy [%u:%u]",
+         other->id, worst - start, LOG_REDUNDANCY (worst_redundancy));
 #endif
   atomic_uintptr_t *share = &worst->shared;
   if (!is_binary_pointer (clause))
@@ -106,13 +112,15 @@ static void export_to_ring (struct ring *ring, struct ring *other,
 
   if (ptr) {
     assert (worst_redundancy != MAX_REDUNDANCY);
-    LOG ("previous export to ring %u bucket %zu with redundancy [%u:%u] failed",
+    LOG ("previous export to ring %u bucket %zu redundancy [%u:%u] failed",
          other->id, worst - start, LOG_REDUNDANCY (worst_redundancy));
     struct clause *previous = (struct clause *) ptr;
     if (!is_binary_pointer (previous))
       dereference_clause (ring, previous);
   } else if (worst_redundancy != MAX_REDUNDANCY) {
-    LOG ("previous export succeeded");
+    LOG ("previous export to ring %u bucket %zu redundancy [%u:%u] "
+         "succeeded",
+         other->id, worst - start, LOG_REDUNDANCY (worst_redundancy));
     INC_LARGE_CLAUSE_STATISTICS (exported, glue, size);
   }
 }
