@@ -63,6 +63,7 @@
   OPTION (bool, chronological, 1, 0, 1, "enable chronological backtracking") \
   OPTION (bool, deduplicate, 1, 0, 1, "remove duplicated binary clauses") \
   OPTION (bool, eliminate, 1, 0, 1, "bounded variable elimination") \
+  OPTION (unsigned, export, 2, 1, 3, "export to 1=one, 2=log, 3=all threads") \
   OPTION (unsigned, eliminate_bound, 16, 0, 1024, "additionally added clause margin") \
   OPTION (unsigned, eliminate_ticks, 20, 0, INF, "elimination ticks limit in millions") \
   OPTION (bool, fail, 1, 0, 1, "failed literal probing") \

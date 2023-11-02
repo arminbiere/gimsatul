@@ -18,7 +18,9 @@ double nlogn (uint64_t count);
 double nlog2n (uint64_t count);
 double nlog3n (uint64_t count);
 double nlog4n (uint64_t count);
+
 unsigned gcd (unsigned, unsigned);
+unsigned log2ceil (unsigned);
 
 static inline void mark_literal (signed char *marks, unsigned lit) {
   unsigned idx = IDX (lit);

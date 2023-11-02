@@ -1,5 +1,6 @@
 #include "export.h"
 #include "message.h"
+#include "random.h"
 #include "ruler.h"
 #include "utilities.h"
 
@@ -46,17 +47,49 @@ static bool exporting (struct ring *ring) {
 }
 
 static struct rings *export_rings (struct ring *ring) {
+
+  struct ruler *ruler = ring->ruler;
+  struct rings *rings = &ruler->rings;
+  unsigned size = SIZE (*rings);
+
   struct rings *exports = &ring->exports;
   CLEAR (*exports);
-#if 0
-  struct ring *other = random_other_ring (ring);
-  PUSH (*exports, other);
-#else
-  struct ruler *ruler = ring->ruler;
-  for (all_rings (other))
-    if (other != ring)
+
+  unsigned export = ring->options.export;
+  if (export == 1) {
+    struct ring *other = random_other_ring (ring);
+    LOG ("export to single ring %u", other->id);
+    PUSH (*rings, other);
+  } else if (export == 2) {
+    unsigned start = random_modulo (&ring->random, size);
+
+    unsigned delta;
+    do {
+      delta = random_modulo (&ring->random, size);
+    } while (gcd (size, delta) != 1);
+
+    unsigned target = log2ceil (size);
+
+    assert (delta);
+
+    unsigned id = start;
+    do {
+      id += delta;
+      if (id >= size)
+        id -= size;
+      assert (id != start);
+      struct ring *other = PEEK (*rings, id);
+      if (other == ring)
+        continue;
+      LOG ("logarithmic export to ring %u", id);
       PUSH (*exports, other);
-#endif
+    } while (SIZE (*exports) != target);
+  } else {
+    LOG ("export to all %u other rings", size - 1);
+    for (all_pointers_on_stack (struct ring, other, *rings))
+      PUSH (*exports, other);
+  }
+
   return exports;
 }
 
