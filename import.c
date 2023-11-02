@@ -10,7 +10,7 @@
 #include "trace.h"
 #include "utilities.h"
 
-bool import_units (struct ring *ring) {
+static bool import_units (struct ring *ring) {
   assert (ring->pool);
   struct ruler *ruler = ring->ruler;
 #ifndef NFASTPATH

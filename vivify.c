@@ -768,8 +768,10 @@ void vivify_clauses (struct ring *ring) {
       if (import_shared (ring)) {
         if (ring->inconsistent)
           break;
-        if (ring->level)
+        if (ring->level) {
           backtrack (ring, 0);
+	  ring->trail.propagate = ring->trail.begin;
+	}
         RESIZE (*decisions, ring->level);
         assert (ring->level == SIZE (*decisions));
         if (ring_propagate (ring, false, 0)) {
