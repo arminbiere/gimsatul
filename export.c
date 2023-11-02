@@ -58,8 +58,9 @@ static struct rings *export_rings (struct ring *ring) {
   unsigned export = ring->options.export;
   if (export == 1) {
     struct ring *other = random_other_ring (ring);
+    assert (other != ring);
     LOG ("export to single ring %u", other->id);
-    PUSH (*rings, other);
+    PUSH (*exports, other);
   } else if (export == 2) {
     unsigned start = random_modulo (&ring->random, size);
 
@@ -87,7 +88,8 @@ static struct rings *export_rings (struct ring *ring) {
   } else {
     LOG ("export to all %u other rings", size - 1);
     for (all_pointers_on_stack (struct ring, other, *rings))
-      PUSH (*exports, other);
+      if (other != ring)
+        PUSH (*exports, other);
   }
 
   return exports;

@@ -401,15 +401,17 @@ unsigned *sorter_block (struct ring *ring, size_t size) {
 
 struct ring *random_other_ring (struct ring *ring) {
   struct ruler *ruler = ring->ruler;
-  size_t rings = SIZE (ruler->rings);
-  assert (rings <= UINT_MAX);
-  assert (rings > 1);
-  unsigned id = random_modulo (&ring->random, rings - 1) + ring->id + 1;
-  if (id >= rings)
-    id -= rings;
-  assert (id < rings);
+  struct rings * rings = &ruler->rings;
+  size_t size = SIZE (*rings);
+  assert (size <= UINT_MAX);
+  assert (size > 1);
+  unsigned id;
+  do
+    id = random_modulo (&ring->random, size);
+  while (id == ring->id);
+  assert (id < size);
   assert (id != ring->id);
-  struct ring *res = ruler->rings.begin[id];
-  assert (res->pool);
+  struct ring *res = PEEK (*rings, id);
+  assert (res != ring);
   return res;
 }
