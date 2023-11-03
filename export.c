@@ -62,28 +62,20 @@ static struct rings *export_rings (struct ring *ring) {
     LOG ("export to single ring %u", other->id);
     PUSH (*exports, other);
   } else if (export == 2) {
-    unsigned start = random_modulo (&ring->random, size);
-
-    unsigned delta;
-    do {
-      delta = random_modulo (&ring->random, size);
-    } while (gcd (size, delta) != 1);
-
     unsigned target = log2ceil (size);
-
-    assert (delta);
-
-    unsigned id = start;
+    unsigned start = ring->id;
     do {
-      id += delta;
-      if (id >= size)
-        id -= size;
-      assert (id != start);
+      unsigned id = random_modulo (&ring->random, size);
+      if (id == start)
+	continue;
       struct ring *other = PEEK (*rings, id);
-      if (other == ring)
-        continue;
+      for (all_pointers_on_stack (struct ring, tmp, *exports))
+        if (tmp == other)
+          goto CONTINUE;
+      printf ("ring %u export to %u\n", ring->id, id);
       LOG ("logarithmic export to ring %u", id);
       PUSH (*exports, other);
+    CONTINUE:;
     } while (SIZE (*exports) != target);
   } else {
     LOG ("export to all %u other rings", size - 1);
