@@ -787,6 +787,8 @@ void vivify_clauses (struct ring *ring) {
         PUSH (vivifier.candidates, sidx);
       else if (ring->inconsistent)
         break;
+#elif 1
+      (void) vivify_watcher (&vivifier, tier, idx);
 #else
       for (unsigned sidx = idx, round = 1; sidx; round++) {
 	sidx = vivify_watcher (&vivifier, tier, sidx);
@@ -796,7 +798,9 @@ void vivify_clauses (struct ring *ring) {
 #endif
     }
 
+#if 0
 DONE:
+#endif
 
     if (!ring->inconsistent && ring->level) {
       backtrack (ring, 0);
