@@ -72,7 +72,6 @@ static struct rings *export_rings (struct ring *ring) {
       for (all_pointers_on_stack (struct ring, tmp, *exports))
         if (tmp == other)
           goto CONTINUE;
-      printf ("ring %u export to %u\n", ring->id, id);
       LOG ("logarithmic export to ring %u", id);
       PUSH (*exports, other);
     CONTINUE:;
