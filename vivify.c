@@ -645,6 +645,11 @@ static unsigned vivify_watcher (struct vivifier *vivifier, unsigned tier,
       }
     }
     mark_garbage_watcher (ring, watcher);
+  } else if (implied != INVALID) {
+    ring->statistics.vivify.succeeded++;
+    ring->statistics.vivify.implied++;
+    LOGCLAUSE (watcher->clause, "vivify implied");
+    mark_garbage_watcher (ring, watcher);
   } else if (vivify_shrink (ring, watcher)) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.strengthened++;
