@@ -781,12 +781,22 @@ void vivify_clauses (struct ring *ring) {
         }
       }
       unsigned idx = vivifier.candidates.begin[i++];
+#if 0
       unsigned sidx = vivify_watcher (&vivifier, tier, idx);
       if (sidx)
         PUSH (vivifier.candidates, sidx);
       else if (ring->inconsistent)
         break;
+#else
+      for (unsigned sidx = idx, round = 1; sidx; round++) {
+	sidx = vivify_watcher (&vivifier, tier, sidx);
+	if (!sidx && ring->inconsistent)
+	  goto DONE;
+       }
+#endif
     }
+
+DONE:
 
     if (!ring->inconsistent && ring->level) {
       backtrack (ring, 0);
