@@ -1,4 +1,4 @@
-# Version 1.1.0
+# Version 1.1.2
 
 - Fixed GITID issue when building from tar balls.
 
