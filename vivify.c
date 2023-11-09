@@ -438,6 +438,7 @@ static void vivify_learn (struct vivifier *vivifier,
   if (size == 1) {
     unsigned unit = literals[0];
     trace_add_unit (&ring->trace, unit);
+    assign_ring_unit (ring, unit);
     if (ring_propagate (ring, false, 0))
       set_inconsistent (ring,
                         "propagation of strengthened clause unit fails");
@@ -464,11 +465,6 @@ static void vivify_learn (struct vivifier *vivifier,
     struct clause *clause = new_large_clause (size, literals, true, glue);
     LOGCLAUSE (clause, "vivify strengthened");
     clause->origin = ring->id;
-    // This implicitly would import a shrunken previously imported clause
-    // into the ring, but as long increasing the glue of imported clauses is
-    // enabled those imported clauses never are vivification candidates
-    // unless we change the 'watched_vivification_candidate' function above
-    // to use the actual glue of the clause and not of the watcher.
     res = watch_first_two_literals_in_large_clause (ring, clause);
     trace_add_clause (&ring->trace, clause);
     if (ring->options.vivify_export)
@@ -724,6 +720,7 @@ void vivify_clauses (struct ring *ring) {
   assert (SEARCH_TICKS >= ring->last.probing);
 
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
+  delta_search_ticks = MAX (MIN_ABSOLUTE_FFORT, delta_search_ticks);
   uint64_t delta_probing_ticks = VIVIFY_EFFORT * delta_search_ticks;
   verbose (ring,
            "total vivification effort of %" PRIu64 " = %g * %" PRIu64
@@ -839,7 +836,7 @@ void vivify_clauses (struct ring *ring) {
                   PROBING_TICKS - probing_ticks_before,
                   (PROBING_TICKS > limit ? "limit hit" : "completed"));
 
-    verbose_report (ring, (tier == 1 ? 'v' : 'u'), !vivified);
+    verbose_report (ring, (tier == 1 ? 'u' : 'v'), !vivified);
   }
   STOP (ring, vivify);
 }

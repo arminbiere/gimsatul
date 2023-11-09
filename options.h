@@ -37,14 +37,15 @@
 #define MAX_STABLE_RESTART_INTERVAL (1 << 20)
 #define FOCUSED_RESTART_INTERVAL 1
 
+#define MIN_ABSOLUTE_FFORT 1e7
+
 #define ELIMINATE_EFFORT 0.50
 #define FAILED_EFFORT 0.02
 #define SUBSUME_EFFORT 0.50
 #define VIVIFY_EFFORT 0.10
+
 #define RELATIVE_VIVIFY_TIER1_EFFORT 1
 #define RELATIVE_VIVIFY_TIER2_EFFORT 1
-
-#define VIVIFY_CLAUSE_SIZE_LIMIT 16
 
 #define WALK_EFFORT 0.02
 
@@ -65,7 +66,6 @@
   OPTION (bool, eliminate, 1, 0, 1, "bounded variable elimination") \
   OPTION (unsigned, export, 2, 1, 3, "export to 1=one, 2=log, 3=all threads") \
   OPTION (unsigned, eliminate_bound, 16, 0, 1024, "additionally added clause margin") \
-  OPTION (unsigned, eliminate_ticks, 20, 0, INF, "elimination ticks limit in millions") \
   OPTION (bool, fail, 1, 0, 1, "failed literal probing") \
   OPTION (bool, focus_initially, 1, 0, 1, "start with focus mode initially") \
   OPTION (bool, force_phase, 0, 0, 1, "force phase (same phase for all solvers") \

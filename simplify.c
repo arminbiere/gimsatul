@@ -405,8 +405,7 @@ static void set_ruler_limits (struct ruler *ruler) {
 
     {
       uint64_t effort = ELIMINATE_EFFORT * search;
-      uint64_t base = 1e6 * ruler->options.eliminate_ticks;
-      uint64_t ticks = MAX (effort, base);
+      uint64_t ticks = MAX (effort, MIN_ABSOLUTE_FFORT);
       uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
       uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
       uint64_t current = statistics->ticks.elimination;
