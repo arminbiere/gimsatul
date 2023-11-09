@@ -452,6 +452,7 @@ static void vivify_learn (struct vivifier *vivifier,
   if (size == 1) {
     unsigned unit = literals[0];
     trace_add_unit (&ring->trace, unit);
+    ring->statistics.vivify.units++;
     assign_ring_unit (ring, unit);
     if (ring_propagate (ring, false, 0))
       set_inconsistent (ring,

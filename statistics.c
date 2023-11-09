@@ -90,6 +90,9 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-implied:", s->vivify.implied,
            percent (s->vivify.implied, s->vivify.succeeded));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% strengthened",
+           "  vivify-units:", s->vivify.units,
+           percent (s->vivify.units, s->vivify.strengthened));
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned clause",
            "learned-literals:", s->literals.learned,

@@ -62,6 +62,7 @@ struct ring_statistics {
   size_t redundant;
 
   struct {
+    uint64_t units;
     uint64_t tried;
     uint64_t reused;
     uint64_t strengthened;
