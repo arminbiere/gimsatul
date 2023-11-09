@@ -346,6 +346,7 @@ static struct watch *vivify_deduce (struct vivifier *vivifier,
       PUSH (*levels, level);
     }
     PUSH (*ring_clause, implied);
+    conflict = v->reason;
   }
 
   struct watch *reason = conflict ? conflict : candidate;
@@ -397,7 +398,9 @@ static struct watch *vivify_deduce (struct vivifier *vivifier,
   return 0;
 }
 
-static bool vivify_shrink (struct ring *ring, struct watcher *candidate) {
+static bool vivify_shrink (struct ring *ring, struct watch *conflict,
+                           struct watcher *candidate,
+                           unsigned *implied_ptr) {
   assert (!is_binary_pointer (candidate));
   struct variable *variables = ring->variables;
   signed char *values = ring->values;
@@ -407,13 +410,24 @@ static bool vivify_shrink (struct ring *ring, struct watcher *candidate) {
     if (!value) {
       LOG ("vivification removes at least unassigned %s", LOGLIT (lit));
       return true;
-    }
-    if (value > 0)
-      continue;
-    struct variable *v = variables + idx;
-    if (v->level && !v->seen) {
-      LOG ("vivification removes at least unseen %s", LOGLIT (lit));
-      return true;
+    } else if (value > 0) {
+      if (conflict)
+        return true;
+      if (*implied_ptr == INVALID)
+        *implied_ptr = lit;
+    } else {
+      assert (value < 0);
+      struct variable *v = variables + idx;
+      if (!v->level)
+        continue;
+      if (!v->seen) {
+        LOG ("vivification removes at least unseen %s", LOGLIT (lit));
+        return true;
+      }
+      if (v->reason) {
+        LOG ("vivification removes at least falsified %s", LOGLIT (lit));
+        return true;
+      }
     }
   }
   return false;
@@ -604,9 +618,6 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
 
     if (value > 0) {
       LOG ("vivify implied literal %s", LOGLIT (lit));
-      struct variable *v = VAR (lit);
-      conflict = v->reason;
-      assert (conflict);
       implied = lit;
       break;
     }
@@ -631,6 +642,8 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
     if (conflict)
       break;
   }
+
+  assert (!conflict || implied == INVALID);
 
   for (all_literals_in_clause (lit, clause))
     mark_literal (ring->marks, lit);
@@ -662,12 +675,7 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
       }
     }
     mark_garbage_watcher (ring, watcher);
-  } else if (implied != INVALID) {
-    ring->statistics.vivify.succeeded++;
-    ring->statistics.vivify.implied++;
-    LOGCLAUSE (watcher->clause, "vivify implied");
-    mark_garbage_watcher (ring, watcher);
-  } else if (vivify_shrink (ring, watcher)) {
+  } else if (vivify_shrink (ring, conflict, watcher, &implied)) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.strengthened++;
     LOGWATCH (candidate, "vivify strengthening");
@@ -692,6 +700,12 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
     // vivify this clause.  If it is just increased by one it happens.
 
     watcher->clause->vivified = true;
+
+    // In any case trigger import of new clauses as strengthening and
+    // exporting a clause does not happen too frequently and can be
+    // considered to play the same role as clause learning during analyzing
+    // a regular conflict which also triggers new imports.
+
     import_before_next_vivification = true;
 
   } else if (implied != INVALID) {
