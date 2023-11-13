@@ -752,8 +752,11 @@ static bool synchronize_exported_and_imported_units (struct ring *ring) {
 
   if (!rendezvous (&ruler->barriers.import, ring, false))
     return false;
-
+#if 0
   if (backtrack_propagate_iterate (ring))
+#else
+  assert (!ring->level);
+#endif
     while (continue_importing_and_propagating_units (ring))
       if (import_shared (ring))
         if (!ring->inconsistent)
@@ -828,6 +831,10 @@ int simplify_ring (struct ring *ring) {
   trigger_synchronization (ring);
   if (!wait_to_actually_start_synchronization (ring))
     return ring->status;
+  if (ring->level) {
+    (void) backtrack_propagate_iterate (ring);
+    // TODO what about return code.
+  }
   if (!synchronize_exported_and_imported_units (ring))
     return ring->status;
   ring->trail.propagate = ring->trail.begin;
@@ -854,6 +861,10 @@ bool simplifying (struct ring *ring) {
     return false;
   if (!ring->options.simplify_regularly)
     return false;
+#if 0
+  if (ring->level) // TODO alternative to 'backtrack_propagate_iterate'.
+    return false;
+#endif
   if (!ring->id)
     return ring->limits.simplify <= SEARCH_CONFLICTS;
   struct ruler *ruler = ring->ruler;
