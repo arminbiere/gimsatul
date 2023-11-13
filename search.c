@@ -43,10 +43,6 @@ bool backtrack_propagate_iterate (struct ring *ring) {
   assert (!ring->inconsistent);
   if (ring->level)
     backtrack (ring, 0);
-#ifndef QUIET
-  for (unsigned * p = ring->trail.propagate; p != ring->trail.end; p++)
-    very_verbose (ring, "out-of-order unit %u after backtracking", *p);
-#endif
   if (ring_propagate (ring, true, 0)) {
     set_inconsistent (ring,
                       "failed propagation after root-level backtracking");
