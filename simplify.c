@@ -695,16 +695,8 @@ void simplify_ruler (struct ruler *ruler) {
 }
 
 static void trigger_synchronization (struct ring *ring) {
-  struct ruler *ruler = ring->ruler;
-  if (ring->id) {
-#if 1
-    if (!ruler->simplify) {
-      printf ("c ring %u !ruler->simplify\n", ring->id);
-      fflush (stdout);
-    }
-#endif
-    assert (ruler->simplify);
-  } else {
+  if (!ring->id) {
+    struct ruler *ruler = ring->ruler;
     if (pthread_mutex_lock (&ruler->locks.simplify))
       fatal_error ("failed to acquire simplify lock during starting");
     assert (!ruler->simplify);

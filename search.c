@@ -43,6 +43,7 @@ bool backtrack_propagate_iterate (struct ring *ring) {
   assert (!ring->inconsistent);
   if (ring->level)
     backtrack (ring, 0);
+  ring->trail.propagate = ring->trail.begin;
   if (ring_propagate (ring, true, 0)) {
     set_inconsistent (ring,
                       "failed propagation after root-level backtracking");
