@@ -707,8 +707,6 @@ static void trigger_synchronization (struct ring *ring) {
 }
 
 static bool wait_to_actually_start_synchronization (struct ring *ring) {
-  if (ring->level)
-    (void) backtrack_propagate_iterate (ring);
   struct ruler *ruler = ring->ruler;
   bool res = rendezvous (&ruler->barriers.start, ring, false);
   if (!ring->id) {
@@ -854,6 +852,8 @@ bool simplifying (struct ring *ring) {
   if (!ring->options.simplify)
     return false;
   if (!ring->options.simplify_regularly)
+    return false;
+  if (ring->level)
     return false;
   if (!ring->id)
     return ring->limits.simplify <= SEARCH_CONFLICTS;
