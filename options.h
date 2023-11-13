@@ -58,7 +58,6 @@
 #define OPTIONS \
   OPTION (unsigned, backjump_limit, 100, 0, INF, "number of levels jumped over") \
   OPTION (bool, binary, 1, 0, 1, "use binary DRAT proof format") \
-  OPTION (bool, bump_imported_clauses, 0, 0, 1, "bump variables of imported clauses") \
   OPTION (bool, bump_reasons, 1, 0, 1, "bump reason side literals") \
   OPTION (unsigned, clause_size_limit, 100, 3, 10000, "during simplification") \
   OPTION (bool, chronological, 1, 0, 1, "enable chronological backtracking") \

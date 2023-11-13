@@ -65,13 +65,6 @@ static void really_import_binary_clause (struct ring *ring, unsigned lit,
   (void) new_local_binary_clause (ring, true, lit, other);
   trace_add_binary (&ring->trace, lit, other);
   INC_BINARY_CLAUSE_STATISTICS (imported);
-  if (ring->options.bump_imported_clauses) {
-    assert (EMPTY (ring->analyzed));
-    PUSH (ring->analyzed, IDX (lit));
-    PUSH (ring->analyzed, IDX (other));
-    bump_variables (ring);
-    CLEAR (ring->analyzed);
-  }
 }
 
 static void force_to_repropagate (struct ring *ring, unsigned lit) {
@@ -290,13 +283,6 @@ static void really_import_large_clause (struct ring *ring,
   watch_literals_in_large_clause (ring, clause, first, second);
   assert (clause->redundant);
   INC_LARGE_CLAUSE_STATISTICS (imported, clause->glue, clause->size);
-  if (ring->options.bump_imported_clauses) {
-    assert (EMPTY (ring->analyzed));
-    for (all_literals_in_clause (lit, clause))
-      PUSH (ring->analyzed, IDX (lit));
-    bump_variables (ring);
-    CLEAR (ring->analyzed);
-  }
 }
 
 static unsigned find_literal_to_watch (struct ring *ring,
