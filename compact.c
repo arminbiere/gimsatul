@@ -6,6 +6,8 @@
 
 #include <string.h>
 
+#include "cover.h"
+
 static unsigned map_literal (unsigned *map, unsigned original_lit) {
   unsigned original_idx = IDX (original_lit);
   unsigned mapped_idx = map[original_idx];
@@ -114,6 +116,13 @@ static void clean_ring (struct ring *ring, struct clauses *cleaned) {
         unsigned old_size = SIZE (delete);
         assert (old_size == clause->size);
         trace_add_literals (&ring->trace, new_size, add.begin, INVALID);
+#if 1
+	if (new_size <= 1) {
+	  printf ("c ring %u compact new_size %u old_size %u\n",
+	          ring->id, new_size, old_size);
+	  fflush (stdout);
+	}
+#endif
         assert (new_size > 1);
         if (new_size == 2) {
           unsigned lit = add.begin[0];
