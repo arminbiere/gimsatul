@@ -269,15 +269,18 @@ void init_pool (struct ring *ring, unsigned threads) {
 }
 
 static void release_pool (struct ring *ring) {
-  struct pool *pool = ring->pool;
-  if (!pool)
+  struct pool * begin_pool = ring->pool;
+  if (!begin_pool)
     return;
-  for (unsigned i = 0; i != ring->threads; i++, pool++) {
-    if (i == ring->id)
+  struct pool * skip_pool = begin_pool + ring->id;
+  struct pool * end_pool = begin_pool + ring->threads;
+  for (struct pool * p = begin_pool; p != end_pool; p++) {
+    if (p == skip_pool)
       continue;
-    for (unsigned i = 1; i != SIZE_POOL; i++) {
-      struct bucket *bucket = &pool->bucket[i];
-      struct clause *clause = (struct clause *) bucket->shared;
+    struct bucket * begin_bucket = p->bucket;
+    struct bucket * end_bucket = begin_bucket + SIZE_POOL;
+    for (struct bucket * b = begin_bucket; b != end_bucket; b++) {
+      struct clause *clause = (struct clause *) b->shared;
       if (!clause)
         continue;
       if (is_binary_pointer (clause))
@@ -285,7 +288,7 @@ static void release_pool (struct ring *ring) {
       unsigned shared = atomic_fetch_sub (&clause->shared, 1);
       assert (shared + 1);
       if (!shared) {
-        LOGCLAUSE (clause, "final deleting shared %u", shared);
+        LOGCLAUSE (clause, "final delete");
         free (clause);
       }
     }
