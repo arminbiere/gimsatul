@@ -417,7 +417,7 @@ static void compact_bool_array (bool **array_ptr, unsigned old_size,
 
 void compact_ruler (struct simplifier *simplifier, bool initially) {
   struct ruler *ruler = simplifier->ruler;
-  if (ruler->inconsistent)
+  if (ruler->inconsistent || ruler->terminate)
     return;
 
   if (!initially)
