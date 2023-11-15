@@ -774,7 +774,7 @@ static bool unclone_before_running_simplification (struct ring *ring) {
 
 static void clone_first_ring_after_simplification (struct ring *ring) {
   assert (!ring->id);
-  assert (ring->ruler->inconsistent || ring->references);
+  assert (ring->ruler->inconsistent || ring->references || ring->ruler->terminate);
   copy_ruler (ring);
 }
 
@@ -795,6 +795,8 @@ static void copy_other_ring_after_simplification (struct ring *ring) {
   if (!ring->id)
     return;
   if (ruler->inconsistent)
+    return;
+  if (ruler->terminate)
     return;
   assert (ring->references);
   copy_ring (ring);
@@ -840,7 +842,7 @@ int simplify_ring (struct ring *ring) {
   copy_other_ring_after_simplification (ring);
   finish_ring_simplification (ring);
 #ifndef NDEBUG
-  if (!ring->ruler->inconsistent) {
+  if (!ring->ruler->inconsistent && !ring->ruler->terminate) {
     check_clause_statistics (ring);
     check_redundant_and_tier2_offsets (ring);
   }
