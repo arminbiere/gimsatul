@@ -121,6 +121,8 @@ void copy_ruler (struct ring *ring) {
     set_inconsistent (ring, "copied empty clause");
     for (all_clauses (clause, ruler->clauses))
       free (clause);
+  } else if (ruler->terminate) {
+    return;
   } else {
     copy_ruler_binaries (ring);
     transfer_ruler_clauses_to_ring (ring);
