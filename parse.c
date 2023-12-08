@@ -63,14 +63,14 @@ static bool parse_int (struct file *dimacs, int *res_ptr, int prev,
   }
   int res;
   if (sign > 0) {
-    if (tmp > 0x1fffffffu)
+    if (tmp > 0x7fffffffu)
       return false;
     res = tmp;
   } else {
     assert (sign < 0);
-    if (tmp > 0x20000000u)
+    if (tmp > 0x80000000u)
       return false;
-    if (tmp == 0x20000000u)
+    if (tmp == 0x80000000u)
       res = INT_MIN;
     else
       res = -tmp;
