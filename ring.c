@@ -12,6 +12,8 @@
 
 #ifndef QUIET
 
+#include <unistd.h>
+
 void print_line_without_acquiring_lock (struct ring *ring, const char *fmt,
                                         ...) {
   va_list ap;
@@ -24,8 +26,9 @@ void print_line_without_acquiring_lock (struct ring *ring, const char *fmt,
   vsprintf (line + strlen (line), fmt, ap);
   va_end (ap);
   strcat (line, "\n");
-  assert (strlen (line) + 1 < sizeof line);
-  fputs (line, stdout);
+  size_t size = strlen (line);
+  assert (size + 1 < sizeof line);
+  write (1, line, size);
 }
 
 void message (struct ring *ring, const char *fmt, ...) {
