@@ -131,6 +131,29 @@ static void unmark_reasons (struct ring *ring, unsigned start,
   }
 }
 
+void recalculate_tier_limits (struct ring *ring) {
+  if (!ring->options.calculate_tiers) return;
+  unsigned stable = ring->stable ? 1 : 0;
+  uint64_t total = ring->statistics.bumped_limits[stable].bumped;
+  uint64_t sum_glue = 0;
+  unsigned tier_glue = 1;
+  for (unsigned j = 0; j < MAX_GLUE; j++) {
+    sum_glue += ring->statistics.bumped_limits[stable].glue[j];
+    if (tier_glue == 1 && percent (sum_glue, total) > 50) {
+      ring->tier_1_glue_limit = j + 1;
+      tier_glue = 2;
+    }
+    if (tier_glue == 2 && percent (sum_glue, total) > 90) {
+      ring->tier_2_glue_limit = j + 1;
+      tier_glue = 0;
+      break;
+    }
+  }
+  if (sum_glue == total) {
+    ring->tier_2_glue_limit = INF;
+  }
+}
+
 static void gather_reduce_candidates (struct ring *ring,
                                       struct unsigneds *candidates) {
   struct watchers *watchers = &ring->watchers;
@@ -148,25 +171,25 @@ static void gather_reduce_candidates (struct ring *ring,
     if (watcher->reason)
       continue;
     const unsigned char glue = watcher->glue;
-    if (glue <= TIER1_GLUE_LIMIT && used >= MAX_USED / 2)
+    if (glue <= ring->tier_1_glue_limit && used >= MAX_USED / 2)
       continue;
-    if (glue <= TIER2_GLUE_LIMIT && used >= MAX_USED - 1)
+    if (glue <= ring->tier_2_glue_limit && used >= MAX_USED - 1)
       continue;
-    if (glue > TIER2_GLUE_LIMIT && used >= MAX_USED)
+    if (glue > ring->tier_2_glue_limit && used >= MAX_USED)
       continue;
-    if (glue <= TIER1_GLUE_LIMIT && !used) {
+    if (glue <= ring->tier_1_glue_limit && !used) {
       ring->statistics.unused.clauses++;
       ring->statistics.unused.tier1++;
       mark_garbage_watcher (ring, watcher);
       continue;
     }
-    if (glue <= TIER2_GLUE_LIMIT && used <= MAX_USED / 4) {
+    if (glue <= ring->tier_2_glue_limit && used <= MAX_USED / 4) {
       ring->statistics.unused.clauses++;
       ring->statistics.unused.tier2++;
       mark_garbage_watcher (ring, watcher);
       continue;
     }
-    if (glue > TIER2_GLUE_LIMIT && used <= MAX_USED / 2) {
+    if (glue > ring->tier_2_glue_limit && used <= MAX_USED / 2) {
       ring->statistics.unused.clauses++;
       ring->statistics.unused.tier3++;
       mark_garbage_watcher (ring, watcher);
@@ -190,9 +213,9 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
     struct watcher *watcher = index_to_watcher (ring, idx);
     mark_garbage_watcher (ring, watcher);
     ring->statistics.reduced.clauses++;
-    if (watcher->glue <= TIER1_GLUE_LIMIT)
+    if (watcher->glue <= ring->tier_1_glue_limit)
       ring->statistics.reduced.tier1++;
-    else if (watcher->glue <= TIER2_GLUE_LIMIT)
+    else if (watcher->glue <= ring->tier_2_glue_limit)
       ring->statistics.reduced.tier2++;
     else
       ring->statistics.reduced.tier3++;
@@ -272,6 +295,7 @@ void reduce (struct ring *ring) {
   START (ring, reduce);
   check_clause_statistics (ring);
   check_redundant_and_tier2_offsets (ring);
+  recalculate_tier_limits (ring);
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
   statistics->reductions++;

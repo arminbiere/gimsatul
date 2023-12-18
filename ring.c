@@ -88,6 +88,9 @@ void init_ring (struct ring *ring) {
   ring->references =
       allocate_and_clear_array (sizeof (struct references), 2 * size);
 
+  ring->tier_1_glue_limit = TIER1_GLUE_LIMIT;
+  ring->tier_2_glue_limit = TIER2_GLUE_LIMIT;
+
   struct ring_trail *trail = &ring->trail;
   assert (!trail->begin);
   assert (!trail->pos);

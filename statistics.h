@@ -1,6 +1,8 @@
 #ifndef _statistics_h_INCLUDED
 #define _statistics_h_INCLUDED
 
+#include "options.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -14,6 +16,12 @@ struct ruler;
 #ifdef METRICS
 #define SIZE_VISITS 16
 #endif
+
+
+struct bumped_limit {
+  uint64_t bumped;
+  uint64_t glue[MAX_GLUE];
+};
 
 struct context {
   uint64_t ticks;
@@ -80,6 +88,7 @@ struct ring_statistics {
   } decisions;
 
   uint64_t bumped;
+  struct bumped_limit bumped_limits[2];
 
   struct {
     uint64_t clauses;
@@ -169,9 +178,9 @@ struct ring_statistics {
         assert ((GLUE) == 1); \
         S->NAME.binaries += (INC); \
       } \
-      if ((GLUE) <= TIER1_GLUE_LIMIT) \
+      if ((GLUE) <= ring->tier_1_glue_limit) \
         S->NAME.tier1 += (INC); \
-      else if ((GLUE) <= TIER2_GLUE_LIMIT) \
+      else if ((GLUE) <= ring->tier_2_glue_limit) \
         S->NAME.tier2 += (INC); \
       else \
         S->NAME.tier3 += (INC); \

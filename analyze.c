@@ -17,10 +17,15 @@
 static void bump_reason (struct ring *ring, struct watcher *watcher) {
   assert (watcher->redundant);
   watcher->used = MAX_USED;
-  ring->statistics.bumped++;
   unsigned new_glue = recompute_glue (ring, watcher);
   if (new_glue < watcher->glue)
     promote_watcher (ring, watcher, new_glue);
+  else new_glue = watcher->glue;
+  ring->statistics.bumped++;
+  ring->statistics.bumped_limits[ring->stable].bumped++;  
+  assert (watcher->glue <= MAX_GLUE);
+  assert (watcher->glue);
+  ring->statistics.bumped_limits[ring->stable].glue[new_glue - 1]++;
 }
 
 static bool analyze_reason_side_literal (struct ring *ring, unsigned lit) {

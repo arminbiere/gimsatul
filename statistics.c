@@ -150,10 +150,43 @@ void print_ring_statistics (struct ring *ring) {
            "  learned-glue-large:", s->learned.glue[0],
            percent (s->learned.glue[0], s->learned.clauses));
 #endif
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned",
-           "  bumped-clauses:", s->bumped,
-           average (s->bumped, s->learned.clauses));
 
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned",
+           "bumped-clauses:", s->bumped,
+           average (s->bumped, s->learned.clauses));
+  assert (s->bumped == s->bumped_limits[0].bumped + s->bumped_limits[1].bumped);
+  for (unsigned i = 0; i < 2; i++) {
+    bool stable = i;
+    uint64_t total = s->bumped_limits[stable].bumped;
+    if (stable)
+      PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per bumped",
+               "  bumped stable:", total,
+               percent (total, s->bumped));
+    else
+      PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per bumped",
+               "  bumped focused:", total,
+               percent (total, s->bumped));
+    uint64_t sum_glue = 0;
+    unsigned tier_glue = 1;
+    for (unsigned j = 0; j < MAX_GLUE; j++) {
+      sum_glue += s->bumped_limits[stable].glue[j];
+      if (tier_glue == 1 && percent (sum_glue, total) > 50) {
+        PRINTLN ("%-22s %17" PRIu64 " %13.2f %%",
+                 "    TIER 1 glue:", (uint64_t) (j+1),
+                 percent (sum_glue, total));
+        tier_glue = 2;
+      }
+      if (tier_glue == 2 && percent (sum_glue, total) > 90) {
+        PRINTLN ("%-22s %17" PRIu64 " %13.2f %%",
+                 "    TIER 2 glue:", (uint64_t) (j+1),
+                 percent (sum_glue, total));
+        tier_glue = 0;
+      }
+    }
+    assert (sum_glue == total);
+  }
+
+  
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
            "promoted-clauses:", s->promoted.clauses,
            percent (s->promoted.clauses, s->bumped));
