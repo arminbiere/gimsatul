@@ -27,7 +27,7 @@ static void bump_reason (struct ring *ring, struct watcher *watcher) {
   ring->statistics.bumped_limits[ring->stable].bumped++;
   assert (watcher->glue <= MAX_GLUE);
   assert (watcher->glue);
-  ring->statistics.bumped_limits[ring->stable].glue[new_glue - 1]++;
+  ring->statistics.bumped_limits[ring->stable].glue[new_glue]++;
 }
 
 static bool analyze_reason_side_literal (struct ring *ring, unsigned lit) {
