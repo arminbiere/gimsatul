@@ -202,7 +202,7 @@ unsigned *flush_watchers (struct ring *ring, unsigned start) {
       if (!redundant && p->redundant)
         redundant = dst;
 
-      if (!tier2 && p->redundant && ring->tier_1_glue_limit < p->glue)
+      if (!tier2 && p->redundant && ring->tier1_glue_limit < p->glue)
         tier2 = dst;
 
       assert (src < size);

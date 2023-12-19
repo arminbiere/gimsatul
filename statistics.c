@@ -246,19 +246,6 @@ void print_ring_statistics (struct ring *ring) {
            "  reduced-tier3:", s->reduced.tier3,
            percent (s->reduced.tier3, s->reduced.clauses));
 
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
-           "unused-clauses:", s->unused.clauses,
-           percent (s->unused.clauses, s->learned.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% unused",
-           "  unused-tier1:", s->unused.tier1,
-           percent (s->unused.tier1, s->unused.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% unused",
-           "  unused-tier2:", s->unused.tier2,
-           percent (s->unused.tier2, s->unused.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% unused",
-           "  unused-tier3:", s->unused.tier3,
-           percent (s->unused.tier3, s->unused.clauses));
-
   if (ring->pool) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
              "imported-clauses:", s->imported.clauses,

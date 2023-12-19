@@ -180,7 +180,7 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
     return;
   struct averages *a = ring->averages + ring->stable;
   unsigned glue = clause->glue;
-  if (glue > ring->tier_1_glue_limit) {
+  if (glue > ring->tier1_glue_limit) {
     double factor = 0.5;
     double average = a->glue.slow.value;
     double limit = factor * average;

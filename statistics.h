@@ -99,13 +99,6 @@ struct ring_statistics {
     uint64_t kept3;
   } promoted;
 
-  struct {
-    uint64_t clauses;
-    uint64_t tier1;
-    uint64_t tier2;
-    uint64_t tier3;
-  } unused;
-
   uint64_t random_sequences;
 
 #define SIZE_GLUE_STATISTICS 16
@@ -178,9 +171,9 @@ struct ring_statistics {
         assert ((GLUE) == 1); \
         S->NAME.binaries += (INC); \
       } \
-      if ((GLUE) <= ring->tier_1_glue_limit) \
+      if ((GLUE) <= ring->tier1_glue_limit) \
         S->NAME.tier1 += (INC); \
-      else if ((GLUE) <= ring->tier_2_glue_limit) \
+      else if ((GLUE) <= ring->tier2_glue_limit) \
         S->NAME.tier2 += (INC); \
       else \
         S->NAME.tier3 += (INC); \
