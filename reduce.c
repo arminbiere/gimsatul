@@ -146,7 +146,7 @@ void recalculate_tier_limits (struct ring *ring) {
       ring->tier1_glue_limit = j;
       tier_glue = 2;
     }
-    if (tier_glue == 2 && sum - glkue >= limit2) {
+    if (tier_glue == 2 && sum_glue >= limit2) {
       ring->tier2_glue_limit = j;
       tier_glue = 0;
       break;
