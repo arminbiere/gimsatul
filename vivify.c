@@ -8,6 +8,7 @@
 #include "message.h"
 #include "promote.h"
 #include "propagate.h"
+#include "reduce.h"
 #include "report.h"
 #include "ring.h"
 #include "search.h"
@@ -733,6 +734,8 @@ void vivify_clauses (struct ring *ring) {
     return;
   START (ring, vivify);
   assert (SEARCH_TICKS >= ring->last.probing);
+
+  recalculate_tier_limits (ring);
 
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   delta_search_ticks = MAX (MIN_ABSOLUTE_FFORT, delta_search_ticks);

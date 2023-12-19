@@ -9,6 +9,7 @@
 #include "macros.h"
 #include "minimize.h"
 #include "promote.h"
+#include "reduce.h"
 #include "ring.h"
 #include "sort.h"
 #include "trace.h"
@@ -135,6 +136,15 @@ static void update_decision_rate (struct ring *ring) {
   struct averages *a = ring->averages + ring->stable;
   update_average (ring, &a->decisions, "decision rate", SLOW_ALPHA, delta);
   ring->last.decisions = current;
+}
+
+static void update_tier_limits (struct ring * ring) {
+  if (!ring->intervals.tiers)
+    ring->intervals.tiers = 4;
+  else if (ring->intervals.tiers < (1u << 16))
+    ring->intervals.tiers *= 2;
+  recalculate_tier_limits (ring);
+  ring->limits.tiers = SEARCH_CONFLICTS + ring->intervals.tiers;
 }
 
 #define RESOLVE_LITERAL(OTHER) \
@@ -340,6 +350,7 @@ bool analyze (struct ring *ring, struct watch *reason) {
   }
   CLEAR (*ring_clause);
   clear_analyzed (ring);
-
+  if (SEARCH_CONFLICTS > ring->limits.tiers)
+    update_tier_limits (ring);
   return true;
 }

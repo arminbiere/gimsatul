@@ -1,8 +1,19 @@
 # Version 1.1.2
+---------------
+
+- Also eventually reducing tier1 clauses.
+
+- Dynamic tier glue limit computation.
+
+- Glue promotion.
+
+# Version 1.1.2
+---------------
 
 - Fixed GITID issue when building from tar balls.
 
 # Version 1.1.0
+---------------
 
 - Chronological backtracking (also helps importing units).
 
@@ -16,6 +27,7 @@
 - Minor compilation issue.
 
 # Version 1.0.3
+---------------
 
 As version 1.0.2 in single threaded mode was still lagging behind 'Kissat
 SC2021 Light' even after disabling all features that are not in Gimsatul
@@ -63,6 +75,7 @@ features not in Gimsatul yet are kept disabled).
   allows to reuse some decisions and propagations.
 
 # Version 1.0.2
+---------------
 
 This is the first version with most optimizations originally planned but
 did not make it into the 'sc2022' version.
@@ -128,6 +141,7 @@ did not make it into the 'sc2022' version.
   the shrunken clause becomes binary (thus virtual).
 
 # Version 1.0.1
+---------------
 
 This is in essence the same as the original 'sc2022' version after fixing
 the issues found by MacOS users which were not able to compile it.
@@ -139,6 +153,7 @@ the issues found by MacOS users which were not able to compile it.
   (removes `popen` and thus compressed reading).
 
 # Version sc2022
+----------------
 
 The version submitted to the SAT Competition 2022 with experiments
 described in our POS'22 paper and the SAT Competition system description.

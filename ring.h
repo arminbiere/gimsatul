@@ -33,6 +33,7 @@ struct ring_limits {
   uint64_t rephase;
   uint64_t restart;
   uint64_t simplify;
+  uint64_t tiers;
   long long conflicts;
   struct {
     uint64_t conflicts;
@@ -42,6 +43,7 @@ struct ring_limits {
 
 struct intervals {
   uint64_t mode;
+  uint64_t tiers;
 };
 
 struct averages {
