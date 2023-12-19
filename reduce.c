@@ -189,7 +189,9 @@ static void
 mark_reduce_candidates_as_garbage (struct ring *ring,
                                    struct unsigneds *candidates) {
   size_t size = SIZE (*candidates);
-  size_t target = REDUCE_FRACTION * size;
+  const double fraction =
+      ring->stable ? REDUCE_FRACTION_STABLE : REDUCE_FRACTION_FOCUSED;
+  size_t target = fraction * size;
   size_t reduced = 0;
   for (all_elements_on_stack (unsigned, idx, *candidates)) {
     struct watcher *watcher = index_to_watcher (ring, idx);
