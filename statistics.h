@@ -17,7 +17,6 @@ struct ruler;
 #define SIZE_VISITS 16
 #endif
 
-
 struct bumped_limit {
   uint64_t bumped;
   uint64_t glue[MAX_GLUE];

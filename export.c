@@ -67,7 +67,7 @@ static struct rings *export_rings (struct ring *ring) {
     do {
       unsigned id = random_modulo (&ring->random, size);
       if (id == start)
-	continue;
+        continue;
       struct ring *other = PEEK (*rings, id);
       for (all_pointers_on_stack (struct ring, tmp, *exports))
         if (tmp == other)

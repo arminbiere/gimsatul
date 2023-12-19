@@ -774,7 +774,8 @@ static bool unclone_before_running_simplification (struct ring *ring) {
 
 static void clone_first_ring_after_simplification (struct ring *ring) {
   assert (!ring->id);
-  assert (ring->ruler->inconsistent || ring->references || ring->ruler->terminate);
+  assert (ring->ruler->inconsistent || ring->references ||
+          ring->ruler->terminate);
   copy_ruler (ring);
 }
 

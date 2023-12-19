@@ -21,9 +21,10 @@ static void bump_reason (struct ring *ring, struct watcher *watcher) {
   unsigned new_glue = recompute_glue (ring, watcher);
   if (new_glue < watcher->glue)
     promote_watcher (ring, watcher, new_glue);
-  else new_glue = watcher->glue;
+  else
+    new_glue = watcher->glue;
   ring->statistics.bumped++;
-  ring->statistics.bumped_limits[ring->stable].bumped++;  
+  ring->statistics.bumped_limits[ring->stable].bumped++;
   assert (watcher->glue <= MAX_GLUE);
   assert (watcher->glue);
   ring->statistics.bumped_limits[ring->stable].glue[new_glue - 1]++;
@@ -138,7 +139,7 @@ static void update_decision_rate (struct ring *ring) {
   ring->last.decisions = current;
 }
 
-static void update_tier_limits (struct ring * ring) {
+static void update_tier_limits (struct ring *ring) {
   if (!ring->intervals.tiers)
     ring->intervals.tiers = 4;
   else if (ring->intervals.tiers < (1u << 16))

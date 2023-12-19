@@ -117,11 +117,11 @@ static void clean_ring (struct ring *ring, struct clauses *cleaned) {
         assert (old_size == clause->size);
         trace_add_literals (&ring->trace, new_size, add.begin, INVALID);
 #if 1
-	if (new_size <= 1) {
-	  printf ("c ring %u compact new_size %u old_size %u\n",
-	          ring->id, new_size, old_size);
-	  fflush (stdout);
-	}
+        if (new_size <= 1) {
+          printf ("c ring %u compact new_size %u old_size %u\n", ring->id,
+                  new_size, old_size);
+          fflush (stdout);
+        }
 #endif
         assert (new_size > 1);
         if (new_size == 2) {

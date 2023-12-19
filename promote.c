@@ -51,7 +51,7 @@ void promote_watcher (struct ring *ring, struct watcher *watcher,
     do {
       tmp_glue = atomic_exchange (&clause->glue, new_glue);
       if (tmp_glue < new_glue)
-	new_glue = tmp_glue;
+        new_glue = tmp_glue;
     } while (tmp_glue < new_glue);
   }
   ring->statistics.promoted.clauses++;

@@ -37,5 +37,5 @@ unsigned gcd (unsigned a, unsigned b) {
 
 unsigned log2ceil (unsigned n) {
   assert (n);
-  return 32 - __builtin_clz (n-1);
+  return 32 - __builtin_clz (n - 1);
 }

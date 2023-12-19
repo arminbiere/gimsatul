@@ -14,8 +14,8 @@
 
 #include <unistd.h>
 
-ssize_t print_line_without_acquiring_lock (struct ring *ring, const char *fmt,
-                                        ...) {
+ssize_t print_line_without_acquiring_lock (struct ring *ring,
+                                           const char *fmt, ...) {
   va_list ap;
   char line[256];
   if (ring)
@@ -275,17 +275,17 @@ void init_pool (struct ring *ring, unsigned threads) {
 }
 
 static void release_pool (struct ring *ring) {
-  struct pool * begin_pool = ring->pool;
+  struct pool *begin_pool = ring->pool;
   if (!begin_pool)
     return;
-  struct pool * skip_pool = begin_pool + ring->id;
-  struct pool * end_pool = begin_pool + ring->threads;
-  for (struct pool * p = begin_pool; p != end_pool; p++) {
+  struct pool *skip_pool = begin_pool + ring->id;
+  struct pool *end_pool = begin_pool + ring->threads;
+  for (struct pool *p = begin_pool; p != end_pool; p++) {
     if (p == skip_pool)
       continue;
-    struct bucket * begin_bucket = p->bucket;
-    struct bucket * end_bucket = begin_bucket + SIZE_POOL;
-    for (struct bucket * b = begin_bucket; b != end_bucket; b++) {
+    struct bucket *begin_bucket = p->bucket;
+    struct bucket *end_bucket = begin_bucket + SIZE_POOL;
+    for (struct bucket *b = begin_bucket; b != end_bucket; b++) {
       struct clause *clause = (struct clause *) b->shared;
       if (!clause)
         continue;
@@ -410,7 +410,7 @@ unsigned *sorter_block (struct ring *ring, size_t size) {
 
 struct ring *random_other_ring (struct ring *ring) {
   struct ruler *ruler = ring->ruler;
-  struct rings * rings = &ruler->rings;
+  struct rings *rings = &ruler->rings;
   size_t size = SIZE (*rings);
   assert (size <= UINT_MAX);
   assert (size > 1);
