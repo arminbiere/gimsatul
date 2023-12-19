@@ -172,15 +172,18 @@ void print_ring_statistics (struct ring *ring) {
       sum_glue += s->bumped_limits[stable].glue[j];
       if (tier_glue == 1 && percent (sum_glue, total) > 50) {
         PRINTLN ("%-22s %17" PRIu64 " %13.2f %%",
-                 "    TIER 1 glue:", (uint64_t) (j+1),
+                 "    bumped-tier1-glue:", (uint64_t) (j+1),
                  percent (sum_glue, total));
         tier_glue = 2;
       }
       if (tier_glue == 2 && percent (sum_glue, total) > 90) {
         PRINTLN ("%-22s %17" PRIu64 " %13.2f %%",
-                 "    TIER 2 glue:", (uint64_t) (j+1),
+                 "    bumped-tier2-glue:", (uint64_t) (j+1),
                  percent (sum_glue, total));
         tier_glue = 0;
+#ifdef NDEBUG
+	break;
+#endif
       }
     }
     assert (sum_glue == total);
