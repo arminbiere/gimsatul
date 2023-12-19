@@ -2,6 +2,7 @@
 #define _messages_h_INCLUDED
 
 #include <stdint.h>
+#include <unistd.h>
 
 void die (const char *, ...) __attribute__ ((format (printf, 1, 2)));
 void fatal_error (const char *, ...)
@@ -47,7 +48,7 @@ void release_message_lock (void);
 
 struct ring;
 
-void print_line_without_acquiring_lock (struct ring *, const char *, ...)
+ssize_t print_line_without_acquiring_lock (struct ring *, const char *, ...)
     __attribute__ ((format (printf, 2, 3)));
 
 void message (struct ring *ring, const char *, ...)

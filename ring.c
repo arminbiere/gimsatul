@@ -14,7 +14,7 @@
 
 #include <unistd.h>
 
-void print_line_without_acquiring_lock (struct ring *ring, const char *fmt,
+ssize_t print_line_without_acquiring_lock (struct ring *ring, const char *fmt,
                                         ...) {
   va_list ap;
   char line[256];
@@ -28,7 +28,7 @@ void print_line_without_acquiring_lock (struct ring *ring, const char *fmt,
   strcat (line, "\n");
   size_t size = strlen (line);
   assert (size + 1 < sizeof line);
-  write (1, line, size);
+  return write (1, line, size);
 }
 
 void message (struct ring *ring, const char *fmt, ...) {
