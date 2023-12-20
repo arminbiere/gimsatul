@@ -129,6 +129,8 @@ struct ring_statistics {
       uint64_t succeeded;
     } binary, large;
   } subsumed;
+
+  uint64_t eagerly_subsumed;
 };
 
 #ifdef METRICS

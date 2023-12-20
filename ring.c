@@ -115,6 +115,14 @@ static void init_watchers (struct ring *ring) {
   ring->watchers.end++;
 }
 
+void reset_last_learned (struct ring * ring) {
+  memset (ring->last_learned, 0xff, sizeof ring->last_learned);
+#ifndef NDEBUG
+  for (really_all_last_learned(p))
+    assert (*p == INVALID);
+#endif
+}
+
 void release_ring (struct ring *ring, bool keep_values) {
   very_verbose (ring, "releasing 'ring[%u]' of size %u", ring->id,
                 ring->size);
@@ -211,6 +219,7 @@ struct ring *new_ring (struct ruler *ruler) {
   verbose (ring, "new ring[%u] of size %u", ring->id, size);
 
   init_watchers (ring);
+  reset_last_learned (ring);
   init_ring (ring);
 
   struct heap *heap = &ring->heap;

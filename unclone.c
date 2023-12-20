@@ -115,6 +115,7 @@ static void save_large_watched_clauses (struct ring *ring) {
 void unclone_ring (struct ring *ring) {
   save_ring_binaries (ring);
   save_large_watched_clauses (ring);
+  reset_last_learned (ring);
   assert (SIZE (ring->watchers) == 1);
   release_ring (ring, true);
   assert (SIZE (ring->watchers) == 1);

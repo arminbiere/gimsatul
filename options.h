@@ -64,6 +64,7 @@
   OPTION (unsigned, clause_size_limit, 100, 3, 10000, "during simplification") \
   OPTION (bool, chronological, 1, 0, 1, "enable chronological backtracking") \
   OPTION (bool, deduplicate, 1, 0, 1, "remove duplicated binary clauses") \
+  OPTION (unsigned, eagerly_subsume, 4, 0, 4, "eagerly subsumed last learned clauses") \
   OPTION (bool, eliminate, 1, 0, 1, "bounded variable elimination") \
   OPTION (unsigned, export, 3, 1, 3, "export to 1=one, 2=log, 3=all threads") \
   OPTION (unsigned, eliminate_bound, 16, 0, 1024, "additionally added clause margin") \

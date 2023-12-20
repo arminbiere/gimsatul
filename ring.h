@@ -163,6 +163,7 @@ struct ring {
 
   unsigned redundant;
   struct watchers watchers;
+  unsigned last_learned[4];
   struct clauses saved;
 
   struct trace trace;
@@ -222,6 +223,17 @@ struct ring {
   (WATCHER != END_##WATCHER); \
   ++WATCHER
 
+#define capacity_last_learned \
+  (sizeof ring->last_learned / sizeof *ring->last_learned)
+
+#define real_end_last_learned (ring->last_learned + capacity_last_learned)
+
+#define really_all_last_learned(IDX_PTR) \
+  unsigned *IDX_PTR = ring->last_learned, \
+           *IDX_PTR##_END = real_end_last_learned; \
+  IDX_PTR != IDX_PTR##_END; \
+  IDX_PTR++
+
 /*------------------------------------------------------------------------*/
 
 void init_ring (struct ring *);
@@ -231,6 +243,8 @@ struct ring *new_ring (struct ruler *);
 void delete_ring (struct ring *);
 
 void init_pool (struct ring *, unsigned threads);
+
+void reset_last_learned (struct ring*);
 
 void mark_satisfied_watchers_as_garbage (struct ring *);
 

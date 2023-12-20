@@ -308,6 +308,7 @@ void reduce (struct ring *ring) {
   unmark_reasons (ring, start, map);
   flush_references (ring, fixed, start, map);
   free (map);
+  reset_last_learned (ring);
   check_clause_statistics (ring);
   check_redundant_and_tier2_offsets (ring);
   limits->reduce = SEARCH_CONFLICTS;
