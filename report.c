@@ -43,7 +43,7 @@ void verbose_report (struct ring *ring, char type, int level) {
            "variables\nc\n",
            stdout);
 
-  printf ("c %u %c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
+  printf ("c%u %c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
           " %9zu %3.0f%% %3u %6.1f %6.1f %9zu %9u %3.0f%%\n",
           ring->id, type, t, m, a->level.value, s->reductions, s->restarts,
           conflicts, s->redundant, a->trail.value,

@@ -157,7 +157,6 @@ static void gather_reduce_candidates (struct ring *ring,
       continue;
     if (glue <= tier2 && used >= MAX_USED - 1)
       continue;
-    COVER (glue <= tier1 && !used);
     unsigned idx = watcher_to_index (ring, watcher);
     PUSH (*candidates, idx);
   }

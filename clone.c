@@ -84,8 +84,8 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
   ring->redundant = SIZE (ring->watchers);
   struct saved_watcher *begin = saved->begin;
   struct saved_watcher *end = saved->end;
-  for (struct saved_watcher *s = begin; s != end; s++) {
-    struct clause *clause = s->clause;
+  for (struct saved_watcher *sw = begin; sw != end; sw++) {
+    struct clause *clause = sw->clause;
     if (is_binary_pointer (clause)) {
       struct watch *lit_watch = (struct watch *) clause;
       unsigned lit = lit_pointer (clause);
@@ -98,7 +98,10 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
     } else {
       assert (!clause->mapped);
       assert (!clause->garbage);
-      (void) watch_first_two_literals_in_large_clause (ring, clause);
+      struct watch * watch = watch_first_two_literals_in_large_clause (ring, clause);
+      struct watcher * watcher = get_watcher (ring, watch);
+      watcher->used = sw->used;
+      watcher->vivify = sw->vivify;
 #ifndef QUIET
       large++;
 #endif
