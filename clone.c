@@ -66,6 +66,7 @@ static void transfer_ruler_clauses_to_ring (struct ring *ring) {
 #endif
   for (all_clauses (clause, ruler->clauses)) {
     LOGCLAUSE (clause, "transferring");
+    assert (!clause->redundant);
     assert (!clause->garbage);
     (void) watch_first_two_literals_in_large_clause (ring, clause);
 #ifndef QUIET
@@ -96,6 +97,7 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
       push_watch (ring, other, other_watch);
       binaries++;
     } else {
+      assert (clause->redundant);
       assert (!clause->mapped);
       assert (!clause->garbage);
       struct watch *watch =

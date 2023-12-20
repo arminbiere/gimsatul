@@ -133,10 +133,7 @@ static void clean_ring (struct ring *ring, struct clauses *cleaned) {
           LOGBINARY (true, lit, other, "cleaned");
           struct clause *binary = tag_binary (true, lit, other);
           dereference_clause (ring, clause);
-          sw.used = 0;
-          sw.vivify = 0;
-          sw.clause = binary;
-          *q++ = sw;
+          *q++ = saved_watcher_from_binary (binary);
         } else {
           trace_delete_literals (&ring->trace, old_size, delete.begin);
           assert (new_size > 2);
