@@ -176,7 +176,6 @@ unsigned *flush_watchers (struct ring *ring, unsigned start) {
   unsigned dst = start;
 
   unsigned redundant = 0;
-  unsigned tier2 = 0;
 #ifndef QUIET
   unsigned flushed = 0;
   unsigned deleted = 0;
@@ -201,9 +200,6 @@ unsigned *flush_watchers (struct ring *ring, unsigned start) {
 
       if (!redundant && p->redundant)
         redundant = dst;
-
-      if (!tier2 && p->redundant && ring->tier1_glue_limit < p->glue)
-        tier2 = dst;
 
       assert (src < size);
       assert (dst < MAX_WATCHER_INDEX);
