@@ -4,6 +4,7 @@
 #include "message.h"
 #include "report.h"
 #include "ring.h"
+#include "tiers.h"
 #include "trace.h"
 #include "utilities.h"
 
@@ -131,42 +132,14 @@ static void unmark_reasons (struct ring *ring, unsigned start,
   }
 }
 
-void recalculate_tier_limits (struct ring *ring) {
-  if (!ring->options.calculate_tiers)
-    return;
-  unsigned stable = ring->stable;
-  uint64_t total = ring->statistics.bumped_limits[stable].bumped;
-  uint64_t limit1 = total * 0.5;
-  uint64_t limit2 = total * 0.9;
-  uint64_t sum_glue = 0;
-  unsigned tier_glue = 1;
-  for (unsigned j = 0; j < MAX_GLUE; j++) {
-    sum_glue += ring->statistics.bumped_limits[stable].glue[j];
-    if (tier_glue == 1 && sum_glue >= limit1) {
-      ring->tier1_glue_limit = j;
-      tier_glue = 2;
-    }
-    if (tier_glue == 2 && sum_glue >= limit2) {
-      ring->tier2_glue_limit = j;
-      tier_glue = 0;
-      break;
-    }
-  }
-  if (sum_glue == total) {
-    ring->tier2_glue_limit = UINT_MAX;
-  }
-  very_verbose (ring, "recalculated %s tier1 limit %u and tier2 limit %u",
-                stable ? "stable" : "focused", ring->tier1_glue_limit,
-                ring->tier2_glue_limit);
-}
-
 static void gather_reduce_candidates (struct ring *ring,
                                       struct unsigneds *candidates) {
   struct watchers *watchers = &ring->watchers;
   struct watcher *begin = watchers->begin;
   struct watcher *end = watchers->end;
   struct watcher *redundant = begin + ring->redundant;
-  unsigned tier1 = ring->tier1_glue_limit, tier2 = ring->tier2_glue_limit;
+  unsigned tier1 = ring->tier1_glue_limit[ring->stable];
+  unsigned tier2 = ring->tier2_glue_limit[ring->stable];
   for (struct watcher *watcher = redundant; watcher != end; watcher++) {
     if (!watcher->redundant)
       continue;
@@ -198,13 +171,15 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
       ring->stable ? REDUCE_FRACTION_STABLE : REDUCE_FRACTION_FOCUSED;
   size_t target = fraction * size;
   size_t reduced = 0;
+  unsigned tier1 = ring->tier1_glue_limit[ring->stable];
+  unsigned tier2 = ring->tier2_glue_limit[ring->stable];
   for (all_elements_on_stack (unsigned, idx, *candidates)) {
     struct watcher *watcher = index_to_watcher (ring, idx);
     mark_garbage_watcher (ring, watcher);
     ring->statistics.reduced.clauses++;
-    if (watcher->glue <= ring->tier1_glue_limit)
+    if (watcher->glue <= tier1)
       ring->statistics.reduced.tier1++;
-    else if (watcher->glue <= ring->tier2_glue_limit)
+    else if (watcher->glue <= tier2)
       ring->statistics.reduced.tier2++;
     else
       ring->statistics.reduced.tier3++;

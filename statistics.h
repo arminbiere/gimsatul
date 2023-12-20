@@ -17,7 +17,7 @@ struct ruler;
 #define SIZE_VISITS 16
 #endif
 
-struct bumped_limit {
+struct usage {
   uint64_t bumped;
   uint64_t glue[MAX_GLUE];
 };
@@ -87,7 +87,7 @@ struct ring_statistics {
   } decisions;
 
   uint64_t bumped;
-  struct bumped_limit bumped_limits[2];
+  struct usage usage[2];
 
   struct {
     uint64_t clauses;
@@ -172,9 +172,9 @@ struct ring_statistics {
         assert ((GLUE) == 1); \
         S->NAME.binaries += (INC); \
       } \
-      if ((GLUE) <= ring->tier1_glue_limit) \
+      if ((GLUE) <= ring->tier1_glue_limit[ring->stable]) \
         S->NAME.tier1 += (INC); \
-      else if ((GLUE) <= ring->tier2_glue_limit) \
+      else if ((GLUE) <= ring->tier2_glue_limit[ring->stable]) \
         S->NAME.tier2 += (INC); \
       else \
         S->NAME.tier3 += (INC); \

@@ -23,11 +23,12 @@ static void bump_reason (struct ring *ring, struct watcher *watcher) {
     promote_watcher (ring, watcher, new_glue);
   else
     new_glue = watcher->glue;
-  ring->statistics.bumped++;
-  ring->statistics.bumped_limits[ring->stable].bumped++;
   assert (watcher->glue);
   assert (watcher->glue <= MAX_GLUE);
-  ring->statistics.bumped_limits[ring->stable].glue[new_glue]++;
+  unsigned stable = ring->stable;
+  ring->statistics.usage[stable].glue[new_glue]++;
+  ring->statistics.usage[stable].bumped++;
+  ring->statistics.bumped++;
 }
 
 static bool analyze_reason_side_literal (struct ring *ring, unsigned lit) {
