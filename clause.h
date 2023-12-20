@@ -24,7 +24,7 @@ struct clause {
   bool dirty : 1;
   bool garbage : 1;
   bool mapped : 1;
-  unsigned padding : 1;
+  bool padding : 1;
   bool redundant : 1;
   bool subsume : 1;
   bool vivified : 1;

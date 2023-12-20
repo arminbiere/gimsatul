@@ -164,7 +164,7 @@ struct ring {
   unsigned redundant;
   struct watchers watchers;
   unsigned last_learned[4];
-  struct clauses saved;
+  struct saved_watchers saved;
 
   struct trace trace;
 

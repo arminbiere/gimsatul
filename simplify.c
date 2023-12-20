@@ -823,7 +823,7 @@ static void finish_ring_simplification (struct ring *ring) {
 
 #ifndef NDEBUG
 void check_clause_statistics (struct ring *);
-void check_redundant_and_tier2_offsets (struct ring *);
+void check_redundant_offset (struct ring *);
 #endif
 
 int simplify_ring (struct ring *ring) {
@@ -845,7 +845,7 @@ int simplify_ring (struct ring *ring) {
 #ifndef NDEBUG
   if (!ring->ruler->inconsistent && !ring->ruler->terminate) {
     check_clause_statistics (ring);
-    check_redundant_and_tier2_offsets (ring);
+    check_redundant_offset (ring);
   }
 #endif
   report (ring, 's');

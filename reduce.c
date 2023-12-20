@@ -8,6 +8,8 @@
 #include "trace.h"
 #include "utilities.h"
 
+#include "cover.h" // TODO remove
+
 #include <inttypes.h>
 #include <math.h>
 
@@ -61,7 +63,7 @@ void check_clause_statistics (struct ring *ring) {
 #endif
 }
 
-void check_redundant_and_tier2_offsets (struct ring *ring) {
+void check_redundant_offset (struct ring *ring) {
 #ifndef NDBEUG
   struct watchers *watchers = &ring->watchers;
   struct watcher *begin = watchers->begin;
@@ -155,6 +157,7 @@ static void gather_reduce_candidates (struct ring *ring,
       continue;
     if (glue <= tier2 && used >= MAX_USED - 1)
       continue;
+    COVER (glue <= tier1 && !used);
     unsigned idx = watcher_to_index (ring, watcher);
     PUSH (*candidates, idx);
   }
@@ -258,7 +261,7 @@ static void flush_references (struct ring *ring, bool fixed, unsigned start,
 void reduce (struct ring *ring) {
   START (ring, reduce);
   check_clause_statistics (ring);
-  check_redundant_and_tier2_offsets (ring);
+  check_redundant_offset (ring);
   recalculate_tier_limits (ring);
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
@@ -285,13 +288,15 @@ void reduce (struct ring *ring) {
   free (map);
   reset_last_learned (ring);
   check_clause_statistics (ring);
-  check_redundant_and_tier2_offsets (ring);
+  check_redundant_offset (ring);
   limits->reduce = SEARCH_CONFLICTS;
   unsigned interval = ring->options.reduce_interval;
   assert (interval);
-  limits->reduce += interval * sqrt (statistics->reductions);
-  very_verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
-                limits->reduce);
+  uint64_t delta = interval * sqrt (statistics->reductions);
+  limits->reduce += delta;
+  very_verbose (
+      ring, "next reduce limit at %" PRIu64 " after %" PRIu64 " conflicts",
+      limits->reduce, delta);
   report (ring, '-');
   STOP (ring, reduce);
 }

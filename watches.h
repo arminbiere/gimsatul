@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#include "tagging.h"
+
 struct clause;
 struct ring;
 struct unsigneds;
@@ -26,6 +28,18 @@ struct watcher {
 
 struct watchers {
   struct watcher *begin, *end, *allocated;
+};
+
+/*------------------------------------------------------------------------*/
+
+struct saved_watcher {
+  unsigned char used;
+  bool vivify;
+  struct clause *clause;
+};
+
+struct saved_watchers {
+  struct saved_watcher *begin, *end, *allocated;
 };
 
 /*------------------------------------------------------------------------*/
@@ -78,6 +92,27 @@ void reconnect_watches (struct ring *, struct watches *saved);
 void release_references (struct ring *);
 void disconnect_references (struct ring *, struct watches *);
 void sort_redundant_watcher_indices (struct ring *, size_t, unsigned *);
+
+/*------------------------------------------------------------------------*/
+
+static inline struct saved_watcher
+saved_watcher_from_watcher (struct watcher *watcher) {
+  struct saved_watcher res;
+  res.used = watcher->used;
+  res.vivify = watcher->vivify;
+  res.clause = watcher->clause;
+  return res;
+}
+
+static inline struct saved_watcher
+saved_watcher_from_binary (void *binary) {
+  assert (is_binary_pointer (binary));
+  struct saved_watcher res;
+  res.used = 0;
+  res.vivify = false;
+  res.clause = (struct clause *) binary;
+  return res;
+}
 
 /*------------------------------------------------------------------------*/
 

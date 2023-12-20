@@ -76,13 +76,16 @@ static void transfer_ruler_clauses_to_ring (struct ring *ring) {
 }
 
 static void restore_saved_redundant_clauses (struct ring *ring) {
-  struct clauses *saved = &ring->saved;
+  struct saved_watchers *saved = &ring->saved;
   size_t binaries = 0;
 #ifndef QUIET
   size_t large = 0;
 #endif
   ring->redundant = SIZE (ring->watchers);
-  for (all_clauses (clause, *saved)) {
+  struct saved_watcher *begin = saved->begin;
+  struct saved_watcher *end = saved->end;
+  for (struct saved_watcher *s = begin; s != end; s++) {
+    struct clause *clause = s->clause;
     if (is_binary_pointer (clause)) {
       struct watch *lit_watch = (struct watch *) clause;
       unsigned lit = lit_pointer (clause);

@@ -11,7 +11,7 @@ static void save_ring_binaries (struct ring *ring) {
         2 * ring->size, sizeof *ruler->occurrences);
   }
 
-  struct clauses *saved = &ring->saved;
+  struct saved_watchers *saved = &ring->saved;
   assert (EMPTY (*saved));
   size_t irredundant = 0;
 
@@ -24,8 +24,11 @@ static void save_ring_binaries (struct ring *ring) {
       unsigned other = other_pointer (watch);
       if (other >= lit)
         continue;
-      struct clause *clause = (struct clause *) watch;
-      PUSH (*saved, clause);
+      struct saved_watcher sw;
+      sw.used = 0;
+      sw.vivify = 0;
+      sw.clause = (struct clause *) watch;
+      PUSH (*saved, sw);
     }
     RELEASE (*references);
     if (ring->id)
@@ -65,7 +68,7 @@ static void save_large_watched_clauses (struct ring *ring) {
   struct ruler *ruler = ring->ruler;
   struct clauses *clauses = &ruler->clauses;
   assert (ring->id || EMPTY (*clauses));
-  struct clauses *save = &ring->saved;
+  struct saved_watchers *save = &ring->saved;
 #ifndef QUIET
   size_t collected = 0, saved = 0;
 #endif
@@ -81,7 +84,8 @@ static void save_large_watched_clauses (struct ring *ring) {
 #endif
     } else {
       if (watcher->redundant) {
-        PUSH (*save, watcher->clause);
+        struct saved_watcher sw = saved_watcher_from_watcher (watcher);
+        PUSH (*save, sw);
 #ifndef QUIET
         saved++;
 #endif

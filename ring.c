@@ -259,7 +259,11 @@ static void release_watchers (struct ring *ring) {
 }
 
 static void release_saved (struct ring *ring) {
-  for (all_clauses (clause, ring->saved)) {
+  struct saved_watchers *saved = &ring->saved;
+  struct saved_watcher *begin = saved->begin;
+  struct saved_watcher *end = saved->end;
+  for (struct saved_watcher *s = begin; s != end; s++) {
+    struct clause *clause = s->clause;
     if (is_binary_pointer (clause))
       continue;
     unsigned shared = atomic_fetch_sub (&clause->shared, 1);
