@@ -24,10 +24,7 @@ static void save_ring_binaries (struct ring *ring) {
       unsigned other = other_pointer (watch);
       if (other >= lit)
         continue;
-      struct saved_watcher sw;
-      sw.used = 0;
-      sw.vivify = 0;
-      sw.clause = (struct clause *) watch;
+      struct saved_watcher sw = saved_watcher_from_binary (watch);
       PUSH (*saved, sw);
     }
     RELEASE (*references);
