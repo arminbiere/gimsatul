@@ -167,7 +167,6 @@ static void eagerly_subsume_last_learned (struct ring *ring) {
     marks[lit] = 1;
   }
   unsigned clause_size = SIZE (ring->clause);
-  unsigned subsumed = 0;
   unsigned *p = ring->last_learned;
   unsigned *end = p + ring->options.eagerly_subsume;
   while (p != end) {
@@ -175,28 +174,36 @@ static void eagerly_subsume_last_learned (struct ring *ring) {
     if (idx == INVALID)
       continue;
     struct watcher *watcher = index_to_watcher (ring, idx);
+    if (watcher->garbage || watcher->clause->garbage) {
+      p[-1] = INVALID;
+      continue;
+    }
     unsigned watcher_size = watcher->size;
     if (!watcher_size)
       watcher_size = watcher->clause->size;
     if (watcher_size <= clause_size)
       continue;
+    LOGCLAUSE (watcher->clause, "trying to eagerly subsume");
     unsigned needed = clause_size;
     unsigned remain = watcher_size;
     for (all_watcher_literals (lit, watcher)) {
-      if (marks[lit] && --needed)
+      if (marks[lit] && !--needed)
         break;
       else if (--remain < needed)
         break;
     }
     if (needed)
       continue;
+    LOGCLAUSE (watcher->clause, "eagerly subsumed");
     mark_garbage_watcher (ring, watcher);
     p[-1] = INVALID;
-    subsumed++;
+    ring->statistics.eagerly_subsumed++;
   }
-  ring->statistics.eagerly_subsumed += subsumed;
-  if (subsumed)
-    flush_last_learned (ring);
+  for (all_elements_on_stack (unsigned, lit, ring->clause)) {
+    assert (marks[lit]);
+    marks[lit] = 0;
+  }
+  flush_last_learned (ring);
 }
 
 static void insert_last_learned (struct ring *ring, struct watch *learned) {

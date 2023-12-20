@@ -51,7 +51,7 @@ void print_ring_statistics (struct ring *ring) {
            average (s->decisions.random, s->random_sequences));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f learned",
            "eagerly-subsumed:", s->eagerly_subsumed,
-	   percent (s->eagerly_subsumed, s->learned.clauses));
+           percent (s->eagerly_subsumed, s->learned.clauses));
   PRINTLN ("%-22s %17u %13.2f %% variables", "solving-fixed:", s->fixed,
            percent (s->fixed, variables));
   PRINTLN ("%-22s %17u %13.2f %% variables", "failed-literals:", s->failed,

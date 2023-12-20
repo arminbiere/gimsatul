@@ -244,7 +244,7 @@ void delete_ring (struct ring *);
 
 void init_pool (struct ring *, unsigned threads);
 
-void reset_last_learned (struct ring*);
+void reset_last_learned (struct ring *);
 
 void mark_satisfied_watchers_as_garbage (struct ring *);
 

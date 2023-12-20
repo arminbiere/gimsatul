@@ -115,10 +115,10 @@ static void init_watchers (struct ring *ring) {
   ring->watchers.end++;
 }
 
-void reset_last_learned (struct ring * ring) {
+void reset_last_learned (struct ring *ring) {
   memset (ring->last_learned, 0xff, sizeof ring->last_learned);
 #ifndef NDEBUG
-  for (really_all_last_learned(p))
+  for (really_all_last_learned (p))
     assert (*p == INVALID);
 #endif
 }
