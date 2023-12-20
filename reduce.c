@@ -134,7 +134,7 @@ static void unmark_reasons (struct ring *ring, unsigned start,
 void recalculate_tier_limits (struct ring *ring) {
   if (!ring->options.calculate_tiers)
     return;
-  unsigned stable = ring->stable ? 1 : 0;
+  unsigned stable = ring->stable;
   uint64_t total = ring->statistics.bumped_limits[stable].bumped;
   uint64_t limit1 = total * 0.5;
   uint64_t limit2 = total * 0.9;
@@ -153,8 +153,11 @@ void recalculate_tier_limits (struct ring *ring) {
     }
   }
   if (sum_glue == total) {
-    ring->tier2_glue_limit = INF;
+    ring->tier2_glue_limit = UINT_MAX;
   }
+  very_verbose (ring, "recalculated %s tier1 limit %u and tier2 limit %u",
+                stable ? "stable" : "focused", ring->tier1_glue_limit,
+                ring->tier2_glue_limit);
 }
 
 static void gather_reduce_candidates (struct ring *ring,

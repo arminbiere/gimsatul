@@ -735,8 +735,6 @@ void vivify_clauses (struct ring *ring) {
   START (ring, vivify);
   assert (SEARCH_TICKS >= ring->last.probing);
 
-  recalculate_tier_limits (ring);
-
   uint64_t delta_search_ticks = SEARCH_TICKS - ring->last.probing;
   delta_search_ticks = MAX (MIN_ABSOLUTE_FFORT, delta_search_ticks);
   uint64_t delta_probing_ticks = VIVIFY_EFFORT * delta_search_ticks;
