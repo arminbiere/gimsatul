@@ -53,26 +53,28 @@ static inline bool watched_vivification_candidate (struct ring *ring,
   if (!watcher->redundant)
     return false;
   unsigned watcher_glue = watcher_glue;
+  unsigned tier1 = ring->tier1_glue_limit[0]; // NO TYPO!
+  unsigned tier2 = ring->tier2_glue_limit[0]; // NO TYPO!
   if (tier == 1) {
-    if (watcher_glue > ring->tier1_glue_limit) {
+    if (watcher_glue > tier1) {
       struct clause *clause = watcher->clause;
       unsigned clause_glue = clause->glue;
       if (clause_glue < watcher_glue) {
         watcher->glue = clause_glue;
-        if (clause_glue > ring->tier1_glue_limit)
+        if (clause_glue > tier1)
           return false;
       }
       return false;
     }
   } else if (tier == 2) {
-    if (watcher->glue <= ring->tier1_glue_limit)
+    if (watcher->glue <= tier1)
       return false;
-    if (watcher->glue > ring->tier2_glue_limit) {
+    if (watcher->glue > tier2) {
       struct clause *clause = watcher->clause;
       unsigned clause_glue = clause->glue;
       if (clause_glue < watcher_glue) {
         watcher->glue = clause_glue;
-        if (clause_glue > ring->tier2_glue_limit)
+        if (clause_glue > tier2)
           return false;
       }
       return false;
