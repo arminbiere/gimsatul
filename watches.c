@@ -108,15 +108,12 @@ struct watch *watch_literals_in_large_clause (struct ring *ring,
   if (size > SIZE_WATCHER_LITERALS)
     size = 0;
 
-  unsigned used = MAX_USED;
-
   assert (size < (1 << (8 * sizeof watcher->size)));
   assert (glue < (1 << (8 * sizeof watcher->glue)));
-  assert (used < (1 << (8 * sizeof watcher->used)));
 
   watcher->size = size;
   watcher->glue = glue;
-  watcher->used = used;
+  watcher->used = 0;
 
   watcher->garbage = false;
   watcher->reason = false;

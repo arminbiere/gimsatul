@@ -420,6 +420,7 @@ bool analyze (struct ring *ring, struct watch *reason) {
         eagerly_subsume_last_learned (ring);
         insert_last_learned (ring, learned);
       }
+      get_watcher (ring, learned)->used = MAX_USED;
       export_large_clause (ring, learned_clause);
     }
     assign_with_reason (ring, not_uip, learned);
