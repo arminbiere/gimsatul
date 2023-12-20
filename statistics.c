@@ -161,10 +161,10 @@ void print_ring_statistics (struct ring *ring) {
     uint64_t total = s->bumped_limits[stable].bumped;
     if (stable)
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per bumped",
-               "  bumped stable:", total, percent (total, s->bumped));
+               "  bumped-stable:", total, percent (total, s->bumped));
     else
       PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per bumped",
-               "  bumped focused:", total, percent (total, s->bumped));
+               "  bumped-focused:", total, percent (total, s->bumped));
     uint64_t sum_glue = 0;
     unsigned tier_glue = 1;
     for (unsigned j = 0; j < MAX_GLUE; j++) {
