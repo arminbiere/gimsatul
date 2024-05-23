@@ -100,8 +100,9 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
       assert (clause->redundant);
       assert (!clause->mapped);
       assert (!clause->garbage);
-      struct watch * watch = watch_first_two_literals_in_large_clause (ring, clause);
-      struct watcher * watcher = get_watcher (ring, watch);
+      struct watch *watch =
+          watch_first_two_literals_in_large_clause (ring, clause);
+      struct watcher *watcher = get_watcher (ring, watch);
       watcher->used = sw->used;
       watcher->vivify = sw->vivify;
 #ifndef QUIET
