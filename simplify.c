@@ -20,6 +20,8 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include "cover.h"
+
 struct simplifier *new_simplifier (struct ruler *ruler) {
   size_t size = ruler->compact;
   struct simplifier *simplifier =
@@ -405,8 +407,7 @@ static void set_ruler_limits (struct ruler *ruler) {
 
     {
       uint64_t effort = ELIMINATE_EFFORT * search;
-      uint64_t base = 1e6 * ruler->options.eliminate_ticks;
-      uint64_t ticks = MAX (effort, base);
+      uint64_t ticks = MAX (effort, MIN_ABSOLUTE_FFORT);
       uint64_t delta = multiply_saturated (scale10, ticks, UINT64_MAX);
       uint64_t boosted = multiply_saturated (boost, delta, UINT64_MAX);
       uint64_t current = statistics->ticks.elimination;
@@ -689,16 +690,13 @@ void simplify_ruler (struct ruler *ruler) {
   message (0, "simplification #%" PRIu64 " took %.2f seconds",
            ruler->statistics.simplifications,
            end_simplification - start_simplification);
-  if (!initially)
-    message (0, 0);
+  reset_report ();
 #endif
 }
 
 static void trigger_synchronization (struct ring *ring) {
-  struct ruler *ruler = ring->ruler;
-  if (ring->id)
-    assert (ruler->simplify);
-  else {
+  if (!ring->id) {
+    struct ruler *ruler = ring->ruler;
     if (pthread_mutex_lock (&ruler->locks.simplify))
       fatal_error ("failed to acquire simplify lock during starting");
     assert (!ruler->simplify);
@@ -755,13 +753,12 @@ static bool synchronize_exported_and_imported_units (struct ring *ring) {
   if (!rendezvous (&ruler->barriers.import, ring, false))
     return false;
 
-  if (backtrack_propagate_iterate (ring))
-    while (continue_importing_and_propagating_units (ring))
-      if (import_shared (ring))
-        if (!ring->inconsistent)
-          if (ring_propagate (ring, false, 0))
-            set_inconsistent (ring,
-                              "propagation after importing shared failed");
+  assert (!ring->level);
+  while (continue_importing_and_propagating_units (ring))
+    if (import_shared (ring))
+      if (!ring->inconsistent)
+        if (ring_propagate (ring, false, 0))
+          set_inconsistent (ring, "propagation after importing failed");
 
   assert (ring->inconsistent || ring->trail.propagate == ring->trail.end);
 
@@ -777,7 +774,8 @@ static bool unclone_before_running_simplification (struct ring *ring) {
 
 static void clone_first_ring_after_simplification (struct ring *ring) {
   assert (!ring->id);
-  assert (ring->ruler->inconsistent || ring->references);
+  assert (ring->ruler->inconsistent || ring->references ||
+          ring->ruler->terminate);
   copy_ruler (ring);
 }
 
@@ -798,6 +796,8 @@ static void copy_other_ring_after_simplification (struct ring *ring) {
   if (!ring->id)
     return;
   if (ruler->inconsistent)
+    return;
+  if (ruler->terminate)
     return;
   assert (ring->references);
   copy_ring (ring);
@@ -823,10 +823,12 @@ static void finish_ring_simplification (struct ring *ring) {
 
 #ifndef NDEBUG
 void check_clause_statistics (struct ring *);
-void check_redundant_and_tier2_offsets (struct ring *);
+void check_redundant_offset (struct ring *);
 #endif
 
 int simplify_ring (struct ring *ring) {
+  if (ring->level)
+    backtrack_propagate_iterate (ring);
   trigger_synchronization (ring);
   if (!wait_to_actually_start_synchronization (ring))
     return ring->status;
@@ -841,9 +843,9 @@ int simplify_ring (struct ring *ring) {
   copy_other_ring_after_simplification (ring);
   finish_ring_simplification (ring);
 #ifndef NDEBUG
-  if (!ring->ruler->inconsistent) {
+  if (!ring->ruler->inconsistent && !ring->ruler->terminate) {
     check_clause_statistics (ring);
-    check_redundant_and_tier2_offsets (ring);
+    check_redundant_offset (ring);
   }
 #endif
   report (ring, 's');

@@ -6,6 +6,8 @@
 
 #include <string.h>
 
+#include "cover.h"
+
 static unsigned map_literal (unsigned *map, unsigned original_lit) {
   unsigned original_idx = IDX (original_lit);
   unsigned mapped_idx = map[original_idx];
@@ -60,24 +62,25 @@ static void map_clauses (struct ruler *ruler, unsigned *map) {
 /*------------------------------------------------------------------------*/
 
 static void clean_ring (struct ring *ring, struct clauses *cleaned) {
-  struct clauses *saved = &ring->saved;
+  struct saved_watchers *saved = &ring->saved;
   signed char *values = ring->values;
-  struct clause **begin = saved->begin;
-  struct clause **end = saved->end;
-  struct clause **q = begin;
-  struct clause **p = q;
+  struct saved_watcher *begin = saved->begin;
+  struct saved_watcher *end = saved->end;
+  struct saved_watcher *q = begin;
+  struct saved_watcher *p = q;
   struct unsigneds delete;
   struct unsigneds add;
   INIT (delete);
   INIT (add);
   while (p != end) {
-    struct clause *clause = *p++;
+    struct saved_watcher sw = *p++;
+    struct clause *clause = sw.clause;
     if (is_binary_pointer (clause))
-      *q++ = clause;
+      *q++ = sw;
     else if (clause->garbage)
       dereference_clause (ring, clause);
     else if (clause->cleaned)
-      *q++ = clause;
+      *q++ = sw;
     else {
       assert (clause->redundant);
       bool satisfied = false, falsified = false;
@@ -98,7 +101,7 @@ static void clean_ring (struct ring *ring, struct clauses *cleaned) {
         LOGCLAUSE (clause, "already clean");
         clause->cleaned = true;
         PUSH (*cleaned, clause);
-        *q++ = clause;
+        *q++ = sw;
       } else {
         LOGCLAUSE (clause, "cleaning");
         assert (EMPTY (add));
@@ -114,6 +117,13 @@ static void clean_ring (struct ring *ring, struct clauses *cleaned) {
         unsigned old_size = SIZE (delete);
         assert (old_size == clause->size);
         trace_add_literals (&ring->trace, new_size, add.begin, INVALID);
+#if 1
+        if (new_size <= 1) {
+          printf ("c ring %u compact new_size %u old_size %u\n", ring->id,
+                  new_size, old_size);
+          fflush (stdout);
+        }
+#endif
         assert (new_size > 1);
         if (new_size == 2) {
           unsigned lit = add.begin[0];
@@ -123,7 +133,10 @@ static void clean_ring (struct ring *ring, struct clauses *cleaned) {
           LOGBINARY (true, lit, other, "cleaned");
           struct clause *binary = tag_binary (true, lit, other);
           dereference_clause (ring, clause);
-          *q++ = binary;
+          sw.used = 0;
+          sw.vivify = 0;
+          sw.clause = binary;
+          *q++ = sw;
         } else {
           trace_delete_literals (&ring->trace, old_size, delete.begin);
           assert (new_size > 2);
@@ -139,7 +152,7 @@ static void clean_ring (struct ring *ring, struct clauses *cleaned) {
           LOGCLAUSE (clause, "cleaned");
           clause->cleaned = true;
           PUSH (*cleaned, clause);
-          *q++ = clause;
+          *q++ = sw;
         }
         CLEAR (delete);
         CLEAR (add);
@@ -241,14 +254,14 @@ static void compact_saved (struct ring *ring, unsigned *map,
   ignore_values_and_levels_during_logging = true;
   unsigned *unmap = ring->ruler->unmap;
 #endif
-  struct clauses *saved = &ring->saved;
-  struct clause **begin = saved->begin;
-  struct clause **end = saved->end;
-  struct clause **q = begin;
-  struct clause **p = q;
+  struct saved_watchers *saved = &ring->saved;
+  struct saved_watcher *begin = saved->begin;
+  struct saved_watcher *end = saved->end;
+  struct saved_watcher *q = begin;
+  struct saved_watcher *p = q;
   while (p != end) {
-    struct clause *src_clause = *p++;
-
+    struct saved_watcher src_watcher = *p++;
+    struct clause *src_clause = src_watcher.clause;
     if (is_binary_pointer (src_clause)) {
       assert (redundant_pointer (src_clause));
       unsigned src_lit = lit_pointer (src_clause);
@@ -266,7 +279,7 @@ static void compact_saved (struct ring *ring, unsigned *map,
         LOG ("mapped redundant binary clause %u(%d) %u(%d)", dst_lit,
              unmap_and_export_literal (unmap, src_lit), dst_other,
              unmap_and_export_literal (unmap, src_other));
-        *q++ = dst_clause;
+        *q++ = saved_watcher_from_binary (dst_clause);
       } else {
 #ifdef LOGGING
         if (dst_lit == INVALID)
@@ -279,7 +292,7 @@ static void compact_saved (struct ring *ring, unsigned *map,
     } else if (src_clause->garbage)
       dereference_clause (ring, src_clause);
     else if (src_clause->mapped)
-      *q++ = src_clause;
+      *q++ = src_watcher;
     else {
       struct clause *dst_clause = src_clause;
       for (all_literals_in_clause (src_lit, src_clause))
@@ -318,7 +331,7 @@ static void compact_saved (struct ring *ring, unsigned *map,
 #endif
         dst_clause->mapped = true;
         PUSH (*mapped, dst_clause);
-        *q++ = dst_clause;
+        *q++ = src_watcher;
       } else {
         src_clause->garbage = true;
         LOGCLAUSE (src_clause, "cannot map");
@@ -356,7 +369,6 @@ static void compact_ring (struct ring *ring, unsigned *map,
   ring->size = new_size;
   ring->target = 0;
   ring->unassigned = new_size;
-  ;
 
   init_ring (ring);
 
@@ -409,7 +421,7 @@ static void compact_bool_array (bool **array_ptr, unsigned old_size,
 
 void compact_ruler (struct simplifier *simplifier, bool initially) {
   struct ruler *ruler = simplifier->ruler;
-  if (ruler->inconsistent)
+  if (ruler->inconsistent || ruler->terminate)
     return;
 
   if (!initially)

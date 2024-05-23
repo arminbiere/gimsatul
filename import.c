@@ -1,14 +1,16 @@
 #include "import.h"
 #include "assign.h"
 #include "backtrack.h"
+#include "bump.h"
 #include "message.h"
 #include "propagate.h"
 #include "random.h"
+#include "ring.h"
 #include "ruler.h"
 #include "trace.h"
 #include "utilities.h"
 
-bool import_units (struct ring *ring) {
+static bool import_units (struct ring *ring) {
   assert (ring->pool);
   struct ruler *ruler = ring->ruler;
 #ifndef NFASTPATH
@@ -280,10 +282,7 @@ static void really_import_large_clause (struct ring *ring,
                                         unsigned first, unsigned second) {
   watch_literals_in_large_clause (ring, clause, first, second);
   assert (clause->redundant);
-  unsigned glue = clause->glue;
-  assert (0 < glue);
-  assert (glue <= ring->options.maximum_shared_glue);
-  INC_LARGE_CLAUSE_STATISTICS (imported, glue);
+  INC_LARGE_CLAUSE_STATISTICS (imported, clause->glue, clause->size);
 }
 
 static unsigned find_literal_to_watch (struct ring *ring,
@@ -406,34 +405,44 @@ bool import_shared (struct ring *ring) {
     return false;
   if (import_units (ring))
     return true;
-  if (!ring->import_after_propagation_and_conflict)
-    return ring->import_after_propagation_and_conflict = false;
-  struct ruler *ruler = ring->ruler;
-  size_t rings = SIZE (ruler->rings);
-  assert (rings <= UINT_MAX);
-  assert (rings > 1);
-  unsigned id = random_modulo (&ring->random, rings - 1) + ring->id + 1;
-  if (id >= rings)
-    id -= rings;
-  assert (id < rings);
-  assert (id != ring->id);
-  struct ring *src = ruler->rings.begin[id];
-  assert (src->pool);
+  if (ring->options.limit_import_rate) {
+    if (!ring->import_after_propagation_and_conflict)
+      return false;
+    ring->import_after_propagation_and_conflict = false;
+  }
+
+  struct ring *src = random_other_ring (ring);
   struct pool *pool = src->pool + ring->id;
-  atomic_uintptr_t *end = pool->share + SIZE_SHARED;
+
+  struct bucket *start = pool->bucket;
+  struct bucket *end = start + SIZE_POOL;
+  struct bucket *best = 0;
+
+  uint64_t best_redundancy = MAX_REDUNDANCY;
+
+  for (struct bucket *b = start; b != end; b++) {
+    if (!b->shared)
+      continue;
+    uint64_t redundancy = b->redundancy;
+    if (redundancy >= best_redundancy)
+      continue;
+    best_redundancy = redundancy;
+    best = b;
+  }
+
   struct clause *clause = 0;
-  for (atomic_uintptr_t *p = pool->share; !clause && p != end; p++)
-#ifndef NFASTPATH
-    if (*p)
-#endif
-      clause = (struct clause *) atomic_exchange (p, 0);
-  if (!clause)
-    return false;
-  if (is_binary_pointer (clause))
-    return import_binary (ring, clause);
-  if (clause->glue > TIER1_GLUE_LIMIT && !ring->stable) {
-    dereference_clause (ring, clause);
+  if (best) {
+    LOG ("import from ring %u bucket %zu with redundancy [%u:%u]", src->id,
+         best - start, LOG_REDUNDANCY (best_redundancy));
+    atomic_uintptr_t *p = &best->shared;
+    clause = (struct clause *) atomic_exchange (p, 0);
+    assert (clause);
+  } else {
+    LOG ("import from ring %u failed (nothing to import)", src->id);
     return false;
   }
+
+  if (is_binary_pointer (clause))
+    return import_binary (ring, clause);
   return import_large_clause (ring, clause);
 }

@@ -85,7 +85,7 @@ struct ruler {
   struct clauses *occurrences;
   pthread_t *threads;
   unsigned *unmap;
-  volatile signed char *values;
+  signed char volatile *values;
 
   struct ruler_barriers barriers;
   struct ruler_locks locks;
@@ -149,7 +149,7 @@ void push_ring (struct ruler *, struct ring *);
 void detach_ring (struct ring *);
 void set_winner (struct ring *);
 
-void set_terminate (struct ruler *ruler);
+void set_terminate (struct ruler *, struct ring *);
 
 void print_ruler_profiles (struct ruler *);
 

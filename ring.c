@@ -12,8 +12,10 @@
 
 #ifndef QUIET
 
-void print_line_without_acquiring_lock (struct ring *ring, const char *fmt,
-                                        ...) {
+#include <unistd.h>
+
+ssize_t print_line_without_acquiring_lock (struct ring *ring,
+                                           const char *fmt, ...) {
   va_list ap;
   char line[256];
   if (ring)
@@ -24,8 +26,9 @@ void print_line_without_acquiring_lock (struct ring *ring, const char *fmt,
   vsprintf (line + strlen (line), fmt, ap);
   va_end (ap);
   strcat (line, "\n");
-  assert (strlen (line) + 1 < sizeof line);
-  fputs (line, stdout);
+  size_t size = strlen (line);
+  assert (size + 1 < sizeof line);
+  return write (1, line, size);
 }
 
 void message (struct ring *ring, const char *fmt, ...) {
@@ -85,6 +88,10 @@ void init_ring (struct ring *ring) {
   ring->references =
       allocate_and_clear_array (sizeof (struct references), 2 * size);
 
+  for (unsigned stable = 0; stable != 2; stable++)
+    ring->tier1_glue_limit[stable] = TIER1_GLUE_LIMIT,
+    ring->tier2_glue_limit[stable] = TIER2_GLUE_LIMIT;
+
   struct ring_trail *trail = &ring->trail;
   assert (!trail->begin);
   assert (!trail->pos);
@@ -109,6 +116,14 @@ static void init_watchers (struct ring *ring) {
   ring->watchers.end++;
 }
 
+void reset_last_learned (struct ring *ring) {
+  memset (ring->last_learned, 0xff, sizeof ring->last_learned);
+#ifndef NDEBUG
+  for (really_all_last_learned (p))
+    assert (*p == INVALID);
+#endif
+}
+
 void release_ring (struct ring *ring, bool keep_values) {
   very_verbose (ring, "releasing 'ring[%u]' of size %u", ring->id,
                 ring->size);
@@ -125,6 +140,8 @@ void release_ring (struct ring *ring, bool keep_values) {
   RELEASE (ring->minimize);
   RELEASE (ring->sorter);
   RELEASE (ring->outoforder);
+  RELEASE (ring->promote);
+  RELEASE (ring->exports);
 
   FREE (ring->references);
 
@@ -203,6 +220,7 @@ struct ring *new_ring (struct ruler *ruler) {
   verbose (ring, "new ring[%u] of size %u", ring->id, size);
 
   init_watchers (ring);
+  reset_last_learned (ring);
   init_ring (ring);
 
   struct heap *heap = &ring->heap;
@@ -241,7 +259,11 @@ static void release_watchers (struct ring *ring) {
 }
 
 static void release_saved (struct ring *ring) {
-  for (all_clauses (clause, ring->saved)) {
+  struct saved_watchers *saved = &ring->saved;
+  struct saved_watcher *begin = saved->begin;
+  struct saved_watcher *end = saved->end;
+  for (struct saved_watcher *s = begin; s != end; s++) {
+    struct clause *clause = s->clause;
     if (is_binary_pointer (clause))
       continue;
     unsigned shared = atomic_fetch_sub (&clause->shared, 1);
@@ -255,19 +277,30 @@ static void release_saved (struct ring *ring) {
 
 void init_pool (struct ring *ring, unsigned threads) {
   ring->threads = threads;
-  ring->pool = allocate_aligned_and_clear_array (CACHE_LINE_SIZE, threads,
-                                                 sizeof *ring->pool);
+  ring->pool =
+      allocate_aligned_array (CACHE_LINE_SIZE, threads, sizeof *ring->pool);
+  struct bucket *b = ring->pool[0].bucket;
+  struct bucket *end = b + threads * SIZE_POOL;
+  while (b != end) {
+    b->shared = 0;
+    b->redundancy = MAX_REDUNDANCY;
+    b++;
+  }
 }
 
 static void release_pool (struct ring *ring) {
-  struct pool *pool = ring->pool;
-  if (!pool)
+  struct pool *begin_pool = ring->pool;
+  if (!begin_pool)
     return;
-  for (unsigned i = 0; i != ring->threads; i++, pool++) {
-    if (i == ring->id)
+  struct pool *skip_pool = begin_pool + ring->id;
+  struct pool *end_pool = begin_pool + ring->threads;
+  for (struct pool *p = begin_pool; p != end_pool; p++) {
+    if (p == skip_pool)
       continue;
-    for (unsigned i = 1; i != SIZE_SHARED; i++) {
-      struct clause *clause = (struct clause *) pool->share[i];
+    struct bucket *begin_bucket = p->bucket;
+    struct bucket *end_bucket = begin_bucket + SIZE_POOL;
+    for (struct bucket *b = begin_bucket; b != end_bucket; b++) {
+      struct clause *clause = (struct clause *) b->shared;
       if (!clause)
         continue;
       if (is_binary_pointer (clause))
@@ -275,7 +308,7 @@ static void release_pool (struct ring *ring) {
       unsigned shared = atomic_fetch_sub (&clause->shared, 1);
       assert (shared + 1);
       if (!shared) {
-        LOGCLAUSE (clause, "final deleting shared %u", shared);
+        LOGCLAUSE (clause, "final delete");
         free (clause);
       }
     }
@@ -387,4 +420,21 @@ unsigned *sorter_block (struct ring *ring, size_t size) {
   while (CAPACITY (ring->sorter) < size)
     ENLARGE (ring->sorter);
   return ring->sorter.begin;
+}
+
+struct ring *random_other_ring (struct ring *ring) {
+  struct ruler *ruler = ring->ruler;
+  struct rings *rings = &ruler->rings;
+  size_t size = SIZE (*rings);
+  assert (size <= UINT_MAX);
+  assert (size > 1);
+  unsigned id;
+  do
+    id = random_modulo (&ring->random, size);
+  while (id == ring->id);
+  assert (id < size);
+  assert (id != ring->id);
+  struct ring *res = PEEK (*rings, id);
+  assert (res != ring);
+  return res;
 }

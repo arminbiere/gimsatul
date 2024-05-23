@@ -11,17 +11,20 @@
 
 struct ring;
 
+#define MAX_GLUE 255
+
 struct clause {
 #ifdef LOGGING
   uint64_t id;
 #endif
-  atomic_ushort shared;
-  unsigned char glue;
+  atomic_uint shared;
+  unsigned short origin;
+  atomic_uchar glue;
   bool cleaned : 1;
   bool dirty : 1;
   bool garbage : 1;
   bool mapped : 1;
-  unsigned padding : 1;
+  bool padding : 1;
   bool redundant : 1;
   bool subsume : 1;
   bool vivified : 1;

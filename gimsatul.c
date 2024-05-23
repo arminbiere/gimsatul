@@ -12,6 +12,8 @@
 #include "types.h"
 #include "witness.h"
 
+#include "cover.h"
+
 int main (int argc, char **argv) {
   start_time = current_time ();
   struct options options;

@@ -22,9 +22,9 @@ static void start_running_ring (struct ring *ring) {
   pthread_t *thread = ruler->threads + ring->id;
   if (pthread_create (thread, 0, solve_routine, ring))
     fatal_error ("failed to create solving thread %u", ring->id);
-#if 0
+#ifndef __APPLE__
   int sched_getcpu (void);
-  message (ring, "sched_getcpu: cpu=%08x", sched_getcpu ());
+  message (ring, "ring %u on CPU %08x", ring->id, sched_getcpu ());
 #endif
 }
 
@@ -183,7 +183,7 @@ struct ring *solve_rings (struct ruler *ruler) {
   } else {
     message (0, "running single ring in main thread");
     struct ring *ring = first_ring (ruler);
-    solve_routine (ring);
+    (void) solve_routine (ring);
   }
   assert (ruler->solving);
   ruler->solving = false;

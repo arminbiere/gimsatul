@@ -1,5 +1,6 @@
 #include "utilities.h"
 
+#include <assert.h>
 #include <math.h>
 
 double logn (uint64_t count) {
@@ -32,4 +33,9 @@ unsigned gcd (unsigned a, unsigned b) {
     a = b, b = r;
   }
   return a;
+}
+
+unsigned log2ceil (unsigned n) {
+  assert (n);
+  return 32 - __builtin_clz (n - 1);
 }

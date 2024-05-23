@@ -3,6 +3,7 @@
 #include "statistics.h"
 #include "message.h"
 #include "ruler.h"
+#include "tiers.h"
 #include "utilities.h"
 
 #include <inttypes.h>
@@ -31,24 +32,27 @@ void print_ring_statistics (struct ring *ring) {
            percent (chronological, conflicts));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per conflict",
            "decisions:", decisions, average (decisions, conflicts));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "heap-decisions:", s->decisions.heap,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  heap-decisions:", s->decisions.heap,
            percent (s->decisions.heap, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "negative-decisions:", s->decisions.negative,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  negative-decisions:", s->decisions.negative,
            percent (s->decisions.negative, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "positive-decisions:", s->decisions.positive,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  positive-decisions:", s->decisions.positive,
            percent (s->decisions.positive, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "queue-decisions:", s->decisions.queue,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  queue-decisions:", s->decisions.queue,
            percent (s->decisions.queue, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f %% decisions",
-           "random-decisions:", s->decisions.random,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
+           "  random-decisions:", s->decisions.random,
            percent (s->decisions.random, decisions));
-  PRINTLN ("  %-22s %17" PRIu64 " %13.2f decisions",
-           "random-sequences:", s->random_sequences,
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f decisions",
+           "  random-sequences:", s->random_sequences,
            average (s->decisions.random, s->random_sequences));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
+           "eagerly-subsumed:", s->eagerly_subsumed,
+           percent (s->eagerly_subsumed, s->learned.clauses));
   PRINTLN ("%-22s %17u %13.2f %% variables", "solving-fixed:", s->fixed,
            percent (s->fixed, variables));
   PRINTLN ("%-22s %17u %13.2f %% variables", "failed-literals:", s->failed,
@@ -81,6 +85,18 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivify-tried",
            "  vivify-reused:", s->vivify.reused,
            percent (s->vivify.reused, s->vivify.tried));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
+           "  vivify-strengthened:", s->vivify.strengthened,
+           percent (s->vivify.strengthened, s->vivify.succeeded));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
+           "  vivify-subsumed:", s->vivify.subsumed,
+           percent (s->vivify.subsumed, s->vivify.succeeded));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
+           "  vivify-implied:", s->vivify.implied,
+           percent (s->vivify.implied, s->vivify.succeeded));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% strengthened",
+           "  vivify-units:", s->vivify.units,
+           percent (s->vivify.units, s->vivify.strengthened));
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned clause",
            "learned-literals:", s->literals.learned,
@@ -98,11 +114,12 @@ void print_ring_statistics (struct ring *ring) {
 #endif
 
 #ifdef METRICS
-#define PRINT_CLAUSE_METRICS(NAME, MAXGLUE) INSTANTIATE (1, MAXGLUE, NAME)
+#define PRINT_CLAUSE_METRICS(NAME) \
+  INSTANTIATE (1, SIZE_GLUE_STATISTICS - 1, NAME)
 #else
-#define PRINT_CLAUSE_METRICS(NAME, MAXGLUE) /**/
+#define PRINT_CLAUSE_METRICS(NAME) /**/
 #endif
-#define PRINT_CLAUSE_STATISTICS(NAME, MAXGLUE) \
+#define PRINT_CLAUSE_STATISTICS(NAME) \
   do { \
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
              "  " #NAME "-binaries:", s->NAME.binaries, \
@@ -116,7 +133,7 @@ void print_ring_statistics (struct ring *ring) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
              "  " #NAME "-tier3:", s->NAME.tier3, \
              percent (s->NAME.tier3, s->NAME.clauses)); \
-    PRINT_CLAUSE_METRICS (NAME, MAXGLUE); \
+    PRINT_CLAUSE_METRICS (NAME); \
   } while (0)
 #define MACRO(SIZE, NAME) \
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
@@ -125,7 +142,7 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per second",
            "learned-clauses:", s->learned.clauses,
            average (s->learned.clauses, search));
-  PRINT_CLAUSE_STATISTICS (learned, SIZE_GLUE_STATISTICS - 1);
+  PRINT_CLAUSE_STATISTICS (learned);
 #ifdef METRICS
   uint64_t learned_glue_small = 0;
   for (unsigned glue = 1; glue != SIZE_GLUE_STATISTICS; glue++)
@@ -138,17 +155,75 @@ void print_ring_statistics (struct ring *ring) {
            percent (s->learned.glue[0], s->learned.clauses));
 #endif
 
-  if (ring->pool) {
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned",
+           "bumped-clauses:", s->bumped,
+           average (s->bumped, s->learned.clauses));
+  print_tiers_bumped_statistics (ring);
+
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
+           "promoted-clauses:", s->promoted.clauses,
+           percent (s->promoted.clauses, s->bumped));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted-kept1:", s->promoted.kept1,
+           percent (s->promoted.kept1, s->promoted.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted-kept2:", s->promoted.kept2,
+           percent (s->promoted.kept2, s->promoted.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted-kept3:", s->promoted.kept3,
+           percent (s->promoted.kept3, s->promoted.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted-tier1:", s->promoted.tier1,
+           percent (s->promoted.tier1, s->promoted.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
+           "  promoted-tier2:", s->promoted.tier2,
+           percent (s->promoted.tier2, s->promoted.clauses));
+
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% propagations", "jumped:", jumped,
+           percent (jumped, propagations));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f millions per second",
+           "propagations:", propagations,
+           average (propagations, 1e6 * search));
 #ifdef METRICS
-    unsigned maximum_shared_glue = ring->options.maximum_shared_glue;
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f per propagation", "visits:", visits,
+           average (visits, propagations));
+#undef MACRO
+#define MACRO(SIZE, DUMMY) \
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% visits", "  visits" #SIZE ":", \
+           c->visits[SIZE], percent (c->visits[SIZE], visits))
+  INSTANTIATE (SIZE_WATCHER_LITERALS + 1, SIZE_VISITS - 1);
+#undef MACRO
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% visits",
+           "  visits-large:", c->visits[0], percent (c->visits[0], visits));
 #endif
+
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
+           "probings:", s->probings, average (conflicts, s->probings));
+
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
+           "reductions:", s->reductions,
+           average (conflicts, s->reductions));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
+           "  reduced-clauses:", s->reduced.clauses,
+           percent (s->reduced.clauses, s->learned.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
+           "  reduced-tier1:", s->reduced.tier1,
+           percent (s->reduced.tier1, s->reduced.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
+           "  reduced-tier2:", s->reduced.tier2,
+           percent (s->reduced.tier2, s->reduced.clauses));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
+           "  reduced-tier3:", s->reduced.tier3,
+           percent (s->reduced.tier3, s->reduced.clauses));
+
+  if (ring->pool) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
              "imported-clauses:", s->imported.clauses,
              percent (s->imported.clauses, s->learned.clauses));
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% imported clauses",
              "  diverged-imports:", s->diverged,
              percent (s->diverged, s->imported.clauses));
-    PRINT_CLAUSE_STATISTICS (imported, maximum_shared_glue);
+    PRINT_CLAUSE_STATISTICS (imported);
 
     {
       uint64_t subsumed =
@@ -170,57 +245,9 @@ void print_ring_statistics (struct ring *ring) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
              "exported-clauses:", s->exported.clauses,
              percent (s->exported.clauses, s->learned.clauses));
-    PRINT_CLAUSE_STATISTICS (exported, maximum_shared_glue);
-
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported clauses rate",
-             "shared-clauses:", s->shared.clauses,
-             average (s->exported.clauses, s->shared.clauses));
-
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported binaries rate",
-             "  shared-binaries:", s->shared.binaries,
-             average (s->exported.binaries, s->shared.binaries));
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported tier1 rate",
-             "  shared-tier1:", s->shared.tier1,
-             average (s->exported.tier1, s->shared.tier1));
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported tier2 rate",
-             "  shared-tier2:", s->shared.tier2,
-             average (s->exported.tier2, s->shared.tier2));
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f exported tier3 rate",
-             "  shared-tier3:", s->shared.tier3,
-             average (s->exported.tier3, s->shared.tier3));
-#ifdef METRICS
-#undef MACRO
-#define MACRO(SIZE, NAME) \
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f exported glue" #SIZE " rate", \
-           "  " #NAME "-glue" #SIZE ":", s->NAME.glue[SIZE], \
-           average (s->exported.glue[SIZE], s->NAME.glue[SIZE]))
-    INSTANTIATE (1, maximum_shared_glue, shared);
-#endif
-#undef MACRO
+    PRINT_CLAUSE_STATISTICS (exported);
   }
 
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% propagations", "jumped:", jumped,
-           percent (jumped, propagations));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f millions per second",
-           "propagations:", propagations,
-           average (propagations, 1e6 * search));
-#ifdef METRICS
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f per propagation", "visits:", visits,
-           average (visits, propagations));
-#define MACRO(SIZE, DUMMY) \
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% visits", "  visits" #SIZE ":", \
-           c->visits[SIZE], percent (c->visits[SIZE], visits))
-  INSTANTIATE (SIZE_WATCHER_LITERALS + 1, SIZE_VISITS - 1);
-#undef MACRO
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% visits",
-           "  visits-large:", c->visits[0], percent (c->visits[0], visits));
-#endif
-
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
-           "probings:", s->probings, average (conflicts, s->probings));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
-           "reductions:", s->reductions,
-           average (conflicts, s->reductions));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",
            "rephased:", s->rephased, average (conflicts, s->rephased));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f conflict interval",

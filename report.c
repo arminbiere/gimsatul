@@ -7,12 +7,16 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 // clang-format off
 
 static _Atomic (uint64_t) reported;
 
 // clang-format on
+
+void reset_report () { reported = 0; }
 
 void verbose_report (struct ring *ring, char type, int level) {
   if (verbosity < level)
@@ -34,15 +38,18 @@ void verbose_report (struct ring *ring, char type, int level) {
   bool header = !(atomic_fetch_add (&reported, 1) % 20);
 
   if (header)
-    printf ("c\nc      seconds MB level reductions restarts rate "
-            "conflicts redundant trail glue irredundant variables\nc\n");
+    fputs ("c\nc     seconds MB level reductions restarts "
+           "conflicts redundant trail tier1 glue size irredundant "
+           "variables\nc\n",
+           stdout);
 
-  PRINTLN ("%c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %4.0f"
-           " %11" PRIu64 " %9zu %3.0f%% %6.1f %9zu %9u %3.0f%%",
-           type, t, m, a->level.value, s->reductions, s->restarts,
-           a->decisions.value, conflicts, s->redundant, a->trail.value,
-           a->glue.slow.value, s->irredundant, active,
-           percent (active, ring->ruler->size));
+  printf ("c%u %c %7.2f %4.0f %5.0f %6" PRIu64 " %9" PRIu64 " %11" PRIu64
+          " %9zu %3.0f%% %3u %6.1f %6.1f %9zu %9u %3.0f%%\n",
+          ring->id, type, t, m, a->level.value, s->reductions, s->restarts,
+          conflicts, s->redundant, a->trail.value,
+          ring->tier1_glue_limit[ring->stable], a->glue.slow.value,
+          a->size.value, s->irredundant, active,
+          percent (active, ring->ruler->size));
 
   fflush (stdout);
 

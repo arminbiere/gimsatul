@@ -8,20 +8,27 @@
 #include "export.h"
 #include "macros.h"
 #include "minimize.h"
+#include "promote.h"
+#include "reduce.h"
 #include "ring.h"
 #include "sort.h"
 #include "trace.h"
 #include "utilities.h"
 
 static void bump_reason (struct ring *ring, struct watcher *watcher) {
-  if (!watcher->redundant)
-    return;
-  if (watcher->glue <= TIER1_GLUE_LIMIT)
-    return;
-  if (watcher->glue <= TIER2_GLUE_LIMIT)
-    watcher->used = 2;
+  assert (watcher->redundant);
+  watcher->used = MAX_USED;
+  unsigned new_glue = recompute_glue (ring, watcher);
+  if (new_glue < watcher->glue)
+    promote_watcher (ring, watcher, new_glue);
   else
-    watcher->used = 1;
+    new_glue = watcher->glue;
+  assert (watcher->glue);
+  assert (watcher->glue <= MAX_GLUE);
+  unsigned stable = ring->stable;
+  ring->statistics.usage[stable].glue[new_glue]++;
+  ring->statistics.usage[stable].bumped++;
+  ring->statistics.bumped++;
 }
 
 static bool analyze_reason_side_literal (struct ring *ring, unsigned lit) {
@@ -117,7 +124,7 @@ void clear_analyzed (struct ring *ring) {
   CLEAR (*analyzed);
 
   struct unsigneds *levels = &ring->levels;
-  unsigned *used = ring->used;
+  unsigned char *used = ring->used;
   for (all_elements_on_stack (unsigned, used_level, *levels))
     used[used_level] = 0;
   CLEAR (*levels);
@@ -131,6 +138,83 @@ static void update_decision_rate (struct ring *ring) {
   struct averages *a = ring->averages + ring->stable;
   update_average (ring, &a->decisions, "decision rate", SLOW_ALPHA, delta);
   ring->last.decisions = current;
+}
+
+static void update_tier_limits (struct ring *ring) {
+  if (!ring->intervals.tiers)
+    ring->intervals.tiers = 4;
+  else if (ring->intervals.tiers < (1u << 16))
+    ring->intervals.tiers *= 2;
+  recalculate_tier_limits (ring);
+  ring->limits.tiers = SEARCH_CONFLICTS + ring->intervals.tiers;
+}
+
+static void flush_last_learned (struct ring *ring) {
+  unsigned *q = ring->last_learned, *p = q;
+  unsigned *end = q + ring->options.eagerly_subsume;
+  while (p != end) {
+    unsigned idx = *p++;
+    if (idx != INVALID)
+      *q++ = idx;
+  }
+  while (q != end)
+    *q++ = INVALID;
+}
+
+static void eagerly_subsume_last_learned (struct ring *ring) {
+  signed char *marks = ring->marks;
+  for (all_elements_on_stack (unsigned, lit, ring->clause)) {
+    assert (!marks[lit]);
+    marks[lit] = 1;
+  }
+  unsigned clause_size = SIZE (ring->clause);
+  unsigned *p = ring->last_learned;
+  unsigned *end = p + ring->options.eagerly_subsume;
+  while (p != end) {
+    unsigned idx = *p++;
+    if (idx == INVALID)
+      continue;
+    struct watcher *watcher = index_to_watcher (ring, idx);
+    if (watcher->garbage || watcher->clause->garbage) {
+      p[-1] = INVALID;
+      continue;
+    }
+    unsigned watcher_size = watcher->size;
+    if (!watcher_size)
+      watcher_size = watcher->clause->size;
+    if (watcher_size <= clause_size)
+      continue;
+    LOGCLAUSE (watcher->clause, "trying to eagerly subsume");
+    unsigned needed = clause_size;
+    unsigned remain = watcher_size;
+    for (all_watcher_literals (lit, watcher)) {
+      if (marks[lit] && !--needed)
+        break;
+      else if (--remain < needed)
+        break;
+    }
+    if (needed)
+      continue;
+    LOGCLAUSE (watcher->clause, "eagerly subsumed");
+    mark_garbage_watcher (ring, watcher);
+    p[-1] = INVALID;
+    ring->statistics.eagerly_subsumed++;
+  }
+  for (all_elements_on_stack (unsigned, lit, ring->clause)) {
+    assert (marks[lit]);
+    marks[lit] = 0;
+  }
+  flush_last_learned (ring);
+}
+
+static void insert_last_learned (struct ring *ring, struct watch *learned) {
+  unsigned prev = index_pointer (learned);
+  unsigned *end = ring->last_learned + ring->options.eagerly_subsume;
+  for (unsigned *p = ring->last_learned; p != end; p++) {
+    unsigned tmp = *p;
+    *p = prev;
+    prev = tmp;
+  }
 }
 
 #define RESOLVE_LITERAL(OTHER) \
@@ -230,7 +314,7 @@ bool analyze (struct ring *ring, struct watch *reason) {
   assert (EMPTY (*ring_clause));
   assert (EMPTY (*analyzed));
   assert (EMPTY (*levels));
-  unsigned *used = ring->used;
+  unsigned char *used = ring->used;
   struct variable *variables = ring->variables;
   struct ring_trail *trail = &ring->trail;
   unsigned *t = trail->end;
@@ -247,7 +331,8 @@ bool analyze (struct ring *ring, struct watch *reason) {
       RESOLVE_LITERAL (other);
     } else {
       struct watcher *watcher = get_watcher (ring, reason);
-      bump_reason (ring, watcher);
+      if (watcher->redundant)
+        bump_reason (ring, watcher);
       for (all_watcher_literals (lit, watcher))
         RESOLVE_LITERAL (lit);
     }
@@ -296,6 +381,7 @@ bool analyze (struct ring *ring, struct watch *reason) {
     }
   }
   unsigned size = SIZE (*ring_clause);
+  update_average (ring, &a->size, "size", SLOW_ALPHA, size);
   assert (size);
   if (size == 1) {
     trace_add_unit (&ring->trace, not_uip);
@@ -308,6 +394,8 @@ bool analyze (struct ring *ring, struct watch *reason) {
       assert (VAR (other)->level == jump);
       learned = new_local_binary_clause (ring, true, not_uip, other);
       trace_add_binary (&ring->trace, not_uip, other);
+      if (ring->options.eagerly_subsume)
+        eagerly_subsume_last_learned (ring);
       export_binary_clause (ring, learned);
     } else {
       if (ring->options.sort_deduced)
@@ -322,17 +410,23 @@ bool analyze (struct ring *ring, struct watch *reason) {
       }
       struct clause *learned_clause =
           new_large_clause (size, literals, true, glue);
+      learned_clause->origin = ring->id;
       LOGCLAUSE (learned_clause, "new");
       learned =
           watch_first_two_literals_in_large_clause (ring, learned_clause);
       assert (!is_binary_pointer (learned));
       trace_add_clause (&ring->trace, learned_clause);
+      if (ring->options.eagerly_subsume) {
+        eagerly_subsume_last_learned (ring);
+        insert_last_learned (ring, learned);
+      }
       export_large_clause (ring, learned_clause);
     }
     assign_with_reason (ring, not_uip, learned);
   }
   CLEAR (*ring_clause);
   clear_analyzed (ring);
-
+  if (SEARCH_CONFLICTS > ring->limits.tiers)
+    update_tier_limits (ring);
   return true;
 }

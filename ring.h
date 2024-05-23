@@ -33,6 +33,7 @@ struct ring_limits {
   uint64_t rephase;
   uint64_t restart;
   uint64_t simplify;
+  uint64_t tiers;
   long long conflicts;
   struct {
     uint64_t conflicts;
@@ -42,6 +43,7 @@ struct ring_limits {
 
 struct intervals {
   uint64_t mode;
+  uint64_t tiers;
 };
 
 struct averages {
@@ -52,6 +54,7 @@ struct averages {
   struct average level;
   struct average trail;
   struct average decisions;
+  struct average size;
 };
 
 struct ring_last {
@@ -84,11 +87,28 @@ struct ring_units {
   unsigned *iterate, *export;
 };
 
-#define BINARY_SHARED 0
-#define SIZE_SHARED 16
+#define MAX_REDUNDANCY (~(uint64_t) 0)
+
+#ifdef LOGGING
+#define LOG_REDUNDANCY(R) (unsigned) ((R) >> 32), (unsigned) (R)
+#endif
+
+#define BINARY_BUCKET 0
+#define SIZE_POOL 8
+
+struct bucket {
+  uint64_t redundancy;
+  atomic_uintptr_t shared;
+};
 
 struct pool {
-  atomic_uintptr_t share[SIZE_SHARED];
+  struct bucket bucket[SIZE_POOL];
+};
+
+struct ring;
+
+struct rings {
+  struct ring **begin, **end, **allocated;
 };
 
 struct ring {
@@ -114,11 +134,14 @@ struct ring {
   unsigned target;
   unsigned unassigned;
 
+  unsigned tier1_glue_limit[2];
+  unsigned tier2_glue_limit[2];
+
   signed char *marks;
   signed char *values;
 
   bool *inactive;
-  unsigned *used;
+  unsigned char *used;
 
   struct unsigneds analyzed;
   struct unsigneds clause;
@@ -126,6 +149,8 @@ struct ring {
   struct unsigneds minimize;
   struct unsigneds sorter;
   struct unsigneds outoforder;
+  struct unsigneds promote;
+  struct rings exports;
 
   struct references *references;
   struct ring_trail trail;
@@ -136,10 +161,10 @@ struct ring {
   struct phases *phases;
   struct queue queue;
 
-  unsigned tier2;
   unsigned redundant;
   struct watchers watchers;
-  struct clauses saved;
+  unsigned last_learned[4];
+  struct saved_watchers saved;
 
   struct trace trace;
 
@@ -155,10 +180,6 @@ struct ring {
 
   unsigned randec;
   uint64_t random;
-};
-
-struct rings {
-  struct ring **begin, **end, **allocated;
 };
 
 /*------------------------------------------------------------------------*/
@@ -202,6 +223,17 @@ struct rings {
   (WATCHER != END_##WATCHER); \
   ++WATCHER
 
+#define capacity_last_learned \
+  (sizeof ring->last_learned / sizeof *ring->last_learned)
+
+#define real_end_last_learned (ring->last_learned + capacity_last_learned)
+
+#define really_all_last_learned(IDX_PTR) \
+  unsigned *IDX_PTR = ring->last_learned, \
+           *IDX_PTR##_END = real_end_last_learned; \
+  IDX_PTR != IDX_PTR##_END; \
+  IDX_PTR++
+
 /*------------------------------------------------------------------------*/
 
 void init_ring (struct ring *);
@@ -211,6 +243,8 @@ struct ring *new_ring (struct ruler *);
 void delete_ring (struct ring *);
 
 void init_pool (struct ring *, unsigned threads);
+
+void reset_last_learned (struct ring *);
 
 void mark_satisfied_watchers_as_garbage (struct ring *);
 
@@ -223,6 +257,8 @@ void set_satisfied (struct ring *);
 void print_ring_profiles (struct ring *);
 
 unsigned *sorter_block (struct ring *, size_t size);
+
+struct ring *random_other_ring (struct ring *);
 
 /*------------------------------------------------------------------------*/
 

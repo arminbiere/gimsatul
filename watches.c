@@ -94,18 +94,21 @@ struct watch *watch_literals_in_large_clause (struct ring *ring,
 
   unsigned size = clause->size;
   unsigned glue = clause->glue;
+
+  if (clause->origin != ring->id) {
+    unsigned increase = ring->options.increase_imported_glue;
+    if (increase == 2)
+      glue = MAX_GLUE;
+    else if (increase && glue < MAX_GLUE)
+      glue++;
+  }
+
   bool redundant = clause->redundant;
 
   if (size > SIZE_WATCHER_LITERALS)
     size = 0;
 
-  unsigned used;
-  if (redundant && TIER1_GLUE_LIMIT < glue && glue <= TIER2_GLUE_LIMIT)
-    used = 2;
-  else if (redundant && glue > TIER2_GLUE_LIMIT)
-    used = 1;
-  else
-    used = 0;
+  unsigned used = MAX_USED;
 
   assert (size < (1 << (8 * sizeof watcher->size)));
   assert (glue < (1 << (8 * sizeof watcher->glue)));
@@ -173,7 +176,6 @@ unsigned *flush_watchers (struct ring *ring, unsigned start) {
   unsigned dst = start;
 
   unsigned redundant = 0;
-  unsigned tier2 = 0;
 #ifndef QUIET
   unsigned flushed = 0;
   unsigned deleted = 0;
@@ -199,9 +201,6 @@ unsigned *flush_watchers (struct ring *ring, unsigned start) {
       if (!redundant && p->redundant)
         redundant = dst;
 
-      if (!tier2 && p->redundant && TIER1_GLUE_LIMIT < p->glue)
-        tier2 = dst;
-
       assert (src < size);
       assert (dst < MAX_WATCHER_INDEX);
       map[src] = dst++;
@@ -226,16 +225,7 @@ unsigned *flush_watchers (struct ring *ring, unsigned start) {
     ring->redundant = SIZE (*watchers);
   }
 
-  if (tier2) {
-    very_verbose (ring, "tier2 clauses start at watcher index %u", tier2);
-    ring->tier2 = tier2;
-  } else {
-    very_verbose (ring, "no tier2 clauses watched");
-    ring->tier2 = SIZE (*watchers);
-  }
-
   assert (ring->redundant);
-  assert (ring->tier2);
 
   return map;
 }
@@ -247,10 +237,40 @@ void mark_garbage_watcher (struct ring *ring, struct watcher *watcher) {
   dec_clauses (ring, watcher->redundant);
 }
 
-void sort_redundant_watcher_indices (struct ring *ring, size_t size_indices,
-                                     unsigned *indices) {
-  if (size_indices < 2)
-    return;
+static void sort_by_size (struct ring *ring, size_t size_indices,
+                          unsigned *indices) {
+  size_t size_count = 256, count[size_count];
+  size_t bytes = size_indices * sizeof *indices;
+  unsigned *end = indices + size_indices;
+  for (unsigned shift = 0; shift != 32; shift += 8) {
+    memset (count, 0, sizeof count);
+    for (unsigned *p = indices; p != end; p++) {
+      unsigned idx = *p;
+      struct watcher *watcher = index_to_watcher (ring, idx);
+      assert (watcher->redundant);
+      unsigned size = watcher->size ? watcher->size : watcher->clause->size;
+      unsigned byte = (size >> shift) & 255;
+      count[byte]++;
+    }
+    {
+      size_t pos = 0, *c = count + size_count, size;
+      while (c-- != count)
+        size = *c, *c = pos, pos += size;
+    }
+    unsigned *tmp = sorter_block (ring, size_indices);
+    for (unsigned *p = indices; p != end; p++) {
+      unsigned idx = *p;
+      struct watcher *watcher = index_to_watcher (ring, idx);
+      unsigned size = watcher->size ? watcher->size : watcher->clause->size;
+      unsigned byte = (size >> shift) & 255;
+      tmp[count[byte]++] = idx;
+    }
+    memcpy (indices, tmp, bytes);
+  }
+}
+
+static void sort_by_glue (struct ring *ring, size_t size_indices,
+                          unsigned *indices) {
   size_t size_count = MAX_GLUE + 1, count[size_count];
   memset (count, 0, sizeof count);
   unsigned *end = indices + size_indices;
@@ -261,9 +281,11 @@ void sort_redundant_watcher_indices (struct ring *ring, size_t size_indices,
     assert (watcher->redundant);
     count[watcher->glue]++;
   }
-  size_t pos = 0, *c = count + size_count, size;
-  while (c-- != count)
-    size = *c, *c = pos, pos += size;
+  {
+    size_t pos = 0, *c = count + size_count, size;
+    while (c-- != count)
+      size = *c, *c = pos, pos += size;
+  }
   unsigned *tmp = sorter_block (ring, size_indices);
   for (unsigned *p = indices; p != end; p++) {
     unsigned idx = *p;
@@ -272,4 +294,12 @@ void sort_redundant_watcher_indices (struct ring *ring, size_t size_indices,
   }
   size_t bytes = size_indices * sizeof *indices;
   memcpy (indices, tmp, bytes);
+}
+
+void sort_redundant_watcher_indices (struct ring *ring, size_t size_indices,
+                                     unsigned *indices) {
+  if (size_indices < 2)
+    return;
+  sort_by_size (ring, size_indices, indices);
+  sort_by_glue (ring, size_indices, indices);
 }

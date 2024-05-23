@@ -282,6 +282,7 @@ static void set_walking_limits (struct walker *walker) {
   uint64_t search = statistics->contexts[SEARCH_CONTEXT].ticks;
   uint64_t walk = statistics->contexts[WALK_CONTEXT].ticks;
   uint64_t ticks = search - last->walk;
+  ticks = MAX (MIN_ABSOLUTE_FFORT, ticks);
   uint64_t extra = walker->extra;
   uint64_t effort = extra + WALK_EFFORT * ticks;
   walker->limit = walk + effort;

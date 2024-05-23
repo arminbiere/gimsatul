@@ -4,8 +4,11 @@
 #include "message.h"
 #include "report.h"
 #include "ring.h"
+#include "tiers.h"
 #include "trace.h"
 #include "utilities.h"
+
+#include "cover.h" // TODO remove
 
 #include <inttypes.h>
 #include <math.h>
@@ -60,12 +63,11 @@ void check_clause_statistics (struct ring *ring) {
 #endif
 }
 
-void check_redundant_and_tier2_offsets (struct ring *ring) {
+void check_redundant_offset (struct ring *ring) {
 #ifndef NDBEUG
   struct watchers *watchers = &ring->watchers;
   struct watcher *begin = watchers->begin;
   struct watcher *redundant = begin + ring->redundant;
-  struct watcher *tier2 = begin + ring->tier2;
   struct watcher *end = watchers->end;
 
   for (struct watcher *watcher = begin; watcher != redundant; watcher++)
@@ -74,15 +76,7 @@ void check_redundant_and_tier2_offsets (struct ring *ring) {
   assert (begin <= redundant);
   assert (redundant <= end);
 
-  for (struct watcher *watcher = redundant; watcher != tier2; watcher++) {
-    assert (watcher->redundant);
-    assert (watcher->glue <= TIER1_GLUE_LIMIT);
-  }
-
-  assert (redundant <= tier2);
-  assert (tier2 <= end);
-
-  for (struct watcher *watcher = tier2; watcher != end; watcher++)
+  for (struct watcher *watcher = redundant; watcher != end; watcher++)
     assert (watcher->redundant);
 #else
   (void) ring;
@@ -145,20 +139,24 @@ static void gather_reduce_candidates (struct ring *ring,
   struct watchers *watchers = &ring->watchers;
   struct watcher *begin = watchers->begin;
   struct watcher *end = watchers->end;
-  struct watcher *tier2 = begin + ring->tier2;
-  for (struct watcher *watcher = tier2; watcher != end; watcher++) {
-    if (watcher->garbage)
-      continue;
-    if (watcher->reason)
-      continue;
+  struct watcher *redundant = begin + ring->redundant;
+  unsigned tier1 = ring->tier1_glue_limit[ring->stable];
+  unsigned tier2 = ring->tier2_glue_limit[ring->stable];
+  for (struct watcher *watcher = redundant; watcher != end; watcher++) {
     if (!watcher->redundant)
       continue;
-    if (watcher->glue <= TIER1_GLUE_LIMIT)
+    if (watcher->garbage)
       continue;
-    if (watcher->used) {
-      watcher->used--;
+    const unsigned char used = watcher->used;
+    if (used)
+      watcher->used = used - 1;
+    if (watcher->reason)
       continue;
-    }
+    const unsigned char glue = watcher->glue;
+    if (glue <= tier1 && used)
+      continue;
+    if (glue <= tier2 && used >= MAX_USED - 1)
+      continue;
     unsigned idx = watcher_to_index (ring, watcher);
     PUSH (*candidates, idx);
   }
@@ -171,11 +169,22 @@ static void
 mark_reduce_candidates_as_garbage (struct ring *ring,
                                    struct unsigneds *candidates) {
   size_t size = SIZE (*candidates);
-  size_t target = REDUCE_FRACTION * size;
+  const double fraction =
+      ring->stable ? REDUCE_FRACTION_STABLE : REDUCE_FRACTION_FOCUSED;
+  size_t target = fraction * size;
   size_t reduced = 0;
+  unsigned tier1 = ring->tier1_glue_limit[ring->stable];
+  unsigned tier2 = ring->tier2_glue_limit[ring->stable];
   for (all_elements_on_stack (unsigned, idx, *candidates)) {
     struct watcher *watcher = index_to_watcher (ring, idx);
     mark_garbage_watcher (ring, watcher);
+    ring->statistics.reduced.clauses++;
+    if (watcher->glue <= tier1)
+      ring->statistics.reduced.tier1++;
+    else if (watcher->glue <= tier2)
+      ring->statistics.reduced.tier2++;
+    else
+      ring->statistics.reduced.tier3++;
     if (++reduced == target)
       break;
   }
@@ -251,7 +260,8 @@ static void flush_references (struct ring *ring, bool fixed, unsigned start,
 void reduce (struct ring *ring) {
   START (ring, reduce);
   check_clause_statistics (ring);
-  check_redundant_and_tier2_offsets (ring);
+  check_redundant_offset (ring);
+  recalculate_tier_limits (ring);
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
   statistics->reductions++;
@@ -262,7 +272,7 @@ void reduce (struct ring *ring) {
   if (fixed)
     mark_satisfied_watchers_as_garbage (ring);
   else
-    start = ring->tier2;
+    start = ring->redundant;
   mark_reasons (ring, start);
   struct unsigneds candidates;
   INIT (candidates);
@@ -275,14 +285,17 @@ void reduce (struct ring *ring) {
   unmark_reasons (ring, start, map);
   flush_references (ring, fixed, start, map);
   free (map);
+  reset_last_learned (ring);
   check_clause_statistics (ring);
-  check_redundant_and_tier2_offsets (ring);
+  check_redundant_offset (ring);
   limits->reduce = SEARCH_CONFLICTS;
   unsigned interval = ring->options.reduce_interval;
   assert (interval);
-  limits->reduce += interval * sqrt (statistics->reductions);
-  very_verbose (ring, "next reduce limit at %" PRIu64 " conflicts",
-                limits->reduce);
+  uint64_t delta = interval * sqrt (statistics->reductions);
+  limits->reduce += delta;
+  very_verbose (
+      ring, "next reduce limit at %" PRIu64 " after %" PRIu64 " conflicts",
+      limits->reduce, delta);
   report (ring, '-');
   STOP (ring, reduce);
 }

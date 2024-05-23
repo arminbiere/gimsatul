@@ -76,14 +76,16 @@ static void transfer_ruler_clauses_to_ring (struct ring *ring) {
 }
 
 static void restore_saved_redundant_clauses (struct ring *ring) {
-  struct clauses *saved = &ring->saved;
+  struct saved_watchers *saved = &ring->saved;
   size_t binaries = 0;
 #ifndef QUIET
   size_t large = 0;
 #endif
-  unsigned tier2 = 0;
   ring->redundant = SIZE (ring->watchers);
-  for (all_clauses (clause, *saved)) {
+  struct saved_watcher *begin = saved->begin;
+  struct saved_watcher *end = saved->end;
+  for (struct saved_watcher *sw = begin; sw != end; sw++) {
+    struct clause *clause = sw->clause;
     if (is_binary_pointer (clause)) {
       struct watch *lit_watch = (struct watch *) clause;
       unsigned lit = lit_pointer (clause);
@@ -96,9 +98,11 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
     } else {
       assert (!clause->mapped);
       assert (!clause->garbage);
-      if (!tier2 && clause->glue > TIER1_GLUE_LIMIT)
-        tier2 = SIZE (ring->watchers);
-      (void) watch_first_two_literals_in_large_clause (ring, clause);
+      struct watch *watch =
+          watch_first_two_literals_in_large_clause (ring, clause);
+      struct watcher *watcher = get_watcher (ring, watch);
+      watcher->used = sw->used;
+      watcher->vivify = sw->vivify;
 #ifndef QUIET
       large++;
 #endif
@@ -114,17 +118,8 @@ static void restore_saved_redundant_clauses (struct ring *ring) {
   else
     very_verbose (ring, "redundant clauses start at watcher index %u",
                   ring->redundant);
-  if (tier2) {
-    very_verbose (ring, "tier2 clauses start at watcher index %u",
-                  ring->tier2);
-    ring->tier2 = tier2;
-  } else {
-    very_verbose (ring, "no tier2 clauses watched");
-    ring->tier2 = SIZE (ring->watchers);
-  }
 
   assert (ring->redundant);
-  assert (ring->tier2);
 }
 
 void copy_ruler (struct ring *ring) {
@@ -133,6 +128,8 @@ void copy_ruler (struct ring *ring) {
     set_inconsistent (ring, "copied empty clause");
     for (all_clauses (clause, ruler->clauses))
       free (clause);
+  } else if (ruler->terminate) {
+    return;
   } else {
     copy_ruler_binaries (ring);
     transfer_ruler_clauses_to_ring (ring);

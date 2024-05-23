@@ -1,6 +1,8 @@
 #ifndef _statistics_h_INCLUDED
 #define _statistics_h_INCLUDED
 
+#include "options.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -14,6 +16,11 @@ struct ruler;
 #ifdef METRICS
 #define SIZE_VISITS 16
 #endif
+
+struct usage {
+  uint64_t bumped;
+  uint64_t glue[MAX_GLUE];
+};
 
 struct context {
   uint64_t ticks;
@@ -62,9 +69,13 @@ struct ring_statistics {
   size_t redundant;
 
   struct {
+    uint64_t units;
     uint64_t tried;
     uint64_t reused;
+    uint64_t strengthened;
+    uint64_t subsumed;
     uint64_t succeeded;
+    uint64_t implied;
   } vivify;
 
   struct {
@@ -75,9 +86,22 @@ struct ring_statistics {
     uint64_t random;
   } decisions;
 
+  uint64_t bumped;
+  struct usage usage[2];
+
+  struct {
+    uint64_t clauses;
+    uint64_t tier1;
+    uint64_t tier2;
+    uint64_t kept1;
+    uint64_t kept2;
+    uint64_t kept3;
+  } promoted;
+
   uint64_t random_sequences;
 
 #define SIZE_GLUE_STATISTICS 16
+#define SIZE_SIZE_STATISTICS 16
 
   uint64_t diverged;
 
@@ -88,8 +112,16 @@ struct ring_statistics {
     uint64_t tier1, tier2, tier3;
 #ifdef METRICS
     uint64_t glue[SIZE_GLUE_STATISTICS];
+    uint64_t size[SIZE_SIZE_STATISTICS];
 #endif
-  } learned, exported, imported, shared;
+  } learned, exported, imported;
+
+  struct {
+    uint64_t clauses;
+    uint64_t tier1;
+    uint64_t tier2;
+    uint64_t tier3;
+  } reduced;
 
   struct {
     struct {
@@ -97,6 +129,8 @@ struct ring_statistics {
       uint64_t succeeded;
     } binary, large;
   } subsumed;
+
+  uint64_t eagerly_subsumed;
 };
 
 #ifdef METRICS
@@ -107,6 +141,10 @@ struct ring_statistics {
       S->NAME.glue[(GLUE)] += (INC); \
     else \
       S->NAME.glue[0] += (INC); \
+    if ((SIZE) < SIZE_SIZE_STATISTICS) \
+      S->NAME.size[(SIZE)] += (INC); \
+    else \
+      S->NAME.size[0] += (INC); \
   } while (0)
 
 #else
@@ -134,9 +172,9 @@ struct ring_statistics {
         assert ((GLUE) == 1); \
         S->NAME.binaries += (INC); \
       } \
-      if ((GLUE) <= TIER1_GLUE_LIMIT) \
+      if ((GLUE) <= ring->tier1_glue_limit[ring->stable]) \
         S->NAME.tier1 += (INC); \
-      else if ((GLUE) <= TIER2_GLUE_LIMIT) \
+      else if ((GLUE) <= ring->tier2_glue_limit[ring->stable]) \
         S->NAME.tier2 += (INC); \
       else \
         S->NAME.tier3 += (INC); \
@@ -153,14 +191,14 @@ struct ring_statistics {
 #define ADD_BINARY_CLAUSE_STATISTICS(NAME, INC) \
   ADD_CLAUSE_STATISTICS (NAME, (INC), 1, 2)
 
-#define ADD_LARGE_CLAUSE_STATISTICS(NAME, INC, GLUE) \
-  ADD_CLAUSE_STATISTICS (NAME, (INC), (GLUE), 3)
+#define ADD_LARGE_CLAUSE_STATISTICS(NAME, INC, GLUE, SIZE) \
+  ADD_CLAUSE_STATISTICS (NAME, (INC), (GLUE), (SIZE))
 
 #define INC_BINARY_CLAUSE_STATISTICS(NAME) \
   ADD_BINARY_CLAUSE_STATISTICS (NAME, 1)
 
-#define INC_LARGE_CLAUSE_STATISTICS(NAME, GLUE) \
-  ADD_LARGE_CLAUSE_STATISTICS (NAME, 1, (GLUE))
+#define INC_LARGE_CLAUSE_STATISTICS(NAME, GLUE, SIZE) \
+  ADD_LARGE_CLAUSE_STATISTICS (NAME, 1, (GLUE), (SIZE))
 
 #define SEARCH_CONFLICTS ring->statistics.contexts[SEARCH_CONTEXT].conflicts
 

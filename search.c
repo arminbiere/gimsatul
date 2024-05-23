@@ -43,6 +43,7 @@ bool backtrack_propagate_iterate (struct ring *ring) {
   assert (!ring->inconsistent);
   if (ring->level)
     backtrack (ring, 0);
+  ring->trail.propagate = ring->trail.begin;
   if (ring_propagate (ring, true, 0)) {
     set_inconsistent (ring,
                       "failed propagation after root-level backtracking");
@@ -94,6 +95,7 @@ static bool conflict_limit_hit (struct ring *ring) {
     return false;
   verbose (ring, "conflict limit %ld hit at %" PRIu64 " conflicts", limit,
            conflicts);
+  set_terminate (ring->ruler, ring);
   return true;
 }
 
@@ -151,5 +153,6 @@ int search (struct ring *ring) {
       res = 20;
   }
   stop_search (ring, res);
+  assert (ring->ruler->terminate); // Might break due to races.
   return res;
 }
