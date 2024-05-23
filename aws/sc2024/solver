@@ -5,7 +5,7 @@ input=`awk '/formula_file/{print $2}' $json|sed -e s/,$// -e s/\"//g`
 time=`awk '/timeout_seconds/{print $2}' $json|sed -e s/,$// -e s/\"//g`
 stdout=/rundir/stdout.log
 stderr=/rundir/stderr.log
-/gimsatul/gimsatul --time=$time --threads=32 $input 1>$stdout 2>$stderr
+/gimsatul/gimsatul --time=$time --threads=64 $input 1>$stdout 2>$stderr
 status=$?
 cat<<EOF
 {
