@@ -5,7 +5,7 @@ RUN apt-get update && apt-get -y upgrade
 RUN apt-get install --no-install-recommends -y apt-utils
 RUN apt-get install -y git make gcc
 RUN git clone --branch sc2024 https://github.com/arminbiere/gimsatul
-WORKDIR gimsatul
+WORKDIR /gimsatul
 RUN git pull
 RUN ./configure -q && make
 COPY solver /competition/solver
