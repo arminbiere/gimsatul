@@ -3,7 +3,7 @@ cat<<EOF>input.json
 {
   "formula_file": "/rundir/$1",
   "worker_node_ips": ["leader"],
-  "timeout_seconds": "1000",
+  "timeout_seconds": 1000,
   "formula_language": "",
   "solver_argument_list": [""]
 }
