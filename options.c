@@ -182,12 +182,12 @@ void parse_options_in_json_file (struct options *opts, const char *path,
       struct json_member *member = json->object.members + i;
       assert (member);
       struct json *value = member->value;
-      assert (value);
-      if (value->tag != JSON_STRING)
-        continue;
       const char *key = member->string;
-      const char *data = value->string;
+      assert (value);
       if (!strcmp (key, "formula_file")) {
+        if (value->tag != JSON_STRING)
+          continue;
+        const char *data = value->string;
         opts->dimacs.file = fopen (data, "r");
         opts->dimacs.close = 1;
         if (!opts->dimacs.file)
@@ -197,13 +197,26 @@ void parse_options_in_json_file (struct options *opts, const char *path,
         opts->dimacs.path = opts->garbage = strdup (data);
       }
       if (!strcmp (key, "timeout_seconds")) {
-        if (opts->seconds)
-          die ("second timeout option "
-               "'\"timeout_seconds\": \"%s\"' in '%s'",
-               data, path);
-        if (sscanf (data, "%u", &opts->seconds) != 1 || !opts->seconds)
-          die ("invalid argument '\"timeout_seconds\": \"%s\"' in '%s'",
-               data, path);
+        if (value->tag == JSON_STRING) {
+          const char *data = value->string;
+          if (opts->seconds)
+            die ("second timeout option "
+                 "'\"timeout_seconds\": \"%s\"' in '%s'",
+                 data, path);
+          if (sscanf (data, "%u", &opts->seconds) != 1 || !opts->seconds)
+            die ("invalid argument '\"timeout_seconds\": \"%s\"' in '%s'",
+                 data, path);
+        } else if (value->tag == JSON_NUMBER) {
+          unsigned seconds = value->number;
+          if (opts->seconds)
+            die ("second timeout option "
+                 "'\"timeout_seconds\": %u' in '%s'",
+                 seconds, path);
+          if (!seconds)
+            die ("invalid argument '\"timeout_seconds\": %u' in '%s'",
+                 seconds, path);
+          opts->seconds = seconds;
+        }
       }
     }
   }
