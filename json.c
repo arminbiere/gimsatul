@@ -427,6 +427,17 @@ static bool is_primitive_json (struct json *json) {
          json->tag == JSON_BOOLEAN;
 }
 
+static bool is_primitive_or_flat_array (struct json *json) {
+  if (is_primitive_json (json))
+    return true;
+  if (json->tag != JSON_ARRAY)
+    return false;
+  for (size_t i = 0; i != json->array.size; i++)
+    if (!is_primitive_json (json->array.values[i]))
+      return false;
+  return true;
+}
+
 static void indent_json (unsigned indent, FILE *file) {
   for (unsigned i = 0; i != indent; i++)
     fputs ("  ", file);
@@ -474,7 +485,46 @@ static void print_json_recursive (struct json *json, bool flat,
     }
     break;
   case JSON_OBJECT:
-    for (size_t i = 0; i != json->object.size; i++) {
+    if (!flat && (indent || !json->object.size)) {
+      flat = true;
+      for (size_t i = 0; flat && i != json->object.size; i++)
+        if (!is_primitive_json (json->object.members[i].value))
+          flat = false;
+    }
+    if (flat) {
+      fputc ('{', file);
+      for (size_t i = 0; i != json->object.size; i++) {
+        if (i)
+          fputs (", ", file);
+        fputc ('"', file);
+        fputs (json->object.members[i].string, file);
+        fputs ("\": ", file);
+        print_json_recursive (json->object.members[i].value, true, 0, file);
+      }
+      fputc ('}', file);
+    } else {
+      fputs ("{", file);
+      for (size_t i = 0; i != json->object.size; i++) {
+        if (i)
+          fputc (',', file);
+        fputc ('\n', file);
+        indent_json (indent + 1, file);
+        fputc ('"', file);
+        fputs (json->object.members[i].string, file);
+        fputc ('"', file);
+        fputc (':', file);
+        struct json *value = json->object.members[i].value;
+        if (is_primitive_or_flat_array (value)) {
+          fputc (' ', file);
+          print_json_recursive (value, true, 0, file);
+        } else {
+          fputc ('\n', file);
+          print_json_recursive (value, false, indent + 2, file);
+        }
+      }
+      fputc ('\n', file);
+      indent_json (indent, file);
+      fputs ("}", file);
     }
     break;
   case JSON_NUMBER:

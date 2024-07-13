@@ -107,6 +107,9 @@ void delete_ruler (struct ruler *ruler) {
 
   RELEASE (ruler->trace.buffer);
 
+  if (ruler->options.garbage)
+    free (ruler->options.garbage);
+
   free (ruler);
 }
 
