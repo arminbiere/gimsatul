@@ -106,18 +106,34 @@ static bool push_json_member (struct json_members *members, char *string,
   return true;
 }
 
-const char *parse_json_file (struct json **res_ptr, FILE *file,
-                             size_t *linenoptr) {
+static const char *parse_json_file_recursively (struct json **res_ptr,
+                                                FILE *file,
+                                                size_t *lineno_ptr) {
   int ch;
-  *linenoptr = 1;
+  *lineno_ptr = 1;
   while (isspace (ch = getc (file)))
     if (ch == '\n')
-      *linenoptr += 1;
+      *lineno_ptr += 1;
   struct json *res;
   if (ch == EOF) {
     res = 0;
   } else if (ch == '{') {
   } else if (ch == ']') {
+    struct json_values values;
+    memset (&values, 0, sizeof values);
+    release_json_values (&values);
+    for (;;) {
+      while (isspace (ch = getc (file)))
+        if (ch == '\n')
+          *lineno_ptr += 1;
+      if (ch == EOF) {
+        release_json_values (&values);
+        return "unexpected end-of-file";
+      }
+      if (ch == '}') {
+        break;
+      }
+    }
   } else if (ch == '"') {
     struct json_string string;
     memset (&string, 0, sizeof string);
@@ -136,17 +152,15 @@ const char *parse_json_file (struct json **res_ptr, FILE *file,
     res = malloc (sizeof *res);
     if (!res)
       return "out-of-memory";
-    if (string.size) {
-      res->string = malloc (string.size + 1);
-      if (!res->string) {
-        release_json_string (&string);
-        free (res);
-        return "out-of-memory";
-      }
+    res->string = malloc (string.size + 1);
+    if (!res->string) {
+      release_json_string (&string);
+      free (res);
+      return "out-of-memory";
+    }
+    if (string.size)
       memcpy (res->string, string.array, string.size);
-      res->string[string.size] = 0;
-    } else
-      res->string = 0;
+    res->string[string.size] = 0;
     res->tag = JSON_STRING;
     release_json_string (&string);
   } else if (isdigit (ch)) {
@@ -209,6 +223,22 @@ const char *parse_json_file (struct json **res_ptr, FILE *file,
     return "invalid character";
   *res_ptr = res;
   return 0;
+}
+
+const char *parse_json_file (struct json **res_ptr, FILE *file,
+                             size_t *lineno_ptr) {
+  const char *error =
+      parse_json_file_recursively (res_ptr, file, lineno_ptr);
+  if (error)
+    return error;
+  int ch;
+  while (isspace (ch = getc (file)))
+    if (ch == '\n')
+      *lineno_ptr += 1;
+  if (ch == EOF)
+    return 0;
+  delete_json (*res_ptr);
+  return "trailing characters";
 }
 
 void delete_json (struct json *json) {
