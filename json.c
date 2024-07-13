@@ -110,7 +110,6 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
                                                 FILE *file,
                                                 size_t *lineno_ptr) {
   int ch;
-  *lineno_ptr = 1;
   while (isspace (ch = getc (file)))
     if (ch == '\n')
       *lineno_ptr += 1;
@@ -118,10 +117,10 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
   if (ch == EOF) {
     res = 0;
   } else if (ch == '{') {
-  } else if (ch == ']') {
+  } else if (ch == '[') {
     struct json_values values;
     memset (&values, 0, sizeof values);
-    release_json_values (&values);
+    size_t comma_lineno = 0;
     for (;;) {
       while (isspace (ch = getc (file)))
         if (ch == '\n')
@@ -130,10 +129,60 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
         release_json_values (&values);
         return "unexpected end-of-file";
       }
-      if (ch == '}') {
+      if (ch == ']') {
+        if (values.size) {
+          release_json_values (&values);
+          *lineno_ptr = comma_lineno;
+          return "unexpected trailing comma";
+        }
         break;
       }
+      ungetc (ch, file);
+      struct json * value;
+      const char *error =
+          parse_json_file_recursively (&value, file, lineno_ptr);
+      if (error) {
+        release_json_values (&values);
+        return error;
+      }
+      if (!push_json_value (&values, value))
+        return "out-of-memory";
+      while (isspace (ch = getc (file)))
+        if (ch == '\n')
+          *lineno_ptr += 1;
+      if (ch == EOF) {
+        release_json_values (&values);
+        return "unexpected end-of-file";
+      }
+      if (ch == ']') {
+        assert (values.size);
+        break;
+      }
+      if (ch != ',') {
+        release_json_values (&values);
+        return "unexpected character (expected ']' or ',')";
+      }
+      comma_lineno = *lineno_ptr;
     }
+    res = malloc (sizeof *res);
+    if (!res) {
+      release_json_values (&values);
+      return "out-of-memory";
+    }
+    res->array.size = values.size;
+    if (values.size) {
+      size_t bytes = values.size * sizeof (struct json *);
+      res->array.values = malloc (bytes);
+      if (!res->array.values) {
+        release_json_values (&values);
+        free (res);
+        return "out-of-memory";
+      }
+      memcpy (res->array.values, values.array, bytes);
+      free (values.array);
+    } else
+      res->array.values = 0;
+    res->tag = JSON_ARRAY;
   } else if (ch == '"') {
     struct json_string string;
     memset (&string, 0, sizeof string);
@@ -150,8 +199,10 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
         return "out-of-memory";
     }
     res = malloc (sizeof *res);
-    if (!res)
+    if (!res) {
+      release_json_string (&string);
       return "out-of-memory";
+    }
     res->string = malloc (string.size + 1);
     if (!res->string) {
       release_json_string (&string);
@@ -227,6 +278,7 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
 
 const char *parse_json_file (struct json **res_ptr, FILE *file,
                              size_t *lineno_ptr) {
+  *lineno_ptr = 1;
   const char *error =
       parse_json_file_recursively (res_ptr, file, lineno_ptr);
   if (error)
@@ -268,10 +320,23 @@ void delete_json (struct json *json) {
   free (json);
 }
 
-static void print_json_recursive (struct json *json, int flat,
+static bool is_primitive_json (struct json *json) {
+  assert (json);
+  return json->tag == JSON_STRING || json->tag == JSON_NUMBER ||
+         json->tag == JSON_BOOLEAN;
+}
+
+static void indent_json (unsigned indent, FILE *file) {
+  for (unsigned i = 0; i != indent; i++)
+    fputs ("  ", file);
+}
+
+static void print_json_recursive (struct json *json, bool flat,
                                   unsigned indent, FILE *file) {
   if (!json)
     return;
+  if (!flat)
+    indent_json (indent, file);
   switch (json->tag) {
   case JSON_STRING:
     fputc ('"', file);
@@ -279,8 +344,33 @@ static void print_json_recursive (struct json *json, int flat,
     fputc ('"', file);
     break;
   case JSON_ARRAY:
-    for (size_t i = 0; i != json->array.size; i++)
-      ;
+    if (!flat && (indent || !json->array.size)) {
+      flat = true;
+      for (size_t i = 0; flat && i != json->array.size; i++)
+        if (!is_primitive_json (json->array.values[i]))
+          flat = false;
+    }
+    if (flat) {
+      fputc ('[', file);
+      for (size_t i = 0; i != json->array.size; i++) {
+        if (i)
+          fputs (", ", file);
+        print_json_recursive (json->array.values[i], true, 0, file);
+      }
+      fputc (']', file);
+    } else {
+      fputs ("[", file);
+      for (size_t i = 0; i != json->array.size; i++) {
+        if (i)
+          fputc (',', file);
+        fputc ('\n', file);
+        print_json_recursive (json->array.values[i], false, indent + 1,
+                              file);
+      }
+      fputc ('\n', file);
+      indent_json (indent, file);
+      fputs ("]", file);
+    }
     break;
   case JSON_OBJECT:
     for (size_t i = 0; i != json->object.size; i++) {
@@ -304,4 +394,6 @@ static void print_json_recursive (struct json *json, int flat,
 
 void print_json (struct json *json, int flat, FILE *file) {
   print_json_recursive (json, flat, 0, file);
+  if (!flat)
+    fputc ('\n', file);
 }

@@ -176,8 +176,12 @@ void parse_options_in_json_file (struct options *opts, const char *path,
   if (error)
     die ("parse error at line %zu in '%s': %s", lineno, path, error);
   if (json) {
-    print_json (json, 0, stdout);
+#if 0
+    print_json (json, 1, stdout);
     fputc ('\n', stdout);
+#else
+    print_json (json, 0, stdout);
+#endif
   }
   delete_json (json);
   exit (0);
