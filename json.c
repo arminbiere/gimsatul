@@ -117,6 +117,107 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
   if (ch == EOF) {
     res = 0;
   } else if (ch == '{') {
+    struct json_members members;
+    memset (&members, 0, sizeof members);
+    size_t comma_lineno = 0;
+    for (;;) {
+      while (isspace (ch = getc (file)))
+        if (ch == '\n')
+          *lineno_ptr += 1;
+      if (ch == EOF) {
+        release_json_members (&members);
+        return "unexpected end-of-file";
+      }
+      if (ch == '}') {
+        if (members.size) {
+          release_json_members (&members);
+          *lineno_ptr = comma_lineno;
+          return "unexpected trailing comma";
+        }
+        break;
+      }
+      if (ch != '"')
+        return "unexpected character (expected string)";
+      ungetc (ch, file);
+      struct json *string;
+      const char *error =
+          parse_json_file_recursively (&string, file, lineno_ptr);
+      if (error) {
+        release_json_members (&members);
+        return error;
+      }
+      assert (string->tag == JSON_STRING);
+      while (isspace (ch = getc (file)))
+        if (ch == '\n')
+          *lineno_ptr += 1;
+      if (ch == EOF) {
+        release_json_members (&members);
+        return "unexpected end-of-file";
+      }
+      if (ch != ':') {
+        release_json_members (&members);
+        return "expected ':'";
+      }
+      while (isspace (ch = getc (file)))
+        if (ch == '\n')
+          *lineno_ptr += 1;
+      if (ch == EOF) {
+        delete_json (string);
+        release_json_members (&members);
+        return "unexpected end-of-file";
+      }
+      ungetc (ch, file);
+      struct json *value;
+      error = parse_json_file_recursively (&value, file, lineno_ptr);
+      if (error) {
+        delete_json (string);
+        release_json_members (&members);
+        return error;
+      }
+      while (isspace (ch = getc (file)))
+        if (ch == '\n')
+          *lineno_ptr += 1;
+      if (ch == EOF) {
+        delete_json (string);
+        delete_json (value);
+        release_json_members (&members);
+        return "unexpected end-of-file";
+      }
+      if (!push_json_member (&members, string->string, value)) {
+        delete_json (string);
+        delete_json (value);
+        return "out-of-memory";
+      }
+      free (string);
+      if (ch == '}') {
+        assert (members.size);
+        break;
+      }
+      if (ch != ',') {
+        release_json_members (&members);
+        return "unexpected character (expected '}' or ',')";
+      }
+      comma_lineno = *lineno_ptr;
+    }
+    res = malloc (sizeof *res);
+    if (!res) {
+      release_json_members (&members);
+      return "out-of-memory";
+    }
+    res->object.size = members.size;
+    if (members.size) {
+      size_t bytes = members.size * sizeof (struct json_member);
+      res->object.members = malloc (bytes);
+      if (!res->object.members) {
+        release_json_members (&members);
+        free (res);
+        return "out-of-memory";
+      }
+      memcpy (res->object.members, members.array, bytes);
+      free (members.array);
+    } else
+      res->object.members = 0;
+    res->tag = JSON_OBJECT;
   } else if (ch == '[') {
     struct json_values values;
     memset (&values, 0, sizeof values);
@@ -138,7 +239,7 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
         break;
       }
       ungetc (ch, file);
-      struct json * value;
+      struct json *value;
       const char *error =
           parse_json_file_recursively (&value, file, lineno_ptr);
       if (error) {
