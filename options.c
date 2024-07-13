@@ -175,16 +175,39 @@ void parse_options_in_json_file (struct options *opts, const char *path,
   const char *error = parse_json_file (&json, file, &lineno);
   if (error)
     die ("parse error at line %zu in '%s': %s", lineno, path, error);
-  if (json) {
-#if 0
-    print_json (json, 1, stdout);
-    fputc ('\n', stdout);
-#else
-    print_json (json, 0, stdout);
-#endif
+  if (!json)
+    return;
+  if (json->tag == JSON_OBJECT) {
+    for (size_t i = 0; i != json->object.size; i++) {
+      struct json_member *member = json->object.members + i;
+      assert (member);
+      struct json *value = member->value;
+      assert (value);
+      if (value->tag != JSON_STRING)
+        continue;
+      const char *key = member->string;
+      const char *data = value->string;
+      if (!strcmp (key, "formula_file")) {
+        opts->dimacs.file = fopen (data, "r");
+        opts->dimacs.close = 1;
+        if (!opts->dimacs.file)
+          die ("can not open and read from '%s' "
+               "specified with '\"formula_file\": \"%s\"' in '%s'",
+               data, data, path);
+        opts->dimacs.path = opts->garbage = strdup (data);
+      }
+      if (!strcmp (key, "timeout_seconds")) {
+        if (opts->seconds)
+          die ("second timeout option "
+               "'\"timeout_seconds\": \"%s\"' in '%s'",
+               data, path);
+        if (sscanf (data, "%u", &opts->seconds) != 1 || !opts->seconds)
+          die ("invalid argument '\"timeout_seconds\": \"%s\"' in '%s'",
+               data, path);
+      }
+    }
   }
   delete_json (json);
-  exit (0);
 }
 
 void parse_options (int argc, char **argv, struct options *opts) {
