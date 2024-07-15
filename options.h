@@ -130,6 +130,7 @@ struct options {
 #undef OPTION
   struct file dimacs;
   struct file proof;
+  char *garbage;
 };
 
 /*------------------------------------------------------------------------*/

@@ -31,6 +31,10 @@ static const int verbosity = -1;
   do { \
   } while (0)
 
+#define PRINTLN(...) \
+  do { \
+  } while (0)
+
 #else
 
 extern int verbosity;

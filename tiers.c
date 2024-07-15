@@ -1,4 +1,5 @@
 #include "tiers.h"
+#include "message.h"
 #include "ring.h"
 #include "utilities.h"
 
@@ -80,4 +81,5 @@ void print_tiers_bumped_statistics (struct ring *ring) {
            "  stable-tier1-limit:", tier1, percent (bumped1, total_stable));
   PRINTLN ("%-22s %17u %13.2f %% per bumped",
            "  stable-tier2-limit:", tier2, percent (bumped2, total_stable));
+  (void) total, (void) total_stable, (void) total_focused;
 }

@@ -3,6 +3,7 @@
 #include "build.h"
 #include "file.h"
 #include "geatures.h"
+#include "json.h"
 #include "message.h"
 
 #include <assert.h>
@@ -167,12 +168,68 @@ static void print_option_ranges (void) {
 #undef OPTION
 }
 
+void parse_options_in_json_file (struct options *opts, const char *path,
+                                 FILE *file) {
+  struct json *json;
+  size_t lineno;
+  const char *error = parse_json_file (&json, file, &lineno);
+  if (error)
+    die ("parse error at line %zu in '%s': %s", lineno, path, error);
+  if (!json)
+    return;
+  if (json->tag == JSON_OBJECT) {
+    for (size_t i = 0; i != json->object.size; i++) {
+      struct json_member *member = json->object.members + i;
+      assert (member);
+      struct json *value = member->value;
+      const char *key = member->string;
+      assert (value);
+      if (!strcmp (key, "formula_file")) {
+        if (value->tag != JSON_STRING)
+          continue;
+        const char *data = value->string;
+        opts->dimacs.file = fopen (data, "r");
+        opts->dimacs.close = 1;
+        if (!opts->dimacs.file)
+          die ("can not open and read from '%s' "
+               "specified with '\"formula_file\": \"%s\"' in '%s'",
+               data, data, path);
+        opts->dimacs.path = opts->garbage = strdup (data);
+      }
+      if (!strcmp (key, "timeout_seconds")) {
+        if (value->tag == JSON_STRING) {
+          const char *data = value->string;
+          if (opts->seconds)
+            die ("second timeout option "
+                 "'\"timeout_seconds\": \"%s\"' in '%s'",
+                 data, path);
+          if (sscanf (data, "%u", &opts->seconds) != 1 || !opts->seconds)
+            die ("invalid argument '\"timeout_seconds\": \"%s\"' in '%s'",
+                 data, path);
+        } else if (value->tag == JSON_NUMBER) {
+          unsigned seconds = value->number;
+          if (opts->seconds)
+            die ("second timeout option "
+                 "'\"timeout_seconds\": %u' in '%s'",
+                 seconds, path);
+          if (!seconds)
+            die ("invalid argument '\"timeout_seconds\": %u' in '%s'",
+                 seconds, path);
+          opts->seconds = seconds;
+        }
+      }
+    }
+  }
+  delete_json (json);
+}
+
 void parse_options (int argc, char **argv, struct options *opts) {
   initialize_options (opts);
 #ifndef QUIET
   const char *quiet_opt = 0;
   const char *verbose_opt = 0;
 #endif
+  const char *json_path = 0;
   for (int i = 1; i != argc; i++) {
     const char *opt = argv[i], *arg;
     if (!strcmp (opt, "-a"))
@@ -305,6 +362,15 @@ void parse_options (int argc, char **argv, struct options *opts) {
         opts->proof.path = opt;
         opts->proof.close = true;
       }
+    }
+    else if (has_suffix (opt, ".json")) {
+      if (json_path)
+        die ("two '.json' files '%s' and '%s'", json_path, opt);
+      json_path = opt;
+      FILE *json_file = fopen (json_path, "r");
+      if (!json_file)
+        die ("can not open and read from '%s'", json_path);
+      parse_options_in_json_file (opts, json_path, json_file);
     }
     else {
       if (!strcmp (opt, "-")) {
