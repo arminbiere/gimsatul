@@ -1,3 +1,13 @@
+# Version 1.1.4
+---------------
+
+- Fixed reading correct glue in vivification.
+
+- Moved setting MAX_USED information in analysis.
+
+- Merged in SAT Competition 2024 version
+  (Json option file parsing for AWS SAT Competition 2024 infrastructure)
+
 # Version 1.1.3
 ---------------
 
