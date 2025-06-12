@@ -12,6 +12,10 @@ void fatal_error (const char *, ...)
 
 static const int verbosity = -1;
 
+#define PRINTLN(...) \
+  do { \
+  } while (0)
+
 #define acquire_message_lock() \
   do { \
   } while (0)

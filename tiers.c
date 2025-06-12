@@ -1,4 +1,5 @@
 #include "tiers.h"
+#include "message.h"
 #include "ring.h"
 #include "utilities.h"
 
