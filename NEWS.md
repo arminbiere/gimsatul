@@ -1,3 +1,8 @@
+# Version 1.1.5
+---------------
+
+- Lower import rate (new default 10%)
+
 # Version 1.1.4
 ---------------
 

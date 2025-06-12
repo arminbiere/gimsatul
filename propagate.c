@@ -289,7 +289,11 @@ struct watch *ring_propagate (struct ring *ring, bool stop_at_conflict,
   if (conflict) {
     LOGWATCH (conflict, "conflicting");
     context->conflicts++;
-    ring->import_after_propagation_and_conflict = true;
+
+    unsigned import_waiting_on_conflicts =
+        ring->import_waiting_on_conflicts;
+    if (import_waiting_on_conflicts--)
+      ring->import_waiting_on_conflicts = import_waiting_on_conflicts;
 
     if (ring->context == SEARCH_CONTEXT && ring->randec) {
       if (!--ring->randec)

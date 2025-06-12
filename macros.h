@@ -7,7 +7,7 @@
 #define IDX(LIT) ((LIT) >> 1)
 #define LIT(IDX) ((IDX) << 1)
 #define NOT(LIT) ((LIT) ^ 1u)
-#define SGN(LIT) ((LIT) &1)
+#define SGN(LIT) ((LIT) & 1)
 
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 #define MAX(A, B) ((A) > (B) ? (A) : (B))

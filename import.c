@@ -406,9 +406,14 @@ bool import_shared (struct ring *ring) {
   if (import_units (ring))
     return true;
   if (ring->options.limit_import_rate) {
-    if (!ring->import_after_propagation_and_conflict)
+    if (ring->import_waiting_on_conflicts) {
+      LOG ("ring %u is still waiting on %u conflicts before importing",
+           ring->id, ring->import_waiting_on_conflicts);
       return false;
-    ring->import_after_propagation_and_conflict = false;
+    }
+    LOG ("ring %u stopped waiting on conflicts and will now import",
+         ring->id);
+    ring->import_waiting_on_conflicts = ring->options.limit_import_rate;
   }
 
   struct ring *src = random_other_ring (ring);
