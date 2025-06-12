@@ -292,7 +292,11 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
         return "unexpected end-of-file";
       if (!isprint (ch))
         return "unexpected non-printable character in string";
+#ifdef _POSIX_C_SOURCE
       if (!isascii (ch))
+#else
+    if (ch < 20 || ch > 126)
+#endif
         return "unexpected non-ascii character in string";
       if (ch == '\\')
         return "unexpected escape character '\\' in string";

@@ -1,3 +1,8 @@
+# Version 1.1.6
+---------------
+
+- Fixed pedantic compilation issues.
+
 # Version 1.1.5
 ---------------
 

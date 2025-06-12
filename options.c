@@ -194,7 +194,12 @@ void parse_options_in_json_file (struct options *opts, const char *path,
           die ("can not open and read from '%s' "
                "specified with '\"formula_file\": \"%s\"' in '%s'",
                data, data, path);
-        opts->dimacs.path = opts->garbage = strdup (data);
+#ifdef _POSIX_C_SOURCE
+        char * str = strdup (data);
+#else
+        char * str = strcpy (malloc (strlen (data) + 1), data);
+#endif
+        opts->dimacs.path = opts->garbage = str;
       }
       if (!strcmp (key, "timeout_seconds")) {
         if (value->tag == JSON_STRING) {
