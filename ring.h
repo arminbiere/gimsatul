@@ -120,7 +120,7 @@ struct ring {
 
   volatile int status;
 
-  bool import_after_propagation_and_conflict;
+  unsigned import_waiting_on_conflicts;
   bool inconsistent;
   bool stable;
 

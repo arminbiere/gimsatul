@@ -1,6 +1,11 @@
 # Version 1.1.4
 ---------------
 
+- Lower import rate (new default 10%)
+
+# Version 1.1.4
+---------------
+
 - Fixed reading correct glue in vivification.
 
 - Moved setting MAX_USED information in analysis.

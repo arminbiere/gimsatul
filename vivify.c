@@ -659,8 +659,6 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
   for (all_literals_in_clause (lit, clause))
     unmark_literal (ring->marks, lit);
 
-  bool import_before_next_vivification = false;
-
   if (subsuming) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.subsumed++;
@@ -705,13 +703,6 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
 
     watcher->clause->vivified = true;
 
-    // In any case trigger import of new clauses as strengthening and
-    // exporting a clause does not happen too frequently and can be
-    // considered to play the same role as clause learning during analyzing
-    // a regular conflict which also triggers new imports.
-
-    import_before_next_vivification = true;
-
   } else if (implied != INVALID) {
     ring->statistics.vivify.succeeded++;
     ring->statistics.vivify.implied++;
@@ -719,9 +710,6 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
     mark_garbage_watcher (ring, watcher);
   } else
     LOGCLAUSE (clause, "vivification failed on");
-
-  ring->import_after_propagation_and_conflict =
-      import_before_next_vivification;
 
   clear_analyzed (ring);
   CLEAR (ring->clause);
