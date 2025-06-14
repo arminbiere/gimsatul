@@ -73,7 +73,7 @@
   OPTION (bool, force_phase, 0, 0, 1, "force phase (same phase for all solvers") \
   OPTION (bool, force, 0, 0, 1, "force relaxed parsing and proof writing") \
   OPTION (unsigned, increase_imported_glue, 0, 0, 2, "increase glue imported glue (2=max)") \
-  OPTION (unsigned, limit_import_rate, 10, 0, INF, "adapt import to learned clause rate") \
+  OPTION (unsigned, limit_import_rate, 5, 0, INF, "adapt import to learned clause rate") \
   OPTION (bool, minimize, 1, 0, 1, "minimize learned clauses") \
   OPTION (unsigned, minimize_depth, 1000, 1, INF, "recursive clause minimization depth") \
   OPTION (unsigned, occurrence_limit, 1000, 0, INF, "literal occurrence limit in simplification") \

@@ -453,10 +453,12 @@ bool import_shared (struct ring *ring) {
 }
 
 void flush_import (struct ring *ring) {
+  struct import *import = ring->import;
+  if (!import)
+    return;
 #ifndef QUIET
   size_t flushed = 0;
 #endif
-  struct import *import = ring->import;
   for (unsigned i = 0; i != SIZE_IMPORT; i++) {
     struct bucket *b = &import->bucket[i];
     atomic_uintptr_t *share = &b->shared;

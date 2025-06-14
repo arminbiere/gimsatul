@@ -96,7 +96,7 @@ struct ring_units {
 #define SIZE_IMPORT 16
 
 struct bucket {
-  uint64_t redundancy;
+  volatile uint64_t redundancy;
   atomic_uintptr_t shared;
 };
 
