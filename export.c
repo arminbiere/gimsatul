@@ -180,11 +180,13 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   if (!exporting (ring))
     return;
   struct averages *a = ring->averages + ring->stable;
+  double average, factor, limit;
+#if 0
   unsigned glue = clause->glue;
   if (glue > ring->tier1_glue_limit[ring->stable]) {
-    double factor = 0.5;
-    double average = a->glue.slow.value;
-    double limit = factor * average;
+    factor = 0.5;
+    average = a->glue.slow.value;
+    limit = factor * average;
     if (glue > limit) {
       LOGCLAUSE (clause, "failed to export (glue %u > limit %g = %g * %g)",
                  glue, limit, factor, average);
@@ -200,6 +202,17 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
       return;
     }
   }
+#else
+  unsigned size = clause->size;
+  factor = 1.0;
+  average = a->size.value;
+  limit = factor * average;
+  if (size > limit) {
+    LOGCLAUSE (clause, "failed to export (size %u > limit %g = %g * %g)",
+               size, limit, factor, average);
+    return;
+  }
+#endif
   LOGCLAUSE (clause, "exporting");
   export_clause (ring, clause);
 }

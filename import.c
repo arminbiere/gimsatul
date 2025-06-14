@@ -280,8 +280,10 @@ static bool subsumed_large_clause (struct ring *ring,
 static void really_import_large_clause (struct ring *ring,
                                         struct clause *clause,
                                         unsigned first, unsigned second) {
-  watch_literals_in_large_clause (ring, clause, first, second);
+  struct watch *imported =
+      watch_literals_in_large_clause (ring, clause, first, second);
   assert (clause->redundant);
+  get_watcher (ring, imported)->used = MAX_USED;
   INC_LARGE_CLAUSE_STATISTICS (imported, clause->glue, clause->size);
 }
 
