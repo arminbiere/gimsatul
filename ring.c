@@ -277,10 +277,10 @@ static void release_saved (struct ring *ring) {
 
 void init_pool (struct ring *ring, unsigned threads) {
   ring->threads = threads;
-  ring->pool =
-      allocate_aligned_array (CACHE_LINE_SIZE, threads, sizeof *ring->pool);
-  struct bucket *b = ring->pool[0].bucket;
-  struct bucket *end = b + threads * SIZE_POOL;
+  ring->import =
+      allocate_aligned_array (CACHE_LINE_SIZE, 1, sizeof *ring->import);
+  struct bucket *b = ring->import[0].bucket;
+  struct bucket *end = b + SIZE_IMPORT;
   while (b != end) {
     b->shared = 0;
     b->redundancy = MAX_REDUNDANCY;
@@ -288,32 +288,26 @@ void init_pool (struct ring *ring, unsigned threads) {
   }
 }
 
-static void release_pool (struct ring *ring) {
-  struct pool *begin_pool = ring->pool;
-  if (!begin_pool)
+static void release_import (struct ring *ring) {
+  struct import *begin_import = ring->import;
+  if (!begin_import)
     return;
-  struct pool *skip_pool = begin_pool + ring->id;
-  struct pool *end_pool = begin_pool + ring->threads;
-  for (struct pool *p = begin_pool; p != end_pool; p++) {
-    if (p == skip_pool)
+  struct bucket *begin_bucket = begin_import->bucket;
+  struct bucket *end_bucket = begin_bucket + SIZE_IMPORT;
+  for (struct bucket *b = begin_bucket; b != end_bucket; b++) {
+    struct clause *clause = (struct clause *) b->shared;
+    if (!clause)
       continue;
-    struct bucket *begin_bucket = p->bucket;
-    struct bucket *end_bucket = begin_bucket + SIZE_POOL;
-    for (struct bucket *b = begin_bucket; b != end_bucket; b++) {
-      struct clause *clause = (struct clause *) b->shared;
-      if (!clause)
-        continue;
-      if (is_binary_pointer (clause))
-        continue;
-      unsigned shared = atomic_fetch_sub (&clause->shared, 1);
-      assert (shared + 1);
-      if (!shared) {
-        LOGCLAUSE (clause, "final delete");
-        free (clause);
-      }
+    if (is_binary_pointer (clause))
+      continue;
+    unsigned shared = atomic_fetch_sub (&clause->shared, 1);
+    assert (shared + 1);
+    if (!shared) {
+      LOGCLAUSE (clause, "final delete");
+      free (clause);
     }
   }
-  deallocate_aligned (CACHE_LINE_SIZE, ring->pool);
+  deallocate_aligned (CACHE_LINE_SIZE, begin_import);
 }
 
 static void release_binaries (struct ring *ring) {
@@ -324,7 +318,7 @@ static void release_binaries (struct ring *ring) {
 
 void delete_ring (struct ring *ring) {
   verbose (ring, "delete ring[%u]", ring->id);
-  release_pool (ring);
+  release_import (ring);
 
   release_references (ring);
   if (!ring->id)

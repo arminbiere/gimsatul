@@ -11,7 +11,7 @@
 #include "utilities.h"
 
 static bool import_units (struct ring *ring) {
-  assert (ring->pool);
+  assert (ring->import);
   struct ruler *ruler = ring->ruler;
 #ifndef NFASTPATH
   if (ring->ruler_units == ruler->units.end)
@@ -401,7 +401,7 @@ static bool import_large_clause (struct ring *ring, struct clause *clause) {
 }
 
 bool import_shared (struct ring *ring) {
-  if (!ring->pool)
+  if (!ring->import)
     return false;
   if (import_units (ring))
     return true;
@@ -416,11 +416,10 @@ bool import_shared (struct ring *ring) {
     ring->import_waiting_on_conflicts = ring->options.limit_import_rate;
   }
 
-  struct ring *src = random_other_ring (ring);
-  struct pool *pool = src->pool + ring->id;
+  struct import *import = ring->import;
 
-  struct bucket *start = pool->bucket;
-  struct bucket *end = start + SIZE_POOL;
+  struct bucket *start = import->bucket;
+  struct bucket *end = start + SIZE_IMPORT;
   struct bucket *best = 0;
 
   uint64_t best_redundancy = MAX_REDUNDANCY;
@@ -428,6 +427,7 @@ bool import_shared (struct ring *ring) {
   for (struct bucket *b = start; b != end; b++) {
     if (!b->shared)
       continue;
+    compiler_barrier ();
     uint64_t redundancy = b->redundancy;
     if (redundancy >= best_redundancy)
       continue;
@@ -437,17 +437,38 @@ bool import_shared (struct ring *ring) {
 
   struct clause *clause = 0;
   if (best) {
-    LOG ("import from ring %u bucket %zu with redundancy [%u:%u]", src->id,
-         best - start, LOG_REDUNDANCY (best_redundancy));
+    LOG ("importing u bucket %zu with redundancy [%u:%u]", best - start,
+         LOG_REDUNDANCY (best_redundancy));
     atomic_uintptr_t *p = &best->shared;
     clause = (struct clause *) atomic_exchange (p, 0);
     assert (clause);
   } else {
-    LOG ("import from ring %u failed (nothing to import)", src->id);
+    LOG ("import of ring %u failed (nothing to import)", ring->id);
     return false;
   }
 
   if (is_binary_pointer (clause))
     return import_binary (ring, clause);
   return import_large_clause (ring, clause);
+}
+
+void flush_import (struct ring *ring) {
+#ifndef QUIET
+  size_t flushed = 0;
+#endif
+  struct import *import = ring->import;
+  for (unsigned i = 0; i != SIZE_IMPORT; i++) {
+    struct bucket *b = &import->bucket[i];
+    atomic_uintptr_t *share = &b->shared;
+    uintptr_t ptr = atomic_exchange (share, 0);
+    if (!ptr)
+      continue;
+    struct clause *clause = (struct clause *) ptr;
+    if (!is_binary_pointer (clause))
+      dereference_clause (ring, clause);
+#ifndef QUIET
+    flushed++;
+#endif
+  }
+  very_verbose (ring, "flushed %zu clauses to be imported", flushed);
 }

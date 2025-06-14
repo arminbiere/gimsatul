@@ -195,9 +195,9 @@ void parse_options_in_json_file (struct options *opts, const char *path,
                "specified with '\"formula_file\": \"%s\"' in '%s'",
                data, data, path);
 #ifdef _POSIX_C_SOURCE
-        char * str = strdup (data);
+        char *str = strdup (data);
 #else
-        char * str = strcpy (malloc (strlen (data) + 1), data);
+        char *str = strcpy (malloc (strlen (data) + 1), data);
 #endif
         opts->dimacs.path = opts->garbage = str;
       }

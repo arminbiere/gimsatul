@@ -93,16 +93,15 @@ struct ring_units {
 #define LOG_REDUNDANCY(R) (unsigned) ((R) >> 32), (unsigned) (R)
 #endif
 
-#define BINARY_BUCKET 0
-#define SIZE_POOL 8
+#define SIZE_IMPORT 16
 
 struct bucket {
   uint64_t redundancy;
   atomic_uintptr_t shared;
 };
 
-struct pool {
-  struct bucket bucket[SIZE_POOL];
+struct import {
+  struct bucket bucket[SIZE_IMPORT];
 };
 
 struct ring;
@@ -114,7 +113,7 @@ struct rings {
 struct ring {
   unsigned id;
   unsigned threads;
-  struct pool *pool;
+  struct import *import;
   unsigned *ruler_units;
   struct ruler *ruler;
 

@@ -295,7 +295,7 @@ static const char *parse_json_file_recursively (struct json **res_ptr,
 #ifdef _POSIX_C_SOURCE
       if (!isascii (ch))
 #else
-    if (ch < 20 || ch > 126)
+      if (ch < 20 || ch > 126)
 #endif
         return "unexpected non-ascii character in string";
       if (ch == '\\')

@@ -721,7 +721,7 @@ static bool wait_to_actually_start_synchronization (struct ring *ring) {
 }
 
 static bool continue_importing_and_propagating_units (struct ring *ring) {
-  if (!ring->pool)
+  if (!ring->import)
     return false;
   if (ring->inconsistent)
     return false;
@@ -747,7 +747,7 @@ static bool continue_importing_and_propagating_units (struct ring *ring) {
 }
 
 static bool synchronize_exported_and_imported_units (struct ring *ring) {
-  flush_pool (ring);
+  flush_import (ring);
   struct ruler *ruler = ring->ruler;
 
   if (!rendezvous (&ruler->barriers.import, ring, false))

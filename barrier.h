@@ -23,4 +23,6 @@ void init_barrier (struct barrier *, const char *name, unsigned size);
 bool rendezvous (struct barrier *, struct ring *, bool expected_enabled);
 void abort_waiting_and_disable_barrier (struct barrier *);
 
+#define compiler_barrier() asm volatile ("" ::: "memory")
+
 #endif

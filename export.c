@@ -17,7 +17,7 @@ void export_units (struct ring *ring) {
     if (values[unit])
       continue;
 #endif
-    if (ring->pool && !locked) {
+    if (ring->import && !locked) {
       if (pthread_mutex_lock (&ruler->locks.units))
         fatal_error ("failed to acquire unit lock");
       locked = true;
@@ -93,17 +93,19 @@ static void export_to_ring (struct ring *ring, struct ring *other,
        other->id, LOG_REDUNDANCY (redundancy));
   assert (ring != other);
 
-  struct pool *pool = ring->pool + other->id;
+  struct import *import = other->import;
 
-  struct bucket *start = pool->bucket;
-  struct bucket *end = start + SIZE_POOL;
+  struct bucket *start = import->bucket;
+  struct bucket *end = start + SIZE_IMPORT;
   struct bucket *worst = 0;
 
   uint64_t worst_redundancy = 0;
 
   for (struct bucket *b = start; b != end; b++) {
+    atomic_uintptr_t b_shared = b->shared;
+    compiler_barrier ();
     uint64_t b_redundancy = b->redundancy;
-    if (!b->shared) {
+    if (!b_shared) {
       worst_redundancy = b_redundancy;
       worst = b;
       break;
@@ -133,11 +135,10 @@ static void export_to_ring (struct ring *ring, struct ring *other,
     reference_clause (ring, clause, 1);
 
   atomic_uintptr_t *share = &worst->shared;
-  uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
   worst->redundancy = redundancy;
+  uintptr_t ptr = atomic_exchange (share, (uintptr_t) clause);
 
   if (ptr) {
-    assert (worst_redundancy != MAX_REDUNDANCY);
     LOG ("previous export to ring %u bucket %zu redundancy [%u:%u] failed",
          other->id, worst - start, LOG_REDUNDANCY (worst_redundancy));
     struct clause *previous = (struct clause *) ptr;
@@ -201,29 +202,4 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   }
   LOGCLAUSE (clause, "exporting");
   export_clause (ring, clause);
-}
-
-void flush_pool (struct ring *ring) {
-#ifndef QUIET
-  size_t flushed = 0;
-#endif
-  for (unsigned i = 0; i != ring->threads; i++) {
-    if (i == ring->id)
-      continue;
-    struct pool *pool = ring->pool + i;
-    for (unsigned shared = 0; shared != SIZE_POOL; shared++) {
-      struct bucket *b = &pool->bucket[shared];
-      atomic_uintptr_t *share = &b->shared;
-      uintptr_t ptr = atomic_exchange (share, 0);
-      if (!ptr)
-        continue;
-      struct clause *clause = (struct clause *) ptr;
-      if (!is_binary_pointer (clause))
-        dereference_clause (ring, clause);
-#ifndef QUIET
-      flushed++;
-#endif
-    }
-  }
-  very_verbose (ring, "flushed %zu clauses to be exported", flushed);
 }

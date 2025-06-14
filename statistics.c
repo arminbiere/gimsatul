@@ -64,7 +64,7 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% fixed",
            "  learned-units:", s->learned.units,
            percent (s->learned.units, s->fixed));
-  if (ring->pool) {
+  if (ring->import) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% fixed",
              "  imported-units:", s->imported.units,
              percent (s->imported.units, s->fixed));
@@ -216,7 +216,7 @@ void print_ring_statistics (struct ring *ring) {
            "  reduced-tier3:", s->reduced.tier3,
            percent (s->reduced.tier3, s->reduced.clauses));
 
-  if (ring->pool) {
+  if (ring->import) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",
              "imported-clauses:", s->imported.clauses,
              percent (s->imported.clauses, s->learned.clauses));

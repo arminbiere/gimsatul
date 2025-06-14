@@ -5,5 +5,6 @@
 
 struct ring;
 bool import_shared (struct ring *);
+void flush_import (struct ring *);
 
 #endif
