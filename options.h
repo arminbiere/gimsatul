@@ -81,7 +81,7 @@
   OPTION (bool, portfolio, 1, 0, 1, "threads use different strategies") \
   OPTION (bool, probe, 1, 0, 1, "enable probing based inprocessing") \
   OPTION (unsigned, probe_interval, 100, 1, INF, "probing base conflict interval") \
-  OPTION (bool, random_decisions, 1, 0, 1, "random decisions") \
+  OPTION (bool, random_decisions, 0, 0, 1, "random decisions") \
   OPTION (bool, random_focused_decisions, 1, 0, 1, "random focused decisions") \
   OPTION (unsigned, random_decision_interval, 500, 0, INF, "random focused decisions") \
   OPTION (unsigned, random_decision_length, 1, 1, INF, "random conflicts length") \
