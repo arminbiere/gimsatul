@@ -439,7 +439,7 @@ bool import_shared (struct ring *ring) {
 
   struct clause *clause = 0;
   if (best) {
-    LOG ("importing u bucket %zu with redundancy [%u:%u]", best - start,
+    LOG ("importing bucket %zu with redundancy [%u:%u]", best - start,
          LOG_REDUNDANCY (best_redundancy));
     atomic_uintptr_t *p = &best->shared;
     clause = (struct clause *) atomic_exchange (p, 0);
