@@ -179,6 +179,7 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
   assert (!is_binary_pointer (clause));
   if (!exporting (ring))
     return;
+#if 0
   struct averages *a = ring->averages + ring->stable;
   double average, factor, limit;
 #if 0
@@ -212,6 +213,7 @@ void export_large_clause (struct ring *ring, struct clause *clause) {
                size, limit, factor, average);
     return;
   }
+#endif
 #endif
   LOGCLAUSE (clause, "exporting");
   export_clause (ring, clause);
