@@ -297,6 +297,6 @@ void sort_redundant_watcher_indices (struct ring *ring, size_t size_indices,
                                      unsigned *indices) {
   if (size_indices < 2)
     return;
-  sort_by_size (ring, size_indices, indices);
   sort_by_glue (ring, size_indices, indices);
+  sort_by_size (ring, size_indices, indices);
 }
