@@ -93,7 +93,7 @@ struct ring_units {
 #define LOG_REDUNDANCY(R) (unsigned) ((R) >> 32), (unsigned) (R)
 #endif
 
-#define SIZE_IMPORT 8
+#define SIZE_IMPORT 16
 
 struct bucket {
   volatile uint64_t redundancy;
