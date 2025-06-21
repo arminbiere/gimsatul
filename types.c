@@ -29,6 +29,7 @@ void check_types (void) {
   CHECK_TYPE (unsigned, 4);
   CHECK_TYPE (int, 4);
   CHECK_TYPE (atomic_int, 4);
+  CHECK_TYPE (atomic_uint, 4);
 
   CHECK_TYPE (size_t, 8);
   CHECK_TYPE (void *, 8);
