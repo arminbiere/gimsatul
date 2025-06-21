@@ -69,15 +69,18 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f thousands per second",
            "flips:", s->flips, average (s->flips, 1e3 * walk));
 
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per tried clause",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% tried",
            "vivified-clauses:", s->vivify.succeeded,
            percent (s->vivify.succeeded, s->vivify.tried));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per learned clause",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
            "  vivify-tried:", s->vivify.tried,
            percent (s->vivify.tried, s->learned.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivify-tried",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f per tried",
+           "  vivify-probes:", s->vivify.probes,
+           average (s->vivify.probes, s->vivify.tried));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% probes",
            "  vivify-reused:", s->vivify.reused,
-           percent (s->vivify.reused, s->vivify.tried));
+           percent (s->vivify.reused, s->vivify.probes));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-strengthened:", s->vivify.strengthened,
            percent (s->vivify.strengthened, s->vivify.succeeded));

@@ -517,6 +517,8 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
       assert (value);
       if (value > 0) {
         LOG ("reusing decision %s", LOGLIT (decision));
+        ring->statistics.vivify.probes++;
+        ring->statistics.vivify.reused++;
         continue;
       }
       LOG ("decision %s with opposite phase", LOGLIT (decision));
@@ -527,9 +529,6 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
     RESIZE (*decisions, level);
     break;
   }
-
-  if (!EMPTY (*decisions))
-    ring->statistics.vivify.reused++;
 
   struct unsigneds *sorted = &vivifier->sorted;
   CLEAR (*sorted);
@@ -578,6 +577,7 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
     assert (!value);
 
     ring->level++;
+    ring->statistics.vivify.probes++;
     ring->statistics.contexts[PROBING_CONTEXT].decisions++;
     unsigned not_lit = NOT (lit);
 #ifdef LOGGING
@@ -676,10 +676,10 @@ void vivify_clauses (struct ring *ring) {
       break;
 
     double effort;
-    if (tier == 2)
-      effort = RELATIVE_VIVIFY_TIER2_EFFORT;
-    else
+    if (tier == 1)
       effort = RELATIVE_VIVIFY_TIER1_EFFORT;
+    else
+      effort = RELATIVE_VIVIFY_TIER2_EFFORT;
 
     double scale = effort / sum;
     uint64_t scaled_ticks = scale * delta_probing_ticks;
