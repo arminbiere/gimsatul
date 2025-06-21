@@ -634,10 +634,6 @@ static void vivify_watcher (struct vivifier *vivifier, unsigned tier,
     // written in parallel all those competing threads will only potentially
     // differ in that bit, and all want to set it true, which is sane.
 
-    // However, if long imported clause glues are increased to MAX_GLUE in
-    // the watcher (when watching them) other threads would never try to
-    // vivify this clause.  If it is just increased by one it happens.
-
     watcher->clause->vivified = true;
 
   } else if (implied != INVALID) {

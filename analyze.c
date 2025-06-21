@@ -129,14 +129,6 @@ static void update_decision_rate (struct ring *ring) {
   ring->last.decisions = current;
 }
 
-static void update_tier_limits (struct ring *ring) {
-  if (!ring->intervals.tiers)
-    ring->intervals.tiers = 4;
-  else if (ring->intervals.tiers < (1u << 16))
-    ring->intervals.tiers *= 2;
-  ring->limits.tiers = SEARCH_CONFLICTS + ring->intervals.tiers;
-}
-
 static void flush_last_learned (struct ring *ring) {
   unsigned *q = ring->last_learned, *p = q;
   unsigned *end = q + ring->options.eagerly_subsume;
@@ -415,7 +407,5 @@ bool analyze (struct ring *ring, struct watch *reason) {
   }
   CLEAR (*ring_clause);
   clear_analyzed (ring);
-  if (SEARCH_CONFLICTS > ring->limits.tiers)
-    update_tier_limits (ring);
   return true;
 }

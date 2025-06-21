@@ -43,12 +43,6 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
            "  queue-decisions:", s->decisions.queue,
            percent (s->decisions.queue, decisions));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
-           "  random-decisions:", s->decisions.random,
-           percent (s->decisions.random, decisions));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f decisions",
-           "  random-sequences:", s->random_sequences,
-           average (s->decisions.random, s->random_sequences));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
            "eagerly-subsumed:", s->eagerly_subsumed,
            percent (s->eagerly_subsumed, s->learned.clauses));

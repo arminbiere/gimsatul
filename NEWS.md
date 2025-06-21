@@ -1,3 +1,18 @@
+# Version 1.2.0
+---------------
+
+- Completely removed 'glue' except for delaying focused restart.
+
+- Size based reduction and only one tier (as in our SAT'25 paper).
+
+- Size based export (following the recommendations of Dominik).
+
+- Merged export buffers ('false sharing' does not seem to be an issue).
+
+- Trying to export all clauses to all rings.
+
+- Lower import frequency (default 10% of learned clauses).
+
 # Version 1.1.6
 ---------------
 

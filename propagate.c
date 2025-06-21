@@ -286,16 +286,6 @@ struct watch *ring_propagate (struct ring *ring, bool stop_at_conflict,
         ring->import_waiting_on_conflicts;
     if (import_waiting_on_conflicts--)
       ring->import_waiting_on_conflicts = import_waiting_on_conflicts;
-
-    if (ring->context == SEARCH_CONTEXT && ring->randec) {
-      if (!--ring->randec)
-        very_verbose (ring, "last random decision conflict");
-      else if (ring->randec == 1)
-        very_verbose (ring, "one more random decision conflict to go");
-      else
-        very_verbose (ring, "%u more random decision conflicts to go",
-                      ring->randec);
-    }
   }
 
   context->propagations += propagations;

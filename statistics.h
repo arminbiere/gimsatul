@@ -78,7 +78,6 @@ struct ring_statistics {
     uint64_t negative;
     uint64_t positive;
     uint64_t queue;
-    uint64_t random;
   } decisions;
 
   uint64_t bumped;

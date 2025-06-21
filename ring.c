@@ -136,8 +136,6 @@ void release_ring (struct ring *ring, bool keep_values) {
   RELEASE (ring->minimize);
   RELEASE (ring->sorter);
   RELEASE (ring->outoforder);
-  RELEASE (ring->promote);
-  RELEASE (ring->exports);
 
   FREE (ring->references);
 
@@ -157,18 +155,8 @@ static void activate_variables (struct ring *ring, unsigned size) {
   if (!size)
     return;
 
-  unsigned start, delta;
-  if (size > 1 && ring->id && ring->options.random_order) {
-    start = random_modulo (&ring->random, size);
-    delta = 1 + random_modulo (&ring->random, size - 1);
-    while (gcd (delta, size) != 1)
-      if (++delta == size)
-        delta = 1;
-    LOG ("random activation start %u delta %u", start, delta);
-  } else {
-    start = 0, delta = 1;
-    LOG ("linear activation order");
-  }
+  unsigned start = 0, delta = 1;
+  LOG ("linear activation order");
 
   assert (delta);
   assert (start < size);
@@ -410,21 +398,4 @@ unsigned *sorter_block (struct ring *ring, size_t size) {
   while (CAPACITY (ring->sorter) < size)
     ENLARGE (ring->sorter);
   return ring->sorter.begin;
-}
-
-struct ring *random_other_ring (struct ring *ring) {
-  struct ruler *ruler = ring->ruler;
-  struct rings *rings = &ruler->rings;
-  size_t size = SIZE (*rings);
-  assert (size <= UINT_MAX);
-  assert (size > 1);
-  unsigned id;
-  do
-    id = random_modulo (&ring->random, size);
-  while (id == ring->id);
-  assert (id < size);
-  assert (id != ring->id);
-  struct ring *res = PEEK (*rings, id);
-  assert (res != ring);
-  return res;
 }
