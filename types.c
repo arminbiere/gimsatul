@@ -44,20 +44,6 @@ void check_types (void) {
                    bytes_of_shared_field, MAX_THREADS);
   }
 
-  {
-    size_t glue_in_clause_bytes = sizeof ((struct clause *) 0)->glue;
-    if (1 << (glue_in_clause_bytes * 8) <= MAX_GLUE)
-      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (clause.glue) = %zu'",
-                   MAX_GLUE, glue_in_clause_bytes);
-  }
-
-  {
-    size_t glue_in_watcher_bytes = sizeof ((struct watcher *) 0)->glue;
-    if (1 << (glue_in_watcher_bytes * 8) <= MAX_GLUE)
-      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (watcher.glue) = %zu'",
-                   MAX_GLUE, glue_in_watcher_bytes);
-  }
-
   if (verbosity > 0) {
     fputs ("c\n", stdout);
     printf ("c sizeof (struct clause) = %zu\n", sizeof (struct clause));

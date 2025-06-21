@@ -226,7 +226,7 @@ void parse_dimacs_body (struct ruler *ruler, int variables, int expected) {
           new_ruler_binary_clause (ruler, literals[0], literals[1]);
         else {
           struct clause *large_clause =
-              new_large_clause (size, literals, false, 0);
+              new_large_clause (size, literals, false);
           ROGCLAUSE (large_clause, "new");
           PUSH (ruler->clauses, large_clause);
         }

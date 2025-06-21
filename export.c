@@ -87,7 +87,7 @@ static struct rings *export_rings (struct ring *ring) {
 }
 
 static void export_to_ring (struct ring *ring, struct ring *other,
-                            struct clause *clause, unsigned glue,
+                            struct clause *clause,
                             unsigned size, uint64_t redundancy) {
   LOG ("trying to export to target ring %u with redundancy [%u:%u]",
        other->id, LOG_REDUNDANCY (redundancy));
@@ -148,22 +148,18 @@ static void export_to_ring (struct ring *ring, struct ring *other,
     LOG ("previous export to ring %u bucket %zu redundancy [%u:%u] "
          "succeeded",
          other->id, worst - start, LOG_REDUNDANCY (worst_redundancy));
-    INC_LARGE_CLAUSE_STATISTICS (exported, glue, size);
+    INC_LARGE_CLAUSE_STATISTICS (exported, size);
   }
 }
 
 static void export_clause (struct ring *ring, struct clause *clause) {
   assert (exporting (ring));
   bool binary = is_binary_pointer (clause);
-  unsigned glue = binary ? 1 : clause->glue;
   unsigned size = binary ? 2 : clause->size;
-  bool share_by_size = ring->options.share_by_size;
-  uint64_t high = share_by_size ? size : glue;
-  uint64_t low = share_by_size ? glue : size;
-  uint64_t redundancy = (high << 32) + low;
+  uint64_t redundancy = size;
   struct rings *exports = export_rings (ring);
   for (all_pointers_on_stack (struct ring, other, *exports))
-    export_to_ring (ring, other, clause, glue, size, redundancy);
+    export_to_ring (ring, other, clause, size, redundancy);
 }
 
 void export_binary_clause (struct ring *ring, struct watch *watch) {

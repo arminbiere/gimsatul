@@ -186,7 +186,7 @@ void shrink_or_minimize_clause (struct ring *ring, unsigned glue) {
   assert (learned + minimized + shrunken == deduced);
   (void) minimized;
 
-  INC_CLAUSE_STATISTICS (learned, glue, learned);
+  INC_CLAUSE_STATISTICS (learned, learned);
   ring->statistics.literals.learned += learned;
 #ifdef METRICS
   ring->statistics.literals.minimized += minimized;

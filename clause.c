@@ -8,7 +8,7 @@
 #include <string.h>
 
 struct clause *new_large_clause (size_t size, unsigned *literals,
-                                 bool redundant, unsigned glue) {
+                                 bool redundant) {
   assert (2 <= size);
   size_t bytes = size * sizeof (unsigned);
   struct clause *clause = allocate_block (sizeof *clause + bytes);
@@ -18,10 +18,6 @@ struct clause *new_large_clause (size_t size, unsigned *literals,
 #endif
   clause->shared = 0;
   clause->origin = -1;
-
-  if (glue > MAX_GLUE)
-    glue = MAX_GLUE;
-  clause->glue = glue;
 
   clause->cleaned = false;
   clause->dirty = false;

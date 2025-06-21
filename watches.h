@@ -15,7 +15,6 @@ struct unsigneds;
 
 struct watcher {
   unsigned char size;
-  unsigned char glue;
   unsigned char used;
   bool garbage : 1;
   bool reason : 1;

@@ -133,9 +133,6 @@ struct ring {
   unsigned target;
   unsigned unassigned;
 
-  unsigned tier1_glue_limit[2];
-  unsigned tier2_glue_limit[2];
-
   signed char *marks;
   signed char *values;
 

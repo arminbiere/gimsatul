@@ -77,7 +77,7 @@ const char *rogvar (struct ruler *, unsigned idx);
       if ((CLAUSE)->garbage) \
         printf (" garbage"); \
       if ((CLAUSE)->redundant) \
-        printf (" redundant glue %u", (CLAUSE)->glue); \
+        printf (" redundant"); \
       else \
         printf (" irredundant"); \
       printf (" size %u clause[%" PRIu64 "]", (CLAUSE)->size, \
@@ -140,7 +140,7 @@ const char *rogvar (struct ruler *, unsigned idx);
       if ((CLAUSE)->garbage) \
         printf (" garbage"); \
       if ((CLAUSE)->redundant) \
-        printf (" redundant glue %u", (CLAUSE)->glue); \
+        printf (" redundante"); \
       else \
         printf (" irredundant"); \
       printf (" size %u clause[%" PRIu64 "]", (CLAUSE)->size, \

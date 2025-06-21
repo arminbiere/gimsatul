@@ -137,12 +137,6 @@ static void clean_ring (struct ring *ring, struct clauses *cleaned) {
         } else {
           trace_delete_literals (&ring->trace, old_size, delete.begin);
           assert (new_size > 2);
-          unsigned old_glue = clause->glue;
-          unsigned new_glue = old_glue;
-          if (new_glue >= new_size - 1) {
-            new_glue = new_size - 1;
-            clause->glue = new_glue;
-          }
           memcpy (clause->literals, add.begin,
                   new_size * sizeof (unsigned));
           clause->size = new_size;
@@ -306,8 +300,8 @@ static void compact_saved (struct ring *ring, unsigned *map,
 #ifdef LOGGING
         if (verbosity == INT_MAX) {
           assert (src_clause->redundant);
-          LOGPREFIX ("mapped redundant glue %u size %u clause[%" PRIu64 "]",
-                     src_clause->glue, src_clause->size, src_clause->id);
+          LOGPREFIX ("mapped redundant size %u clause[%" PRIu64 "]",
+                     src_clause->size, src_clause->id);
         }
 #endif
         for (unsigned *p = literals; p != end; p++) {

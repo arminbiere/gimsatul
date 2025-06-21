@@ -62,7 +62,7 @@ void add_resolvent (struct simplifier *simplifier) {
     assert (size > 2);
     if (ruler->eliminating)
       ruler->statistics.ticks.elimination += size;
-    struct clause *clause = new_large_clause (size, literals, false, 0);
+    struct clause *clause = new_large_clause (size, literals, false);
     connect_large_clause (ruler, clause);
     mark_subsume_clause (simplifier, clause);
     PUSH (ruler->clauses, clause);

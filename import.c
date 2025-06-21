@@ -284,7 +284,7 @@ static void really_import_large_clause (struct ring *ring,
       watch_literals_in_large_clause (ring, clause, first, second);
   assert (clause->redundant);
   get_watcher (ring, imported)->used = MAX_USED;
-  INC_LARGE_CLAUSE_STATISTICS (imported, clause->glue, clause->size);
+  INC_LARGE_CLAUSE_STATISTICS (imported, clause->size);
 }
 
 static unsigned find_literal_to_watch (struct ring *ring,
