@@ -143,6 +143,8 @@ static void gather_reduce_candidates (struct ring *ring,
 #if 0
   unsigned tier1 = ring->tier1_glue_limit[ring->stable];
   unsigned tier2 = ring->tier2_glue_limit[ring->stable];
+#else
+  unsigned tier1 = 6;
 #endif
   for (struct watcher *watcher = redundant; watcher != end; watcher++) {
     if (!watcher->redundant)
@@ -161,7 +163,10 @@ static void gather_reduce_candidates (struct ring *ring,
     if (glue <= tier2 && used >= MAX_USED - 1)
       continue;
 #else
-    if (watcher->size <= 6)
+    unsigned size = watcher->size ? watcher->size : watcher->clause->size;
+    if (size <= tier1 && used)
+      continue;
+    if (size > tier1 && used >= MAX_USED - 1)
       continue;
 #endif
     unsigned idx = watcher_to_index (ring, watcher);
