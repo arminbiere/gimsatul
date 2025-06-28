@@ -16,7 +16,6 @@ struct clause {
   uint64_t id;
 #endif
   atomic_uint shared;
-  unsigned short origin;
   bool cleaned : 1;
   bool dirty : 1;
   bool garbage : 1;
@@ -25,6 +24,7 @@ struct clause {
   bool redundant : 1;
   bool subsume : 1;
   bool vivified : 1;
+  unsigned int origin: 24;
   unsigned size;
   unsigned literals[];
 };
