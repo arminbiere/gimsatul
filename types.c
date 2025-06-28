@@ -29,6 +29,7 @@ void check_types (void) {
   CHECK_TYPE (unsigned, 4);
   CHECK_TYPE (int, 4);
   CHECK_TYPE (atomic_int, 4);
+  CHECK_TYPE (atomic_uint, 4);
 
   CHECK_TYPE (size_t, 8);
   CHECK_TYPE (void *, 8);
@@ -42,20 +43,6 @@ void check_types (void) {
       fatal_error ("shared field of clauses with %zu bytes "
                    "does not fit 'MAX_THREADS = %u'",
                    bytes_of_shared_field, MAX_THREADS);
-  }
-
-  {
-    size_t glue_in_clause_bytes = sizeof ((struct clause *) 0)->glue;
-    if (1 << (glue_in_clause_bytes * 8) <= MAX_GLUE)
-      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (clause.glue) = %zu'",
-                   MAX_GLUE, glue_in_clause_bytes);
-  }
-
-  {
-    size_t glue_in_watcher_bytes = sizeof ((struct watcher *) 0)->glue;
-    if (1 << (glue_in_watcher_bytes * 8) <= MAX_GLUE)
-      fatal_error ("'MAX_GLUE = %u' exceeds 'sizeof (watcher.glue) = %zu'",
-                   MAX_GLUE, glue_in_watcher_bytes);
   }
 
   if (verbosity > 0) {

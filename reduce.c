@@ -4,7 +4,6 @@
 #include "message.h"
 #include "report.h"
 #include "ring.h"
-#include "tiers.h"
 #include "trace.h"
 #include "utilities.h"
 
@@ -185,18 +184,16 @@ mark_reduce_candidates_as_garbage (struct ring *ring,
       ring->stable ? REDUCE_FRACTION_STABLE : REDUCE_FRACTION_FOCUSED;
   size_t target = fraction * size;
   size_t reduced = 0;
-  unsigned tier1 = ring->tier1_glue_limit[ring->stable];
-  unsigned tier2 = ring->tier2_glue_limit[ring->stable];
+  unsigned tier1 = ring->options.critical_size;
   for (all_elements_on_stack (unsigned, idx, *candidates)) {
     struct watcher *watcher = index_to_watcher (ring, idx);
     mark_garbage_watcher (ring, watcher);
     ring->statistics.reduced.clauses++;
-    if (watcher->glue <= tier1)
+    unsigned size = watcher->size ? watcher->size : watcher->clause->size;
+    if (size <= tier1)
       ring->statistics.reduced.tier1++;
-    else if (watcher->glue <= tier2)
-      ring->statistics.reduced.tier2++;
     else
-      ring->statistics.reduced.tier3++;
+      ring->statistics.reduced.tier2++;
     if (++reduced == target)
       break;
   }
@@ -273,7 +270,6 @@ void reduce (struct ring *ring) {
   START (ring, reduce);
   check_clause_statistics (ring);
   check_redundant_offset (ring);
-  recalculate_tier_limits (ring);
   struct ring_statistics *statistics = &ring->statistics;
   struct ring_limits *limits = &ring->limits;
   statistics->reductions++;

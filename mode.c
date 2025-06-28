@@ -89,6 +89,4 @@ void switch_mode (struct ring *ring) {
                 " ticks",
                 l->mode, interval);
   ring->last.decisions = SEARCH_DECISIONS;
-
-  start_random_decision_sequence (ring);
 }

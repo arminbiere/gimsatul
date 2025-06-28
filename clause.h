@@ -11,15 +11,11 @@
 
 struct ring;
 
-#define MAX_GLUE 255
-
 struct clause {
 #ifdef LOGGING
   uint64_t id;
 #endif
   atomic_uint shared;
-  unsigned short origin;
-  atomic_uchar glue;
   bool cleaned : 1;
   bool dirty : 1;
   bool garbage : 1;
@@ -28,6 +24,7 @@ struct clause {
   bool redundant : 1;
   bool subsume : 1;
   bool vivified : 1;
+  unsigned int origin: 24;
   unsigned size;
   unsigned literals[];
 };
@@ -49,8 +46,7 @@ struct clauses {
 
 /*------------------------------------------------------------------------*/
 
-struct clause *new_large_clause (size_t, unsigned *, bool redundant,
-                                 unsigned glue);
+struct clause *new_large_clause (size_t, unsigned *, bool redundant);
 
 void mark_clause (signed char *marks, struct clause *, unsigned except);
 void unmark_clause (signed char *marks, struct clause *, unsigned except);

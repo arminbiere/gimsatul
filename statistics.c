@@ -3,7 +3,6 @@
 #include "statistics.h"
 #include "message.h"
 #include "ruler.h"
-#include "tiers.h"
 #include "utilities.h"
 
 #include <inttypes.h>
@@ -44,12 +43,6 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
            "  queue-decisions:", s->decisions.queue,
            percent (s->decisions.queue, decisions));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% decisions",
-           "  random-decisions:", s->decisions.random,
-           percent (s->decisions.random, decisions));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f decisions",
-           "  random-sequences:", s->random_sequences,
-           average (s->decisions.random, s->random_sequences));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
            "eagerly-subsumed:", s->eagerly_subsumed,
            percent (s->eagerly_subsumed, s->learned.clauses));
@@ -76,15 +69,18 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f thousands per second",
            "flips:", s->flips, average (s->flips, 1e3 * walk));
 
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per tried clause",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% tried",
            "vivified-clauses:", s->vivify.succeeded,
            percent (s->vivify.succeeded, s->vivify.tried));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per learned clause",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned",
            "  vivify-tried:", s->vivify.tried,
            percent (s->vivify.tried, s->learned.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% per vivify-tried",
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f per tried",
+           "  vivify-probes:", s->vivify.probes,
+           average (s->vivify.probes, s->vivify.tried));
+  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% probes",
            "  vivify-reused:", s->vivify.reused,
-           percent (s->vivify.reused, s->vivify.tried));
+           percent (s->vivify.reused, s->vivify.probes));
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% vivified",
            "  vivify-strengthened:", s->vivify.strengthened,
            percent (s->vivify.strengthened, s->vivify.succeeded));
@@ -130,9 +126,6 @@ void print_ring_statistics (struct ring *ring) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
              "  " #NAME "-tier2:", s->NAME.tier2, \
              percent (s->NAME.tier2, s->NAME.clauses)); \
-    PRINTLN ("%-22s %17" PRIu64 " %13.2f %% " #NAME " clauses", \
-             "  " #NAME "-tier3:", s->NAME.tier3, \
-             percent (s->NAME.tier3, s->NAME.clauses)); \
     PRINT_CLAUSE_METRICS (NAME); \
   } while (0)
 #define MACRO(SIZE, NAME) \
@@ -158,26 +151,6 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f per learned",
            "bumped-clauses:", s->bumped,
            average (s->bumped, s->learned.clauses));
-  print_tiers_bumped_statistics (ring);
-
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% bumped",
-           "promoted-clauses:", s->promoted.clauses,
-           percent (s->promoted.clauses, s->bumped));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
-           "  promoted-kept1:", s->promoted.kept1,
-           percent (s->promoted.kept1, s->promoted.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
-           "  promoted-kept2:", s->promoted.kept2,
-           percent (s->promoted.kept2, s->promoted.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
-           "  promoted-kept3:", s->promoted.kept3,
-           percent (s->promoted.kept3, s->promoted.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
-           "  promoted-tier1:", s->promoted.tier1,
-           percent (s->promoted.tier1, s->promoted.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% promoted",
-           "  promoted-tier2:", s->promoted.tier2,
-           percent (s->promoted.tier2, s->promoted.clauses));
 
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% propagations", "jumped:", jumped,
            percent (jumped, propagations));
@@ -212,9 +185,6 @@ void print_ring_statistics (struct ring *ring) {
   PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
            "  reduced-tier2:", s->reduced.tier2,
            percent (s->reduced.tier2, s->reduced.clauses));
-  PRINTLN ("%-22s %17" PRIu64 " %13.2f %% reduced",
-           "  reduced-tier3:", s->reduced.tier3,
-           percent (s->reduced.tier3, s->reduced.clauses));
 
   if (ring->import) {
     PRINTLN ("%-22s %17" PRIu64 " %13.2f %% learned clauses",

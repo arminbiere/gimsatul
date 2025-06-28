@@ -8,7 +8,6 @@
 #include "export.h"
 #include "macros.h"
 #include "minimize.h"
-#include "promote.h"
 #include "reduce.h"
 #include "ring.h"
 #include "sort.h"
@@ -18,16 +17,6 @@
 static void bump_reason (struct ring *ring, struct watcher *watcher) {
   assert (watcher->redundant);
   watcher->used = MAX_USED;
-  unsigned new_glue = recompute_glue (ring, watcher);
-  if (new_glue < watcher->glue)
-    promote_watcher (ring, watcher, new_glue);
-  else
-    new_glue = watcher->glue;
-  assert (watcher->glue);
-  assert (watcher->glue <= MAX_GLUE);
-  unsigned stable = ring->stable;
-  ring->statistics.usage[stable].glue[new_glue]++;
-  ring->statistics.usage[stable].bumped++;
   ring->statistics.bumped++;
 }
 
@@ -138,15 +127,6 @@ static void update_decision_rate (struct ring *ring) {
   struct averages *a = ring->averages + ring->stable;
   update_average (ring, &a->decisions, "decision rate", SLOW_ALPHA, delta);
   ring->last.decisions = current;
-}
-
-static void update_tier_limits (struct ring *ring) {
-  if (!ring->intervals.tiers)
-    ring->intervals.tiers = 4;
-  else if (ring->intervals.tiers < (1u << 16))
-    ring->intervals.tiers *= 2;
-  recalculate_tier_limits (ring);
-  ring->limits.tiers = SEARCH_CONFLICTS + ring->intervals.tiers;
 }
 
 static void flush_last_learned (struct ring *ring) {
@@ -409,7 +389,7 @@ bool analyze (struct ring *ring, struct watch *reason) {
         *p = other;
       }
       struct clause *learned_clause =
-          new_large_clause (size, literals, true, glue);
+          new_large_clause (size, literals, true);
       learned_clause->origin = ring->id;
       LOGCLAUSE (learned_clause, "new");
       learned =
@@ -427,7 +407,5 @@ bool analyze (struct ring *ring, struct watch *reason) {
   }
   CLEAR (*ring_clause);
   clear_analyzed (ring);
-  if (SEARCH_CONFLICTS > ring->limits.tiers)
-    update_tier_limits (ring);
   return true;
 }

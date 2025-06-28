@@ -27,9 +27,6 @@
 #define FAST_ALPHA 3e-2
 #define SLOW_ALPHA 1e-5
 
-#define TIER1_GLUE_LIMIT 2
-#define TIER2_GLUE_LIMIT 6
-
 #define REDUCE_FRACTION_FOCUSED 0.75
 #define REDUCE_FRACTION_STABLE 0.65
 
@@ -45,7 +42,7 @@
 #define SUBSUME_EFFORT 0.50
 #define VIVIFY_EFFORT 0.10
 
-#define RELATIVE_VIVIFY_TIER1_EFFORT 1
+#define RELATIVE_VIVIFY_TIER1_EFFORT 2
 #define RELATIVE_VIVIFY_TIER2_EFFORT 1
 
 #define WALK_EFFORT 0.02
@@ -60,9 +57,9 @@
   OPTION (unsigned, backjump_limit, 100, 0, INF, "number of levels jumped over") \
   OPTION (bool, binary, 1, 0, 1, "use binary DRAT proof format") \
   OPTION (bool, bump_reasons, 1, 0, 1, "bump reason side literals") \
-  OPTION (bool, calculate_tiers, 1, 0, 1, "use calculated tier limits") \
   OPTION (unsigned, clause_size_limit, 100, 3, 10000, "during simplification") \
   OPTION (bool, chronological, 1, 0, 1, "enable chronological backtracking") \
+  OPTION (unsigned, critical_size, 6, 2, INF, "critical clause in tier-1 size limit") \
   OPTION (bool, deduplicate, 1, 0, 1, "remove duplicated binary clauses") \
   OPTION (unsigned, eagerly_subsume, 4, 0, 4, "eagerly subsumed last learned clauses") \
   OPTION (bool, eliminate, 1, 0, 1, "bounded variable elimination") \
@@ -72,7 +69,6 @@
   OPTION (bool, focus_initially, 1, 0, 1, "start with focus mode initially") \
   OPTION (bool, force_phase, 0, 0, 1, "force phase (same phase for all solvers") \
   OPTION (bool, force, 0, 0, 1, "force relaxed parsing and proof writing") \
-  OPTION (unsigned, increase_imported_glue, 0, 0, 2, "increase glue imported glue (2=max)") \
   OPTION (unsigned, limit_import_rate, 10, 0, INF, "adapt import to learned clause rate") \
   OPTION (bool, minimize, 1, 0, 1, "minimize learned clauses") \
   OPTION (unsigned, minimize_depth, 1000, 1, INF, "recursive clause minimization depth") \
@@ -81,19 +77,12 @@
   OPTION (bool, portfolio, 1, 0, 1, "threads use different strategies") \
   OPTION (bool, probe, 1, 0, 1, "enable probing based inprocessing") \
   OPTION (unsigned, probe_interval, 100, 1, INF, "probing base conflict interval") \
-  OPTION (bool, random_decisions, 0, 0, 1, "random decisions") \
-  OPTION (bool, random_focused_decisions, 1, 0, 1, "random focused decisions") \
-  OPTION (unsigned, random_decision_interval, 500, 0, INF, "random focused decisions") \
-  OPTION (unsigned, random_decision_length, 1, 1, INF, "random conflicts length") \
-  OPTION (bool, random_stable_decisions, 0, 0, 1, "random focused decisions") \
-  OPTION (bool, random_order, 0, 0, 1, "initial random decision order") \
   OPTION (unsigned, reduce_interval, 1e3, 1, 1e5, "reduce base conflict interval") \
   OPTION (bool, rephase, 1, 0, 1, "reset saved phases regularly") \
   OPTION (unsigned, rephase_interval, 1e3, 1, INF, "base rephase conflict interval") \
   OPTION (unsigned, report, 1, 0, INF, "report details for many threads") \
   OPTION (bool, share_learned, 1, 0, 1, "export and import learned clauses") \
-  OPTION (bool, share_by_size, 1, 0, 1, "prioritize shared clauses by size and not glue") \
-  OPTION (bool, shrink, 1, 0, 1, "shrink (glue 1) learned clauses") \
+  OPTION (bool, shrink, 1, 0, 1, "shrink learned clauses") \
   OPTION (bool, simplify, 1, 0, 1, "elimination, subsumption and substitution") \
   OPTION (unsigned, simplify_boost, 1, 0, 1, "additional initial boost to simplification") \
   OPTION (unsigned, simplify_boost_rounds, 4, 2, INF, "initial increase rounds limit") \

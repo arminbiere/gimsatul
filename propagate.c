@@ -139,14 +139,6 @@ struct watch *ring_propagate (struct ring *ring, bool stop_at_conflict,
         if (ignore && clause == ignore)
           continue;
 
-        unsigned watcher_glue = watcher->glue;
-        unsigned clause_glue = clause->glue;
-        assert (clause_glue <= watcher_glue);
-        if (clause_glue < watcher_glue) {
-          watcher->glue = clause_glue;
-          LOGWATCH (watch, "updated from glue %u to", watcher_glue);
-        }
-
         // The watchers need to precisely know the two watched
         // literals, which might be different from the blocking
         // literal.  Otherwise unit propagation is not efficient
@@ -294,16 +286,6 @@ struct watch *ring_propagate (struct ring *ring, bool stop_at_conflict,
         ring->import_waiting_on_conflicts;
     if (import_waiting_on_conflicts--)
       ring->import_waiting_on_conflicts = import_waiting_on_conflicts;
-
-    if (ring->context == SEARCH_CONTEXT && ring->randec) {
-      if (!--ring->randec)
-        very_verbose (ring, "last random decision conflict");
-      else if (ring->randec == 1)
-        very_verbose (ring, "one more random decision conflict to go");
-      else
-        very_verbose (ring, "%u more random decision conflicts to go",
-                      ring->randec);
-    }
   }
 
   context->propagations += propagations;

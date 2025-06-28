@@ -28,12 +28,10 @@ struct reluctant {
 
 struct ring_limits {
   uint64_t mode;
-  uint64_t randec;
   uint64_t reduce;
   uint64_t rephase;
   uint64_t restart;
   uint64_t simplify;
-  uint64_t tiers;
   long long conflicts;
   struct {
     uint64_t conflicts;
@@ -43,7 +41,6 @@ struct ring_limits {
 
 struct intervals {
   uint64_t mode;
-  uint64_t tiers;
 };
 
 struct averages {
@@ -133,9 +130,6 @@ struct ring {
   unsigned target;
   unsigned unassigned;
 
-  unsigned tier1_glue_limit[2];
-  unsigned tier2_glue_limit[2];
-
   signed char *marks;
   signed char *values;
 
@@ -148,8 +142,6 @@ struct ring {
   struct unsigneds minimize;
   struct unsigneds sorter;
   struct unsigneds outoforder;
-  struct unsigneds promote;
-  struct rings exports;
 
   struct references *references;
   struct ring_trail trail;
@@ -177,7 +169,6 @@ struct ring {
   struct ring_profiles profiles;
   struct ring_statistics statistics;
 
-  unsigned randec;
   uint64_t random;
 };
 
@@ -256,8 +247,6 @@ void set_satisfied (struct ring *);
 void print_ring_profiles (struct ring *);
 
 unsigned *sorter_block (struct ring *, size_t size);
-
-struct ring *random_other_ring (struct ring *);
 
 /*------------------------------------------------------------------------*/
 
